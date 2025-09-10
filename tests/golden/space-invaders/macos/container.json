@@ -1,0 +1,29 @@
+{
+  "tools": {
+    "ffmpeg": {
+      "version": "8.0-full_build-www.gyan.dev"
+    },
+    "ffprobe": {
+      "version": "8.0-full_build-www.gyan.dev"
+    }
+  },
+  "env": {
+    "node": {
+      "version": "22.14.0"
+    },
+    "npm": {
+      "version": "unknown"
+    },
+    "git": {
+      "version": "2.51.0.windows.1",
+      "branch": "feat/space-invaders-golden-pass",
+      "commit": "90cef29f24bd6574ff821e7b088ad59b81694f78"
+    },
+    "os": {
+      "name": "macOS",
+      "platform": "win32",
+      "release": "10.0.26100",
+      "arch": "x64"
+    }
+  }
+}

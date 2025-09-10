@@ -17,31 +17,51 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
-        game: [hanamikoji]   # add more games
+        game: [space-invaders]   # add more games
+
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
       - name: Install ffmpeg
         shell: bash
         run: |
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
             choco install ffmpeg -y
-          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
             brew install ffmpeg
           else
             sudo apt-get update
             sudo apt-get install -y ffmpeg
           fi
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
+
       - run: npm ci
-      - name: Run golden checks
-        run: npm run golden:check:junit -- --game ${{ matrix.game }}
-      - name: Validate Mobius checklist
+
+      - name: Set OS_SLUG
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            Windows) echo "OS_SLUG=windows" >> $GITHUB_ENV ;;
+            macOS)   echo "OS_SLUG=macos"   >> $GITHUB_ENV ;;
+            Linux)   echo "OS_SLUG=linux"   >> $GITHUB_ENV ;;
+          esac
+
+      - name: Generate container.json for this OS
+        run: node scripts/generate_container_json.cjs --game ${{ matrix.game }}
         env:
           RUNNER_OS: ${{ runner.os }}
+
+      - name: Golden check -> JUnit
+        run: node scripts/check_golden.cjs --game ${{ matrix.game }} --junit tests/golden/reports/${{ matrix.game }}_${{ env.OS_SLUG }}.xml
+
+      - name: Validate checklist
         run: node scripts/ci/validate_mobius_checklist.cjs --game ${{ matrix.game }}
+
+      # (You already added these, keep them)
       - name: Summarize Golden JUnit
         if: always()
         shell: bash
@@ -61,6 +81,7 @@ jobs:
           print("### Golden JUnit Summary")
           for k,v in totals.items(): print(f"- {k.capitalize()}: {v}")
           PY
+
       - name: Upload Golden Reports
         if: always()
         uses: actions/upload-artifact@v4
