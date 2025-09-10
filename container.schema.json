@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["media"],
+  "properties": {
+    "media": {
+      "type": "object",
+      "required": ["video"],
+      "properties": {
+        "video": {
+          "type": "object",
+          "required": ["path", "width", "height", "fps", "pix_fmt", "sar"],
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 },
+            "fps": {
+              "oneOf": [
+                { "type": "number", "exclusiveMinimum": 0 },
+                { "type": "string", "pattern": "^[0-9]+/[0-9]+$" }
+              ]
+            },
+            "pix_fmt": { "type": "string", "enum": ["yuv420p"] },
+            "sar": { "type": "string", "pattern": "^[0-9]+:[0-9]+$" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
