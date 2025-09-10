@@ -1,0 +1,68 @@
+name: golden-and-checklist
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        game: [sushi-go]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install ffmpeg
+        if: runner.os == 'Windows'
+        run: choco install -y ffmpeg
+      - name: Install ffmpeg
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+      - name: Install ffmpeg
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Prepare assets
+        run: |
+          mkdir -p dist/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}
+          cp tests/assets/${{ matrix.game }}/tutorial.mp4 dist/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/tutorial.mp4
+
+      - run: npm ci
+
+      - name: Generate container.json
+        run: node scripts/generate_container_json.cjs
+        env:
+          GAME: ${{ matrix.game }}
+          RUNNER_OS: ${{ runner.os }}
+
+      - name: Extract frames
+        run: >
+          ffmpeg -y -i dist/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/tutorial.mp4
+          -vf fps=1,format=rgba -vsync 0
+          tests/golden/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/frames/%06d.png
+
+      - name: Golden check
+        run: node scripts/check_golden.cjs --perOs
+        env:
+          GAME: ${{ matrix.game }}
+          SSIM_MIN: '0.95'
+
+      - name: Checklist
+        run: node scripts/ci/validate_mobius_checklist.cjs --game ${{ matrix.game }}
+        env:
+          PLATFORM: ${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}
+
+      - name: Upload JUnit and artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-and-diffs-${{ matrix.os }}-${{ matrix.game }}
+          path: |
+            tests/golden/reports/**/*.xml
+            tests/golden/${{ matrix.game }}/**/debug/**
+            tests/golden/${{ matrix.game }}/**/frames/**
