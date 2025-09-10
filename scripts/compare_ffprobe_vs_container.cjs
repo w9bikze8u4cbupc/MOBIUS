@@ -14,6 +14,9 @@ const toDec = (v) => {
   return Number(v);
 };
 
+// Handle "N/A" SAR values
+const normalizeSar = (v) => (!v || v === 'N/A' ? '1:1' : v);
+
 const read = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 
 const ff = read(ffprobePath);
@@ -37,8 +40,8 @@ if (!sameFps(s.avg_frame_rate, v?.fps)) {
 if ((s.pix_fmt || '').toLowerCase() !== (v?.pix_fmt || '').toLowerCase()) {
   issues.push(`pix_fmt mismatch: ffprobe=${s.pix_fmt} vs container=${v?.pix_fmt}`);
 }
-const sarFF = s.sample_aspect_ratio || '1:1';
-const sarCJ = v?.sar || '1:1';
+const sarFF = normalizeSar(s.sample_aspect_ratio);
+const sarCJ = normalizeSar(v?.sar);
 if (sarFF !== sarCJ) {
   issues.push(`SAR mismatch: ffprobe=${sarFF} vs container=${sarCJ}`);
 }
