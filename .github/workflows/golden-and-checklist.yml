@@ -1,7 +1,9 @@
 name: golden-and-checklist
 on:
   push:
+    branches: [ main, master ]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   validate:
@@ -31,6 +33,12 @@ jobs:
         run: |
           mkdir -p dist/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}
           cp tests/assets/${{ matrix.game }}/tutorial.mp4 dist/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/tutorial.mp4
+
+      - name: ffprobe source video
+        run: |
+          ffprobe -v error -select_streams v:0 \
+            -show_entries stream=width,height,avg_frame_rate,r_frame_rate,pix_fmt,sample_aspect_ratio \
+            -of json dist/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/tutorial.mp4
 
       - run: npm ci
 
