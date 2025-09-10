@@ -149,7 +149,8 @@ function verifyDebugEmptyOnPass(debugDir, reportsDir) {
 
 function main() {
   const args = parseArgs(process.argv);
-  const GAME = args.game || args.GAME;
+  // Use environment variable as fallback
+  const GAME = args.game || args.GAME || process.env.GAME;
   if (!GAME) {
     console.error('ERROR: --game <name> is required');
     process.exit(2);

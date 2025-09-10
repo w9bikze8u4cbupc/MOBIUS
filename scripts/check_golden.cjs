@@ -228,19 +228,23 @@ function normalizeFrameRate(rate) {
   if (!rate) return rate;
   
   // Handle "30/1" format
-  if (rate.includes('/')) {
-    const [num, den] = rate.split('/').map(Number);
+  if (String(rate).includes('/')) {
+    const [num, den] = String(rate).split('/').map(Number);
     if (!isNaN(num) && !isNaN(den) && den !== 0) {
       // Check if this is approximately 30 (like 30000/1001)
       const value = num / den;
       if (Math.abs(value - 30) < 0.01) {
         return "30";
       }
-      return rate; // Keep as is if not close to 30
+      // For 1/1, return "1"
+      if (Math.abs(value - 1) < 0.01) {
+        return "1";
+      }
+      return String(value); // Return as decimal
     }
   }
   
-  return rate;
+  return String(rate);
 }
 
 // FPS equality helper with epsilon
@@ -248,24 +252,42 @@ function fpsEq(a, b, eps = 1e-3) {
   return Math.abs(a - b) < eps; 
 }
 
-(async function main() {
+async function main() {
+  console.log('Starting golden check...');
   const opts = parseArgs();
-  const input = opts.in || opts.input;
-  const game = opts.game || 'game';
+  // Use environment variables or command line arguments
+  const input = opts.in || opts.input || process.env.INPUT_FILE || `dist/${process.env.GAME || 'game'}/${getPlatformSlug()}/tutorial.mp4`;
+  const game = opts.game || process.env.GAME || 'game';
   const frames = (opts.frames || '5,10,20').split(',').map(s => parseFloat(s.trim()));
-  const ssimThresh = parseFloat(opts.ssim || '0.995');
+  // Use SSIM_MIN environment variable or default to 0.95 (from unified spec)
+  const ssimThresh = parseFloat(process.env.SSIM_MIN || opts.ssim || '0.95');
   const lufsTol = parseFloat(opts.lufs_tol || '1.0');
   const tpTol = parseFloat(opts.tp_tol || '1.0');
   const junitOut = opts.junit; // Optional JUnit output path
+
+  console.log('Input:', input);
+  console.log('Game:', game);
+  console.log('SSIM Threshold:', ssimThresh);
 
   if (!input || !fs.existsSync(input)) {
     console.error(`Input not found: ${input}`);
     process.exit(1);
   }
 
+  // Auto-detect --perOs if OS subdir exists
+  const baseGoldenDir = path.join('tests', 'golden', game);
+  const platformSlug = getPlatformSlug();
+  const platformGoldenDir = path.join(baseGoldenDir, platformSlug);
+  const autoPerOs = fs.existsSync(platformGoldenDir);
+  
+  // Use auto-detected perOs setting unless explicitly overridden
+  const usePerOs = opts.perOs !== undefined ? opts.perOs : autoPerOs;
+  
   // Resolve platform-specific golden directory
-  const resolvedGoldenDir = resolveGoldenDir(game, opts);
-  console.log(`Using golden directory: ${resolvedGoldenDir}`);
+  const resolvedGoldenDir = resolveGoldenDir(game, { perOs: usePerOs });
+
+  // Log resolved paths
+  console.log(`[golden-check] GAME=${game} PLATFORM=${platformSlug} perOs=${usePerOs} goldenDir=${resolvedGoldenDir} framesDir=${path.join(resolvedGoldenDir, 'frames')}`);
 
   // Baseline presence guard - fail with clear message if baseline directory is missing
   if (!fs.existsSync(resolvedGoldenDir)) {
@@ -276,25 +298,40 @@ function fpsEq(a, b, eps = 1e-3) {
 
   // Clean up old debug images
   const debugDir = await cleanDebugDir(resolvedGoldenDir);
-
-  const goldenContainer = loadJson(path.join(resolvedGoldenDir, 'container.json'));
-  const goldenAudio = loadJson(path.join(resolvedGoldenDir, 'audio_stats.json'));
+  
+  // Define the golden frames directory
   const goldenFramesDir = path.join(resolvedGoldenDir, 'frames');
 
+  const goldenContainer = loadJson(path.join(resolvedGoldenDir, 'container.json'));
+  
+  // Validate container.json structure
+  if (!goldenContainer.media) {
+    throw new Error(`Missing 'media' section in container.json. Please ensure container.json includes media metadata.`);
+  }
+  
+  if (!goldenContainer.media.video || !Array.isArray(goldenContainer.media.video) || goldenContainer.media.video.length === 0) {
+    throw new Error(`Missing or empty 'media.video' array in container.json. Please ensure container.json includes video metadata.`);
+  }
+  
+  const goldenAudio = loadJson(path.join(resolvedGoldenDir, 'audio_stats.json'));
   const ffp = ffprobeJson(input);
   const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'golden-check-'));
   const failures = [];
   const frameCases = []; // For JUnit reporting
 
-  // Container checks
-  const gv = (goldenContainer.video || {});
+  // Check if frames directory exists
+  if (!fs.existsSync(goldenFramesDir)) {
+    throw new Error(`Missing frames directory: ${goldenFramesDir}. Please ensure frames are extracted before running golden check.`);
+  }
+
+  const gv = (goldenContainer.media && goldenContainer.media.video && goldenContainer.media.video[0]) || {};
   const vv = (ffp.streams || []).find(s => s.codec_type === 'video');
   if (!vv) {
     failures.push({ name: 'container', message: 'No video stream found in input.' });
     frameCases.push({ name: 'container', status: 'failed', message: 'No video stream found in input.' });
   } else {
     // Normalize frame rates before comparison
-    const expectedFps = normalizeFrameRate(gv.avg_frame_rate);
+    const expectedFps = normalizeFrameRate(gv.fps !== undefined ? gv.fps.toString() : undefined);
     const actualFps = normalizeFrameRate(vv.avg_frame_rate);
     
     const checks = [
@@ -390,4 +427,9 @@ function fpsEq(a, b, eps = 1e-3) {
   } else {
     console.log('Golden check PASSED.');
   }
-})();
+}
+
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

@@ -54,7 +54,7 @@ jobs:
         run: |
           ffprobe -v error -select_streams v:0 \
             -show_entries stream=width,height,avg_frame_rate,r_frame_rate,pix_fmt,sample_aspect_ratio \
-            -of json dist/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/tutorial.mp4
+            -of json dist/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/tutorial.mp4 > artifacts/${{ matrix.game }}-${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}-ffprobe.json
 
       - run: npm ci
 
@@ -79,11 +79,20 @@ jobs:
         run: |
           node -e "const fs=require('fs');const p=`tests/golden/sushi-go/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/frames`;console.log(fs.existsSync(p)?fs.readdirSync(p).filter(f=>!f.startsWith('.')).length:0)"
 
+      - name: Validate container.json
+        run: node scripts/validate_container_json.cjs "tests/golden/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/container.json"
+
+      - name: Compare ffprobe vs container.json
+        run: node scripts/compare_ffprobe_vs_container.cjs "artifacts/${{ matrix.game }}-${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}-ffprobe.json" "tests/golden/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/container.json"
+
       - name: Golden check
-        run: node scripts/check_golden.cjs --perOs
+        run: node scripts/check_golden.cjs --perOs | tee "${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}_golden.log"
         env:
           GAME: ${{ matrix.game }}
           SSIM_MIN: '0.95'
+
+      - name: Show golden check summary
+        run: grep -E "Resolved|golden dir|frames dir|SSIM" "${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}_golden.log" || true
 
       - name: Checklist
         run: node scripts/ci/validate_mobius_checklist.cjs --game ${{ matrix.game }}
@@ -100,6 +109,8 @@ jobs:
         with:
           name: junit-and-diffs-${{ matrix.os }}-${{ matrix.game }}
           path: |
+            artifacts/${{ matrix.game }}-${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}-ffprobe.json
             tests/golden/reports/**/*.xml
             tests/golden/${{ matrix.game }}/**/debug/**
             tests/golden/${{ matrix.game }}/**/frames/**
+            ${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}_golden.log
