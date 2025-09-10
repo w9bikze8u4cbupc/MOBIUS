@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="golden:Hanamikoji" tests="6" failures="0">
+    <testcase name="container_pix_fmt"/><testcase name="container_avg_frame_rate"/><testcase name="container_sample_aspect_ratio"/><testcase name="frame_5s"/><testcase name="frame_10s"/><testcase name="frame_20s"/>
+  </testsuite>
+</testsuites>

@@ -1,0 +1,117 @@
+{
+  "version": "1.0",
+  "name": "Mobius Tutorial Generator - Production Readiness Checklist",
+  "variables": ["GAME", "OS"],
+  "defaults": {
+    "golden_dir": "tests/golden/${GAME}/${OS}",
+    "reports_glob_dir": "tests/golden/reports"
+  },
+  "items": [
+    { "id": "CFG-01", "category": "Inputs & Config", "title": "Supported inputs enumerated (rulebooks, configs, assets, fonts, VO, BGM/SFX, localization, templates, masks, style guides)", "required": true, "type": "manual" },
+    { "id": "CFG-02", "category": "Inputs & Config", "title": "Game config validates against schema; required fields present; defaults applied/logged", "required": true, "type": "manual" },
+    { "id": "CFG-03", "category": "Inputs & Config", "title": "Asset integrity: all referenced assets exist; dimensions/colorspace recorded; filenames cross-OS safe", "required": true, "type": "manual" },
+    { "id": "CFG-04", "category": "Inputs & Config", "title": "Rights/attribution: licenses documented; attribution strings exportable", "required": true, "type": "manual" },
+    { "id": "CFG-05", "category": "Inputs & Config", "title": "Environment config pinned (Node/npm/ffmpeg/ffprobe); reproducible lockfile; OS overrides documented", "required": true, "type": "auto", "verifier": "container_json_fields", "params": { "base": "${golden_dir}/container.json", "fields": ["tools.ffmpeg.version", "tools.ffprobe.version", "env.node.version", "env.npm.version", "env.git.version", "env.os"] } },
+
+    { "id": "GEN-01", "category": "Rulebook Ingestion & Script", "title": "Parsing produces structured tutorial steps (titles, text, refs, prereqs, durations)", "required": true, "type": "manual" },
+    { "id": "GEN-02", "category": "Rulebook Ingestion & Script", "title": "Conflicting rules flagged; human overrides accepted; provenance tracked", "required": true, "type": "manual" },
+    { "id": "GEN-03", "category": "Rulebook Ingestion & Script", "title": "Deterministic templating/layout selection; transitions; callouts mapped", "required": true, "type": "manual" },
+    { "id": "GEN-04", "category": "Rulebook Ingestion & Script", "title": "Determinism/idempotence: identical inputs+seed → identical plan", "required": true, "type": "manual" },
+    { "id": "GEN-05", "category": "Rulebook Ingestion & Script", "title": "Variants/expansions toggled via flags; exclusions respected", "required": false, "type": "manual" },
+
+    { "id": "AST-01", "category": "Assets", "title": "Visual assets meet resolution targets; color profile conversions consistent", "required": true, "type": "manual" },
+    { "id": "AST-02", "category": "Assets", "title": "Fonts fallback chain covers glyphs; RTL/diacritics tested; licenses cleared", "required": true, "type": "manual" },
+    { "id": "AST-03", "category": "Assets", "title": "Audio assets standardized (channels, sample rate); silence trimmed", "required": true, "type": "manual" },
+    { "id": "AST-04", "category": "Assets", "title": "Naming/versioning: content-addressable or semver; no unsafe chars", "required": true, "type": "manual" },
+
+    { "id": "REN-01", "category": "Rendering", "title": "Output variants (e.g., 1920x1080, 1080x1920) as required", "required": true, "type": "manual" },
+    { "id": "REN-02", "category": "Rendering", "title": "Pixel format/color (yuv420p, BT.709, tv range) and metadata correct", "required": true, "type": "auto", "verifier": "junit_all_pass" },
+    { "id": "REN-03", "category": "Rendering", "title": "FPS/timebase normalized; 30 vs 30000/1001 handled with epsilon; PTS monotonic", "required": true, "type": "auto", "verifier": "junit_all_pass" },
+    { "id": "REN-04", "category": "Rendering", "title": "Keyframes/GOP sensible; moov faststart", "required": false, "type": "manual" },
+    { "id": "REN-05", "category": "Rendering", "title": "Overlays/callouts within safe areas; easing and z-order correct", "required": true, "type": "manual" },
+    { "id": "REN-06", "category": "Rendering", "title": "Transitions timing; no black/silence pops", "required": true, "type": "manual" },
+    { "id": "REN-07", "category": "Rendering", "title": "Deterministic frame extraction", "required": true, "type": "auto", "verifier": "junit_all_pass" },
+    { "id": "REN-08", "category": "Rendering", "title": "A/V sync within <10ms (if sync marker used)", "required": true, "type": "manual" },
+
+    { "id": "AUD-01", "category": "Audio", "title": "Mixing: VO priority; BGM ducking; SFX gain structure", "required": true, "type": "manual" },
+    { "id": "AUD-02", "category": "Audio", "title": "Loudness (EBU R128) within ±1.0 LUFS/±1.0 dBTP or skipped if no audio", "required": true, "type": "auto", "verifier": "junit_all_pass" },
+    { "id": "AUD-03", "category": "Audio", "title": "Sample rate/bit depth unified; codec profile tags correct", "required": true, "type": "manual" },
+    { "id": "AUD-04", "category": "Audio", "title": "Silence trims consistent; no clipping or pumping", "required": true, "type": "manual" },
+    { "id": "AUD-05", "category": "Audio", "title": "No phasing from downmix; correct channel layout", "required": false, "type": "manual" },
+
+    { "id": "SUB-01", "category": "Subtitles/Accessibility", "title": "SRT/VTT produced; timecodes align within ±200ms", "required": true, "type": "manual" },
+    { "id": "SUB-02", "category": "Subtitles/Accessibility", "title": "Non-speech cues included; language tags set", "required": true, "type": "manual" },
+    { "id": "SUB-03", "category": "Subtitles/Accessibility", "title": "Burn-in vs sidecar variants as needed", "required": false, "type": "manual" },
+    { "id": "SUB-04", "category": "Subtitles/Accessibility", "title": "Contrast/readability acceptable", "required": true, "type": "manual" },
+
+    { "id": "I18N-01", "category": "Localization", "title": "Strings externalized; pluralization/placeholder validation; fallback", "required": true, "type": "manual" },
+    { "id": "I18N-02", "category": "Localization", "title": "Layout for RTL/text expansion; line breaking correct", "required": true, "type": "manual" },
+    { "id": "I18N-03", "category": "Localization", "title": "Per-locale assets (VO, captions, fonts) delivered", "required": true, "type": "manual" },
+
+    { "id": "OUT-01", "category": "Packaging/Delivery", "title": "Video formats (MP4/H.264 main/baseline) meet target; bitrates/GOP documented", "required": true, "type": "manual" },
+    { "id": "OUT-02", "category": "Packaging/Delivery", "title": "Thumbnails/posters/previews generated and named correctly", "required": false, "type": "manual" },
+    { "id": "OUT-03", "category": "Packaging/Delivery", "title": "Metadata/manifests: container.json, tutorial.json, captions, checksums, license manifest", "required": true, "type": "manual" },
+    { "id": "OUT-04", "category": "Packaging/Delivery", "title": "Distribution to storage/CDN with correct cache/versioning", "required": true, "type": "manual" },
+    { "id": "OUT-05", "category": "Packaging/Delivery", "title": "MP4 faststart enabled", "required": true, "type": "manual" },
+
+    { "id": "DET-01", "category": "Determinism", "title": "Repeatable builds (lockfiles, pinned tool versions)", "required": true, "type": "manual" },
+    { "id": "DET-02", "category": "Determinism", "title": "Seed-controlled randomized elements logged", "required": true, "type": "manual" },
+    { "id": "DET-03", "category": "Determinism", "title": "Bitwise or semantic stability enforced via golden invariants", "required": true, "type": "auto", "verifier": "junit_all_pass" },
+
+    { "id": "GOLD-01", "category": "Golden Harness", "title": "Per-OS baselines exist for 5s/10s/20s", "required": true, "type": "auto", "verifier": "baselines_exist", "params": { "dir": "${golden_dir}" } },
+    { "id": "GOLD-02", "category": "Golden Harness", "title": "SSIM checks pass (≥ 0.995) at 5s/10s/20s", "required": true, "type": "auto", "verifier": "junit_all_pass" },
+    { "id": "GOLD-03", "category": "Golden Harness", "title": "Loudness checks pass or are skipped when no audio", "required": true, "type": "auto", "verifier": "junit_all_pass" },
+    { "id": "GOLD-04", "category": "Golden Harness", "title": "Container invariants pass (pix_fmt, SAR, FPS normalization)", "required": true, "type": "auto", "verifier": "junit_all_pass" },
+    { "id": "GOLD-05", "category": "Golden Harness", "title": "JUnit XML produced; visual diffs only on failures; debug dir cleaned", "required": true, "type": "auto", "verifier": "debug_empty_on_pass", "params": { "dir": "${golden_dir}/debug" } },
+    { "id": "GOLD-06", "category": "Golden Harness", "title": "Baseline presence guard fails loudly and guides remediation", "required": true, "type": "manual" },
+    { "id": "GOLD-07", "category": "Golden Harness", "title": "Environment captured in container.json (ffmpeg/ffprobe, Node/npm/git/OS, CI vars)", "required": true, "type": "auto", "verifier": "container_json_fields", "params": { "base": "${golden_dir}/container.json", "fields": ["tools.ffmpeg.version", "tools.ffprobe.version", "env.node.version", "env.npm.version", "env.git.version", "env.os"] } },
+
+    { "id": "CI-01", "category": "CI/CD", "title": "Matrix runs Ubuntu/macOS/Windows with ffmpeg installed; caches and timeouts set", "required": true, "type": "manual" },
+    { "id": "CI-02", "category": "CI/CD", "title": "Triggers/path filters; docs-only changes skipped", "required": true, "type": "manual" },
+    { "id": "CI-03", "category": "CI/CD", "title": "Concurrency cancellation enabled; artifacts retained", "required": true, "type": "manual" },
+    { "id": "CI-04", "category": "CI/CD", "title": "PR JUnit summaries visible; debug artifacts on failure", "required": true, "type": "manual" },
+    { "id": "CI-05", "category": "CI/CD", "title": "workflow_dispatch to regenerate baselines per game/OS; artifacts reviewed then committed", "required": true, "type": "manual" },
+    { "id": "CI-06", "category": "CI/CD", "title": "Branch protection requires all OS jobs", "required": true, "type": "manual" },
+    { "id": "CI-07", "category": "CI/CD", "title": "Action versions pinned; secrets minimal and rotated", "required": true, "type": "manual" },
+
+    { "id": "PERF-01", "category": "Performance", "title": "Throughput targets defined; P50/P95 times recorded", "required": false, "type": "manual" },
+    { "id": "PERF-02", "category": "Performance", "title": "Parallel rendering safe; temp dirs isolated; throttling/backpressure", "required": false, "type": "manual" },
+    { "id": "PERF-03", "category": "Performance", "title": "Caching in place; hit rate reported", "required": false, "type": "manual" },
+    { "id": "PERF-04", "category": "Performance", "title": "Resource limits adhered to; temp cleanup verified", "required": false, "type": "manual" },
+
+    { "id": "OBS-01", "category": "Observability", "title": "Structured logs with run IDs, game IDs, seeds, OS, tool versions", "required": true, "type": "manual" },
+    { "id": "OBS-02", "category": "Observability", "title": "Metrics: counts, failures, durations, queue depths (if applicable)", "required": false, "type": "manual" },
+    { "id": "OBS-03", "category": "Observability", "title": "Error reporting with clear codes, stack traces, remediation hints", "required": true, "type": "manual" },
+
+    { "id": "SEC-01", "category": "Security/Licensing", "title": "Dependency vulnerability scan clean; ffmpeg build flags verified", "required": true, "type": "manual" },
+    { "id": "SEC-02", "category": "Security/Licensing", "title": "No secrets in logs/artifacts; least-privilege tokens", "required": true, "type": "manual" },
+    { "id": "SEC-03", "category": "Security/Licensing", "title": "Third-party content redistribution rights confirmed; license manifest shipped", "required": true, "type": "manual" },
+
+    { "id": "FAIL-01", "category": "Failure Handling", "title": "Retries are safe; partial outputs cleaned/overwritten atomically", "required": true, "type": "manual" },
+    { "id": "FAIL-02", "category": "Failure Handling", "title": "Graceful degradation for missing optional assets", "required": true, "type": "manual" },
+    { "id": "FAIL-03", "category": "Failure Handling", "title": "Baseline drift managed via approval workflow", "required": true, "type": "manual" },
+    { "id": "FAIL-04", "category": "Failure Handling", "title": "Rollback to previous release assets possible", "required": true, "type": "manual" },
+
+    { "id": "DOC-01", "category": "Documentation", "title": "Setup guides validated; README up-to-date; OS notes included", "required": true, "type": "manual" },
+    { "id": "DOC-02", "category": "Documentation", "title": "Operational runbook for regenerating baselines and approvals", "required": true, "type": "manual" },
+    { "id": "DOC-03", "category": "Documentation", "title": "Contribution guidelines + PR template with golden harness checklist", "required": true, "type": "manual" },
+
+    { "id": "REL-01", "category": "Release Mgmt", "title": "Versioning strategy defined; change log for visual/audio-affecting changes", "required": true, "type": "manual" },
+    { "id": "REL-02", "category": "Release Mgmt", "title": "Provenance per artifact (commit SHA, tool versions, OS)", "required": true, "type": "manual" },
+    { "id": "REL-03", "category": "Release Mgmt", "title": "Sign-off recorded per game variation and language", "required": true, "type": "manual" },
+
+    { "id": "UAT-01", "category": "UAT/Quality", "title": "Watch-through review by SME", "required": true, "type": "manual" },
+    { "id": "UAT-02", "category": "UAT/Quality", "title": "Accessibility: captions accuracy, contrast, no flashing", "required": true, "type": "manual" },
+    { "id": "UAT-03", "category": "UAT/Quality", "title": "Branding compliance", "required": true, "type": "manual" },
+
+    { "id": "AUTO-01", "category": "Optional Automated Gates", "title": "Frame OCR lint to verify overlays text vs script", "required": false, "type": "manual" },
+    { "id": "AUTO-02", "category": "Optional Automated Gates", "title": "Automated contrast analyzer for text regions", "required": false, "type": "manual" },
+    { "id": "AUTO-03", "category": "Optional Automated Gates", "title": "Color range warnings (full vs limited)", "required": false, "type": "manual" },
+
+    { "id": "EXIT-01", "category": "Go/No-Go", "title": "All GOLD/REN/AUD/OUT items pass for target games and OSes", "required": true, "type": "manual" },
+    { "id": "EXIT-02", "category": "Go/No-Go", "title": "CI matrix green with JUnit summaries visible; branch protection enforced", "required": true, "type": "manual" },
+    { "id": "EXIT-03", "category": "Go/No-Go", "title": "container.json present and accurate per produced asset", "required": true, "type": "auto", "verifier": "container_json_fields", "params": { "base": "${golden_dir}/container.json", "fields": ["tools.ffmpeg.version"] } },
+    { "id": "EXIT-04", "category": "Go/No-Go", "title": "No unresolved missing assets; license manifest complete", "required": true, "type": "manual" },
+    { "id": "EXIT-05", "category": "Go/No-Go", "title": "UAT sign-off completed for at least one full end-to-end title per locale", "required": true, "type": "manual" }
+  ]
+}

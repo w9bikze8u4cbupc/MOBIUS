@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Green dragon icon - higher resolution for desktop -->
+  <rect width="256" height="256" fill="#006400" rx="32"/>
+  <!-- Simplified dragon body -->
+  <path d="M48,128 C64,96 80,80 112,80 C144,80 160,96 176,128 C192,160 192,176 176,192 C160,208 144,208 128,192 C112,176 96,176 80,192 C64,208 48,192 48,176 C48,160 48,144 48,128 Z" fill="#00FF00"/>
+  <!-- Dragon head -->
+  <path d="M176,96 L208,64 L224,96 L192,128 Z" fill="#00FF00"/>
+  <!-- Dragon eye -->
+  <circle cx="192" cy="112" r="16" fill="#000"/>
+  <!-- Dragon scales pattern -->
+  <circle cx="96" cy="112" r="8" fill="#00CC00"/>
+  <circle cx="128" cy="144" r="8" fill="#00CC00"/>
+  <circle cx="80" cy="160" r="8" fill="#00CC00"/>
+</svg>

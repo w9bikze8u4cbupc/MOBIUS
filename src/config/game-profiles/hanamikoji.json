@@ -1,0 +1,12 @@
+{
+  "allowlist": ["action card", "item card", "favor token", "tie-breaker token", "geisha card"],
+  "expectedCounts": { 
+    "geisha card": 7, 
+    "favor token": 7 
+  },
+  "synonyms": {
+    "favor tokens": "favor token",
+    "tiebreaker token": "tie-breaker token"
+  },
+  "excludeSupply": ["score marker", "round marker"]
+}

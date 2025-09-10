@@ -1,0 +1,14 @@
+{
+  "allowlist": ["game card", "reference card", "token of affection"],
+  "expectedCounts": { 
+    "game card": 16, 
+    "reference card": 4,
+    "token of affection": 1
+  },
+  "synonyms": {
+    "game cards": "game card",
+    "reference cards": "reference card",
+    "tokens of affection": "token of affection"
+  },
+  "excludeSupply": []
+}

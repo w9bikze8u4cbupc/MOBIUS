@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite tests="3" failures="3" name="golden">
+<testcase classname="golden" name="frame_5s"><failure><![CDATA[Frame at 5s SSIM 0.184270 < threshold 0.995. Diff image saved to tests\golden\hanamikoji\debug\diff_5s.png]]></failure></testcase><testcase classname="golden" name="frame_10s"><failure><![CDATA[Frame at 10s SSIM 0.191814 < threshold 0.995. Diff image saved to tests\golden\hanamikoji\debug\diff_10s.png]]></failure></testcase><testcase classname="golden" name="frame_20s"><failure><![CDATA[Frame at 20s SSIM 0.191814 < threshold 0.995. Diff image saved to tests\golden\hanamikoji\debug\diff_20s.png]]></failure></testcase>
+</testsuite>

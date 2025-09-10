@@ -59,10 +59,13 @@ coverage/
 *.mp3
 *.wav
 *.pdf
+*.mp4
 
 # Debug and report directories
 tests/golden/**/debug/
 tests/golden/reports/
+out/
+tmp/
 
 # Node.js dependencies
 node_modules/
@@ -71,5 +74,11 @@ node_modules/
 *.log
 
 # OS generated files
-.DS_Store
-Thumbs.db
+
+# Large binary files
+*.zip
+*.7z
+*.exe
+*.dll
+*.pack
+*.pyd

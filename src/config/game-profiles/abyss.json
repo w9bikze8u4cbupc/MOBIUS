@@ -1,0 +1,37 @@
+{
+  "allowlist": ["lord card", "monster card", "exploration card", "guardian card", "location card", "artifact card", "citadel card", "mercenary card", "event card", "contract card", "treasure token", "key token", "pearl token", "plastic cup", "dragon token", "kraken token", "phoenix token", "titan token", "warlock token"],
+  "expectedCounts": { 
+    "lord card": 20,
+    "monster card": 40,
+    "exploration card": 60,
+    "guardian card": 15,
+    "location card": 15,
+    "artifact card": 15,
+    "citadel card": 10,
+    "mercenary card": 10,
+    "event card": 10,
+    "contract card": 10
+  },
+  "synonyms": {
+    "lords": "lord card",
+    "monsters": "monster card",
+    "explorations": "exploration card",
+    "guardians": "guardian card",
+    "locations": "location card",
+    "artifacts": "artifact card",
+    "citadels": "citadel card",
+    "mercenaries": "mercenary card",
+    "events": "event card",
+    "contracts": "contract card",
+    "treasure tokens": "treasure token",
+    "key tokens": "key token",
+    "pearl tokens": "pearl token",
+    "plastic cups": "plastic cup",
+    "dragon tokens": "dragon token",
+    "kraken tokens": "kraken token",
+    "phoenix tokens": "phoenix token",
+    "titan tokens": "titan token",
+    "warlock tokens": "warlock token"
+  },
+  "excludeSupply": ["score tracker", "first player token"]
+}

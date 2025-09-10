@@ -1,0 +1,40 @@
+{
+  "timestamp": "2025-09-09T17:52:01.251Z",
+  "game": "Hanamikoji",
+  "imageCount": 10,
+  "providerDistribution": {
+    "ubg": 10
+  },
+  "topImages": [
+    {
+      "url": "https://www.ultraboardgames.com/img/logo.png",
+      "provider": "ubg",
+      "score": 0.4625,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "url": "https://www.ultraboardgames.com/img/slideshow/hanamikoji.jpg",
+      "provider": "ubg",
+      "score": 0.4625,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "url": "https://images-na.ssl-images-amazon.com/images/I/51djEXpTEiL._SL160_.jpg",
+      "provider": "ubg",
+      "score": 0.4625,
+      "width": 0,
+      "height": 0
+    }
+  ],
+  "validation": {
+    "valid": false,
+    "issues": [
+      "Low component relevance: 0/10 images"
+    ],
+    "imageCount": 10,
+    "providerCount": 1,
+    "componentMentions": 0
+  }
+}

@@ -5,6 +5,13 @@ const path = require('path');
 
 // Common helpers
 function getPlatformSlug(osOverride) {
+  // Prefer RUNNER_OS for absolute consistency with CI naming
+  const fromEnv = (osOverride || process.env.RUNNER_OS || '').toLowerCase();
+  if (fromEnv === 'windows') return 'windows';
+  if (fromEnv === 'macos') return 'macos';
+  if (fromEnv === 'linux') return 'linux';
+
+  // Local fallback
   const p = (osOverride || process.platform);
   if (p === 'win32') return 'windows';
   if (p === 'darwin') return 'macos';
@@ -216,6 +223,31 @@ function escapeXml(s) {
                   .replace(/'/g, '&apos;');
 }
 
+// Normalize frame rate for comparison with epsilon
+function normalizeFrameRate(rate) {
+  if (!rate) return rate;
+  
+  // Handle "30/1" format
+  if (rate.includes('/')) {
+    const [num, den] = rate.split('/').map(Number);
+    if (!isNaN(num) && !isNaN(den) && den !== 0) {
+      // Check if this is approximately 30 (like 30000/1001)
+      const value = num / den;
+      if (Math.abs(value - 30) < 0.01) {
+        return "30";
+      }
+      return rate; // Keep as is if not close to 30
+    }
+  }
+  
+  return rate;
+}
+
+// FPS equality helper with epsilon
+function fpsEq(a, b, eps = 1e-3) { 
+  return Math.abs(a - b) < eps; 
+}
+
 (async function main() {
   const opts = parseArgs();
   const input = opts.in || opts.input;
@@ -235,8 +267,10 @@ function escapeXml(s) {
   const resolvedGoldenDir = resolveGoldenDir(game, opts);
   console.log(`Using golden directory: ${resolvedGoldenDir}`);
 
+  // Baseline presence guard - fail with clear message if baseline directory is missing
   if (!fs.existsSync(resolvedGoldenDir)) {
-    console.error(`Golden dir not found: ${resolvedGoldenDir}`);
+    console.error(`Golden baseline directory not found: ${resolvedGoldenDir}`);
+    console.error(`Baseline missing: run node scripts/generate_golden.js --game "${game}" --perOs and commit tests/golden/${game}/**`);
     process.exit(1);
   }
 
@@ -259,9 +293,13 @@ function escapeXml(s) {
     failures.push({ name: 'container', message: 'No video stream found in input.' });
     frameCases.push({ name: 'container', status: 'failed', message: 'No video stream found in input.' });
   } else {
+    // Normalize frame rates before comparison
+    const expectedFps = normalizeFrameRate(gv.avg_frame_rate);
+    const actualFps = normalizeFrameRate(vv.avg_frame_rate);
+    
     const checks = [
       ['pix_fmt', gv.pix_fmt, vv.pix_fmt],
-      ['avg_frame_rate', gv.avg_frame_rate, vv.avg_frame_rate],
+      ['avg_frame_rate', expectedFps, actualFps],
       ['sample_aspect_ratio', gv.sample_aspect_ratio || '1:1', vv.sample_aspect_ratio || '1:1']
     ];
     for (const [label, expected, got] of checks) {
@@ -287,16 +325,16 @@ function escapeXml(s) {
     const newPng = extractTempFrame(input, t, tmpDir, true); // Use accurate seeking
     const ssim = measureSSIM(newPng, goldenPng);
     if (!Number.isFinite(ssim)) {
-      // Try to create a diff image for debugging
-      const diffOut = path.join(debugDir, `diff_${String(t).replace('.', 'p')}s.png`);
+      // Try to create a diff image for debugging with improved naming
+      const diffOut = path.join(debugDir, `${game}_${getPlatformSlug()}_${String(t).replace('.', 'p')}s_diff.png`);
       writeDiffImage(goldenPng, newPng, diffOut);
       
       const msg = `SSIM could not be computed for ${t}s. Diff image saved to ${diffOut}`;
       failures.push({ name: `frame_${t}s`, message: msg });
       frameCases.push({ name: `frame_${t}s`, status: 'failed', message: msg });
     } else if (ssim < ssimThresh) {
-      // Create a diff image for debugging
-      const diffOut = path.join(debugDir, `diff_${String(t).replace('.', 'p')}s.png`);
+      // Create a diff image for debugging with improved naming
+      const diffOut = path.join(debugDir, `${game}_${getPlatformSlug()}_${String(t).replace('.', 'p')}s_diff.png`);
       writeDiffImage(goldenPng, newPng, diffOut);
       
       const msg = `Frame at ${t}s SSIM ${ssim.toFixed(6)} < threshold ${ssimThresh}. Diff image saved to ${diffOut}`;

@@ -1,5 +1,5 @@
 {
-  "game": "Hanamikoji",
+  "game": "hanamikoji",
   "input": "out\\preview.mp4",
   "video": {
     "codec_name": "h264",
@@ -33,5 +33,25 @@
     "ffmpeg": "ffmpeg version 8.0-full_build-www.gyan.dev Copyright (c) 2000-2025 the FFmpeg developers",
     "ffprobe": "ffprobe version 8.0-full_build-www.gyan.dev Copyright (c) 2007-2025 the FFmpeg developers"
   },
-  "generated_at": "2025-09-10T00:28:13.585Z"
+  "environment": {
+    "node": "v22.14.0",
+    "npm": "unknown",
+    "gitBranch": "main",
+    "gitCommit": "6d1fca93519c0b0557363858469d63bc71465492",
+    "os": {
+      "platform": "win32",
+      "arch": "x64",
+      "release": "10.0.26100"
+    }
+  },
+  "ci": {
+    "ci": false,
+    "runner_os": null,
+    "github_sha": null,
+    "github_ref": null,
+    "github_run_id": null,
+    "github_run_number": null,
+    "github_run_attempt": null
+  },
+  "generated_at": "2025-09-10T13:50:25.011Z"
 }
