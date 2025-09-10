@@ -26,3 +26,30 @@ jobs:
         env:
           RUNNER_OS: ${{ runner.os }}
         run: node scripts/ci/validate_mobius_checklist.cjs --game ${{ matrix.game }}
+      - name: Summarize Golden JUnit
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import glob, xml.etree.ElementTree as ET
+          totals = {"tests":0,"failures":0,"errors":0,"skipped":0}
+          for f in glob.glob('tests/golden/reports/*.xml'):
+              try:
+                  root = ET.parse(f).getroot()
+                  totals["tests"]    += int(root.attrib.get("tests", 0))
+                  totals["failures"] += int(root.attrib.get("failures", 0))
+                  totals["errors"]   += int(root.attrib.get("errors", 0))
+                  totals["skipped"]  += int(root.attrib.get("skipped", 0))
+              except Exception:
+                  pass
+          print("### Golden JUnit Summary")
+          for k,v in totals.items(): print(f"- {k.capitalize()}: {v}")
+          PY
+      - name: Upload Golden Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-${{ runner.os }}-reports
+          path: |
+            tests/golden/reports/**
+            tests/golden/**/debug/**
