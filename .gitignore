@@ -1,0 +1,75 @@
+# General Node.js ignores
+dist/
+build/
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp*
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+*.env*
+
+# IDE and editor specific
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# Dependency management
+/bower_components
+jspm_packages/
+
+# Compiled files
+*.class
+*.dll
+*.exe
+*.o
+*.pyc
+*.swc
+
+# macOS specific
+.AppleDouble
+.LSOverride
+
+# Windows specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+tmp/
+temp/
+tmp.*
+*.tmp
+
+# Coverage data
+coverage/
+*.lcov
+
+# Optional files (if you generate these)
+*.mp3
+*.wav
+*.pdf
+
+# Debug and report directories
+tests/golden/**/debug/
+tests/golden/reports/
+
+# Node.js dependencies
+node_modules/
+
+# Log files
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
