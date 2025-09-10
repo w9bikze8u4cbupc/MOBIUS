@@ -5,6 +5,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ${{ matrix.os }}
@@ -17,17 +21,19 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20.14.0'
 
       - name: Install ffmpeg
         if: runner.os == 'Windows'
-        run: choco install -y ffmpeg
+        run: choco install -y ffmpeg --version 8.0
       - name: Install ffmpeg
         if: runner.os == 'macOS'
         run: brew install ffmpeg
       - name: Install ffmpeg
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
 
       - name: Prepare assets
         run: |
