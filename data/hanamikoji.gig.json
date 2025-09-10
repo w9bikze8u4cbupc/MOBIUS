@@ -1,0 +1,382 @@
+{
+  "_schema": "GIG",
+  "version": "1.1.0",
+  "id": "gig:hanamikoji:v1",
+  "game": {
+    "title": "Hanamikoji",
+    "shortTitle": "Hanamikoji",
+    "designer": "Kota Nakayama",
+    "publisher": ["EmperorS4", "Deep Water Games"],
+    "minPlayers": 2,
+    "maxPlayers": 2,
+    "minAge": 8,
+    "estDurationMin": 15,
+    "complexity": "light",
+    "edition": "Base"
+  },
+  "sources": [
+    {
+      "name": "Official Rulebook (PDF)",
+      "url": "https://cdn.1j1ju.com/medias/e0/90/0c-hanamikoji-rulebook.pdf"
+    },
+    {
+      "name": "Rules summary (Keith Law)",
+      "url": "https://meadowparty.com/blog/2023/12/14/hanamikoji/"
+    }
+  ],
+  "assetManifest": "assets/manifest.hanamikoji.json",
+  "components": [
+    {
+      "id": "comp:geisha:2:purple",
+      "name": "Geisha (2) — Purple",
+      "kind": "card",
+      "props": { "value": 2, "color": "purple", "rowIndex": 0 },
+      "publicInfo": "public",
+      "asset": "asset:geisha:purple"
+    },
+    {
+      "id": "comp:geisha:2:red",
+      "name": "Geisha (2) — Red",
+      "kind": "card",
+      "props": { "value": 2, "color": "red", "rowIndex": 1 },
+      "publicInfo": "public",
+      "asset": "asset:geisha:red"
+    },
+    {
+      "id": "comp:geisha:2:yellow",
+      "name": "Geisha (2) — Yellow",
+      "kind": "card",
+      "props": { "value": 2, "color": "yellow", "rowIndex": 2 },
+      "publicInfo": "public",
+      "asset": "asset:geisha:yellow"
+    },
+    {
+      "id": "comp:geisha:3:blue",
+      "name": "Geisha (3) — Blue",
+      "kind": "card",
+      "props": { "value": 3, "color": "blue", "rowIndex": 3 },
+      "publicInfo": "public",
+      "asset": "asset:geisha:blue"
+    },
+    {
+      "id": "comp:geisha:3:orange",
+      "name": "Geisha (3) — Orange",
+      "kind": "card",
+      "props": { "value": 3, "color": "orange", "rowIndex": 4 },
+      "publicInfo": "public",
+      "asset": "asset:geisha:orange"
+    },
+    {
+      "id": "comp:geisha:4:green",
+      "name": "Geisha (4) — Green",
+      "kind": "card",
+      "props": { "value": 4, "color": "green", "rowIndex": 5 },
+      "publicInfo": "public",
+      "asset": "asset:geisha:green"
+    },
+    {
+      "id": "comp:geisha:5:pink",
+      "name": "Geisha (5) — Pink",
+      "kind": "card",
+      "props": { "value": 5, "color": "pink", "rowIndex": 6 },
+      "publicInfo": "public",
+      "asset": "asset:geisha:pink"
+    },
+    {
+      "id": "comp:markers:victory",
+      "name": "Victory Markers",
+      "kind": "marker",
+      "count": 7,
+      "publicInfo": "public",
+      "asset": "asset:marker:favor"
+    },
+    {
+      "id": "comp:actionMarkers:set",
+      "name": "Action Markers (4 per player)",
+      "kind": "marker",
+      "count": 8,
+      "publicInfo": "public",
+      "asset": "asset:marker:action"
+    },
+    {
+      "id": "comp:itemDeck",
+      "name": "Item Deck (21 cards)",
+      "kind": "deck",
+      "groups": ["comp:itemCard:*"],
+      "publicInfo": "hidden",
+      "props": {
+        "distribution": [
+          { "value": 2, "color": "purple", "count": 2 },
+          { "value": 2, "color": "red", "count": 2 },
+          { "value": 2, "color": "yellow", "count": 2 },
+          { "value": 3, "color": "blue", "count": 3 },
+          { "value": 3, "color": "orange", "count": 3 },
+          { "value": 4, "color": "green", "count": 4 },
+          { "value": 5, "color": "pink", "count": 5 }
+        ],
+        "sumCheck": 21
+      },
+      "asset": "asset:back:itemCard"
+    }
+  ],
+  "areas": [
+    {
+      "id": "area:table:geishaRow",
+      "name": "Geisha Row",
+      "scope": "table",
+      "kind": "row",
+      "layoutHints": { "order": "asc", "axis": "x", "gapPx": 24 }
+    },
+    { "id": "area:table:deck", "name": "Item Deck", "scope": "table", "kind": "pile" },
+    { "id": "area:table:discard", "name": "Discard/Box (Face-down)", "scope": "table", "kind": "pile" },
+    { "id": "area:table:favorMarkers", "name": "Favor Markers", "scope": "table", "kind": "row" },
+    { "id": "area:p1:hand", "name": "P1 Hand", "scope": "player", "owner": "p1", "kind": "stack" },
+    { "id": "area:p2:hand", "name": "P2 Hand", "scope": "player", "owner": "p2", "kind": "stack" },
+    { "id": "area:p1:actions", "name": "P1 Action Markers", "scope": "player", "owner": "p1", "kind": "row" },
+    { "id": "area:p2:actions", "name": "P2 Action Markers", "scope": "player", "owner": "p2", "kind": "row" }
+  ],
+  "actions": [
+    {
+      "id": "action:secret",
+      "name": "Secret",
+      "description": "Place 1 card face-down to score later",
+      "ioPattern": "secret",
+      "hiddenInfo": [{ "areaId": "area:player:hand", "rule": "revealAtScoring" }],
+      "anim": { "templateId": "stash_secret", "focus": ["area:player:hand"] },
+      "timing": { "effort": "short", "preferredSec": 2.5 }
+    },
+    {
+      "id": "action:discard2",
+      "name": "Discard Two",
+      "description": "Place 2 cards face-down out of the round",
+      "ioPattern": "discard",
+      "anim": { "templateId": "discard_face_down", "focus": ["area:table:discard"] },
+      "timing": { "effort": "short", "preferredSec": 2.5 }
+    },
+    {
+      "id": "action:gift3",
+      "name": "Gift (3 choose 1)",
+      "description": "Reveal 3; opponent takes 1; you take 2",
+      "ioPattern": "split-3-choose-1",
+      "anim": { "templateId": "split_choose", "params": { "sets": 3, "choose": 1 } },
+      "timing": { "effort": "medium", "preferredSec": 5.0 }
+    },
+    {
+      "id": "action:comp2x2",
+      "name": "Competition (2×2 choose 1 set)",
+      "description": "Reveal 2 sets of 2; opponent selects a set",
+      "ioPattern": "split-2x2-choose-1",
+      "anim": { "templateId": "split_choose", "params": { "sets": 2, "choose": 1 } },
+      "timing": { "effort": "medium", "preferredSec": 5.5 }
+    }
+  ],
+  "rules": {
+    "setup": {
+      "id": "step:setup",
+      "kind": "compound",
+      "label": "Setup",
+      "children": [
+        {
+          "id": "step:setup:geishaRow",
+          "kind": "atomic",
+          "label": "Place 7 Geisha cards in ascending order",
+          "speak": { "markStart": "S_SETUP_ROW_START", "markEnd": "S_SETUP_ROW_END" },
+          "anim": { "templateId": "layout_row", "focus": ["area:table:geishaRow"] },
+          "timing": { "effort": "short", "preferredSec": 3.0 }
+        },
+        {
+          "id": "step:setup:favor",
+          "kind": "atomic",
+          "label": "Place a Favor marker on each Geisha",
+          "speak": { "markStart": "S_SETUP_FAVOR_START", "markEnd": "S_SETUP_FAVOR_END" },
+          "anim": { "templateId": "place_markers", "focus": ["area:table:favorMarkers"] },
+          "timing": { "effort": "short", "preferredSec": 2.5 }
+        },
+        {
+          "id": "step:setup:deck",
+          "kind": "compound",
+          "label": "Prepare deck and hands",
+          "children": [
+            {
+              "id": "step:setup:shuffle",
+              "kind": "atomic",
+              "label": "Shuffle all 21 Item cards",
+              "speak": { "markStart": "S_SETUP_SHUFFLE", "markEnd": "S_SETUP_SHUFFLE_END" },
+              "anim": { "templateId": "shuffle_deck", "focus": ["area:table:deck"] },
+              "timing": { "effort": "short", "preferredSec": 2.5 }
+            },
+            {
+              "id": "step:setup:burn",
+              "kind": "atomic",
+              "label": "Remove 1 item card face-down to the box",
+              "speak": { "markStart": "S_SETUP_BURN", "markEnd": "S_SETUP_BURN_END" },
+              "anim": { "templateId": "move_face_down", "focus": ["area:table:discard"] },
+              "timing": { "effort": "short", "preferredSec": 2.5 }
+            },
+            {
+              "id": "step:setup:deal",
+              "kind": "atomic",
+              "label": "Deal 6 cards to each player",
+              "speak": { "markStart": "S_SETUP_DEAL", "markEnd": "S_SETUP_DEAL_END" },
+              "anim": { "templateId": "deal_cards", "params": { "cardsPerPlayer": 6 } },
+              "timing": { "effort": "short", "preferredSec": 3.0 }
+            },
+            {
+              "id": "step:setup:actions",
+              "kind": "atomic",
+              "label": "Give each player 4 Action markers (colored side up)",
+              "speak": { "markStart": "S_SETUP_ACTIONS", "markEnd": "S_SETUP_ACTIONS_END" },
+              "anim": { "templateId": "place_markers", "focus": ["area:p1:actions", "area:p2:actions"] },
+              "timing": { "effort": "short", "preferredSec": 2.2 }
+            }
+          ]
+        }
+      ]
+    },
+    "turnStructure": {
+      "startingPlayer": "younger",
+      "order": "alternate",
+      "concurrency": "serial",
+      "perRound": {
+        "id": "step:round:header",
+        "kind": "atomic",
+        "label": "Round begins",
+        "speak": { "markStart": "S_ROUND_BEGIN", "markEnd": "S_ROUND_BEGIN_END" },
+        "timing": { "effort": "tiny", "preferredSec": 0.8 }
+      },
+      "perTurn": {
+        "id": "step:turn",
+        "kind": "compound",
+        "label": "On your turn",
+        "children": [
+          {
+            "id": "step:turn:draw",
+            "kind": "atomic",
+            "label": "Draw 1 card from the deck",
+            "speak": { "markStart": "S_DRAW", "markEnd": "S_DRAW_END" },
+            "anim": { "templateId": "draw_card", "focus": ["area:table:deck"] },
+            "timing": { "effort": "short", "preferredSec": 2.0 }
+          },
+          {
+            "id": "step:turn:chooseAction",
+            "kind": "actionChoice",
+            "label": "Choose and perform 1 unused action",
+            "actionSet": [
+              { "id": "action:secret" },
+              { "id": "action:discard2" },
+              { "id": "action:gift3" },
+              { "id": "action:comp2x2" }
+            ],
+            "speak": { "markStart": "S_ACTION", "markEnd": "S_ACTION_END" },
+            "timing": { "effort": "medium", "preferredSec": 4.5 }
+          }
+        ]
+      }
+    },
+    "scoring": {
+      "id": "step:scoring",
+      "kind": "compound",
+      "label": "Scoring Phase",
+      "children": [
+        {
+          "id": "step:scoring:revealSecret",
+          "kind": "atomic",
+          "label": "Reveal Secret cards and play them",
+          "speak": { "markStart": "S_SCORE_REVEAL", "markEnd": "S_SCORE_REVEAL_END" },
+          "anim": { "templateId": "reveal_secret" },
+          "timing": { "effort": "short", "preferredSec": 2.8 }
+        },
+        {
+          "id": "step:scoring:compare",
+          "kind": "atomic",
+          "label": "For each Geisha, compare item counts and move Favor markers",
+          "speak": { "markStart": "S_SCORE_COMPARE", "markEnd": "S_SCORE_COMPARE_END" },
+          "anim": { "templateId": "marker_move", "focus": ["area:table:geishaRow"] },
+          "timing": { "effort": "long", "preferredSec": 6.0, "maxSec": 7.0 }
+        },
+        {
+          "id": "step:scoring:checkWin",
+          "kind": "atomic",
+          "label": "Check win: 4 Geishas or 11+ Charm Points",
+          "speak": { "markStart": "S_SCORE_WIN", "markEnd": "S_SCORE_WIN_END" },
+          "timing": { "effort": "short", "preferredSec": 2.0 }
+        }
+      ]
+    },
+    "endConditions": [
+      {
+        "id": "end:geishaCount",
+        "name": "Win 4 Geishas",
+        "condition": { "op": "gte", "left": { "ref": "player.geishasWon" }, "right": 4 },
+        "winnerRule": "firstToAchieve"
+      },
+      {
+        "id": "end:points11",
+        "name": "Win 11+ Charm Points",
+        "condition": { "op": "gte", "left": { "ref": "player.charmPoints" }, "right": 11 },
+        "winnerRule": "firstToAchieve",
+        "tiebreakers": [
+          {
+            "id": "tb:pointsPrefer",
+            "name": "If both 4 geishas and 11+ occur, 11+ wins",
+            "rule": { "op": "always" }
+          }
+        ]
+      }
+    ]
+  },
+  "timingHints": {
+    "atomicMinSec": 2.0,
+    "atomicMaxSec": 7.0,
+    "beatGapSec": 0.25,
+    "showVsTellRatio": 0.7
+  },
+  "animationCatalog": [
+    { "id": "layout_row", "name": "Layout Row", "params": [{ "key": "gap", "type": "number", "default": 24 }] },
+    { "id": "deal_cards", "name": "Deal Cards", "params": [{ "key": "cardsPerPlayer", "type": "number", "default": 6 }] },
+    { "id": "shuffle_deck", "name": "Shuffle Deck", "params": [] },
+    { "id": "draw_card", "name": "Draw Card", "params": [] },
+    { "id": "stash_secret", "name": "Secret Stash", "params": [] },
+    { "id": "discard_face_down", "name": "Discard (Face-down)", "params": [] },
+    { "id": "split_choose", "name": "Split And Choose", "params": [{ "key": "sets", "type": "number" }, { "key": "choose", "type": "number" }] },
+    { "id": "reveal_secret", "name": "Reveal Secret", "params": [] },
+    { "id": "marker_move", "name": "Move Favor Marker", "params": [] },
+    { "id": "place_markers", "name": "Place Markers", "params": [] },
+    { "id": "move_face_down", "name": "Move Face-down", "params": [] }
+  ],
+  "verification": {
+    "coverageGoals": [
+      {
+        "id": "cov:setup",
+        "name": "All setup beats appear at least once",
+        "targets": [
+          { "stepId": "step:setup:geishaRow" },
+          { "stepId": "step:setup:favor" },
+          { "stepId": "step:setup:shuffle" },
+          { "stepId": "step:setup:burn" },
+          { "stepId": "step:setup:deal" },
+          { "stepId": "step:setup:actions" }
+        ],
+        "minHits": 1
+      },
+      {
+        "id": "cov:actions",
+        "name": "All 4 action tiles demonstrated",
+        "targets": [
+          { "actionId": "action:secret" },
+          { "actionId": "action:discard2" },
+          { "actionId": "action:gift3" },
+          { "actionId": "action:comp2x2" }
+        ],
+        "minHits": 1
+      }
+    ],
+    "invariants": [
+      {
+        "op": "eq",
+        "left": { "ref": "deck.totalCards" },
+        "right": 21
+      }
+    ]
+  }
+}

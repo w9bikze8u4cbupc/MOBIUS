@@ -1,0 +1,24 @@
+{
+  "brand": {
+    "name": "Les Jeux Mobius Games",
+    "colors": {
+      "primary": "#2E8B57",
+      "secondary": "#228B22",
+      "accent": "#32CD32",
+      "background": "#1A1A1A",
+      "text": "#FFFFFF",
+      "callout": "#7FFF00",
+      "warning": "#FF6B35"
+    },
+    "typography": { "family": "Segoe UI", "fallbacks": ["Arial", "Helvetica", "sans-serif"] }
+  },
+  "layout": { "safe": { "top": 80, "right": 80, "bottom": 120, "left": 80 } },
+  "motion": {
+    "transitions": { "type": "fade", "durationMs": 350, "easing": "easeInOutCubic" },
+    "intro": { "durationMs": 2000, "style": "logo_reveal_with_tagline" },
+    "outro": { "durationMs": 3000, "cta": "Subscribe for more tutorials • Visit LesMobiusGames.com" }
+  },
+  "callouts": { "style": "spotlight", "color": "#7FFF00", "pulseMs": 800 },
+  "cursor": { "highlight": { "enabled": true, "radius": 36, "color": "#32CD32", "opacity": 0.4, "showClicks": true } },
+  "watermark": { "enabled": true, "position": "bottom-right", "opacity": 0.15, "size": 120 }
+}

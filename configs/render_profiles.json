@@ -1,0 +1,7 @@
+{
+  "web_1080p30": {
+    "video": "-c:v libx264 -preset medium -crf 18 -maxrate 12000k -bufsize 24000k -pix_fmt yuv420p -color_range limited -colorspace bt709 -r 30",
+    "audio": "-c:a aac -b:a 192k -ar 48000 -ac 2 -af loudnorm=I=-16:TP=-1.0:LRA=11"
+  },
+  "determinism": { "ffmpeg": "6.0.1", "node": "18.18.0" }
+}

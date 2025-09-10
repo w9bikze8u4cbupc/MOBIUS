@@ -1,0 +1,29 @@
+# Golden pack configuration for component extraction tests
+
+abyss:
+  expected:
+    - { label: "Game board", quantity: 1 }
+    - { label: "Exploration cards", quantity: 71, breakdown:
+        [ {label: "Allies", quantity: 65}, {label: "Monsters", quantity: 6} ] }
+    - { label: "Lord cards", quantity: 35 }
+    - { label: "Location tiles", quantity: 20 }
+    - { label: "Monster tokens", quantity: 20, breakdown:
+        [ {count: 2, value: 4}, {count: 9, value: 3}, {count: 9, value: 2} ] }
+    - { label: "Key tokens", quantity: 10 }
+    - { label: "Pearls", quantity: "supply" }
+    - { label: "Plastic cups", quantity: "supply" }
+
+# Future games can be added here
+# deck-builder-example:
+#   expected:
+#     - { label: "Game board", quantity: 1 }
+#     - { label: "Player boards", quantity: 4 }
+#     - { label: "Action cards", quantity: 50 }
+#     - { label: "Resource tokens", quantity: "supply" }
+
+# euro-game-example:
+#   expected:
+#     - { label: "Main board", quantity: 1 }
+#     - { label: "Player boards", quantity: 4 }
+#     - { label: "Building tiles", quantity: 100 }
+#     - { label: "Resource cubes", quantity: "supply" }

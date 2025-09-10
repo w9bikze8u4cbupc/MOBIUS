@@ -1,0 +1,27 @@
+{
+  "colors": {
+    "primary": "#FF6B6B",
+    "secondary": "#4ECDC4",
+    "accent": "#FFE66D",
+    "bg": "#1A535C",
+    "text": "#F7FFF7"
+  },
+  "fonts": {
+    "title": "Arial Bold",
+    "body": "Arial",
+    "monospace": "Consolas"
+  },
+  "lowerThird": {
+    "padding": {
+      "x": 80,
+      "y": 120
+    },
+    "backgroundColor": "#000000",
+    "backgroundOpacity": 0.6,
+    "cornerRadius": 16
+  },
+  "safeMargins": {
+    "x": "10%",
+    "y": "10%"
+  }
+}

@@ -41,11 +41,11 @@
     "mobius:checklist:win": "set RUNNER_OS=Windows && node scripts/ci/validate_mobius_checklist.cjs --game",
     "gen:container": "cross-env node scripts/generate_container_json.cjs",
     "frames": "cross-env node scripts/extract_frames.cjs",
-    "golden:check:new": "cross-env node scripts/check_golden.cjs --perOs",
+    "golden:check": "cross-env node scripts/check_golden.cjs --perOs",
     "checklist:new": "cross-env node scripts/ci/validate_mobius_checklist.cjs",
-    "sushi:win": "cross-env GAME=sushi-go PLATFORM=windows RUNNER_OS=windows INPUT_FILE=dist/sushi-go/windows/tutorial.mp4 npm-run-all gen:container frames golden:check:single checklist:new",
-    "sushi:mac": "cross-env GAME=sushi-go PLATFORM=macos RUNNER_OS=macos INPUT_FILE=dist/sushi-go/macos/tutorial.mp4 npm-run-all gen:container frames golden:check:single checklist:new",
-    "sushi:linux": "cross-env GAME=sushi-go PLATFORM=linux RUNNER_OS=linux INPUT_FILE=dist/sushi-go/linux/tutorial.mp4 npm-run-all gen:container frames golden:check:single checklist:new",
+    "sushi:win": "cross-env GAME=sushi-go PLATFORM=windows RUNNER_OS=windows INPUT_FILE=dist/sushi-go/windows/tutorial.mp4 npm-run-all gen:container frames golden:check checklist:new",
+    "sushi:mac": "cross-env GAME=sushi-go PLATFORM=macos RUNNER_OS=macos INPUT_FILE=dist/sushi-go/macos/tutorial.mp4 npm-run-all gen:container frames golden:check checklist:new",
+    "sushi:linux": "cross-env GAME=sushi-go PLATFORM=linux RUNNER_OS=linux INPUT_FILE=dist/sushi-go/linux/tutorial.mp4 npm-run-all gen:container frames golden:check checklist:new",
     "golden:check:single": "cross-env node scripts/check_golden.cjs --perOs"
   },
   "keywords": [

@@ -1,0 +1,32 @@
+{
+  "meta": { "title": "Hanamikoji", "players": "2", "timeMin": 15, "supportsSimultaneous": false },
+  "components": [
+    { "id": "geisha_cards", "name": "Geisha cards", "count": 7, "type": "card" },
+    { "id": "item_cards", "name": "Item cards", "count": 21, "type": "card" },
+    { "id": "favor_tokens", "name": "Favor tokens", "count": 8, "type": "token" }
+  ],
+  "areas": [
+    { "id": "table_center", "type": "row", "cameraPreset": "overhead" },
+    { "id": "player_hands", "type": "private", "layout": "2-player symmetric" }
+  ],
+  "setup": [
+    { "id": "s1", "op": "shuffle", "what": "item_cards", "anim": { "template": "shuffleDeck" } },
+    { "id": "s2", "op": "deal", "what": "item_cards", "to": "eachPlayer", "count": 6, "anim": { "template": "dealCards", "params": { "count": 6 } } },
+    { "id": "s3", "op": "place", "what": "geisha_cards", "where": "table_center", "order": "ascending charm", "anim": { "template": "highlightRegion" } },
+    { "id": "s4", "op": "place", "what": "favor_tokens", "where": "near matching Geisha", "anim": { "template": "placeToken", "params": { "count": 8 } } }
+  ],
+  "turnStructure": [
+    { "id": "p1", "phase": "Discard face-down", "oncePerRound": true, "type": "sequential", "animationHint": { "template": "discardFaceDown" } },
+    { "id": "p2", "phase": "Secret keep", "oncePerRound": true, "type": "sequential" },
+    { "id": "p3", "phase": "Trade-off (2 piles)", "oncePerRound": true, "type": "sequential", "animationHint": { "template": "pileSplit" } },
+    { "id": "p4", "phase": "Reveal 3", "oncePerRound": true, "type": "sequential", "animationHint": { "template": "revealCards" } }
+  ],
+  "scoring": [
+    { "condition": "majority at Geisha", "reward": "take favor token", "evaluationTiming": "after reveals" },
+    { "end": "first to 11 points or win 4 Geishas", "tiebreaker": "most favor tokens" }
+  ],
+  "examples": [
+    { "action": "Trade-off", "demonstrate": ["split 4 cards", "opponent chooses pile", "take remaining"] }
+  ],
+  "sources": [{ "type": "ubg", "url": "..." }, { "type": "pdf", "url": "..." }]
+}

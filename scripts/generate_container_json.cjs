@@ -5,14 +5,13 @@ const path = require("path");
 
 // Get environment variables or use defaults
 const GAME = process.env.GAME || "space-invaders";
-const PLATFORM = process.env.PLATFORM || process.env.RUNNER_OS;
-const RUNNER_OS = PLATFORM ||
-  (process.platform === "win32" ? "Windows" : 
-   process.platform === "darwin" ? "macOS" : "Linux");
+const PLATFORM = process.env.PLATFORM || process.env.RUNNER_OS ||
+  (process.platform === "win32" ? "windows" : 
+   process.platform === "darwin" ? "macos" : "linux");
 
 // Map runner OS to directory slug (case-insensitive comparison)
-const slug = RUNNER_OS.toLowerCase() === "windows" ? "windows" : 
-             RUNNER_OS.toLowerCase() === "macos" ? "macos" : "linux";
+const slug = PLATFORM.toLowerCase() === "windows" ? "windows" : 
+             PLATFORM.toLowerCase() === "macos" ? "macos" : "linux";
 
 // Function to extract version information
 function getVersion(cmd, args, regex) {
@@ -40,13 +39,15 @@ function getVideoProperties(videoPath) {
       const data = JSON.parse(res.stdout);
       const videoStream = data.streams.find(s => s.codec_type === 'video');
       if (videoStream) {
+        // Handle "N/A" SAR values
+        const sar = videoStream.sample_aspect_ratio === 'N/A' || !videoStream.sample_aspect_ratio ? '1:1' : videoStream.sample_aspect_ratio;
         return {
           codec: videoStream.codec_name,
           width: parseInt(videoStream.width),
           height: parseInt(videoStream.height),
           pix_fmt: videoStream.pix_fmt,
           fps: videoStream.avg_frame_rate,
-          sample_aspect_ratio: videoStream.sample_aspect_ratio || '1:1'
+          sample_aspect_ratio: sar
         };
       }
     }
@@ -84,27 +85,25 @@ const container = {
       commit: getVersion("git", ["rev-parse", "HEAD"], /(.*)/)
     },
     os: {
-      name: RUNNER_OS,
+      name: PLATFORM,
       platform: os.platform(),
       release: os.release(),
       arch: os.arch()
     }
   },
   media: {
-    video: [
-      {
-        "path": videoPath,
-        "codec": videoProps.codec,
-        "width": videoProps.width,
-        "height": videoProps.height,
-        "pix_fmt": videoProps.pix_fmt,
-        "fps": videoProps.fps,
-        "sample_aspect_ratio": videoProps.sample_aspect_ratio,
-        "bitrateKbps": 8000,
-        "durationSec": 0,
-        "sha256": ""
-      }
-    ],
+    video: {
+      "path": videoPath,
+      "codec": videoProps.codec,
+      "width": videoProps.width,
+      "height": videoProps.height,
+      "pix_fmt": videoProps.pix_fmt,
+      "fps": videoProps.fps,
+      "sar": videoProps.sample_aspect_ratio,
+      "bitrateKbps": 8000,
+      "durationSec": 0,
+      "sha256": ""
+    },
     captions: [
       { path: `dist/${GAME}/${slug}/tutorial.srt`, language: "en", charCount: 0, sha256: "" }
     ],
@@ -114,10 +113,9 @@ const container = {
   }
 };
 
-// Write container.json to the correct location
-const goldenRoot = process.env.GOLDEN_ROOT || path.join("tests", "golden");
-const dir = path.join(goldenRoot, GAME, slug);
+// Write container.json to the correct location (dist directory)
+const dir = path.join("dist", GAME, slug);
 fs.mkdirSync(dir, { recursive: true });
 fs.writeFileSync(path.join(dir, "container.json"), JSON.stringify(container, null, 2));
 
-console.log(`Generated container.json for ${GAME} on ${RUNNER_OS} at ${dir}`);
+console.log(`Generated container.json for ${GAME} on ${PLATFORM} at ${dir}`);

@@ -1,0 +1,18 @@
+{
+  "timestamp": "2025-09-09T23:39:38Z",
+  "typescript": {
+    "tscVersion": "Version 5.9.2"
+  },
+  "node": {
+    "nodeVersion": "v22.14.0",
+    "npmVersion": "11.4.1"
+  },
+  "os": {
+    "platform": "Windows_NT",
+    "version": "Microsoft Windows NT 10.0.26100.0"
+  },
+  "git": {
+    "branch": "main",
+    "commit": "8726f6d"
+  }
+}

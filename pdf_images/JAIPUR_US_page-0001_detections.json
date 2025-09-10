@@ -1,0 +1,24 @@
+[
+  {
+    "bbox": [
+      60,
+      920,
+      878,
+      2078
+    ],
+    "confidence": 0.8210180997848511,
+    "class_id": 0,
+    "class_name": "person"
+  },
+  {
+    "bbox": [
+      472,
+      895,
+      712,
+      1325
+    ],
+    "confidence": 0.6118150353431702,
+    "class_id": 0,
+    "class_name": "person"
+  }
+]

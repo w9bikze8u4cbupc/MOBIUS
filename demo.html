@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobius Games Tutorial Generator - PDF Extraction Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #0e0e0e;
+            color: #fff;
+        }
+        :root {
+            --checker: repeating-conic-gradient(#cfd8dc 0% 25%, #eceff1 0% 50%) 0 0 / 12px 12px;
+        }
+        .container {
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #1a1a1a;
+        }
+        input[type="text"] {
+            width: 70%;
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background-color: #2a2a2a;
+            color: #fff;
+        }
+        button {
+            background-color: #f39c12;
+            color: #000;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #e67e22;
+        }
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .btn[disabled] { 
+            opacity: 0.6; 
+            cursor: not-allowed; 
+        }
+        .working-spinner {
+            display: none;
+            margin-left: 8px;
+            color: #ffd43b;
+        }
+        .results {
+            margin-top: 20px;
+        }
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .image-card {
+            border: 1px solid #555;
+            border-radius: 8px;
+            padding: 10px;
+            background-color: #2a2a2a;
+        }
+        .thumb {
+            position: relative;
+            display: grid;
+            place-items: center;
+            background: var(--checker);
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 4 / 3;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+        .thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: transparent;
+            image-rendering: auto;
+        }
+        .thumb .open-original {
+            position: absolute;
+            right: 6px;
+            bottom: 6px;
+            background: rgba(0,0,0,0.6);
+            color: #fff;
+            text-decoration: none;
+            padding: 2px 6px;
+            font-size: 12px;
+            border-radius: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .thumb:hover .open-original {
+            opacity: 1;
+        }
+        .thumb .open-original:hover {
+            background: rgba(0,0,0,0.75);
+        }
+        .image-card img {
+            width: 100%;
+            height: 150px;
+            object-fit: contain;
+            border-radius: 4px;
+            background-color: #333;
+        }
+        .image-info {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #bbb;
+        }
+        .error {
+            color: #ff6b6b;
+            margin-top: 10px;
+        }
+        .success {
+            color: #51cf66;
+            margin-top: 10px;
+        }
+        .loading {
+            color: #ffd43b;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎲 Mobius Games Tutorial Generator</h1>
+        <p>Vector-First PDF Image Extraction with Actions Detection</p>
+        
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
+            <input type="text" id="pdfUrl" placeholder="https://example.com/rulebook.pdf" 
+                   value="https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+                   style="width: 400px; padding: 8px;">
+            <button onclick="extractImages()" id="extractBtn">Extract All Images</button>
+        </div>
+        
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
+            <label style="display: flex; flex-direction: column; font-size: 12px; color: #334155;">
+                Language
+                <select id="langOption" style="height: 32px; min-width: 160px;" 
+                        title="Choose a language for Actions detection">
+                    <option value="en">English (en)</option>
+                    <option value="fr">French (fr)</option>
+                    <option value="es">Spanish (es)</option>
+                    <option value="de">German (de)</option>
+                    <option value="it">Italian (it)</option>
+                    <option value="all">All languages</option>
+                </select>
+            </label>
+            
+            <label style="display: flex; flex-direction: column; font-size: 12px; color: #334155;">
+                Extra keywords (comma or |)
+                <input type="text" id="extraKeywords" placeholder="e.g., how to play, turn order"
+                       style="width: 260px; height: 32px; box-sizing: border-box; padding: 4px 8px;"
+                       title="Add custom keywords for Actions-like sections">
+            </label>
+            
+            <label style="display: inline-flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 12px; color: #334155;">
+                <input id="includeWebsiteImages" type="checkbox" checked />
+                Include website images
+            </label>
+            
+            <button onclick="extractActions()" id="actionsBtn">Choose Actions Image</button>
+            <span id="actionsSpinner" class="working-spinner">⏳ Working…</span>
+            <button onclick="generateStoryboard()" id="generateBtn" class="btn">Generate Storyboard</button>
+            <span id="genSpinner" class="working-spinner">⏳ Working…</span>
+            <button onclick="openReactDemo()" id="reactBtn" style="background: #9b59b6; color: #fff;">Open React Demo</button>
+        </div>
+        
+        <!-- Detected pages display -->
+        <div id="detectedPages" style="margin-bottom: 8px; font-size: 12px; color: #475569; display: none;"></div>
+        
+        <div id="status"></div>
+        
+        <div class="results" id="results" style="display: none;">
+            <h3 id="resultsTitle">Extracted Images with Metadata</h3>
+            <div id="imageGrid" class="image-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        const $ = (s) => document.querySelector(s);
+        
+        function setWorking(buttonId, spinnerId, isOn) {
+            const btn = $(buttonId);
+            const spinner = $(spinnerId);
+            btn.disabled = isOn;
+            spinner.style.display = isOn ? 'inline-block' : 'none';
+            btn.setAttribute('aria-busy', String(isOn));
+        }
+        
+        async function generateStoryboard() {
+            try {
+                setWorking('#generateBtn', '#genSpinner', true);
+                const includeWebsite = $('#includeWebsiteImages').checked;
+                const pdfUrl = $('#pdfUrl').value;
+                
+                if (!pdfUrl) {
+                    alert('Please enter a PDF URL first');
+                    return;
+                }
+                
+                // Use new PDF-first endpoint
+                const res = await fetch(`/api/extract-components?pdfUrl=${encodeURIComponent(pdfUrl)}`);
+                const data = await res.json();
+                
+                if (!res.ok && !data.popplerMissing) {
+                    throw new Error(data.error || 'Failed to extract components');
+                }
+                
+                // Handle graceful Poppler missing mode
+                if (data.popplerMissing) {
+                    console.warn('Poppler missing; proceeding with website images only.');
+                    $('#status').innerHTML = `
+                        <div class="loading">
+                            PDF tools not available. Using website images only...<br>
+                            <small><a href="/TRACK_A_POPPLER_SETUP.md" target="_blank" rel="noreferrer" style="color: #f39c12;">Install Poppler for PDF extraction</a></small>
+                        </div>
+                    `;
+                    // TODO: Call website extraction here if available
+                    // For now, show a helpful message
+                    setTimeout(() => {
+                        $('#status').innerHTML = `
+                            <div class="error">
+                                Poppler tools not installed. PDF extraction disabled.<br>
+                                <small><a href="/TRACK_A_POPPLER_SETUP.md" target="_blank" rel="noreferrer" style="color: #f39c12;">See installation guide</a></small>
+                            </div>
+                        `;
+                    }, 2000);
+                    return;
+                }
+                
+                // Filter images based on toggle
+                const images = includeWebsite ? data.images : data.images.filter(i => i.source !== 'website');
+                
+                $('#status').innerHTML = `
+                    <div class="success">
+                        Extracted ${images.length} components from PDF (${data.source})<br>
+                        <small>Cache: ${data.cache || 'N/A'} • Ready for storyboard generation</small>
+                    </div>
+                `;
+                
+                // Display component images
+                displayImages(images, 'components');
+                $('#results').style.display = 'block';
+                
+                console.log('Generated storyboard with', data.source, images.length, 'images');
+            } catch (e) {
+                alert('Error generating storyboard: ' + (e?.message || e));
+                $('#status').innerHTML = `<div class="error">Error: ${e.message}</div>`;
+            } finally {
+                setWorking('#generateBtn', '#genSpinner', false);
+            }
+        }
+        async function extractImages() {
+            const pdfUrl = document.getElementById('pdfUrl').value;
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            const extractBtn = document.getElementById('extractBtn');
+            
+            if (!pdfUrl) {
+                statusDiv.innerHTML = '<div class="error">Please enter a PDF URL</div>';
+                return;
+            }
+            
+            extractBtn.disabled = true;
+            statusDiv.innerHTML = '<div class="loading">Extracting images from PDF...</div>';
+            resultsDiv.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/extract-pdf-images', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ pdfUrl })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.images) {
+                    statusDiv.innerHTML = `<div class="success">Successfully extracted ${data.images.length} images!</div>`;
+                    displayImages(data.images, data.jobId);
+                    resultsDiv.style.display = 'block';
+                } else {
+                    throw new Error(data.error || 'Unknown error occurred');
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            } finally {
+                extractBtn.disabled = false;
+            }
+        }
+        
+        async function extractActions() {
+            const pdfUrl = document.getElementById('pdfUrl').value;
+            const langOption = document.getElementById('langOption').value;
+            const extraKeywords = document.getElementById('extraKeywords').value;
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            const actionsBtn = document.getElementById('actionsBtn');
+            const detectedPagesDiv = document.getElementById('detectedPages');
+            
+            if (!pdfUrl) {
+                statusDiv.innerHTML = '<div class="error">Please provide a PDF URL first.</div>';
+                return;
+            }
+            
+            actionsBtn.disabled = true;
+            statusDiv.innerHTML = '<div class="loading">Finding Actions pages and extracting images...</div>';
+            resultsDiv.style.display = 'none';
+            detectedPagesDiv.style.display = 'none';
+            setWorking('#actionsBtn', '#actionsSpinner', true);
+            
+            try {
+                // Build query parameters
+                const qs = new URLSearchParams({ pdfUrl });
+                if (langOption === 'all') {
+                    qs.set('langs', 'all');
+                } else {
+                    qs.set('lang', langOption);
+                }
+                if (extraKeywords.trim()) {
+                    qs.set('extraKeywords', extraKeywords.trim());
+                }
+                
+                const response = await fetch(`/api/extract-actions?${qs.toString()}`);
+                
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '');
+                    throw new Error(text || `HTTP ${response.status}`);
+                }
+                
+                const images = await response.json();
+                
+                // Get detected pages from header
+                const pagesHdr = response.headers.get('X-Actions-Pages');
+                const detectedPages = pagesHdr ? pagesHdr.split(',').map(s => Number(s.trim())).filter(n => Number.isFinite(n)) : [];
+                
+                // Display detected pages
+                if (detectedPages.length > 0) {
+                    detectedPagesDiv.innerHTML = `Detected Actions pages: ${detectedPages.join(', ')}`;
+                    detectedPagesDiv.style.display = 'block';
+                } else {
+                    detectedPagesDiv.innerHTML = 'Detected Actions pages: none';
+                    detectedPagesDiv.style.display = 'block';
+                }
+                
+                if (images.length > 0) {
+                    // Apply GPT-5 suggested sorting for better UX
+                    const sortedImages = sortImagesForPicking(images);
+                    statusDiv.innerHTML = `<div class="success">Found ${images.length} action images from detected pages!</div>`;
+                    displayImages(sortedImages, 'actions');
+                    resultsDiv.style.display = 'block';
+                } else {
+                    statusDiv.innerHTML = '<div class="error">No "Actions" images found. Try another PDF, language, or add extra keywords.</div>';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">extract-actions failed: ${error.message}</div>`;
+            } finally {
+                setWorking('#actionsBtn', '#actionsSpinner', false);
+            }
+        }
+        
+        // GPT-5 suggested sorting function with server-side scoring support
+        function sortImagesForPicking(images) {
+            // Prefer server-provided score; fallback to area -> PNG -> page
+            return [...images].sort((a, b) => {
+                const sa = typeof a.score === 'number' ? a.score : null;
+                const sb = typeof b.score === 'number' ? b.score : null;
+                if (sa !== null && sb !== null && sb !== sa) return sb - sa;
+
+                const areaA = (a.width || 0) * (a.height || 0);
+                const areaB = (b.width || 0) * (b.height || 0);
+                if (areaA !== areaB) return areaB - areaA;
+
+                const fa = String(a.format || '').toLowerCase();
+                const fb = String(b.format || '').toLowerCase();
+                if (fa !== fb) {
+                    if (fa === 'png') return -1;
+                    if (fb === 'png') return 1;
+                }
+                return (a.page || 0) - (b.page || 0);
+            });
+        }
+        
+        function displayImages(images, jobId) {
+            const imageGrid = document.getElementById('imageGrid');
+            const resultsTitle = document.getElementById('resultsTitle');
+            imageGrid.innerHTML = '';
+            
+            // Update title based on extraction type
+            if (jobId === 'actions') {
+                resultsTitle.textContent = `Action Images (${images.length} found) - Click to select`;
+            } else {
+                resultsTitle.textContent = 'Extracted Images with Metadata';
+            }
+            
+            images.forEach((image, index) => {
+                const card = document.createElement('div');
+                card.className = 'image-card';
+                
+                // Add click handler for actions mode
+                if (jobId === 'actions') {
+                    card.style.cursor = 'pointer';
+                    card.style.transition = 'all 0.2s';
+                    card.addEventListener('click', () => selectActionImage(image));
+                    card.addEventListener('mouseenter', () => {
+                        card.style.transform = 'scale(1.02)';
+                        card.style.boxShadow = '0 4px 12px rgba(231, 76, 60, 0.3)';
+                    });
+                    card.addEventListener('mouseleave', () => {
+                        card.style.transform = 'scale(1)';
+                        card.style.boxShadow = 'none';
+                    });
+                }
+                
+                // Create improved thumbnail with checkerboard and "Open original" link
+                const thumb = document.createElement('div');
+                thumb.className = 'thumb';
+                const pageInfo = image.page ? ` • Page ${image.page}` : '';
+                thumb.title = `${image.name} • ${image.width && image.height ? `${image.width}×${image.height}px` : 'Dimensions: N/A'}${pageInfo}`;
+                
+                const img = document.createElement('img');
+                img.src = image.url;
+                img.alt = image.name;
+                img.loading = 'lazy';
+                img.onerror = () => {
+                    img.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150"><rect width="200" height="150" fill="%23333"/><text x="100" y="75" text-anchor="middle" fill="%23666" font-family="Arial" font-size="12">Image not found</text></svg>';
+                };
+                
+                // NEW: Add badges for source, page, and score
+                const metaBadges = document.createElement('div');
+                metaBadges.className = 'meta-badges';
+                metaBadges.style.cssText = 'position: absolute; top: 5px; left: 5px; display: flex; flex-wrap: wrap; gap: 3px;';
+                
+                if (image.source) {
+                    const sourceBadge = document.createElement('span');
+                    sourceBadge.className = 'badge';
+                    sourceBadge.style.cssText = 'background: rgba(52, 152, 219, 0.9); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: bold;';
+                    sourceBadge.textContent = image.source;
+                    metaBadges.appendChild(sourceBadge);
+                }
+                
+                if (Number.isFinite(image.page)) {
+                    const pageBadge = document.createElement('span');
+                    pageBadge.className = 'badge';
+                    pageBadge.style.cssText = 'background: rgba(155, 89, 182, 0.9); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: bold;';
+                    pageBadge.textContent = `p.${image.page}`;
+                    metaBadges.appendChild(pageBadge);
+                }
+                
+                if (Number.isFinite(image.score)) {
+                    const scoreBadge = document.createElement('span');
+                    scoreBadge.className = 'badge';
+                    scoreBadge.style.cssText = 'background: rgba(231, 76, 60, 0.9); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: bold;';
+                    scoreBadge.textContent = `${Math.round(image.score / 1000)}k`;
+                    metaBadges.appendChild(scoreBadge);
+                }
+                
+                const openLink = document.createElement('a');
+                openLink.className = 'open-original';
+                openLink.href = image.url;
+                openLink.target = '_blank';
+                openLink.rel = 'noreferrer';
+                openLink.textContent = 'Open original';
+                
+                thumb.style.position = 'relative'; // Ensure badges position correctly
+                thumb.appendChild(img);
+                thumb.appendChild(metaBadges);
+                thumb.appendChild(openLink);
+                
+                const info = document.createElement('div');
+                info.className = 'image-info';
+                const areaInfo = (image.width && image.height) ? ` • ${(image.width * image.height).toLocaleString()} pixels` : '';
+                const pageDisplay = image.page ? `<br>Page: ${image.page}` : '';
+                const actionLabel = (jobId === 'actions') ? '<br><span style="color: #e74c3c;">🎯 Action Image</span>' : '';
+                info.innerHTML = `
+                    <strong>${image.name}</strong><br>
+                    ${image.width && image.height ? `${image.width}×${image.height}px` : 'Dimensions: N/A'}${areaInfo}<br>
+                    ${image.sizeBytes || image.fileSize ? `${((image.sizeBytes || image.fileSize) / 1024).toFixed(1)}KB` : 'Size: N/A'}<br>
+                    ${image.type || image.format ? `Type: ${(image.type || image.format).toUpperCase()}` : 'Type: N/A'}${pageDisplay}${actionLabel}
+                `;
+                
+                card.appendChild(thumb);
+                card.appendChild(info);
+                imageGrid.appendChild(card);
+            });
+        }
+        
+        function selectActionImage(image) {
+            // Show selected action image preview
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `
+                <div class="success">
+                    Selected Action Image from Page ${image.page}<br>
+                    <div style="margin-top: 10px; padding: 10px; border: 1px solid #27ae60; border-radius: 6px; background: rgba(39, 174, 96, 0.1);">
+                        <strong>${image.fileName || image.name}</strong> • ${image.width}×${image.height}px • ${(image.format || image.type || '').toUpperCase()}<br>
+                        <a href="${image.url}" target="_blank" style="color: #27ae60;">View full resolution →</a>
+                    </div>
+                </div>
+            `;
+            
+            // Scroll to top to show selection
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        function openReactDemo() {
+            // Attempt to open the React frontend (assumes it's running on port 3000 or 3001)
+            const reactUrls = ['http://localhost:3000', 'http://localhost:3001'];
+            
+            // Try to detect which port has the React app running
+            const currentPdfUrl = document.getElementById('pdfUrl').value;
+            
+            // Encode the current PDF URL to pass as a parameter
+            const urlParam = currentPdfUrl ? `?pdfUrl=${encodeURIComponent(currentPdfUrl)}` : '';
+            
+            // Try opening the first React URL
+            window.open(reactUrls[0] + urlParam, '_blank');
+        }
+        
+        // Allow Enter key to trigger extraction
+        document.getElementById('pdfUrl').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                extractImages();
+            }
+        });
+        
+        // Auto-populate URL from query parameter if provided
+        const urlParams = new URLSearchParams(window.location.search);
+        const providedPdfUrl = urlParams.get('pdfUrl');
+        if (providedPdfUrl) {
+            document.getElementById('pdfUrl').value = decodeURIComponent(providedPdfUrl);
+        }
+    </script>
+</body>
+</html>

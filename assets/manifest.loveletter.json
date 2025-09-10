@@ -1,0 +1,18 @@
+{
+  "assets": {
+    "asset:card:guard": { "path": "assets/cards/guard.png" },
+    "asset:card:priest": { "path": "assets/cards/priest.png" },
+    "asset:card:baron": { "path": "assets/cards/baron.png" },
+    "asset:card:handmaid": { "path": "assets/cards/handmaid.png" },
+    "asset:card:prince": { "path": "assets/cards/prince.png" },
+    "asset:card:king": { "path": "assets/cards/king.png" },
+    "asset:card:countess": { "path": "assets/cards/countess.png" },
+    "asset:card:princess": { "path": "assets/cards/princess.png" },
+    "asset:token:affection": { "path": "assets/tokens/affection.png" }
+  },
+  "placeholders": {
+    "image": "assets/placeholders/slate.png"
+  },
+  "license": "Placeholders only. Replace with licensed assets before publishing.",
+  "credits": "Artwork © respective publishers."
+}

@@ -1,0 +1,6 @@
+componentA,relation,componentB,description
+maki,requires,sashimi,Maki rolls are often paired with sashimi in a complete meal
+temaki,conflicts-with,wasabi,Temaki is difficult to eat with wasabi
+pudding,succeeds,sashimi,Pudding is typically served after sashimi
+chopsticks,required-for,maki,Chopsticks are needed to eat maki rolls properly
+wasabi,enhances,sashimi,Wasabi complements the flavor of sashimi

@@ -1,0 +1,1220 @@
+{
+  "generated_at": "2025-08-12T14:44:46Z",
+  "root": "mobius-games-tutorial-generator",
+  "excludes": [
+    ".cache",
+    ".git",
+    ".gradle",
+    ".idea",
+    ".next",
+    ".terraform",
+    ".venv",
+    ".vscode",
+    "DerivedData",
+    "Pods",
+    "__pycache__",
+    "build",
+    "coverage",
+    "dist",
+    "node_modules",
+    "out",
+    "target",
+    "venv"
+  ],
+  "stats": {
+    "files": 79,
+    "dirs": 49,
+    "loc_estimate": 2157,
+    "by_ext": {
+      "": 6,
+      ".js": 45,
+      ".mjs": 1,
+      ".py": 7,
+      ".json": 5,
+      ".db": 2,
+      ".md": 6,
+      ".pt": 1,
+      ".mdb": 2,
+      ".txt": 2,
+      ".html": 1,
+      ".css": 1
+    }
+  },
+  "key_files": {
+    "babel.config.js": {
+      "size": 130,
+      "content": "module.exports = {\n  presets: [\n    ['@babel/preset-env', {\n      targets: {\n        node: 'current'\n      }\n    }]\n  ]\n};"
+    },
+    "package-lock.json": {
+      "size": 450015,
+      "content": "{\n  \"name\": \"mobius-games-tutorial-generator\",\n  \"version\": \"1.0.0\",\n  \"lockfileVersion\": 3,\n  \"requires\": true,\n  \"packages\": {\n    \"\": {\n      \"name\": \"mobius-games-tutorial-generator\",\n      \"version\": \"1.0.0\",\n      \"license\": \"ISC\",\n      \"dependencies\": {\n        \"@types/react-beautiful-dnd\": \"^13.1.8\",\n        \"axios\": \"^1.10.0\",\n        \"cheerio\": \"^1.1.0\",\n        \"cohere-ai\": \"^7.17.1\",\n        \"cors\": \"^2.8.5\",\n        \"dotenv\": \"^16.5.0\",\n        \"express\": \"^4.21.2\",\n        \"fast-levenshtein\": \"^3.0.0\",\n        \"fast-xml-parser\": \"^5.2.5\",\n        \"fs-extra\": \"^11.3.0\",\n        \"fuse.js\": \"^7.1.0\",\n        \"multer\": \"^2.0.0\",\n        \"openai\": \"^4.103.0\",\n        \"pdf-parse\": \"^1.1.1\",\n        \"pdf-to-img\": \"^4.4.0\",\n        \"pdfjs-dist\": \"^3.11.174\",\n        \"react\": \"18.2.0\",\n        \"react-beautiful-dnd\": \"^13.1.1\",\n        \"react-dom\": \"18.2.0\",\n        \"react-markdown\": \"^10.1.0\",\n        \"react-spinners\": \"^0.17.0\",\n        \"sharp\": \"^0.34.3\",\n        \"sqlite3\": \"^5.1.7\",\n        \"xml2js\": \"^0.6.2\"\n      },\n      \"devDependencies\": {\n        \"@babel/core\": \"^7.22.0\",\n        \"@babel/preset-env\": \"^7.22.0\",\n        \"babel-jest\": \"^29.6.0\",\n        \"jest\": \"^29.6.0\"\n      }\n    },\n    \"node_modules/@ampproject/remapping\": {\n      \"version\": \"2.3.0\",\n      \"resolved\": \"https://registry.npmjs.org/@ampproject/remapping/-/remapping-2.3.0.tgz\",\n      \"integrity\": \"sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==\",\n      \"dev\": true,\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@jridgewell/gen-mapping\": \"^0.3.5\",\n        \"@jridgewell/trace-mapping\": \"^0.3.24\"\n      },\n      \"engines\": {\n        \"node\": \">=6.0.0\"\n      }\n    },\n    \"node_modules/@aws-crypto/crc32\": {\n      \"version\": \"3.0.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-crypto/crc32/-/crc32-3.0.0.tgz\",\n      \"integrity\": \"sha512-IzSgsrxUcsrejQbPVilIKy16kAT52EwB6zSaI+M3xxIhKh5+aldEyvI+z6erM7TCLB2BJsFrtHjp6/4/sr+3dA==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@aws-crypto/util\": \"^3.0.0\",\n        \"@aws-sdk/types\": \"^3.222.0\",\n        \"tslib\": \"^1.11.1\"\n      }\n    },\n    \"node_modules/@aws-crypto/crc32/node_modules/@aws-crypto/util\": {\n      \"version\": \"3.0.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-crypto/util/-/util-3.0.0.tgz\",\n      \"integrity\": \"sha512-2OJlpeJpCR48CC8r+uKVChzs9Iungj9wkZrl8Z041DWEWvyIHILYKCPNzJghKsivj+S3mLo6BVc7mBNzdxA46w==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@aws-sdk/types\": \"^3.222.0\",\n        \"@aws-sdk/util-utf8-browser\": \"^3.0.0\",\n        \"tslib\": \"^1.11.1\"\n      }\n    },\n    \"node_modules/@aws-crypto/crc32/node_modules/tslib\": {\n      \"version\": \"1.14.1\",\n      \"resolved\": \"https://registry.npmjs.org/tslib/-/tslib-1.14.1.tgz\",\n      \"integrity\": \"sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg==\",\n      \"license\": \"0BSD\"\n    },\n    \"node_modules/@aws-crypto/sha256-browser\": {\n      \"version\": \"5.2.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-crypto/sha256-browser/-/sha256-browser-5.2.0.tgz\",\n      \"integrity\": \"sha512-AXfN/lGotSQwu6HNcEsIASo7kWXZ5HYWvfOmSNKDsEqC4OashTp8alTmaz+F7TC2L083SFv5RdB+qU3Vs1kZqw==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@aws-crypto/sha256-js\": \"^5.2.0\",\n        \"@aws-crypto/supports-web-crypto\": \"^5.2.0\",\n        \"@aws-crypto/util\": \"^5.2.0\",\n        \"@aws-sdk/types\": \"^3.222.0\",\n        \"@aws-sdk/util-locate-window\": \"^3.0.0\",\n        \"@smithy/util-utf8\": \"^2.0.0\",\n        \"tslib\": \"^2.6.2\"\n      }\n    },\n    \"node_modules/@aws-crypto/sha256-browser/node_modules/@smithy/is-array-buffer\": {\n      \"version\": \"2.2.0\",\n      \"resolved\": \"https://registry.npmjs.org/@smithy/is-array-buffer/-/is-array-buffer-2.2.0.tgz\",\n      \"integrity\": \"sha512-GGP3O9QFD24uGeAXYUjwSTXARoqpZykHadOmA8G5vfJPK0/DC67qa//0qvqrJzL1xc8WQWX7/yc7fwudjPHPhA==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=14.0.0\"\n      }\n    },\n    \"node_modules/@aws-crypto/sha256-browser/node_modules/@smithy/util-buffer-from\": {\n      \"version\": \"2.2.0\",\n      \"resolved\": \"https://registry.npmjs.org/@smithy/util-buffer-from/-/util-buffer-from-2.2.0.tgz\",\n      \"integrity\": \"sha512-IJdWBbTcMQ6DA0gdNhh/BwrLkDR+ADW5Kr1aZmd4k3DIF6ezMV4R2NIAmT08wQJ3yUK82thHWmC/TnK/wpMMIA==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@smithy/is-array-buffer\": \"^2.2.0\",\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=14.0.0\"\n      }\n    },\n    \"node_modules/@aws-crypto/sha256-browser/node_modules/@smithy/util-utf8\": {\n      \"version\": \"2.3.0\",\n      \"resolved\": \"https://registry.npmjs.org/@smithy/util-utf8/-/util-utf8-2.3.0.tgz\",\n      \"integrity\": \"sha512-R8Rdn8Hy72KKcebgLiv8jQcQkXoLMOGGv5uI1/k0l+snqkOzQ1R0ChUBCxWMlBsFMekWjq0wRudIweFs7sKT5A==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@smithy/util-buffer-from\": \"^2.2.0\",\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=14.0.0\"\n      }\n    },\n    \"node_modules/@aws-crypto/sha256-js\": {\n      \"version\": \"5.2.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-crypto/sha256-js/-/sha256-js-5.2.0.tgz\",\n      \"integrity\": \"sha512-FFQQyu7edu4ufvIZ+OadFpHHOt+eSTBaYaki44c+akjg7qZg9oOQeLlk77F6tSYqjDAFClrHJk9tMf0HdVyOvA==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@aws-crypto/util\": \"^5.2.0\",\n        \"@aws-sdk/types\": \"^3.222.0\",\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=16.0.0\"\n      }\n    },\n    \"node_modules/@aws-crypto/supports-web-crypto\": {\n      \"version\": \"5.2.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-crypto/supports-web-crypto/-/supports-web-crypto-5.2.0.tgz\",\n      \"integrity\": \"sha512-iAvUotm021kM33eCdNfwIN//F77/IADDSs58i+MDaOqFrVjZo9bAal0NK7HurRuWLLpF1iLX7gbWrjHjeo+YFg==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"tslib\": \"^2.6.2\"\n      }\n    },\n    \"node_modules/@aws-crypto/util\": {\n      \"version\": \"5.2.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-crypto/util/-/util-5.2.0.tgz\",\n      \"integrity\": \"sha512-4RkU9EsI6ZpBve5fseQlGNUWKMa1RLPQ1dnjnQoe07ldfIzcsGb5hC5W0Dm7u423KWzawlrpbjXBrXCEv9zazQ==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@aws-sdk/types\": \"^3.222.0\",\n        \"@smithy/util-utf8\": \"^2.0.0\",\n        \"tslib\": \"^2.6.2\"\n      }\n    },\n    \"node_modules/@aws-crypto/util/node_modules/@smithy/is-array-buffer\": {\n      \"version\": \"2.2.0\",\n      \"resolved\": \"https://registry.npmjs.org/@smithy/is-array-buffer/-/is-array-buffer-2.2.0.tgz\",\n      \"integrity\": \"sha512-GGP3O9QFD24uGeAXYUjwSTXARoqpZykHadOmA8G5vfJPK0/DC67qa//0qvqrJzL1xc8WQWX7/yc7fwudjPHPhA==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=14.0.0\"\n      }\n    },\n    \"node_modules/@aws-crypto/util/node_modules/@smithy/util-buffer-from\": {\n      \"version\": \"2.2.0\",\n      \"resolved\": \"https://registry.npmjs.org/@smithy/util-buffer-from/-/util-buffer-from-2.2.0.tgz\",\n      \"integrity\": \"sha512-IJdWBbTcMQ6DA0gdNhh/BwrLkDR+ADW5Kr1aZmd4k3DIF6ezMV4R2NIAmT08wQJ3yUK82thHWmC/TnK/wpMMIA==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@smithy/is-array-buffer\": \"^2.2.0\",\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=14.0.0\"\n      }\n    },\n    \"node_modules/@aws-crypto/util/node_modules/@smithy/util-utf8\": {\n      \"version\": \"2.3.0\",\n      \"resolved\": \"https://registry.npmjs.org/@smithy/util-utf8/-/util-utf8-2.3.0.tgz\",\n      \"integrity\": \"sha512-R8Rdn8Hy72KKcebgLiv8jQcQkXoLMOGGv5uI1/k0l+snqkOzQ1R0ChUBCxWMlBsFMekWjq0wRudIweFs7sKT5A==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@smithy/util-buffer-from\": \"^2.2.0\",\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=14.0.0\"\n      }\n    },\n    \"node_modules/@aws-sdk/client-cognito-identity\": {\n      \"version\": \"3.864.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-sdk/client-cognito-identity/-/client-cognito-identity-3.864.0.tgz\",\n      \"integrity\": \"sha512-IH3RSg/Zy2+yXQ2d4jmMk2U8A+BuJ9uNUYPWAg144yUUxanN1Czb+GyFKeJO4NGhVnn5D+j1YoRLpJN8PW2B0g==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@aws-crypto/sha256-browser\": \"5.2.0\",\n        \"@aws-crypto/sha256-js\": \"5.2.0\",\n        \"@aws-sdk/core\": \"3.864.0\",\n        \"@aws-sdk/credential-provider-node\": \"3.864.0\",\n        \"@aws-sdk/middleware-host-header\": \"3.862.0\",\n        \"@aws-sdk/middleware-logger\": \"3.862.0\",\n        \"@aws-sdk/middleware-recursion-detection\": \"3.862.0\",\n        \"@aws-sdk/middleware-user-agent\": \"3.864.0\",\n        \"@aws-sdk/region-config-resolver\": \"3.862.0\",\n        \"@aws-sdk/types\": \"3.862.0\",\n        \"@aws-sdk/util-endpoints\": \"3.862.0\",\n        \"@aws-sdk/util-user-agent-browser\": \"3.862.0\",\n        \"@aws-sdk/util-user-agent-node\": \"3.864.0\",\n        \"@smithy/config-resolver\": \"^4.1.5\",\n        \"@smithy/core\": \"^3.8.0\",\n        \"@smithy/fetch-http-handler\": \"^5.1.1\",\n        \"@smithy/hash-node\": \"^4.0.5\",\n        \"@smithy/invalid-dependency\": \"^4.0.5\",\n        \"@smithy/middleware-content-length\": \"^4.0.5\",\n        \"@smithy/middleware-endpoint\": \"^4.1.18\",\n        \"@smithy/middleware-retry\": \"^4.1.19\",\n        \"@smithy/middleware-serde\": \"^4.0.9\",\n        \"@smithy/middleware-stack\": \"^4.0.5\",\n        \"@smithy/node-config-provider\": \"^4.1.4\",\n        \"@smithy/node-http-handler\": \"^4.1.1\",\n        \"@smithy/protocol-http\": \"^5.1.3\",\n        \"@smithy/smithy-client\": \"^4.4.10\",\n        \"@smithy/types\": \"^4.3.2\",\n        \"@smithy/url-parser\": \"^4.0.5\",\n        \"@smithy/util-base64\": \"^4.0.0\",\n        \"@smithy/util-body-length-browser\": \"^4.0.0\",\n        \"@smithy/util-body-length-node\": \"^4.0.0\",\n        \"@smithy/util-defaults-mode-browser\": \"^4.0.26\",\n        \"@smithy/util-defaults-mode-node\": \"^4.0.26\",\n        \"@smithy/util-endpoints\": \"^3.0.7\",\n        \"@smithy/util-middleware\": \"^4.0.5\",\n        \"@smithy/util-retry\": \"^4.0.7\",\n        \"@smithy/util-utf8\": \"^4.0.0\",\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=18.0.0\"\n      }\n    },\n    \"node_modules/@aws-sdk/client-sagemaker\": {\n      \"version\": \"3.864.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-sdk/client-sagemaker/-/client-sagemaker-3.864.0.tgz\",\n      \"integrity\": \"sha512-OOeBkbF5Zmj46Kir/tHnKUty8x2dkRsUoZ3lDbeWKSTJ7nj7ID6HNTtQo9w7KcWBqk3JwmSCP9zxmWNHDVveJQ==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@aws-crypto/sha256-browser\": \"5.2.0\",\n        \"@aws-crypto/sha256-js\": \"5.2.0\",\n        \"@aws-sdk/core\": \"3.864.0\",\n        \"@aws-sdk/credential-provider-node\": \"3.864.0\",\n        \"@aws-sdk/middleware-host-header\": \"3.862.0\",\n        \"@aws-sdk/middleware-logger\": \"3.862.0\",\n        \"@aws-sdk/middleware-recursion-detection\": \"3.862.0\",\n        \"@aws-sdk/middleware-user-agent\": \"3.864.0\",\n        \"@aws-sdk/region-config-resolver\": \"3.862.0\",\n        \"@aws-sdk/types\": \"3.862.0\",\n        \"@aws-sdk/util-endpoints\": \"3.862.0\",\n        \"@aws-sdk/util-user-agent-browser\": \"3.862.0\",\n        \"@aws-sdk/util-user-agent-node\": \"3.864.0\",\n        \"@smithy/config-resolver\": \"^4.1.5\",\n        \"@smithy/core\": \"^3.8.0\",\n        \"@smithy/fetch-http-handler\": \"^5.1.1\",\n        \"@smithy/hash-node\": \"^4.0.5\",\n        \"@smithy/invalid-dependency\": \"^4.0.5\",\n        \"@smithy/middleware-content-length\": \"^4.0.5\",\n        \"@smithy/middleware-endpoint\": \"^4.1.18\",\n        \"@smithy/middleware-retry\": \"^4.1.19\",\n        \"@smithy/middleware-serde\": \"^4.0.9\",\n        \"@smithy/middleware-stack\": \"^4.0.5\",\n        \"@smithy/node-config-provider\": \"^4.1.4\",\n        \"@smithy/node-http-handler\": \"^4.1.1\",\n        \"@smithy/protocol-http\": \"^5.1.3\",\n        \"@smithy/smithy-client\": \"^4.4.10\",\n        \"@smithy/types\": \"^4.3.2\",\n        \"@smithy/url-parser\": \"^4.0.5\",\n        \"@smithy/util-base64\": \"^4.0.0\",\n        \"@smithy/util-body-length-browser\": \"^4.0.0\",\n        \"@smithy/util-body-length-node\": \"^4.0.0\",\n        \"@smithy/util-defaults-mode-browser\": \"^4.0.26\",\n        \"@smithy/util-defaults-mode-node\": \"^4.0.26\",\n        \"@smithy/util-endpoints\": \"^3.0.7\",\n        \"@smithy/util-middleware\": \"^4.0.5\",\n        \"@smithy/util-retry\": \"^4.0.7\",\n        \"@smithy/util-utf8\": \"^4.0.0\",\n        \"@smithy/util-waiter\": \"^4.0.7\",\n        \"@types/uuid\": \"^9.0.1\",\n        \"tslib\": \"^2.6.2\",\n        \"uuid\": \"^9.0.1\"\n      },\n      \"engines\": {\n        \"node\": \">=18.0.0\"\n      }\n    },\n    \"node_modules/@aws-sdk/client-sso\": {\n      \"version\": \"3.864.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-sdk/client-sso/-/client-sso-3.864.0.tgz\",\n      \"integrity\": \"sha512-THiOp0OpQROEKZ6IdDCDNNh3qnNn/kFFaTSOiugDpgcE5QdsOxh1/RXq7LmHpTJum3cmnFf8jG59PHcz9Tjnlw==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@aws-crypto/sha256-browser\": \"5.2.0\",\n        \"@aws-crypto/sha256-js\": \"5.2.0\",\n        \"@aws-sdk/core\": \"3.864.0\",\n        \"@aws-sdk/middleware-host-header\": \"3.862.0\",\n        \"@aws-sdk/middleware-logger\": \"3.862.0\",\n        \"@aws-sdk/middleware-recursion-detection\": \"3.862.0\",\n        \"@aws-sdk/middleware-user-agent\": \"3.864.0\",\n        \"@aws-sdk/region-config-resolver\": \"3.862.0\",\n        \"@aws-sdk/types\": \"3.862.0\",\n        \"@aws-sdk/util-endpoints\": \"3.862.0\",\n        \"@aws-sdk/util-user-agent-browser\": \"3.862.0\",\n        \"@aws-sdk/util-user-agent-node\": \"3.864.0\",\n        \"@smithy/config-resolver\": \"^4.1.5\",\n        \"@smithy/core\": \"^3.8.0\",\n        \"@smithy/fetch-http-handler\": \"^5.1.1\",\n        \"@smithy/hash-node\": \"^4.0.5\",\n        \"@smithy/invalid-dependency\": \"^4.0.5\",\n        \"@smithy/middleware-content-length\": \"^4.0.5\",\n        \"@smithy/middleware-endpoint\": \"^4.1.18\",\n        \"@smithy/middleware-retry\": \"^4.1.19\",\n        \"@smithy/middleware-serde\": \"^4.0.9\",\n        \"@smithy/middleware-stack\": \"^4.0.5\",\n        \"@smithy/node-config-provider\": \"^4.1.4\",\n        \"@smithy/node-http-handler\": \"^4.1.1\",\n        \"@smithy/protocol-http\": \"^5.1.3\",\n        \"@smithy/smithy-client\": \"^4.4.10\",\n        \"@smithy/types\": \"^4.3.2\",\n        \"@smithy/url-parser\": \"^4.0.5\",\n        \"@smithy/util-base64\": \"^4.0.0\",\n        \"@smithy/util-body-length-browser\": \"^4.0.0\",\n        \"@smithy/util-body-length-node\": \"^4.0.0\",\n        \"@smithy/util-defaults-mode-browser\": \"^4.0.26\",\n        \"@smithy/util-defaults-mode-node\": \"^4.0.26\",\n        \"@smithy/util-endpoints\": \"^3.0.7\",\n        \"@smithy/util-middleware\": \"^4.0.5\",\n        \"@smithy/util-retry\": \"^4.0.7\",\n        \"@smithy/util-utf8\": \"^4.0.0\",\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=18.0.0\"\n      }\n    },\n    \"node_modules/@aws-sdk/core\": {\n      \"version\": \"3.864.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-sdk/core/-/core-3.864.0.tgz\",\n      \"integrity\": \"sha512-LFUREbobleHEln+Zf7IG83lAZwvHZG0stI7UU0CtwyuhQy5Yx0rKksHNOCmlM7MpTEbSCfntEhYi3jUaY5e5lg==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@aws-sdk/types\": \"3.862.0\",\n        \"@aws-sdk/xml-builder\": \"3.862.0\",\n        \"@smithy/core\": \"^3.8.0\",\n        \"@smithy/node-config-provider\": \"^4.1.4\",\n        \"@smithy/property-provider\": \"^4.0.5\",\n        \"@smithy/protocol-http\": \"^5.1.3\",\n        \"@smithy/signature-v4\": \"^5.1.3\",\n        \"@smithy/smithy-client\": \"^4.4.10\",\n        \"@smithy/types\": \"^4.3.2\",\n        \"@smithy/util-base64\": \"^4.0.0\",\n        \"@smithy/util-body-length-browser\": \"^4.0.0\",\n        \"@smithy/util-middleware\": \"^4.0.5\",\n        \"@smithy/util-utf8\": \"^4.0.0\",\n        \"fast-xml-parser\": \"5.2.5\",\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=18.0.0\"\n      }\n    },\n    \"node_modules/@aws-sdk/credential-provider-cognito-identity\": {\n      \"version\": \"3.864.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-sdk/credential-provider-cognito-identity/-/credential-provider-cognito-identity-3.864.0.tgz\",\n      \"integrity\": \"sha512-jF6xJS67nPvJ/ElvdA2Q/EDArTcd0fKS3R6zImupOkTMm9PwmEM/BM7hpQCUFkVcaUhtvPpYCtuolGq9ezuKng==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@aws-sdk/client-cognito-identity\": \"3.864.0\",\n        \"@aws-sdk/types\": \"3.862.0\",\n        \"@smithy/property-provider\": \"^4.0.5\",\n        \"@smithy/types\": \"^4.3.2\",\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=18.0.0\"\n      }\n    },\n    \"node_modules/@aws-sdk/credential-provider-env\": {\n      \"version\": \"3.864.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-sdk/credential-provider-env/-/credential-provider-env-3.864.0.tgz\",\n      \"integrity\": \"sha512-StJPOI2Rt8UE6lYjXUpg6tqSZaM72xg46ljPg8kIevtBAAfdtq9K20qT/kSliWGIBocMFAv0g2mC0hAa+ECyvg==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@aws-sdk/core\": \"3.864.0\",\n        \"@aws-sdk/types\": \"3.862.0\",\n        \"@smithy/property-provider\": \"^4.0.5\",\n        \"@smithy/types\": \"^4.3.2\",\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=18.0.0\"\n      }\n    },\n    \"node_modules/@aws-sdk/credential-provider-http\": {\n      \"version\": \"3.864.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-sdk/credential-provider-http/-/credential-provider-http-3.864.0.tgz\",\n      \"integrity\": \"sha512-E/RFVxGTuGnuD+9pFPH2j4l6HvrXzPhmpL8H8nOoJUosjx7d4v93GJMbbl1v/fkDLqW9qN4Jx2cI6PAjohA6OA==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@aws-sdk/core\": \"3.864.0\",\n        \"@aws-sdk/types\": \"3.862.0\",\n        \"@smithy/fetch-http-handler\": \"^5.1.1\",\n        \"@smithy/node-http-handler\": \"^4.1.1\",\n        \"@smithy/property-provider\": \"^4.0.5\",\n        \"@smithy/protocol-http\": \"^5.1.3\",\n        \"@smithy/smithy-client\": \"^4.4.10\",\n        \"@smithy/types\": \"^4.3.2\",\n        \"@smithy/util-stream\": \"^4.2.4\",\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=18.0.0\"\n      }\n    },\n    \"node_modules/@aws-sdk/credential-provider-ini\": {\n      \"version\": \"3.864.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-sdk/credential-provider-ini/-/credential-provider-ini-3.864.0.tgz\",\n      \"integrity\": \"sha512-PlxrijguR1gxyPd5EYam6OfWLarj2MJGf07DvCx9MAuQkw77HBnsu6+XbV8fQriFuoJVTBLn9ROhMr/ROAYfUg==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@aws-sdk/core\": \"3.864.0\",\n        \"@aws-sdk/credential-provider-env\": \"3.864.0\",\n        \"@aws-sdk/credential-provider-http\": \"3.864.0\",\n        \"@aws-sdk/credential-provider-process\": \"3.864.0\",\n        \"@aws-sdk/credential-provider-sso\": \"3.864.0\",\n        \"@aws-sdk/credential-provider-web-identity\": \"3.864.0\",\n        \"@aws-sdk/nested-clients\": \"3.864.0\",\n        \"@aws-sdk/types\": \"3.862.0\",\n        \"@smithy/credential-provider-imds\": \"^4.0.7\",\n        \"@smithy/property-provider\": \"^4.0.5\",\n        \"@smithy/shared-ini-file-loader\": \"^4.0.5\",\n        \"@smithy/types\": \"^4.3.2\",\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=18.0.0\"\n      }\n    },\n    \"node_modules/@aws-sdk/credential-provider-node\": {\n      \"version\": \"3.864.0\",\n      \"resolved\": \"https://registry.npmjs.org/@aws-sdk/credential-provider-node/-/credential-provider-node-3.864.0.tgz\",\n      \"integrity\": \"sha512-2BEymFeXURS+4jE9tP3vahPwbYRl0/1MVaFZcijj6pq+nf5EPGvkFillbdBRdc98ZI2NedZgSKu3gfZXgYdUhQ==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@aws-sdk/credential-provider-env\": \"3.864.0\",\n        \"@aws-sdk/credential-provider-http\": \"3.864.0\",\n        \"@aws-sdk/credential-provider-ini\": \"3.864.0\",\n        \"@aws-sdk/credential-provider-process\": \"3.864.0\",\n        \"@aws-sdk/credential-provider-sso\": \"3.864.0\",\n        \"@aws-sdk/credential-provider-web-identity\": \"3.864.0\",\n        \"@aws-sdk/types\": \"3.862.0\",\n        \"@smithy/credential-provider-imds\": \"^4.0.7\",\n        \"@smithy/property-provider\": \"^4.0.5\",\n        \"@smithy/shared-ini-file-loader\": \"^4.0.5\",\n        \"@smithy/types\": \"^4.3.2\",\n        \"tslib\": \"^2.6.2\"\n      },\n      \"engines\": {\n        \"node\": \">=18.0.0\"\n      }\n    },\n "
+    },
+    "package.json": {
+      "size": 2065,
+      "content": "{\n  \"name\": \"mobius-games-tutorial-generator\",\n  \"version\": \"1.0.0\",\n  \"type\": \"module\",\n  \"description\": \"AI-powered board game tutorial generator\",\n  \"main\": \"src/api/index.js\",\n  \"scripts\": {  \n  \"server\": \"node src/api/index.js\",  \n  \"start\": \"craco start\",  \n  \"build\": \"craco build\",  \n  \"test\": \"craco test\"  \n  },\n  \"jest\": {\n    \"testEnvironment\": \"node\",\n    \"transform\": {\n      \"^.+\\\\.js$\": \"babel-jest\"\n    },\n    \"moduleFileExtensions\": [\n      \"js\",\n      \"json\",\n      \"mjs\"\n    ],\n    \"testMatch\": [\n      \"**/__tests__/**/*.test.js\"\n    ],\n    \"moduleNameMapper\": {\n      \"^@/(.*)$\": \"<rootDir>/src/$1\"\n    }\n  },\n  \"dependencies\": {\n    \"@types/react-beautiful-dnd\": \"^13.1.8\",\n    \"axios\": \"^1.10.0\",\n    \"cheerio\": \"^1.1.0\",\n    \"cohere-ai\": \"^7.17.1\",\n    \"cors\": \"^2.8.5\",\n    \"dotenv\": \"^16.5.0\",\n    \"express\": \"^4.21.2\",\n    \"fast-levenshtein\": \"^3.0.0\",\n    \"fast-xml-parser\": \"^5.2.5\",\n    \"fs-extra\": \"^11.3.0\",\n    \"fuse.js\": \"^7.1.0\",\n    \"multer\": \"^2.0.0\",\n    \"openai\": \"^4.103.0\",\n    \"pdf-parse\": \"^1.1.1\",\n    \"pdf-to-img\": \"^4.4.0\",\n    \"pdfjs-dist\": \"^3.11.174\",\n    \"react\": \"18.2.0\",\n    \"react-beautiful-dnd\": \"^13.1.1\",\n    \"react-dom\": \"18.2.0\",\n    \"react-markdown\": \"^10.1.0\",\n    \"react-spinners\": \"^0.17.0\",\n    \"sharp\": \"^0.34.3\",\n    \"sqlite3\": \"^5.1.7\",\n    \"xml2js\": \"^0.6.2\"\n  },\n  \"devDependencies\": {\n    \"@babel/core\": \"^7.22.0\",\n    \"@babel/preset-env\": \"^7.22.0\",\n    \"babel-jest\": \"^29.6.0\",\n    \"jest\": \"^29.6.0\"\n  },\n  \"directories\": {\n    \"doc\": \"docs\",\n    \"test\": \"tests\"\n  },\n  \"repository\": {\n    \"type\": \"git\",\n    \"url\": \"git+https://github.com/w9bikze8u4cbupc/mobius-games-tutorial-generator.git\"\n  },\n  \"keywords\": [],\n  \"author\": \"\",\n  \"license\": \"ISC\",\n  \"bugs\": {\n    \"url\": \"https://github.com/w9bikze8u4cbupc/mobius-games-tutorial-generator/issues\"\n  },\n  \"homepage\": \"https://github.com/w9bikze8u4cbupc/mobius-games-tutorial-generator#readme\",\n  \"overrides\": {\n    \"react\": \"18.2.0\",\n    \"react-dom\": \"18.2.0\"\n  },\n  \"resolutions\": {\n    \"react\": \"18.2.0\",\n    \"react-dom\": \"18.2.0\"\n  }\n}\n"
+    },
+    "README.md": {
+      "size": 0,
+      "content": ""
+    },
+    "client\\package-lock.json": {
+      "size": 721649,
+      "content": "{\n  \"name\": \"client\",\n  \"version\": \"0.1.0\",\n  \"lockfileVersion\": 3,\n  \"requires\": true,\n  \"packages\": {\n    \"\": {\n      \"name\": \"client\",\n      \"version\": \"0.1.0\",\n      \"dependencies\": {\n        \"@craco/craco\": \"^7.1.0\",\n        \"@testing-library/dom\": \"^10.4.0\",\n        \"@testing-library/jest-dom\": \"^6.6.3\",\n        \"@testing-library/react\": \"^16.3.0\",\n        \"@testing-library/user-event\": \"^13.5.0\",\n        \"axios\": \"^1.9.0\",\n        \"pdfjs-dist\": \"^2.16.105\",\n        \"react\": \"18.2.0\",\n        \"react-dom\": \"18.2.0\",\n        \"react-markdown\": \"^10.1.0\",\n        \"react-scripts\": \"^5.0.1\",\n        \"web-vitals\": \"^2.1.4\"\n      }\n    },\n    \"node_modules/@adobe/css-tools\": {\n      \"version\": \"4.4.3\",\n      \"resolved\": \"https://registry.npmjs.org/@adobe/css-tools/-/css-tools-4.4.3.tgz\",\n      \"integrity\": \"sha512-VQKMkwriZbaOgVCby1UDY/LDk5fIjhQicCvVPFqfe+69fWaPWydbWJ3wRt59/YzIwda1I81loas3oCoHxnqvdA==\",\n      \"license\": \"MIT\"\n    },\n    \"node_modules/@alloc/quick-lru\": {\n      \"version\": \"5.2.0\",\n      \"resolved\": \"https://registry.npmjs.org/@alloc/quick-lru/-/quick-lru-5.2.0.tgz\",\n      \"integrity\": \"sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==\",\n      \"license\": \"MIT\",\n      \"engines\": {\n        \"node\": \">=10\"\n      },\n      \"funding\": {\n        \"url\": \"https://github.com/sponsors/sindresorhus\"\n      }\n    },\n    \"node_modules/@ampproject/remapping\": {\n      \"version\": \"2.3.0\",\n      \"resolved\": \"https://registry.npmjs.org/@ampproject/remapping/-/remapping-2.3.0.tgz\",\n      \"integrity\": \"sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==\",\n      \"license\": \"Apache-2.0\",\n      \"dependencies\": {\n        \"@jridgewell/gen-mapping\": \"^0.3.5\",\n        \"@jridgewell/trace-mapping\": \"^0.3.24\"\n      },\n      \"engines\": {\n        \"node\": \">=6.0.0\"\n      }\n    },\n    \"node_modules/@babel/code-frame\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/code-frame/-/code-frame-7.27.1.tgz\",\n      \"integrity\": \"sha512-cjQ7ZlQ0Mv3b47hABuTevyTuYN4i+loJKGeV9flcCgIK37cCXRh+L1bd3iBHlynerhQ7BhCkn2BPbQUL+rGqFg==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/helper-validator-identifier\": \"^7.27.1\",\n        \"js-tokens\": \"^4.0.0\",\n        \"picocolors\": \"^1.1.1\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/compat-data\": {\n      \"version\": \"7.28.0\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/compat-data/-/compat-data-7.28.0.tgz\",\n      \"integrity\": \"sha512-60X7qkglvrap8mn1lh2ebxXdZYtUcpd7gsmy9kLaBJ4i/WdY8PqTSdxyA8qraikqKQK5C1KRBKXqznrVapyNaw==\",\n      \"license\": \"MIT\",\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/core\": {\n      \"version\": \"7.28.0\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/core/-/core-7.28.0.tgz\",\n      \"integrity\": \"sha512-UlLAnTPrFdNGoFtbSXwcGFQBtQZJCNjaN6hQNP3UPvuNXT1i82N26KL3dZeIpNalWywr9IuQuncaAfUaS1g6sQ==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@ampproject/remapping\": \"^2.2.0\",\n        \"@babel/code-frame\": \"^7.27.1\",\n        \"@babel/generator\": \"^7.28.0\",\n        \"@babel/helper-compilation-targets\": \"^7.27.2\",\n        \"@babel/helper-module-transforms\": \"^7.27.3\",\n        \"@babel/helpers\": \"^7.27.6\",\n        \"@babel/parser\": \"^7.28.0\",\n        \"@babel/template\": \"^7.27.2\",\n        \"@babel/traverse\": \"^7.28.0\",\n        \"@babel/types\": \"^7.28.0\",\n        \"convert-source-map\": \"^2.0.0\",\n        \"debug\": \"^4.1.0\",\n        \"gensync\": \"^1.0.0-beta.2\",\n        \"json5\": \"^2.2.3\",\n        \"semver\": \"^6.3.1\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      },\n      \"funding\": {\n        \"type\": \"opencollective\",\n        \"url\": \"https://opencollective.com/babel\"\n      }\n    },\n    \"node_modules/@babel/core/node_modules/semver\": {\n      \"version\": \"6.3.1\",\n      \"resolved\": \"https://registry.npmjs.org/semver/-/semver-6.3.1.tgz\",\n      \"integrity\": \"sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==\",\n      \"license\": \"ISC\",\n      \"bin\": {\n        \"semver\": \"bin/semver.js\"\n      }\n    },\n    \"node_modules/@babel/eslint-parser\": {\n      \"version\": \"7.28.0\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/eslint-parser/-/eslint-parser-7.28.0.tgz\",\n      \"integrity\": \"sha512-N4ntErOlKvcbTt01rr5wj3y55xnIdx1ymrfIr8C2WnM1Y9glFgWaGDEULJIazOX3XM9NRzhfJ6zZnQ1sBNWU+w==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@nicolo-ribaudo/eslint-scope-5-internals\": \"5.1.1-v1\",\n        \"eslint-visitor-keys\": \"^2.1.0\",\n        \"semver\": \"^6.3.1\"\n      },\n      \"engines\": {\n        \"node\": \"^10.13.0 || ^12.13.0 || >=14.0.0\"\n      },\n      \"peerDependencies\": {\n        \"@babel/core\": \"^7.11.0\",\n        \"eslint\": \"^7.5.0 || ^8.0.0 || ^9.0.0\"\n      }\n    },\n    \"node_modules/@babel/eslint-parser/node_modules/eslint-visitor-keys\": {\n      \"version\": \"2.1.0\",\n      \"resolved\": \"https://registry.npmjs.org/eslint-visitor-keys/-/eslint-visitor-keys-2.1.0.tgz\",\n      \"integrity\": \"sha512-0rSmRBzXgDzIsD6mGdJgevzgezI534Cer5L/vyMX0kHzT/jiB43jRhd9YUlMGYLQy2zprNmoT8qasCGtY+QaKw==\",\n      \"license\": \"Apache-2.0\",\n      \"engines\": {\n        \"node\": \">=10\"\n      }\n    },\n    \"node_modules/@babel/eslint-parser/node_modules/semver\": {\n      \"version\": \"6.3.1\",\n      \"resolved\": \"https://registry.npmjs.org/semver/-/semver-6.3.1.tgz\",\n      \"integrity\": \"sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==\",\n      \"license\": \"ISC\",\n      \"bin\": {\n        \"semver\": \"bin/semver.js\"\n      }\n    },\n    \"node_modules/@babel/generator\": {\n      \"version\": \"7.28.0\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/generator/-/generator-7.28.0.tgz\",\n      \"integrity\": \"sha512-lJjzvrbEeWrhB4P3QBsH7tey117PjLZnDbLiQEKjQ/fNJTjuq4HSqgFA+UNSwZT8D7dxxbnuSBMsa1lrWzKlQg==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/parser\": \"^7.28.0\",\n        \"@babel/types\": \"^7.28.0\",\n        \"@jridgewell/gen-mapping\": \"^0.3.12\",\n        \"@jridgewell/trace-mapping\": \"^0.3.28\",\n        \"jsesc\": \"^3.0.2\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/helper-annotate-as-pure\": {\n      \"version\": \"7.27.3\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-annotate-as-pure/-/helper-annotate-as-pure-7.27.3.tgz\",\n      \"integrity\": \"sha512-fXSwMQqitTGeHLBC08Eq5yXz2m37E4pJX1qAU1+2cNedz/ifv/bVXft90VeSav5nFO61EcNgwr0aJxbyPaWBPg==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/types\": \"^7.27.3\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/helper-compilation-targets\": {\n      \"version\": \"7.27.2\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-compilation-targets/-/helper-compilation-targets-7.27.2.tgz\",\n      \"integrity\": \"sha512-2+1thGUUWWjLTYTHZWK1n8Yga0ijBz1XAhUXcKy81rd5g6yh7hGqMp45v7cadSbEHc9G3OTv45SyneRN3ps4DQ==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/compat-data\": \"^7.27.2\",\n        \"@babel/helper-validator-option\": \"^7.27.1\",\n        \"browserslist\": \"^4.24.0\",\n        \"lru-cache\": \"^5.1.1\",\n        \"semver\": \"^6.3.1\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/helper-compilation-targets/node_modules/semver\": {\n      \"version\": \"6.3.1\",\n      \"resolved\": \"https://registry.npmjs.org/semver/-/semver-6.3.1.tgz\",\n      \"integrity\": \"sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==\",\n      \"license\": \"ISC\",\n      \"bin\": {\n        \"semver\": \"bin/semver.js\"\n      }\n    },\n    \"node_modules/@babel/helper-create-class-features-plugin\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-create-class-features-plugin/-/helper-create-class-features-plugin-7.27.1.tgz\",\n      \"integrity\": \"sha512-QwGAmuvM17btKU5VqXfb+Giw4JcN0hjuufz3DYnpeVDvZLAObloM77bhMXiqry3Iio+Ai4phVRDwl6WU10+r5A==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/helper-annotate-as-pure\": \"^7.27.1\",\n        \"@babel/helper-member-expression-to-functions\": \"^7.27.1\",\n        \"@babel/helper-optimise-call-expression\": \"^7.27.1\",\n        \"@babel/helper-replace-supers\": \"^7.27.1\",\n        \"@babel/helper-skip-transparent-expression-wrappers\": \"^7.27.1\",\n        \"@babel/traverse\": \"^7.27.1\",\n        \"semver\": \"^6.3.1\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      },\n      \"peerDependencies\": {\n        \"@babel/core\": \"^7.0.0\"\n      }\n    },\n    \"node_modules/@babel/helper-create-class-features-plugin/node_modules/semver\": {\n      \"version\": \"6.3.1\",\n      \"resolved\": \"https://registry.npmjs.org/semver/-/semver-6.3.1.tgz\",\n      \"integrity\": \"sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==\",\n      \"license\": \"ISC\",\n      \"bin\": {\n        \"semver\": \"bin/semver.js\"\n      }\n    },\n    \"node_modules/@babel/helper-create-regexp-features-plugin\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-create-regexp-features-plugin/-/helper-create-regexp-features-plugin-7.27.1.tgz\",\n      \"integrity\": \"sha512-uVDC72XVf8UbrH5qQTc18Agb8emwjTiZrQE11Nv3CuBEZmVvTwwE9CBUEvHku06gQCAyYf8Nv6ja1IN+6LMbxQ==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/helper-annotate-as-pure\": \"^7.27.1\",\n        \"regexpu-core\": \"^6.2.0\",\n        \"semver\": \"^6.3.1\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      },\n      \"peerDependencies\": {\n        \"@babel/core\": \"^7.0.0\"\n      }\n    },\n    \"node_modules/@babel/helper-create-regexp-features-plugin/node_modules/semver\": {\n      \"version\": \"6.3.1\",\n      \"resolved\": \"https://registry.npmjs.org/semver/-/semver-6.3.1.tgz\",\n      \"integrity\": \"sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==\",\n      \"license\": \"ISC\",\n      \"bin\": {\n        \"semver\": \"bin/semver.js\"\n      }\n    },\n    \"node_modules/@babel/helper-define-polyfill-provider\": {\n      \"version\": \"0.6.5\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-define-polyfill-provider/-/helper-define-polyfill-provider-0.6.5.tgz\",\n      \"integrity\": \"sha512-uJnGFcPsWQK8fvjgGP5LZUZZsYGIoPeRjSF5PGwrelYgq7Q15/Ft9NGFp1zglwgIv//W0uG4BevRuSJRyylZPg==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/helper-compilation-targets\": \"^7.27.2\",\n        \"@babel/helper-plugin-utils\": \"^7.27.1\",\n        \"debug\": \"^4.4.1\",\n        \"lodash.debounce\": \"^4.0.8\",\n        \"resolve\": \"^1.22.10\"\n      },\n      \"peerDependencies\": {\n        \"@babel/core\": \"^7.4.0 || ^8.0.0-0 <8.0.0\"\n      }\n    },\n    \"node_modules/@babel/helper-globals\": {\n      \"version\": \"7.28.0\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-globals/-/helper-globals-7.28.0.tgz\",\n      \"integrity\": \"sha512-+W6cISkXFa1jXsDEdYA8HeevQT/FULhxzR99pxphltZcVaugps53THCeiWA8SguxxpSp3gKPiuYfSWopkLQ4hw==\",\n      \"license\": \"MIT\",\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/helper-member-expression-to-functions\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-member-expression-to-functions/-/helper-member-expression-to-functions-7.27.1.tgz\",\n      \"integrity\": \"sha512-E5chM8eWjTp/aNoVpcbfM7mLxu9XGLWYise2eBKGQomAk/Mb4XoxyqXTZbuTohbsl8EKqdlMhnDI2CCLfcs9wA==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/traverse\": \"^7.27.1\",\n        \"@babel/types\": \"^7.27.1\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/helper-module-imports\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-module-imports/-/helper-module-imports-7.27.1.tgz\",\n      \"integrity\": \"sha512-0gSFWUPNXNopqtIPQvlD5WgXYI5GY2kP2cCvoT8kczjbfcfuIljTbcWrulD1CIPIX2gt1wghbDy08yE1p+/r3w==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/traverse\": \"^7.27.1\",\n        \"@babel/types\": \"^7.27.1\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/helper-module-transforms\": {\n      \"version\": \"7.27.3\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-module-transforms/-/helper-module-transforms-7.27.3.tgz\",\n      \"integrity\": \"sha512-dSOvYwvyLsWBeIRyOeHXp5vPj5l1I011r52FM1+r1jCERv+aFXYk4whgQccYEGYxK2H3ZAIA8nuPkQ0HaUo3qg==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/helper-module-imports\": \"^7.27.1\",\n        \"@babel/helper-validator-identifier\": \"^7.27.1\",\n        \"@babel/traverse\": \"^7.27.3\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      },\n      \"peerDependencies\": {\n        \"@babel/core\": \"^7.0.0\"\n      }\n    },\n    \"node_modules/@babel/helper-optimise-call-expression\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-optimise-call-expression/-/helper-optimise-call-expression-7.27.1.tgz\",\n      \"integrity\": \"sha512-URMGH08NzYFhubNSGJrpUEphGKQwMQYBySzat5cAByY1/YgIRkULnIy3tAMeszlL/so2HbeilYloUmSpd7GdVw==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/types\": \"^7.27.1\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/helper-plugin-utils\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-plugin-utils/-/helper-plugin-utils-7.27.1.tgz\",\n      \"integrity\": \"sha512-1gn1Up5YXka3YYAHGKpbideQ5Yjf1tDa9qYcgysz+cNCXukyLl6DjPXhD3VRwSb8c0J9tA4b2+rHEZtc6R0tlw==\",\n      \"license\": \"MIT\",\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/helper-remap-async-to-generator\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-remap-async-to-generator/-/helper-remap-async-to-generator-7.27.1.tgz\",\n      \"integrity\": \"sha512-7fiA521aVw8lSPeI4ZOD3vRFkoqkJcS+z4hFo82bFSH/2tNd6eJ5qCVMS5OzDmZh/kaHQeBaeyxK6wljcPtveA==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/helper-annotate-as-pure\": \"^7.27.1\",\n        \"@babel/helper-wrap-function\": \"^7.27.1\",\n        \"@babel/traverse\": \"^7.27.1\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      },\n      \"peerDependencies\": {\n        \"@babel/core\": \"^7.0.0\"\n      }\n    },\n    \"node_modules/@babel/helper-replace-supers\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-replace-supers/-/helper-replace-supers-7.27.1.tgz\",\n      \"integrity\": \"sha512-7EHz6qDZc8RYS5ElPoShMheWvEgERonFCs7IAonWLLUTXW59DP14bCZt89/GKyreYn8g3S83m21FelHKbeDCKA==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/helper-member-expression-to-functions\": \"^7.27.1\",\n        \"@babel/helper-optimise-call-expression\": \"^7.27.1\",\n        \"@babel/traverse\": \"^7.27.1\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      },\n      \"peerDependencies\": {\n        \"@babel/core\": \"^7.0.0\"\n      }\n    },\n    \"node_modules/@babel/helper-skip-transparent-expression-wrappers\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-skip-transparent-expression-wrappers/-/helper-skip-transparent-expression-wrappers-7.27.1.tgz\",\n      \"integrity\": \"sha512-Tub4ZKEXqbPjXgWLl2+3JpQAYBJ8+ikpQ2Ocj/q/r0LwE3UhENh7EUabyHjz2kCEsrRY83ew2DQdHluuiDQFzg==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/traverse\": \"^7.27.1\",\n        \"@babel/types\": \"^7.27.1\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/helper-string-parser\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-string-parser/-/helper-string-parser-7.27.1.tgz\",\n      \"integrity\": \"sha512-qMlSxKbpRlAridDExk92nSobyDdpPijUq2DW6oDnUqd0iOGxmQjyqhMIihI9+zv4LPyZdRje2cavWPbCbWm3eA==\",\n      \"license\": \"MIT\",\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/helper-validator-identifier\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-validator-identifier/-/helper-validator-identifier-7.27.1.tgz\",\n      \"integrity\": \"sha512-D2hP9eA+Sqx1kBZgzxZh0y1trbuU+JoDkiEwqhQ36nodYqJwyEIhPSdMNd7lOm/4io72luTPWH20Yda0xOuUow==\",\n      \"license\": \"MIT\",\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/helper-validator-option\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-validator-option/-/helper-validator-option-7.27.1.tgz\",\n      \"integrity\": \"sha512-YvjJow9FxbhFFKDSuFnVCe2WxXk1zWc22fFePVNEaWJEu8IrZVlda6N0uHwzZrUM1il7NC9Mlp4MaJYbYd9JSg==\",\n      \"license\": \"MIT\",\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/helper-wrap-function\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helper-wrap-function/-/helper-wrap-function-7.27.1.tgz\",\n      \"integrity\": \"sha512-NFJK2sHUvrjo8wAU/nQTWU890/zB2jj0qBcCbZbbf+005cAsv6tMjXz31fBign6M5ov1o0Bllu+9nbqkfsjjJQ==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/template\": \"^7.27.1\",\n        \"@babel/traverse\": \"^7.27.1\",\n        \"@babel/types\": \"^7.27.1\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/helpers\": {\n      \"version\": \"7.28.2\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/helpers/-/helpers-7.28.2.tgz\",\n      \"integrity\": \"sha512-/V9771t+EgXz62aCcyofnQhGM8DQACbRhvzKFsXKC9QM+5MadF8ZmIm0crDMaz3+o0h0zXfJnd4EhbYbxsrcFw==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/template\": \"^7.27.2\",\n        \"@babel/types\": \"^7.28.2\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      }\n    },\n    \"node_modules/@babel/parser\": {\n      \"version\": \"7.28.0\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/parser/-/parser-7.28.0.tgz\",\n      \"integrity\": \"sha512-jVZGvOxOuNSsuQuLRTh13nU0AogFlw32w/MT+LV6D3sP5WdbW61E77RnkbaO2dUvmPAYrBDJXGn5gGS6tH4j8g==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/types\": \"^7.28.0\"\n      },\n      \"bin\": {\n        \"parser\": \"bin/babel-parser.js\"\n      },\n      \"engines\": {\n        \"node\": \">=6.0.0\"\n      }\n    },\n    \"node_modules/@babel/plugin-bugfix-firefox-class-in-computed-class-key\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/plugin-bugfix-firefox-class-in-computed-class-key/-/plugin-bugfix-firefox-class-in-computed-class-key-7.27.1.tgz\",\n      \"integrity\": \"sha512-QPG3C9cCVRQLxAVwmefEmwdTanECuUBMQZ/ym5kiw3XKCGA7qkuQLcjWWHcrD/GKbn/WmJwaezfuuAOcyKlRPA==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/helper-plugin-utils\": \"^7.27.1\",\n        \"@babel/traverse\": \"^7.27.1\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      },\n      \"peerDependencies\": {\n        \"@babel/core\": \"^7.0.0\"\n      }\n    },\n    \"node_modules/@babel/plugin-bugfix-safari-class-field-initializer-scope\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/plugin-bugfix-safari-class-field-initializer-scope/-/plugin-bugfix-safari-class-field-initializer-scope-7.27.1.tgz\",\n      \"integrity\": \"sha512-qNeq3bCKnGgLkEXUuFry6dPlGfCdQNZbn7yUAPCInwAJHMU7THJfrBSozkcWq5sNM6RcF3S8XyQL2A52KNR9IA==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel/helper-plugin-utils\": \"^7.27.1\"\n      },\n      \"engines\": {\n        \"node\": \">=6.9.0\"\n      },\n      \"peerDependencies\": {\n        \"@babel/core\": \"^7.0.0\"\n      }\n    },\n    \"node_modules/@babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression\": {\n      \"version\": \"7.27.1\",\n      \"resolved\": \"https://registry.npmjs.org/@babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression/-/plugin-bugfix-safari-id-destructuring-collision-in-function-expression-7.27.1.tgz\",\n      \"integrity\": \"sha512-g4L7OYun04N1WyqMNjldFwlfPCLVkgB54A/YCXICZYBsvJJE3kByKv9c9+R/nAfmIfjl2rKYLNyMHboYbZaWaA==\",\n      \"license\": \"MIT\",\n      \"dependencies\": {\n        \"@babel"
+    },
+    "client\\package.json": {
+      "size": 1191,
+      "content": "{\n  \"name\": \"client\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"proxy\": \"http://localhost:5001\",\n  \"dependencies\": {\n    \"@craco/craco\": \"^7.1.0\",\n    \"@testing-library/dom\": \"^10.4.0\",\n    \"@testing-library/jest-dom\": \"^6.6.3\",\n    \"@testing-library/react\": \"^16.3.0\",\n    \"@testing-library/user-event\": \"^13.5.0\",\n    \"axios\": \"^1.9.0\",\n    \"pdfjs-dist\": \"^2.16.105\",\n    \"react\": \"18.2.0\",\n    \"react-dom\": \"18.2.0\",\n    \"react-markdown\": \"^10.1.0\",\n    \"react-scripts\": \"^5.0.1\",\n    \"web-vitals\": \"^2.1.4\"\n  },\n  \"overrides\": {\n    \"react\": \"18.2.0\",\n    \"react-dom\": \"18.2.0\"\n  },\n  \"resolutions\": {\n    \"react\": \"18.2.0\",\n    \"react-dom\": \"18.2.0\"\n  },\n  \"scripts\": {\n    \"start\": \"craco start\",\n    \"build\": \"craco build\",\n    \"test\": \"craco test\",\n    \"eject\": \"react-scripts eject\"\n  },\n  \"browser\": {\n    \"fs\": false,\n    \"path\": false,\n    \"os\": false\n  },\n  \"eslintConfig\": {\n    \"extends\": [\n      \"react-app\",\n      \"react-app/jest\"\n    ]\n  },\n  \"browserslist\": {\n    \"production\": [\n      \">0.2%\",\n      \"not dead\",\n      \"not op_mini all\"\n    ],\n    \"development\": [\n      \"last 1 chrome version\",\n      \"last 1 firefox version\",\n      \"last 1 safari version\"\n    ]\n  }\n}\n"
+    }
+  },
+  "manifests": {
+    "node": [
+      {
+        "path": "package.json",
+        "name": "mobius-games-tutorial-generator",
+        "workspaces": null,
+        "deps": [
+          "@types/react-beautiful-dnd",
+          "axios",
+          "cheerio",
+          "cohere-ai",
+          "cors",
+          "dotenv",
+          "express",
+          "fast-levenshtein",
+          "fast-xml-parser",
+          "fs-extra",
+          "fuse.js",
+          "multer",
+          "openai",
+          "pdf-parse",
+          "pdf-to-img",
+          "pdfjs-dist",
+          "react",
+          "react-beautiful-dnd",
+          "react-dom",
+          "react-markdown",
+          "react-spinners",
+          "sharp",
+          "sqlite3",
+          "xml2js"
+        ],
+        "devDeps": [
+          "@babel/core",
+          "@babel/preset-env",
+          "babel-jest",
+          "jest"
+        ]
+      },
+      {
+        "path": "client\\package.json",
+        "name": "client",
+        "workspaces": null,
+        "deps": [
+          "@craco/craco",
+          "@testing-library/dom",
+          "@testing-library/jest-dom",
+          "@testing-library/react",
+          "@testing-library/user-event",
+          "axios",
+          "pdfjs-dist",
+          "react",
+          "react-dom",
+          "react-markdown",
+          "react-scripts",
+          "web-vitals"
+        ],
+        "devDeps": []
+      }
+    ],
+    "python": [],
+    "other": [
+      "babel.config.js",
+      "package-lock.json",
+      "README.md",
+      "client\\package-lock.json"
+    ]
+  },
+  "files": {
+    ".env": {
+      "size": 779,
+      "ext": "",
+      "sha1": "623040bbbab81a5b0d421eb9ddc81408b40e1e4d"
+    },
+    ".gitignore": {
+      "size": 813,
+      "ext": "",
+      "sha1": "9acb1b33121fd94fb0c16476052dee79630fa0cc"
+    },
+    "babel.config.js": {
+      "size": 130,
+      "ext": ".js",
+      "first_lines": "module.exports = {\n  presets: [\n    ['@babel/preset-env', {\n      targets: {\n        node: 'current'\n      }\n    }]\n  ]\n};",
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "loc_head": 9,
+      "sha1": "6e4f689eeffe0c1c27e51dca187d2c3ee7243073"
+    },
+    "crop_detections.mjs": {
+      "size": 1929,
+      "ext": ".mjs",
+      "sha1": "d2ba74b67208d0dce239611249fc83584e10d7ac"
+    },
+    "export_project_index.py": {
+      "size": 9203,
+      "ext": ".py",
+      "first_lines": "import argparse, hashlib, json, os, re, sys, time\nfrom pathlib import Path\n\nEXCLUDED_DIRS = {\n    \".git\", \"node_modules\", \"dist\", \"build\", \".next\", \".cache\", \"__pycache__\", \".venv\",\n    \"venv\", \"coverage\", \"out\", \"target\", \".idea\", \".gradle\", \".vscode\", \"Pods\",\n    \"DerivedData\", \".terraform\"\n}\nEXCLUDED_FILE_EXTS = {\n    \".png\",\".jpg\",\".jpeg\",\".gif\",\".svg\",\".ico\",\".mp4\",\".mp3\",\".mov\",\".zip\",\".pdf\",\n    \".woff\",\".woff2\",\".ttf\",\".otf\",\".dll\",\".so\",\".a\",\".bin\"\n}\nCODE_EXTS = {\".js\",\".jsx\",\".ts\",\".tsx\",\".py\",\".java\",\".go\",\".rb\",\".php\",\".cs\",\".scala\",\".kt\",\".rs\",\".c\",\".cpp\",\".h\",\".hpp\"}\n\nKEY_FILE_NAMES = {\n    \"README\",\"README.md\",\"README.rst\",\"LICENSE\",\"LICENSE.md\",\n    \"package.json\",\"pnpm-workspace.yaml\",\"yarn.lock\",\"package-lock.json\",\"tsconfig.json\",\"jsconfig.json\",\n    \"next.config.js\",\"next.config.mjs\",\"vite.config.js\",\"vite.config.ts\",\"webpack.config.js\",\"rollup.config.js\",\n    \"jest.config.js\",\"babel.config.js\",\"tailwind.config.js\",\"postcss.config.js\",\".eslintrc\",\".eslintrc.js\",\".eslintrc.json\",\n    \".prettierrc\",\".prettierrc.js\",\".prettierrc.json\",\".editorconfig\",\n    \"requirements.txt\",\"pyproject.toml\",\"Pipfile\",\"Pipfile.lock\",\"setup.cfg\",\"setup.py\",\"manage.py\",\n    \"Dockerfile\",\"docker-compose.yml\",\"docker-compose.yaml\",\n    \"go.mod\",\"go.sum\",\"Cargo.toml\",\"Gemfile\",\"pom.xml\",\"build.gradle\",\"settings.gradle\",\"gradlew\",\"gradle.properties\",\n    \".env.example\",\".env.template\"\n}\n\ndef is_binary_ext(ext: str) -> bool:\n    return ext.lower() in EXCLUDED_FILE_EXTS\n\ndef should_skip_dir(name: str) -> bool:\n    if name in EXCLUDED_DIRS: return True\n    if name == \".git\": return True\n    return False\n\ndef sha1_of_file(p: Path) -> str:\n    h = hashlib.sha1()\n    with p.open(\"rb\") as f:\n        for chunk in iter(lambda: f.read(8192), b\"\"):\n            h.update(chunk)\n    return h.hexdigest()\n\ndef safe_read_text(p: Path, max_chars: int = 20000) -> str:\n    try:\n        with p.open(\"r\", encoding=\"utf-8\", errors=\"ignore\") as f:\n            s = f.read(max_chars + 1)\n            return s[:max_chars]\n    except Exception:\n        return \"\"\n\ndef first_lines(p: Path, max_lines: int = 60, max_chars: int = 4000) -> str:\n    out, chars = [], 0\n    try:\n        with p.open(\"r\", encoding=\"utf-8\", errors=\"ignore\") as f:\n            for i, line in enumerate(f):\n                if i >= max_lines or chars >= max_chars: break\n                out.append(line.rstrip(\"\\n\"))\n                chars += len(line)\n    except Exception:\n        return \"\"\n    return \"\\n\".join(out)",
+      "imports": [
+        "import argparse, hashlib, json, os, re, sys, time",
+        "from pathlib import Path"
+      ],
+      "exports": [],
+      "symbols": [
+        "def is_binary_ext",
+        "def should_skip_dir",
+        "def sha1_of_file",
+        "def safe_read_text",
+        "def first_lines"
+      ],
+      "loc_head": 60,
+      "sha1": "d4d80d7d10778c428af1a9a4efa05b7d297b2b30"
+    },
+    "package-lock.json": {
+      "size": 450015,
+      "ext": ".json",
+      "sha1": "aa482490903b6964e9fc06ad8a3fe59154e117dd"
+    },
+    "package.json": {
+      "size": 2065,
+      "ext": ".json",
+      "sha1": "42c264e951692b20ef438c4946ebbdeb77396ee7"
+    },
+    "pdf_to_images.py": {
+      "size": 930,
+      "ext": ".py",
+      "first_lines": "import sys\nimport os\nimport fitz # PyMuPDF\n\ndef convert_pdf_to_images(pdf_path, output_dir):\n# Create output directory if it doesn't exist\nif not os.path.exists(output_dir):\nos.makedirs(output_dir)\n\n# Open the PDF  \ndoc = fitz.open(pdf_path)  \n\n# For each page  \nfor page_num in range(len(doc)):  \n    # Get the page  \n    page = doc.load_page(page_num)  \n\n    # Render page to an image  \n    pix = page.get_pixmap(matrix=fitz.Matrix(300/72, 300/72))  \n\n    # Save the image  \n    output_file = os.path.join(output_dir, f\"page_{page_num+1}.png\")  \n    pix.save(output_file)  \n\n    print(f\"Saved {output_file}\")  \n\nprint(f\"Converted {len(doc)} pages to images in {output_dir}\")  \n\nif name == \"main\":\nif len(sys.argv) < 3:\nprint(\"Usage: python pdf_to_images.py <pdf_path> <output_dir>\")\nsys.exit(1)\n\npdf_path = sys.argv[1]  \noutput_dir = sys.argv[2]  \n\nconvert_pdf_to_images(pdf_path, output_dir)",
+      "imports": [
+        "import sys",
+        "import os",
+        "import fitz # PyMuPDF"
+      ],
+      "exports": [],
+      "symbols": [
+        "def convert_pdf_to_images"
+      ],
+      "loc_head": 37,
+      "sha1": "b17e0fd1b08f967f7de73606228c03178dad782f"
+    },
+    "projects.db": {
+      "size": 12288,
+      "ext": ".db",
+      "sha1": "970f2e3ff78cf053a64c11c9e3d5f2c6aa74c795"
+    },
+    "README.md": {
+      "size": 0,
+      "ext": ".md",
+      "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+    },
+    "test_detection.py": {
+      "size": 1031,
+      "ext": ".py",
+      "first_lines": "# test_detection.py\nfrom ultralytics import YOLO\nimport cv2\nimport sys\n\ndef main():\n    if len(sys.argv) < 2:\n        print(\"Usage: python test_detection.py <image_path>\")\n        return 1\n\n    image_path = sys.argv[1]\n\n    # Load model\n    model = YOLO('yolov8n.pt')\n\n    # Load image\n    img = cv2.imread(image_path)\n    if img is None:\n        print(f\"Error: Could not read image: {image_path}\")\n        return 1\n\n    # Run detection\n    results = model(img)\n\n    # Show results (this will open a window)\n    results_plotted = results[0].plot()\n    cv2.imshow(\"Detection Results\", results_plotted)\n    cv2.waitKey(0)\n    cv2.destroyAllWindows()\n\n    # Print detected objects\n    for r in results:\n        for i, box in enumerate(r.boxes):\n            cls_id = int(box.cls[0])\n            cls_name = model.names[cls_id]\n            conf = float(box.conf[0])\n            print(f\"Detected: {cls_name} (Confidence: {conf:.2f})\")\n\n    return 0\n\nif __name__ == \"__main__\":\n    sys.exit(main())",
+      "imports": [
+        "from ultralytics import YOLO",
+        "import cv2",
+        "import sys"
+      ],
+      "exports": [],
+      "symbols": [
+        "def main"
+      ],
+      "loc_head": 42,
+      "sha1": "14bde8b4b7d7635d5fe2f87b8a06018de101d12d"
+    },
+    "yolov8n.pt": {
+      "size": 6549796,
+      "ext": ".pt",
+      "sha1": "922b48e6e8c6d14cf0b8e9f6826b391342f82719"
+    },
+    ".parcel-cache\\165288cdeeccf2e2-AssetGraph": {
+      "size": 1525,
+      "ext": "",
+      "sha1": "300f6497778f0402d8ac9ebd9e99d9cb4401033a"
+    },
+    ".parcel-cache\\data.mdb": {
+      "size": 262144,
+      "ext": ".mdb",
+      "sha1": "27b8226d80e4fa2a1702a4ec788c33ead99848a5"
+    },
+    ".parcel-cache\\f1b7ac07906769a3-RequestGraph": {
+      "size": 7348,
+      "ext": "",
+      "sha1": "2a308680d3c2b223aaa211d0d283d821df59785e"
+    },
+    ".parcel-cache\\lock.mdb": {
+      "size": 8128,
+      "ext": ".mdb",
+      "sha1": "c089814df5f10ed55fe06fca5a9ab53c885ee7de"
+    },
+    ".parcel-cache\\snapshot-f1b7ac07906769a3.txt": {
+      "size": 210065,
+      "ext": ".txt",
+      "sha1": "2dac99953fcd94e077a16bff937611a10c28e743"
+    },
+    "client\\.env": {
+      "size": 160,
+      "ext": "",
+      "sha1": "b6ad386cf2ef72845537db6194da020d636632f3"
+    },
+    "client\\.gitignore": {
+      "size": 18,
+      "ext": "",
+      "sha1": "864584a0d51a7e61c650acac166ff218162e783d"
+    },
+    "client\\craco.config.js": {
+      "size": 20,
+      "ext": ".js",
+      "first_lines": "module.exports = {};",
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "loc_head": 1,
+      "sha1": "57dbbe3ca73655a1c382e423186c9b7fd230a85d"
+    },
+    "client\\package-lock.json": {
+      "size": 721649,
+      "ext": ".json",
+      "sha1": "2c1b0000a28ba2f242a0535317b90c1fc5f5defd"
+    },
+    "client\\package.json": {
+      "size": 1191,
+      "ext": ".json",
+      "sha1": "ec3c906b410499f4eef43bfbb141f913b1ab646a"
+    },
+    "client\\public\\index.html": {
+      "size": 249,
+      "ext": ".html",
+      "sha1": "efa3222d172bf28e7fea6aae6eb56983279ac3a0"
+    },
+    "client\\src\\api.js": {
+      "size": 364,
+      "ext": ".js",
+      "first_lines": "const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;\n\n// Example API call function\nexport async function fetchBGGHtmlMetadata(url) {\n  const response = await fetch(`${BACKEND_URL}/api/extract-bgg-html`, {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({ url }),\n  });\n  return await response.json();\n}",
+      "imports": [],
+      "exports": [],
+      "symbols": [
+        "BACKEND_URL",
+        "response"
+      ],
+      "loc_head": 11,
+      "sha1": "b1f12bfcd17a0d13b73be1107fc6794412ca5486"
+    },
+    "client\\src\\App.css": {
+      "size": 1251,
+      "ext": ".css",
+      "sha1": "8ed847468d4ee2e5fac45cc798b80a9739ef17cd"
+    },
+    "client\\src\\App.js": {
+      "size": 75267,
+      "ext": ".js",
+      "first_lines": "import React, { useState, useRef, useEffect, useMemo } from \"react\";\nimport axios from \"axios\";\nimport ReactMarkdown from \"react-markdown\";\nimport { GlobalWorkerOptions, getDocument } from \"pdfjs-dist\";\nimport pdfWorker from \"pdfjs-dist/build/pdf.worker.entry\";\nimport { ClipLoader } from \"react-spinners\";\n\nconst API_BASE = process.env.REACT_APP_API_BASE || \"\";\n\n// Matching function\nfunction improvedMatchComponentsToImages(components, allImages) {\n  if (!components || !allImages || components.length === 0 || allImages.length === 0) {\n    return (components || []).map(comp => ({\n      ...comp,\n      suggestedImage: null,\n      matchConfidence: 0,\n      matchReason: \"No images available\",\n      alternativeMatches: []\n    }));\n  }\n\n  return components.map(component => {\n    const componentName = (component.name || \"\").toLowerCase();\n    const scoredImages = allImages\n      .filter(img => img && img.path)\n      .map(image => {\n        const imageName = (image.name || image.description || image.filename || \"\").toLowerCase();\n        let score = 0;\n\n        if (imageName.includes(componentName) || componentName.includes(imageName)) score += 0.8;\n\n        const componentWords = componentName.split(/\\s+/);\n        const imageWords = imageName.split(/\\s+/);\n        componentWords.forEach(compWord => {\n          if (compWord.length > 2) {\n            imageWords.forEach(imgWord => {\n              if (imgWord.includes(compWord) || compWord.includes(imgWord)) {\n                score += 0.3;\n              }\n            });\n          }\n        });\n\n        if (componentName.includes(\"card\") && imageName.includes(\"card\")) score += 0.4;\n        if (componentName.includes(\"token\") && imageName.includes(\"token\")) score += 0.4;\n        if (componentName.includes(\"board\") && imageName.includes(\"board\")) score += 0.4;\n\n        return { image, score: Math.min(score, 1.0) };\n      })\n      .sort((a, b) => b.score - a.score);\n\n    const bestMatch = scoredImages[0];\n    const alternatives = scoredImages.slice(1, 4);\n\n    return {\n      ...component,\n      suggestedImage: bestMatch && bestMatch.score > 0.2 ? bestMatch.image : null,\n      matchConfidence: bestMatch ? bestMatch.score : 0,\n      matchReason:\n        bestMatch && bestMatch.score > 0.2",
+      "imports": [
+        "import React, { useState, useRef, useEffect, useMemo } from \"react\";",
+        "import axios from \"axios\";",
+        "import ReactMarkdown from \"react-markdown\";",
+        "import { GlobalWorkerOptions, getDocument } from \"pdfjs-dist\";",
+        "import pdfWorker from \"pdfjs-dist/build/pdf.worker.entry\";",
+        "import { ClipLoader } from \"react-spinners\";"
+      ],
+      "exports": [],
+      "symbols": [
+        "API_BASE",
+        "improvedMatchComponentsToImages",
+        "componentName",
+        "scoredImages",
+        "imageName",
+        "score",
+        "componentWords",
+        "imageWords",
+        "bestMatch",
+        "alternatives"
+      ],
+      "loc_head": 60,
+      "sha1": "37050cf3a0dcdf4f1d3fdc4ad3cac3aee1c555e2"
+    },
+    "client\\src\\BGGExtractor.js": {
+      "size": 5720,
+      "ext": ".js",
+      "first_lines": "import React, { useState } from 'react';\n\nconst BGGExtractor = () => {\n  const [bggUrl, setBggUrl] = useState('');\n  const [loading, setLoading] = useState(false);\n  const [error, setError] = useState('');\n  const [fields, setFields] = useState({\n    gameName: '',\n    imageUrl: '',\n    description: '',\n    yearPublished: '',\n    minPlayers: '',\n    maxPlayers: '',\n    minPlayTime: '',\n    maxPlayTime: '',\n    minAge: '',\n    publishers: [],\n    designers: [],\n    artists: [],\n    categories: [],\n    mechanics: [],\n    rating: '',\n    rank: '',\n    bggId: '',\n    bggUrl: '',\n  });\n\n  const handleExtract = async () => {\n    setLoading(true);\n    setError('');\n    try {\n      const response = await fetch('/start-extraction', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({ bggUrl }),\n      });\n      const data = await response.json();\n      if (data.success) {\n        setFields({\n          gameName: data.gameName || '',\n          imageUrl: data.imageUrl || '',\n          description: data.description || '',\n          yearPublished: data.yearPublished || '',\n          minPlayers: data.minPlayers || '',\n          maxPlayers: data.maxPlayers || '',\n          minPlayTime: data.minPlayTime || '',\n          maxPlayTime: data.maxPlayTime || '',\n          minAge: data.minAge || '',\n          publishers: data.publishers || [],\n          designers: data.designers || [],\n          artists: data.artists || [],\n          categories: data.categories || [],\n          mechanics: data.mechanics || [],\n          rating: data.rating || '',\n          rank: data.rank || '',\n          bggId: data.bggId || '',\n          bggUrl: data.bggUrl || bggUrl,\n        });\n      } else {\n        setError(data.error || 'Extraction failed');",
+      "imports": [
+        "import React, { useState } from 'react';"
+      ],
+      "exports": [],
+      "symbols": [
+        "BGGExtractor",
+        "handleExtract",
+        "response",
+        "data"
+      ],
+      "loc_head": 60,
+      "sha1": "fedb62c805bc2dfa40e186e7982e9a6ab7e28ea2"
+    },
+    "client\\src\\ImageMatcher.js": {
+      "size": 28103,
+      "ext": ".js",
+      "first_lines": "import React, { useEffect, useState, useCallback, useRef } from 'react';\nimport { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';\n\nconst BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';\nconst FETCH_TIMEOUT = 10000; // 10 seconds\nconst MAX_RETRIES = 3;\nconst RETRY_DELAY = 1000; // 1 second\n\nfunction ImageMatcher({\n  components = [],\n  extractedImages = [],\n  onMatchingComplete = () => {},\n  projectId = null\n}) {\n  const [matchingComponents, setMatchingComponents] = useState([]);\n  const [availableImages, setAvailableImages] = useState([]);\n  const [matches, setMatches] = useState({}); // { componentId: imageId }\n  const [loading, setLoading] = useState(false);\n  const [error, setError] = useState('');\n  const [uploadingImage, setUploadingImage] = useState(false);\n  const [retryCount, setRetryCount] = useState(0);\n\n  // Use ref to track if component is still mounted\n  const isMountedRef = useRef(true);\n  const abortControllerRef = useRef(null);\n  const fileInputRef = useRef(null);\n\n  // Cleanup on unmount\n  useEffect(() => {\n    return () => {\n      isMountedRef.current = false;\n      if (abortControllerRef.current) {\n        abortControllerRef.current.abort();\n        abortControllerRef.current = null;\n      }\n    };\n  }, []);\n\n  // Input validation helper\n  const validateInputs = useCallback((comps, imgs) => {\n    if (!Array.isArray(comps)) {\n      throw new Error('Components must be an array');\n    }\n    if (!Array.isArray(imgs)) {\n      throw new Error('ExtractedImages must be an array');\n    }\n    return true;\n  }, []);\n\n  // Safe data normalization\n  const normalizeComponent = useCallback((comp, index) => {\n    if (typeof comp === 'string') {\n      return { id: `comp-${index}`, name: comp.trim() };\n    }\n    if (comp && typeof comp === 'object') {\n      return {\n        id: comp.id || `comp-${index}`,\n        name: String(comp.name || comp.label || 'unnamed-component').trim()\n      };\n    }",
+      "imports": [
+        "import React, { useEffect, useState, useCallback, useRef } from 'react';",
+        "import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';"
+      ],
+      "exports": [],
+      "symbols": [
+        "BACKEND_URL",
+        "FETCH_TIMEOUT",
+        "MAX_RETRIES",
+        "RETRY_DELAY",
+        "ImageMatcher",
+        "isMountedRef",
+        "abortControllerRef",
+        "fileInputRef",
+        "validateInputs",
+        "normalizeComponent"
+      ],
+      "loc_head": 60,
+      "sha1": "ace85392d163a05a8ce1f6272b9158975830b91b"
+    },
+    "client\\src\\improved-matching.js": {
+      "size": 8969,
+      "ext": ".js",
+      "first_lines": "// Enhanced Component-Image Matching System\nimport React, { useState, useEffect, useMemo } from 'react';\n\n// Improved matching algorithm with better scoring\nconst improvedMatchComponentsToImages = (components, images) => {\n  console.log('Starting improved matching with:', { components: components.length, images: images.length });\n  \n  // Enhanced synonyms dictionary\n  const synonyms = {\n    'dice': ['die', 'dice', 'd6', 'd4', 'd8', 'd10', 'd12', 'd20', 'six-sided', 'four-sided'],\n    'cards': ['card', 'cards', 'deck', 'hand', 'playing card', 'game card'],\n    'tokens': ['token', 'tokens', 'marker', 'markers', 'chip', 'chips', 'counter', 'counters'],\n    'meeples': ['meeple', 'meeples', 'figure', 'figures', 'pawn', 'pawns', 'worker', 'workers'],\n    'board': ['board', 'gameboard', 'game board', 'main board', 'playing board'],\n    'tiles': ['tile', 'tiles', 'hex', 'hexes', 'square', 'squares', 'hexagon', 'hexagonal'],\n    'cubes': ['cube', 'cubes', 'wooden cube', 'resource cube', 'block', 'blocks'],\n    'money': ['money', 'coins', 'coin', 'currency', 'cash', 'dollar', 'euro'],\n    'resources': ['resource', 'resources', 'goods', 'materials', 'supplies'],\n    'miniatures': ['miniature', 'miniatures', 'mini', 'minis', 'figurine', 'figurines'],\n    'standees': ['standee', 'standees', 'stand-up', 'cardboard figure'],\n    'rulebook': ['rulebook', 'rules', 'manual', 'instruction', 'guide'],\n    'reference': ['reference', 'aid', 'sheet', 'player aid', 'quick reference'],\n    'bag': ['bag', 'pouch', 'sack', 'container'],\n    'screen': ['screen', 'player screen', 'divider'],\n    'track': ['track', 'tracker', 'scoring track', 'score track'],\n    'wheel': ['wheel', 'dial', 'spinner', 'rondel'],\n    'mat': ['mat', 'player mat', 'individual board']\n  };\n\n  // Color keywords for better matching\n  const colors = ['red', 'blue', 'green', 'yellow', 'black', 'white', 'purple', 'orange', 'brown', 'pink'];\n\n  // Advanced similarity function\n  function advancedSimilarity(str1, str2) {\n    if (!str1 || !str2) return 0;\n    \n    const s1 = str1.toLowerCase().trim();\n    const s2 = str2.toLowerCase().trim();\n    \n    // Exact match\n    if (s1 === s2) return 1.0;\n    \n    // One contains the other\n    if (s1.includes(s2) || s2.includes(s1)) return 0.9;\n    \n    // Levenshtein distance based similarity\n    const longer = s1.length > s2.length ? s1 : s2;\n    const shorter = s1.length > s2.length ? s2 : s1;\n    const editDistance = levenshteinDistance(longer, shorter);\n    const lengthSimilarity = (longer.length - editDistance) / longer.length;\n    \n    // Word overlap similarity\n    const words1 = s1.split(/\\s+/);\n    const words2 = s2.split(/\\s+/);\n    const commonWords = words1.filter(word => words2.includes(word));\n    const wordSimilarity = commonWords.length / Math.max(words1.length, words2.length);\n    \n    // Return the best similarity score\n    return Math.max(lengthSimilarity, wordSimilarity);\n  }",
+      "imports": [
+        "import React, { useState, useEffect, useMemo } from 'react';"
+      ],
+      "exports": [],
+      "symbols": [
+        "improvedMatchComponentsToImages",
+        "synonyms",
+        "colors",
+        "advancedSimilarity",
+        "s1",
+        "s2",
+        "longer",
+        "shorter",
+        "editDistance",
+        "lengthSimilarity",
+        "words1",
+        "words2",
+        "commonWords",
+        "wordSimilarity"
+      ],
+      "loc_head": 60,
+      "sha1": "d99a7cd3773aa932b51d30c6ac971421ce2e2793"
+    },
+    "client\\src\\index.js": {
+      "size": 428,
+      "ext": ".js",
+      "first_lines": "// src/index.js\nimport React from 'react';\nimport { createRoot } from 'react-dom/client';\nimport App from './App';\n\nconst root = createRoot(document.getElementById('root'));\nconst disableStrict = process.env.REACT_APP_DISABLE_STRICT_MODE === 'true';\n\nroot.render(\n  disableStrict && process.env.NODE_ENV !== 'production' ? (\n    <App />\n  ) : (\n    <React.StrictMode>\n      <App />\n    </React.StrictMode>\n  )\n);",
+      "imports": [
+        "import React from 'react';",
+        "import { createRoot } from 'react-dom/client';",
+        "import App from './App';"
+      ],
+      "exports": [],
+      "symbols": [
+        "root",
+        "disableStrict"
+      ],
+      "loc_head": 17,
+      "sha1": "0888b72d1d3a0ea7eff654371b2c0dbd2b2c3da1"
+    },
+    "pdf_images\\JAIPUR_US_page-0001_detections.json": {
+      "size": 340,
+      "ext": ".json",
+      "sha1": "10465b5e98aa2766d71fcd996c9afa835992b504"
+    },
+    "project_export\\project_tree.txt": {
+      "size": 2966,
+      "ext": ".txt",
+      "sha1": "e6eaad61bcb32e6fd4b3af6464b7716edb9c50f7"
+    },
+    "python_scripts\\detect'components.py": {
+      "size": 1743,
+      "ext": ".py",
+      "first_lines": "# detect_components.py\nimport sys\nimport json\nfrom ultralytics import YOLO\nimport cv2\n\ndef detect_components(image_path, output_json_path):\n    try:\n        # Load YOLOv8 model (you'll need to train this or use a pre-trained one)\n        model = YOLO('yolov8n.pt')  # or your custom trained model\n        \n        # Run detection\n        results = model(image_path)\n        \n        detections = []\n        for result in results:\n            boxes = result.boxes\n            if boxes is not None:\n                for box in boxes:\n                    x, y, w, h = box.xywh[0].tolist()\n                    conf = box.conf[0].item()\n                    cls = int(box.cls[0].item())\n                    \n                    detections.append({\n                        'x': int(x - w/2),\n                        'y': int(y - h/2), \n                        'width': int(w),\n                        'height': int(h),\n                        'confidence': conf,\n                        'class_name': model.names[cls]\n                    })\n        \n        # Save detections to JSON\n        with open(output_json_path, 'w') as f:\n            json.dump(detections, f)\n            \n        print(f\"Detected {len(detections)} components\")\n        \n    except Exception as e:\n        print(f\"Detection failed: {e}\")\n        # Save empty detections\n        with open(output_json_path, 'w') as f:\n            json.dump([], f)\n\nif __name__ == \"__main__\":\n    if len(sys.argv) != 3:\n        print(\"Usage: python detect_components.py <image_path> <output_json_path>\")\n        sys.exit(1)\n    \n    image_path = sys.argv[1]\n    output_json_path = sys.argv[2]\n    detect_components(image_path, output_json_path)",
+      "imports": [
+        "import sys",
+        "import json",
+        "from ultralytics import YOLO",
+        "import cv2"
+      ],
+      "exports": [],
+      "symbols": [
+        "def detect_components"
+      ],
+      "loc_head": 52,
+      "sha1": "8bc6a11c72169c95c1d9c62b143a61496e0d63ff"
+    },
+    "python_scripts\\pdf_to_images.py": {
+      "size": 1009,
+      "ext": ".py",
+      "first_lines": "import sys\nimport os\nimport fitz  # PyMuPDF\n\ndef convert_pdf_to_images(pdf_path, output_dir):\n    # Create output directory if it doesn't exist\n    if not os.path.exists(output_dir):\n        os.makedirs(output_dir)\n\n    # Open the PDF\n    doc = fitz.open(pdf_path)\n\n    # For each page\n    for page_num in range(len(doc)):\n        # Get the page\n        page = doc.load_page(page_num)\n\n        # Render page to an image\n        pix = page.get_pixmap(matrix=fitz.Matrix(300/72, 300/72))\n\n        # Save the image\n        output_file = os.path.join(output_dir, f\"page_{page_num+1}.png\")\n        pix.save(output_file)\n\n        print(f\"Saved {output_file}\")\n\n    print(f\"Converted {len(doc)} pages to images in {output_dir}\")\n\nif __name__ == \"__main__\":\n    if len(sys.argv) < 3:\n        print(\"Usage: python pdf_to_images.py <pdf_path> <output_dir>\")\n        sys.exit(1)\n\n    pdf_path = sys.argv[1]\n    output_dir = sys.argv[2]\n\n    convert_pdf_to_images(pdf_path, output_dir)",
+      "imports": [
+        "import sys",
+        "import os",
+        "import fitz  # PyMuPDF"
+      ],
+      "exports": [],
+      "symbols": [
+        "def convert_pdf_to_images"
+      ],
+      "loc_head": 37,
+      "sha1": "3da7e6256a2c2ed7ef8db81b37f24bc7d43bfdd1"
+    },
+    "src\\setupTests.js": {
+      "size": 559,
+      "ext": ".js",
+      "first_lines": "// Mock global objects that might not exist in Node.js environment\nglobal.FormData = class FormData {\n  constructor() {\n    this.data = new Map();\n  }\n  append(key, value) {\n    this.data.set(key, value);\n  }\n};\n\nglobal.Blob = class Blob {\n  constructor(content, options = {}) {\n    this.content = content;\n    this.type = options.type || '';\n  }\n};\n\n// Mock fetch if not available in test environment\nif (!global.fetch) {\n  global.fetch = jest.fn();\n}\n\n// Clear all mocks after each test\nafterEach(() => {\n  jest.clearAllMocks();\n});",
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "loc_head": 26,
+      "sha1": "cb104b4fd648ba1f37d8d110757137f68518f7c6"
+    },
+    "src\\video_generator.py": {
+      "size": 912,
+      "ext": ".py",
+      "first_lines": "import subprocess\nimport sys\n\ndef create_video(image_path, audio_path, output_path):\n    command = [\n        'ffmpeg',\n        '-loop', '1',\n        '-i', image_path,\n        '-i', audio_path,\n        '-c:v', 'libx264',\n        '-tune', 'stillimage',\n        '-c:a', 'aac',\n        '-b:a', '192k',\n        '-pix_fmt', 'yuv420p',\n        '-shortest',\n        output_path\n    ]\n\n    subprocess.run(command, check=True)\n\nif __name__ == '__main__':\n    if len(sys.argv) != 4:\n        print(\"Usage: python video_generator.py <image_path> <audio_path> <output_path>\")\n        sys.exit(1)\n\n    image_path = sys.argv[1]\n    audio_path = sys.argv[2]\n    output_path = sys.argv[3]\n\n    try:\n        create_video(image_path, audio_path, output_path)\n        print(\"Video created successfully\")\n    except subprocess.CalledProcessError as e:\n        print(f\"Error: {e}\")\n        sys.exit(1)",
+      "imports": [
+        "import subprocess",
+        "import sys"
+      ],
+      "exports": [],
+      "symbols": [
+        "def create_video"
+      ],
+      "loc_head": 35,
+      "sha1": "23f1f14381b372225b17738b78af8f0aaeccdea8"
+    },
+    "src\\api\\aiUtils.js": {
+      "size": 2392,
+      "ext": ".js",
+      "first_lines": "import OpenAI from \"openai\";\nimport { frenchChunkPrompt, englishChunkPrompt } from './prompts.js';\n\nexport async function explainChunkWithAI(chunk, language = \"en\") {  \n  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });  \n  \n  // Choose the right prompt based on language  \n  const prompt = language === \"fr\"  \n    ? frenchChunkPrompt(chunk)  \n    : englishChunkPrompt(chunk);  \n  \n  try {  \n    const response = await openai.chat.completions.create({  \n      model: \"gpt-4\",  \n      messages: [{ role: \"user\", content: prompt }],  \n      temperature: 0.2,  \n      max_tokens: 1200,  \n    });  \n  \n    // Return the AI's explanation as plain text  \n    return response.choices[0].message.content.trim();  \n  } catch (err) {  \n    console.error(\"AI explanation failed:\", err.message);  \n    return \"AI explanation failed.\";  \n  }  \n}\n\nexport async function extractComponentsWithAI(text) {\n  // Create the client inside the function, so .env is loaded\n  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });\n\n  try {\n    const prompt = `\n      Extract a list of board game components from the following rulebook text.\n      Return an array of objects with \"name\" and \"quantity\" (if available).\n      Text:\n      ${text}\n    `;\n    const response = await openai.chat.completions.create({\n      model: \"gpt-4\",\n      messages: [{ role: \"user\", content: prompt }],\n      temperature: 0.2,\n    });\n    // Parse the response as needed\n    // Robust JSON parsing\n    const responseText = response.choices[0].message.content.trim();\n    console.log('AI response:', responseText);\n\n    let aiResult;\n    try {\n      // Try to extract JSON from code block if present\n      const jsonMatch = responseText.match(/```(?:json)?\\s*([\\s\\S]*?)\\s*```/);\n      const jsonText = jsonMatch ? jsonMatch[1] : responseText;\n      aiResult = JSON.parse(jsonText);\n    } catch (parseErr) {\n      console.error(\"Error parsing AI response as JSON:\", parseErr);\n      // Fallback: return a single item with the raw response\n      aiResult = [{\n        name: \"AI Extraction (needs review)\",\n        quantity: null,",
+      "imports": [
+        "import OpenAI from \"openai\";",
+        "import { frenchChunkPrompt, englishChunkPrompt } from './prompts.js';"
+      ],
+      "exports": [],
+      "symbols": [
+        "openai",
+        "prompt",
+        "response",
+        "openai",
+        "prompt",
+        "response",
+        "responseText",
+        "aiResult",
+        "jsonMatch",
+        "jsonText"
+      ],
+      "loc_head": 60,
+      "sha1": "9f5939f68be387f0f6aa2b18691512c819f04576"
+    },
+    "src\\api\\bggScraper.js": {
+      "size": 950,
+      "ext": ".js",
+      "first_lines": "import axios from 'axios';\nimport cheerio from 'cheerio';\n\n/**\n * Fetches the raw HTML of a BGG game page and extracts main visible text content.\n * @param {string} url - The full URL of the BGG game page.\n * @returns {Promise<string>} - Extracted main text content.\n */\nexport async function fetchBGGPageText(url) {\n  try {\n    const { data: html } = await axios.get(url);\n\n    // Load HTML into cheerio for parsing\n    const $ = cheerio.load(html);\n\n    // Extract main content text - adjust selectors if needed\n    // Common BGG page main content container is '#mainbody'\n    const mainContentText = $('#mainbody').text().trim();\n\n    // Fallback: if empty, get body text\n    if (!mainContentText) {\n      return $('body').text().trim();\n    }\n\n    return mainContentText;\n  } catch (error) {\n    console.error('Error fetching BGG page:', error.message);\n    throw new Error('Failed to fetch or parse BGG page');\n  }\n}",
+      "imports": [
+        "import axios from 'axios';",
+        "import cheerio from 'cheerio';"
+      ],
+      "exports": [],
+      "symbols": [
+        "mainContentText"
+      ],
+      "loc_head": 30,
+      "sha1": "bd4c6674f2fe3dc7eb326de58dd5ba7b9242c439"
+    },
+    "src\\api\\db.js": {
+      "size": 423,
+      "ext": ".js",
+      "first_lines": "import sqlite3 from 'sqlite3';\n\nconst db = new sqlite3.Database('projects.db');\n\ndb.serialize(() => {\n  db.run(`\n    CREATE TABLE IF NOT EXISTS projects (\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\n      name TEXT,\n      metadata TEXT,\n      components TEXT,\n      images TEXT,\n      script TEXT,\n      audio TEXT,\n      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n    )\n  `);\n});\n\nexport default db;",
+      "imports": [
+        "import sqlite3 from 'sqlite3';"
+      ],
+      "exports": [],
+      "symbols": [
+        "db"
+      ],
+      "loc_head": 20,
+      "sha1": "d9fce2f333007f9f016b72f104d59c402e2c13b7"
+    },
+    "src\\api\\detect_components.py": {
+      "size": 1298,
+      "ext": ".py",
+      "first_lines": "# detect_components.py\nimport sys\nimport os\nimport json\nimport cv2\nfrom ultralytics import YOLO\n\ndef main():\n    if len(sys.argv) < 3:\n        print(\"Usage: python detect_components.py <image_path> <output_json_path>\")\n        sys.exit(1)\n\n    image_path = sys.argv[1]\n    output_json_path = sys.argv[2]\n\n    model = YOLO('yolov8n.pt')\n    img = cv2.imread(image_path)\n    if img is None:\n        print(f\"Error: Could not read image: {image_path}\")\n        sys.exit(1)\n\n    results = model(img)\n    detections = []\n    for r in results:  \n        for box in r.boxes:  \n            x1, y1, x2, y2 = box.xyxy[0].tolist()  \n            conf = float(box.conf[0])  \n            cls = int(box.cls[0])  \n            w = int(x2 - x1)  \n            h = int(y2 - y1)  \n            detections.append({  \n                \"x\": int(x1),  \n                \"y\": int(y1),  \n                \"width\": w,  \n                \"height\": h,  \n                \"confidence\": conf,  \n                \"class_id\": cls,  \n                \"class_name\": model.names[cls]  \n            })\n\n    with open(output_json_path, \"w\") as f:\n        json.dump(detections, f, indent=2)\n\n    print(f\"Saved {len(detections)} detections to {output_json_path}\")\n\nif __name__ == \"__main__\":\n    main()",
+      "imports": [
+        "import sys",
+        "import os",
+        "import json",
+        "import cv2",
+        "from ultralytics import YOLO"
+      ],
+      "exports": [],
+      "symbols": [
+        "def main"
+      ],
+      "loc_head": 47,
+      "sha1": "b847d25bd98db2ad87136a2e4b9d817a4c798270"
+    },
+    "src\\api\\index.js": {
+      "size": 62111,
+      "ext": ".js",
+      "first_lines": "import express from 'express';\nimport cors from 'cors';\nimport db from './db.js';\nimport dotenv from 'dotenv';\nimport axios from 'axios';\nimport * as cheerio from 'cheerio';\nimport OpenAI from 'openai';\nimport * as pdfToImg from 'pdf-to-img';\nimport path from 'path';\nimport { fileURLToPath } from 'url';\nimport { spawn } from 'child_process';\nimport { ensureDir } from 'fs-extra';\nimport sharp from 'sharp';\nimport { dirname } from 'path';\nimport { XMLParser } from 'fast-xml-parser';\nimport fs, { promises as fsPromises, existsSync } from 'fs';\nimport { explainChunkWithAI, extractComponentsWithAI } from './aiUtils.js';\nimport { extractTextFromPDF } from './pdfUtils.js';\nimport { extractComponentsFromText } from './utils.js';\nimport multer from 'multer';\nimport xml2js from 'xml2js';\nimport { promisify } from 'node:util';\n\ndotenv.config();\n\nconst app = express();\nconst port = process.env.PORT || 5001;\nconst bggMetadataCache = new Map();\n\n// ESM __dirname\nconst __filename = fileURLToPath(import.meta.url);\nconst __dirname = dirname(__filename);\nconst execFilePromise = promisify(spawn);\n\n// CORS and JSON\napp.use(cors({ origin: 'http://localhost:3000', credentials: true }));\napp.use(express.json());\n\n// Static files\napp.use('/static', express.static(path.join(__dirname, 'uploads')));\napp.use('/uploads', express.static(path.join(__dirname, 'uploads')));\n\n// Ensure uploads/tmp exists\nconst UPLOADS_DIR = path.join(__dirname, 'uploads');\nfunction ensureUploadsTmp() {\n  try {\n    const tmpDir = path.join(UPLOADS_DIR, 'tmp');\n    if (!fs.existsSync(tmpDir)) {\n    fs.mkdirSync(tmpDir, { recursive: true });\n    }\n    return tmpDir;\n  } catch (e) {\n    console.error('Failed to ensure /uploads/tmp exists:', e);\n    return null;\n  }\n}\nensureUploadsTmp();\n\n// Config\nconst BACKEND_URL = process.env.REACT_APP_BACKEND_URL?.trim() || 'http://localhost:5001';",
+      "imports": [
+        "import express from 'express';",
+        "import cors from 'cors';",
+        "import db from './db.js';",
+        "import dotenv from 'dotenv';",
+        "import axios from 'axios';",
+        "import * as cheerio from 'cheerio';",
+        "import OpenAI from 'openai';",
+        "import * as pdfToImg from 'pdf-to-img';",
+        "import path from 'path';",
+        "import { fileURLToPath } from 'url';",
+        "import { spawn } from 'child_process';",
+        "import { ensureDir } from 'fs-extra';",
+        "import sharp from 'sharp';",
+        "import { dirname } from 'path';",
+        "import { XMLParser } from 'fast-xml-parser';",
+        "import fs, { promises as fsPromises, existsSync } from 'fs';",
+        "import { explainChunkWithAI, extractComponentsWithAI } from './aiUtils.js';",
+        "import { extractTextFromPDF } from './pdfUtils.js';",
+        "import { extractComponentsFromText } from './utils.js';",
+        "import multer from 'multer';",
+        "import xml2js from 'xml2js';",
+        "import { promisify } from 'node:util';"
+      ],
+      "exports": [],
+      "symbols": [
+        "app",
+        "port",
+        "bggMetadataCache",
+        "__filename",
+        "__dirname",
+        "execFilePromise",
+        "UPLOADS_DIR",
+        "ensureUploadsTmp",
+        "tmpDir",
+        "BACKEND_URL"
+      ],
+      "loc_head": 60,
+      "sha1": "ae6b5653637a0a245eb2eda9064c77ab2ea95b97"
+    },
+    "src\\api\\pdfUtils.js": {
+      "size": 216,
+      "ext": ".js",
+      "first_lines": "import fs from 'fs';\nimport pdf from 'pdf-parse';\n\nexport async function extractTextFromPDF(pdfPath) {\n  const dataBuffer = fs.readFileSync(pdfPath);\n  const data = await pdf(dataBuffer);\n  return data.text;\n}",
+      "imports": [
+        "import fs from 'fs';",
+        "import pdf from 'pdf-parse';"
+      ],
+      "exports": [],
+      "symbols": [
+        "dataBuffer",
+        "data"
+      ],
+      "loc_head": 8,
+      "sha1": "097fcf48a2d7e4b1041a2ebbe2d5b78cc1ce84d6"
+    },
+    "src\\api\\projects.db": {
+      "size": 12288,
+      "ext": ".db",
+      "sha1": "d2b2863aa01720843acaa0164e31f83bb8d51099"
+    },
+    "src\\api\\prompts.js": {
+      "size": 6933,
+      "ext": ".js",
+      "first_lines": "// prompts.js\nexport const frenchChunkPrompt = (chunk) => `\nVous \u00eates un expert en jeux de soci\u00e9t\u00e9 et sc\u00e9nariste pour une grande cha\u00eene YouTube. Votre mission est d\u2019\u00e9crire un script complet, captivant et ludique pour une vid\u00e9o tutorielle sur un jeu de soci\u00e9t\u00e9, en utilisant le texte du livret de r\u00e8gles ci-dessous. Ce script servira \u00e0 cr\u00e9er une vid\u00e9o de haute qualit\u00e9, riche visuellement et accessible aux nouveaux joueurs comme aux joueurs occasionnels, tout en respectant les joueurs exp\u00e9riment\u00e9s.\n\nInstructions :\n\nSuivez exactement cette structure et ce style :\n\nIntroduction accrocheuse (10\u201320 secondes) :\n\n    Accueillez chaleureusement les spectateurs.\n    Pr\u00e9sentez le nom du jeu, son th\u00e8me et ce qui le rend unique.\n    R\u00e9sumez bri\u00e8vement le contenu de la vid\u00e9o.\n\nPr\u00e9sentation des composants :\n\n    Nommez et d\u00e9crivez clairement chaque composant.\n    Indiquez o\u00f9 utiliser des gros plans et des \u00e9tiquettes \u00e0 l\u2019\u00e9cran.\n    Mettez en avant les \u00e9l\u00e9ments uniques ou inhabituels.\n\nMise en place :\n\n    Expliquez la mise en place \u00e9tape par \u00e9tape.\n    Pr\u00e9cisez o\u00f9 utiliser des vues de dessus, des sch\u00e9mas ou des graphiques.\n    Signalez les erreurs courantes \u00e0 \u00e9viter lors de la mise en place.\n\nObjectif :\n\n    Expliquez clairement comment gagner, avec un langage simple et direct.\n\nD\u00e9roulement du jeu :\n\n    D\u00e9crivez la structure d\u2019un tour et les actions principales.\n    Utilisez des exemples et sugg\u00e9rez des visuels pour chaque action.\n    Mettez l\u2019accent sur le \u00ab pourquoi \u00bb des actions, pas seulement le \u00ab comment \u00bb.\n\nR\u00e8gles cl\u00e9s et cas particuliers :\n\n    Soulignez les r\u00e8gles souvent oubli\u00e9es ou mal comprises.\n    Proposez des encadr\u00e9s ou des graphiques pour les points importants.\n\nExemple de tour :\n\n    D\u00e9crivez un tour ou une manche compl\u00e8te, en expliquant chaque d\u00e9cision et son impact.\n\nFin de partie et d\u00e9compte des points :\n\n    Expliquez comment la partie se termine et comment compter les points.\n    Donnez un exemple de d\u00e9compte si possible.\n\nConseils, strat\u00e9gies et erreurs fr\u00e9quentes :\n\n    Donnez des astuces et conseils pour d\u00e9butants.\n    Mentionnez les pi\u00e8ges \u00e0 \u00e9viter.\n\nVariantes et extensions (si pertinent) :\n\n    Pr\u00e9sentez bri\u00e8vement les variantes ou extensions officielles.\n\nR\u00e9capitulatif et appel \u00e0 l\u2019action :",
+      "imports": [],
+      "exports": [
+        "export const frenchChunkPrompt"
+      ],
+      "symbols": [
+        "const frenchChunkPrompt"
+      ],
+      "loc_head": 60,
+      "sha1": "df9a1a793e30be271da6367a2e55b43c215e8a8a"
+    },
+    "src\\api\\utils.js": {
+      "size": 1043,
+      "ext": ".js",
+      "first_lines": "// utils.js\n\n// Centralized regex/rule-based component extraction\nexport function extractComponentsFromText(text) {\n    // Example: match \"12 cards\", \"3 dice\", etc.\n    const patterns = [\n      /(\\d+)\\s*(cards?|deck)/gi,\n      /(\\d+)\\s*(dice|die)/gi,\n      /(\\d+)\\s*(tokens?)/gi,\n      /(\\d+)\\s*(boards?)/gi,\n      /(\\d+)\\s*(pieces?)/gi,\n      /(\\d+)\\s*(markers?)/gi,\n      /(\\d+)\\s*(cubes?)/gi,\n      /(\\d+)\\s*(meeples?)/gi,\n      /(\\d+)\\s*(tiles?)/gi,\n      /(\\d+)\\s*(counters?)/gi,\n      /rulebooks?/gi,\n      /player\\s*aids?/gi,\n      /reference\\s*cards?/gi\n    ];\n  \n    const components = [];\n    patterns.forEach(pattern => {\n      let match;\n      while ((match = pattern.exec(text)) !== null) {\n        // If match[1] exists, it's a quantity; otherwise, just a name\n        components.push({\n          name: match[2] ? match[2].trim() : match[0].trim(),\n          quantity: match[1] ? parseInt(match[1], 10) : null,\n          source: 'regex'\n        });\n      }\n    });\n  \n    return components;\n  }",
+      "imports": [],
+      "exports": [
+        "export function extractComponentsFromText"
+      ],
+      "symbols": [
+        "function extractComponentsFromText",
+        "patterns",
+        "components",
+        "match"
+      ],
+      "loc_head": 36,
+      "sha1": "780178cf2e4ae92ed6ffe495d093600943967b3e"
+    },
+    "src\\api\\routes\\extractComponents.js": {
+      "size": 1623,
+      "ext": ".js",
+      "first_lines": "// src/api/extractComponents.js\nconst express = require('express');\nconst multer = require('multer');\nconst { exec } = require('child_process');\nconst path = require('path');\nconst fs = require('fs');\n\nconst router = express.Router();\nconst upload = multer({ dest: 'uploads/' });\n\nrouter.post('/extract-components', upload.single('pdf'), async (req, res) => {\n  try {\n    const pdfPath = req.file.path;\n\n    // 1. Convert PDF to images\n    await execPromise(`python3 pdf_to_images.py ${pdfPath}`);\n\n    // 2. Run detection on each image (assuming images are saved in pdf_images/)\n    const imageFiles = fs.readdirSync('pdf_images').filter(f => f.endsWith('.png'));\n    for (const imageFile of imageFiles) {\n      await execPromise(`python3 detect_components.py pdf_images/${imageFile}`);\n    }\n\n    // 3. Crop detected regions (assuming detection JSON is saved per image)\n    for (const imageFile of imageFiles) {\n      const jsonFile = imageFile.replace('.png', '.json');\n      await execPromise(`node crop_detections.mjs pdf_images/${imageFile} detections/${jsonFile}`);\n    }\n\n    // 4. Collect cropped images (assuming output/ folder)\n    const croppedImages = fs.readdirSync('output').map(f => path.join('output', f));\n\n    // 5. Return results\n    res.json({ croppedImages });\n\n  } catch (err) {\n    res.status(500).json({ error: err.message });\n  }\n});\n\nfunction execPromise(cmd) {\n  return new Promise((resolve, reject) => {\n    exec(cmd, (err, stdout, stderr) => {\n      if (err) reject(stderr);\n      else resolve(stdout);\n    });\n  });\n}\n\nmodule.exports = router;",
+      "imports": [
+        "const express = require('express');",
+        "const multer = require('multer');",
+        "const path = require('path');",
+        "const fs = require('fs');"
+      ],
+      "exports": [],
+      "symbols": [
+        "express",
+        "multer",
+        "path",
+        "fs",
+        "router",
+        "upload",
+        "pdfPath",
+        "imageFiles",
+        "jsonFile",
+        "croppedImages",
+        "execPromise"
+      ],
+      "loc_head": 50,
+      "sha1": "dfeed9b3484e14285a6f9095f521575a5a421dd9"
+    },
+    "src\\api\\uploads\\MobiusGames\\ABYSS_20250716\\summary_english.md": {
+      "size": 3447,
+      "ext": ".md",
+      "sha1": "fbf95b31d34ef8d33f62afc1ddf66b66fa85dccb"
+    },
+    "src\\api\\uploads\\MobiusGames\\ABYSS_20250721\\summary_english.md": {
+      "size": 3526,
+      "ext": ".md",
+      "sha1": "4153bf385021536399fc9c2bbc56e790173dd99f"
+    },
+    "src\\api\\uploads\\MobiusGames\\ABYSS_20250721\\summary_french.md": {
+      "size": 4121,
+      "ext": ".md",
+      "sha1": "5b55f90f16f528e332ab7cef2ac30e07f504410b"
+    },
+    "src\\api\\uploads\\MobiusGames\\Brass_Birmingham_20250716\\summary_french.md": {
+      "size": 3882,
+      "ext": ".md",
+      "sha1": "b4be37ead60f3b7f397d6aa2f0571b41895f59e6"
+    },
+    "src\\api\\uploads\\MobiusGames\\Hanamikoji_20250721\\summary_english.md": {
+      "size": 3570,
+      "ext": ".md",
+      "sha1": "265eba632bf3b466c57a802c101f7c98b2946cf6"
+    },
+    "src\\config\\apiConfig.js": {
+      "size": 2373,
+      "ext": ".js",
+      "first_lines": "const apiConfig = {\n  apis: {\n    openai: {\n      baseUrl: 'https://api.openai.com/v1',\n      timeout: 30000,\n      models: {\n        default: 'gpt-4',\n        fallback: 'gpt-3.5-turbo'\n      },\n      maxTokens: 4096,\n      temperature: 0.7\n    },\n    elevenlabs: {\n      baseUrl: 'https://api.elevenlabs.io/v1',\n      timeout: 60000,\n      voices: {\n        english: [\n          { id: \"dllHSct4GokGc1AH9JwT\", name: \"Haseeb\" },\n          { id: \"oAoF4NpW2Aqxplg9HdYB\", name: \"Stephanie\" }\n        ],\n        french: [\n          { id: \"j9RedbMRSNQ74PyikQwD\", name: \"Louis\" },\n          { id: \"gCux0vt1cPsEXPNSbchu\", name: \"Anna\" }\n        ]\n      },\n      audioFormat: 'mp3',\n      optimizeLatency: true\n    },\n    bgg: {\n      baseUrl: 'https://boardgamegeek.com/xmlapi2',\n      timeout: 10000,\n      retryAttempts: 3,\n      retryDelay: 1000,\n      endpoints: {\n        search: '/search',\n        thing: '/thing',\n        images: '/images'\n      }\n    },\n    anthropic: {\n      baseUrl: 'https://api.anthropic.com/v1',\n      timeout: 30000,\n      model: 'claude-2',\n      maxTokens: 4096\n    },\n    bing: {\n      baseUrl: 'https://api.bing.microsoft.com',\n      timeout: 10000,\n      searchType: 'Images',\n      market: 'en-US',\n      count: 50\n    },\n    cohere: {\n      baseUrl: 'https://api.cohere.ai/v1',\n      timeout: 30000,\n      model: 'command-nightly',\n      maxTokens: 2048\n    },\n    unsplash: {\n      baseUrl: 'https://api.unsplash.com',",
+      "imports": [],
+      "exports": [],
+      "symbols": [
+        "apiConfig"
+      ],
+      "loc_head": 60,
+      "sha1": "2795f6373832a292a70e8ca341e6347447ccd6cf"
+    },
+    "src\\services\\AnthropicService.js": {
+      "size": 1446,
+      "ext": ".js",
+      "first_lines": "import BaseApiService from './BaseApiService';\nimport ApiError from '../utils/errors/ApiError';\nimport LoggingService from '../utils/logging/LoggingService';\n\nclass AnthropicService extends BaseApiService {\n  constructor(config) {\n    super(config);\n    this.model = config.model;\n    this.maxTokens = config.maxTokens;\n    \n    this.validateConfig(['model', 'maxTokens']);\n  }\n\n  async generateText(prompt) {\n    try {\n      LoggingService.debug(this.serviceName, 'Generating text', { prompt });\n      \n      const url = this.buildUrl('/messages');\n      const response = await this.fetchWithTimeout(url, {\n        method: 'POST',\n        headers: {\n          'Content-Type': 'application/json',\n          'X-API-Key': process.env.ANTHROPIC_API_KEY\n        },\n        body: JSON.stringify({\n          model: this.model,\n          messages: [{ role: 'user', content: prompt }],\n          max_tokens: this.maxTokens\n        })\n      });\n\n      const data = await this.handleResponse(response);\n      LoggingService.info(this.serviceName, 'Text generation successful');\n      return data.content;\n    } catch (error) {\n      LoggingService.error(this.serviceName, 'Text generation failed', error);\n      throw error instanceof ApiError ? error : new ApiError(\n        this.serviceName,\n        'Failed to generate text',\n        500,\n        error\n      );\n    }\n  }\n}\n\nexport default AnthropicService;",
+      "imports": [
+        "import BaseApiService from './BaseApiService';",
+        "import ApiError from '../utils/errors/ApiError';",
+        "import LoggingService from '../utils/logging/LoggingService';"
+      ],
+      "exports": [],
+      "symbols": [
+        "AnthropicService",
+        "url",
+        "response",
+        "data"
+      ],
+      "loc_head": 47,
+      "sha1": "59ad8cb61db2d6849b010b50a6ce1745171696d2"
+    },
+    "src\\services\\BaseApiService.js": {
+      "size": 1999,
+      "ext": ".js",
+      "first_lines": "import LoggingService from '../utils/logging/LoggingService.js';\nimport ApiError from '../utils/errors/ApiError.js';\n\nclass BaseApiService {\n  constructor(config) {\n    if (!config) {\n      throw new ApiError('BaseApiService', 'Missing configuration');\n    }\n    \n    this.baseUrl = config.baseUrl;\n    this.timeout = config.timeout || 5000;\n    this.serviceName = this.constructor.name;\n  }\n\n  async handleResponse(response) {\n    try {\n      if (!response.ok) {\n        throw new ApiError(\n          this.serviceName,\n          response.statusText,\n          response.status\n        );\n      }\n\n      const contentType = response.headers.get('content-type');\n      if (contentType && contentType.includes('application/json')) {\n        return await response.json();\n      }\n      return response;\n    } catch (error) {\n      LoggingService.error(this.serviceName, 'Response handling failed', error);\n      throw error instanceof ApiError ? error : new ApiError(\n        this.serviceName,\n        'Failed to process API response',\n        500,\n        error\n      );\n    }\n  }\n\n  async fetchWithTimeout(url, options = {}) {\n    const controller = new AbortController();\n    const timeout = setTimeout(() => controller.abort(), this.timeout);\n\n    try {\n      const response = await fetch(url, {\n        ...options,\n        signal: controller.signal\n      });\n      return response;\n    } catch (error) {\n      LoggingService.error(this.serviceName, 'Request failed', error);\n      throw new ApiError(\n        this.serviceName,\n        'Request failed',\n        500,\n        error\n      );\n    } finally {\n      clearTimeout(timeout);",
+      "imports": [
+        "import LoggingService from '../utils/logging/LoggingService.js';",
+        "import ApiError from '../utils/errors/ApiError.js';"
+      ],
+      "exports": [],
+      "symbols": [
+        "BaseApiService",
+        "contentType",
+        "controller",
+        "timeout",
+        "response"
+      ],
+      "loc_head": 60,
+      "sha1": "4cf1b7f0021d5ca4162f07946a0de7b9fcf53c71"
+    },
+    "src\\services\\BGGService.js": {
+      "size": 2949,
+      "ext": ".js",
+      "first_lines": "import BaseApiService from './BaseApiService';\nimport ApiError from '../utils/errors/ApiError';\nimport LoggingService from '../utils/logging/LoggingService';\nimport { XMLParser } from 'fast-xml-parser';\n\nclass BGGService extends BaseApiService {\n  constructor(config) {\n    super(config);\n    this.endpoints = config.endpoints;\n    this.retryAttempts = config.retryAttempts;\n    this.retryDelay = config.retryDelay;\n    this.xmlParser = new XMLParser();\n    \n    this.validateConfig(['endpoints', 'retryAttempts', 'retryDelay']);\n  }\n\n  async searchGame(query) {\n    try {\n      LoggingService.debug(this.serviceName, 'Searching game', { query });\n      \n      const url = this.buildUrl(`${this.endpoints.search}?query=${encodeURIComponent(query)}&type=boardgame`);\n      const response = await this.fetchWithRetry(url);\n      const xmlData = await response.text();\n      \n      const result = this.xmlParser.parse(xmlData);\n      LoggingService.info(this.serviceName, 'Game search successful');\n      return result;\n    } catch (error) {\n      LoggingService.error(this.serviceName, 'Game search failed', error);\n      throw error instanceof ApiError ? error : new ApiError(\n        this.serviceName,\n        'Failed to search game',\n        500,\n        error\n      );\n    }\n  }\n\n  async getGameDetails(gameId) {\n    try {\n      LoggingService.debug(this.serviceName, 'Fetching game details', { gameId });\n      \n      const url = this.buildUrl(`${this.endpoints.thing}?id=${gameId}&stats=1`);\n      const response = await this.fetchWithRetry(url);\n      const xmlData = await response.text();\n      \n      const result = this.xmlParser.parse(xmlData);\n      LoggingService.info(this.serviceName, 'Game details fetched successfully');\n      return result;\n    } catch (error) {\n      LoggingService.error(this.serviceName, 'Failed to fetch game details', error);\n      throw error instanceof ApiError ? error : new ApiError(\n        this.serviceName,\n        'Failed to get game details',\n        500,\n        error\n      );\n    }\n  }\n",
+      "imports": [
+        "import BaseApiService from './BaseApiService';",
+        "import ApiError from '../utils/errors/ApiError';",
+        "import LoggingService from '../utils/logging/LoggingService';",
+        "import { XMLParser } from 'fast-xml-parser';"
+      ],
+      "exports": [],
+      "symbols": [
+        "BGGService",
+        "url",
+        "response",
+        "xmlData",
+        "result",
+        "url",
+        "response",
+        "xmlData",
+        "result"
+      ],
+      "loc_head": 60,
+      "sha1": "42324584efec6df248b4f4c9dd51ecc613e01e15"
+    },
+    "src\\services\\BingService.js": {
+      "size": 1438,
+      "ext": ".js",
+      "first_lines": "import BaseApiService from './BaseApiService';\nimport LoggingService from '../utils/logging/LoggingService';\nimport ApiError from '../utils/errors/ApiError';\n\nclass BingService extends BaseApiService {\n  constructor(config) {\n    super(config);\n    this.searchType = config.searchType;\n    this.market = config.market;\n    this.count = config.count;\n    \n    this.validateConfig(['searchType', 'market', 'count']);\n  }\n\n  async searchImages(query, filter = {}) {\n    try {\n      LoggingService.debug(this.serviceName, 'Searching images', { query, filter });\n      \n      const queryParams = new URLSearchParams({\n        q: query,\n        count: this.count,\n        mkt: this.market,\n        ...filter\n      });\n\n      const url = this.buildUrl(`/images/search?${queryParams}`);\n      const response = await this.fetchWithTimeout(url, {\n        headers: {\n          'Ocp-Apim-Subscription-Key': process.env.BING_API_KEY\n        }\n      });\n\n      const data = await this.handleResponse(response);\n      LoggingService.info(this.serviceName, 'Image search successful');\n      return data.value;\n    } catch (error) {\n      LoggingService.error(this.serviceName, 'Image search failed', error);\n      throw error instanceof ApiError ? error : new ApiError(\n        this.serviceName,\n        'Failed to search images',\n        500,\n        error\n      );\n    }\n  }\n}\n\nexport default BingService;",
+      "imports": [
+        "import BaseApiService from './BaseApiService';",
+        "import LoggingService from '../utils/logging/LoggingService';",
+        "import ApiError from '../utils/errors/ApiError';"
+      ],
+      "exports": [],
+      "symbols": [
+        "BingService",
+        "queryParams",
+        "url",
+        "response",
+        "data"
+      ],
+      "loc_head": 48,
+      "sha1": "cb663f7fb2a59a55ef522af7d15aa69e69fc8c58"
+    },
+    "src\\services\\CohereService.js": {
+      "size": 1426,
+      "ext": ".js",
+      "first_lines": "import BaseApiService from './BaseApiService';\nimport LoggingService from '../utils/logging/LoggingService';\nimport ApiError from '../utils/errors/ApiError';\n\nclass CohereService extends BaseApiService {\n  constructor(config) {\n    super(config);\n    this.model = config.model;\n    this.maxTokens = config.maxTokens;\n    \n    this.validateConfig(['model', 'maxTokens']);\n  }\n\n  async generateText(prompt) {\n    try {\n      LoggingService.debug(this.serviceName, 'Generating text', { prompt });\n      \n      const url = this.buildUrl('/generate');\n      const response = await this.fetchWithTimeout(url, {\n        method: 'POST',\n        headers: {\n          'Authorization': `Bearer ${process.env.COHERE_API_KEY}`,\n          'Content-Type': 'application/json'\n        },\n        body: JSON.stringify({\n          model: this.model,\n          prompt,\n          max_tokens: this.maxTokens\n        })\n      });\n\n      const data = await this.handleResponse(response);\n      LoggingService.info(this.serviceName, 'Text generation successful');\n      return data.generations[0].text;\n    } catch (error) {\n      LoggingService.error(this.serviceName, 'Text generation failed', error);\n      throw error instanceof ApiError ? error : new ApiError(\n        this.serviceName,\n        'Failed to generate text',\n        500,\n        error\n      );\n    }\n  }\n}\n\nexport default CohereService;",
+      "imports": [
+        "import BaseApiService from './BaseApiService';",
+        "import LoggingService from '../utils/logging/LoggingService';",
+        "import ApiError from '../utils/errors/ApiError';"
+      ],
+      "exports": [],
+      "symbols": [
+        "CohereService",
+        "url",
+        "response",
+        "data"
+      ],
+      "loc_head": 47,
+      "sha1": "a20a00c9251f0be27fc013b97b6d2c22f5b4e7e0"
+    },
+    "src\\services\\ElevenLabsService.js": {
+      "size": 2027,
+      "ext": ".js",
+      "first_lines": "import BaseApiService from './BaseApiService';\nimport LoggingService from '../utils/logging/LoggingService';\nimport ApiError from '../utils/errors/ApiError';\n\nclass ElevenLabsService extends BaseApiService {\n  constructor(config) {\n    super(config);\n    this.voices = config.voices;\n    this.audioFormat = config.audioFormat;\n    \n    // Validate required configuration\n    this.validateConfig(['voices', 'audioFormat']);\n  }\n\n  async generateSpeech(text, voiceId, language = 'english') {\n    try {\n      if (!this.voices[language]) {\n        throw new ApiError(\n          this.serviceName,\n          `Unsupported language: ${language}`,\n          400\n        );\n      }\n\n      LoggingService.debug(this.serviceName, 'Generating speech', { text, voiceId, language });\n      \n      const url = this.buildUrl('/text-to-speech');\n      const response = await this.fetchWithTimeout(url, {\n        method: 'POST',\n        headers: {\n          'Content-Type': 'application/json',\n          'xi-api-key': process.env.ELEVENLABS_API_KEY\n        },\n        body: JSON.stringify({\n          text,\n          voice_id: voiceId,\n          model_id: 'eleven_multilingual_v2',\n          voice_settings: {\n            stability: 0.5,\n            similarity_boost: 0.75\n          }\n        })\n      });\n\n      if (!response.ok) {\n        throw new ApiError(\n          this.serviceName,\n          'Speech generation failed',\n          response.status\n        );\n      }\n\n      LoggingService.info(this.serviceName, 'Speech generation successful');\n      return response.arrayBuffer();\n    } catch (error) {\n      LoggingService.error(this.serviceName, 'Speech generation failed', error);\n      throw error instanceof ApiError ? error : new ApiError(\n        this.serviceName,\n        'Failed to generate speech',\n        500,",
+      "imports": [
+        "import BaseApiService from './BaseApiService';",
+        "import LoggingService from '../utils/logging/LoggingService';",
+        "import ApiError from '../utils/errors/ApiError';"
+      ],
+      "exports": [],
+      "symbols": [
+        "ElevenLabsService",
+        "url",
+        "response"
+      ],
+      "loc_head": 60,
+      "sha1": "ff4974dd9a5e810e99a862cc14a08bedb209088a"
+    },
+    "src\\services\\ImageExtractorService.js": {
+      "size": 2500,
+      "ext": ".js",
+      "first_lines": "import BaseApiService from './BaseApiService';\nimport LoggingService from '../utils/logging/LoggingService';\nimport ApiError from '../utils/errors/ApiError';\n\nclass ImageExtractorService extends BaseApiService {\n  constructor(config) {\n    super(config);\n    this.formats = config.formats;\n    this.minQuality = config.minQuality;\n    \n    this.validateConfig(['formats', 'minQuality']);\n  }\n\n  async extractImagesFromPDF(pdfBuffer) {\n    try {\n      LoggingService.debug(this.serviceName, 'Extracting images from PDF');\n      \n      const url = this.buildUrl('/extract');\n      const formData = new FormData();\n      formData.append('file', new Blob([pdfBuffer], { type: 'application/pdf' }));\n      formData.append('formats', JSON.stringify(this.formats));\n      formData.append('minQuality', this.minQuality);\n\n      const response = await this.fetchWithTimeout(url, {\n        method: 'POST',\n        headers: {\n          'Authorization': `Bearer ${process.env.IMAGE_EXTRACTOR_API_KEY}`\n        },\n        body: formData\n      });\n\n      const data = await this.handleResponse(response);\n      LoggingService.info(this.serviceName, 'Image extraction successful');\n      return data.images;\n    } catch (error) {\n      LoggingService.error(this.serviceName, 'Image extraction failed', error);\n      throw error instanceof ApiError ? error : new ApiError(\n        this.serviceName,\n        'Failed to extract images',\n        500,\n        error\n      );\n    }\n  }\n\n  async enhanceImage(imageBuffer) {\n    try {\n      LoggingService.debug(this.serviceName, 'Enhancing image');\n      \n      const url = this.buildUrl('/enhance');\n      const formData = new FormData();\n      formData.append('image', new Blob([imageBuffer]));\n      formData.append('quality', this.minQuality);\n\n      const response = await this.fetchWithTimeout(url, {\n        method: 'POST',\n        headers: {\n          'Authorization': `Bearer ${process.env.IMAGE_EXTRACTOR_API_KEY}`\n        },\n        body: formData",
+      "imports": [
+        "import BaseApiService from './BaseApiService';",
+        "import LoggingService from '../utils/logging/LoggingService';",
+        "import ApiError from '../utils/errors/ApiError';"
+      ],
+      "exports": [],
+      "symbols": [
+        "ImageExtractorService",
+        "url",
+        "formData",
+        "response",
+        "data",
+        "url",
+        "formData",
+        "response"
+      ],
+      "loc_head": 60,
+      "sha1": "3f6e06bb6e59f876e87956960f63eac21af4f3c3"
+    },
+    "src\\services\\multilangSummarizer.js": {
+      "size": 1713,
+      "ext": ".js",
+      "first_lines": "import BaseApiService from './BaseApiService';\nimport LoggingService from '../utils/logging/LoggingService';\nimport ApiError from '../utils/errors/ApiError';\n\n\nconst { Configuration, OpenAIApi } = require('openai');\nconst Cohere = require('cohere-ai');\nrequire('dotenv').config();\n\nconst openai = new OpenAIApi(new Configuration({\n  apiKey: process.env.OPENAI_API_KEY,\n}));\n\nCohere.init(process.env.COHERE_API_KEY);\n\nasync function summarizeEnglish(text) {\n  if (!text) throw new Error('No text provided for English summarization');\n\n  const response = await openai.createChatCompletion({\n    model: 'gpt-4',\n    messages: [\n      {\n        role: 'system',\n        content: 'You are a helpful assistant that summarizes text clearly and concisely.',\n      },\n      {\n        role: 'user',\n        content: `Summarize the following text:\\n\\n${text}`,\n      },\n    ],\n    max_tokens: 1000,\n    temperature: 0.7,\n  });\n\n  return response.data.choices[0].message.content.trim();\n}\n\nasync function summarizeFrench(text) {\n  if (!text) throw new Error('No text provided for French summarization');\n\n  const response = await Cohere.generate({\n    model: 'xlarge',\n    prompt: `R\u00e9sumez le texte suivant de mani\u00e8re claire et concise:\\n\\n${text}`,\n    max_tokens: 300,\n    temperature: 0.7,\n    k: 0,\n    p: 1,\n    frequency_penalty: 0,\n    presence_penalty: 0,\n    stop_sequences: [],\n  });\n\n  return response.body.generations[0].text.trim();\n}\n\nasync function summarizeText(text, language) {\n  if (language === 'french') {\n    return await summarizeFrench(text);\n  } else {\n    return await summarizeEnglish(text);",
+      "imports": [
+        "import BaseApiService from './BaseApiService';",
+        "import LoggingService from '../utils/logging/LoggingService';",
+        "import ApiError from '../utils/errors/ApiError';",
+        "const Cohere = require('cohere-ai');"
+      ],
+      "exports": [],
+      "symbols": [
+        "Cohere",
+        "openai",
+        "response",
+        "response"
+      ],
+      "loc_head": 60,
+      "sha1": "4eac383d3852502b95455cef3be392de1ff1caa9"
+    },
+    "src\\services\\OpenAIService.js": {
+      "size": 2217,
+      "ext": ".js",
+      "first_lines": "import BaseApiService from './BaseApiService';\nimport LoggingService from '../utils/logging/LoggingService';\nimport ApiError from '../utils/errors/ApiError';\n\nclass OpenAIService extends BaseApiService {\n  constructor(config) {\n    super(config);\n    this.model = config.models?.default;\n    this.maxTokens = config.maxTokens;\n    this.temperature = config.temperature;\n    \n    // Validate required configuration\n    this.validateConfig(['model', 'maxTokens']);\n  }\n\n  async generateText(prompt) {\n    try {\n      LoggingService.debug(this.serviceName, 'Generating text', { prompt });\n      \n      const url = this.buildUrl('/chat/completions');\n      const response = await this.fetchWithTimeout(url, {\n        method: 'POST',\n        headers: {\n          'Content-Type': 'application/json',\n          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`\n        },\n        body: JSON.stringify({\n          model: this.model,\n          messages: [{ role: 'user', content: prompt }],\n          max_tokens: this.maxTokens,\n          temperature: this.temperature\n        })\n      });\n\n      const data = await this.handleResponse(response);\n      \n      if (!data.choices?.[0]?.message?.content) {\n        throw new ApiError(\n          this.serviceName,\n          'Invalid response format from OpenAI',\n          500\n        );\n      }\n\n      LoggingService.info(this.serviceName, 'Text generation successful');\n      return data.choices[0].message.content;\n    } catch (error) {\n      LoggingService.error(this.serviceName, 'Text generation failed', error);\n      throw error instanceof ApiError ? error : new ApiError(\n        this.serviceName,\n        'Failed to generate text',\n        500,\n        error\n      );\n    }\n  }\n\n  async validateApiKey() {\n    try {\n      const url = this.buildUrl('/models');",
+      "imports": [
+        "import BaseApiService from './BaseApiService';",
+        "import LoggingService from '../utils/logging/LoggingService';",
+        "import ApiError from '../utils/errors/ApiError';"
+      ],
+      "exports": [],
+      "symbols": [
+        "OpenAIService",
+        "url",
+        "response",
+        "data",
+        "url"
+      ],
+      "loc_head": 60,
+      "sha1": "723dea343416cdf7b090b8e05b74a81c4b87fb33"
+    },
+    "src\\services\\ServiceFactory.js": {
+      "size": 2745,
+      "ext": ".js",
+      "first_lines": "import apiConfig from '../config/apiConfig';\nimport OpenAIService from './OpenAIService';\nimport ElevenLabsService from './ElevenLabsService';\nimport BGGService from './BGGService';\nimport AnthropicService from './AnthropicService';\nimport BingService from './BingService';\nimport CohereService from './CohereService';\nimport UnsplashService from './UnsplashService';\nimport ImageExtractorService from './ImageExtractorService';\nimport ApiError from '../utils/errors/ApiError';\nimport LoggingService from '../utils/logging/LoggingService';\n\nclass ServiceFactory {\n  static services = {};\n\n  static getService(serviceName) {\n    try {\n      if (!this.services[serviceName]) {\n        const config = apiConfig.apis[serviceName];\n        \n        if (!config) {\n          throw new ApiError(\n            'ServiceFactory',\n            `Configuration not found for service: ${serviceName}`,\n            404\n          );\n        }\n\n        LoggingService.debug('ServiceFactory', `Initializing service: ${serviceName}`);\n        \n        switch (serviceName) {\n          case 'openai':\n            this.services[serviceName] = new OpenAIService(config);\n            break;\n          case 'elevenlabs':\n            this.services[serviceName] = new ElevenLabsService(config);\n            break;\n          case 'bgg':\n            this.services[serviceName] = new BGGService(config);\n            break;\n          case 'anthropic':\n            this.services[serviceName] = new AnthropicService(config);\n            break;\n          case 'bing':\n            this.services[serviceName] = new BingService(config);\n            break;\n          case 'cohere':\n            this.services[serviceName] = new CohereService(config);\n            break;\n          case 'unsplash':\n            this.services[serviceName] = new UnsplashService(config);\n            break;\n          case 'imageExtractor':\n            this.services[serviceName] = new ImageExtractorService(config);\n            break;\n          default:\n            throw new ApiError(\n              'ServiceFactory',\n              `Unknown service: ${serviceName}`,\n              400",
+      "imports": [
+        "import apiConfig from '../config/apiConfig';",
+        "import OpenAIService from './OpenAIService';",
+        "import ElevenLabsService from './ElevenLabsService';",
+        "import BGGService from './BGGService';",
+        "import AnthropicService from './AnthropicService';",
+        "import BingService from './BingService';",
+        "import CohereService from './CohereService';",
+        "import UnsplashService from './UnsplashService';",
+        "import ImageExtractorService from './ImageExtractorService';",
+        "import ApiError from '../utils/errors/ApiError';",
+        "import LoggingService from '../utils/logging/LoggingService';"
+      ],
+      "exports": [],
+      "symbols": [
+        "ServiceFactory",
+        "config"
+      ],
+      "loc_head": 60,
+      "sha1": "239752747ad5fb51916590491c5e5dc875706e85"
+    },
+    "src\\services\\UnsplashService.js": {
+      "size": 2200,
+      "ext": ".js",
+      "first_lines": "import BaseApiService from './BaseApiService';\nimport LoggingService from '../utils/logging/LoggingService';\nimport ApiError from '../utils/errors/ApiError';\n\nclass UnsplashService extends BaseApiService {\n  constructor(config) {\n    super(config);\n    this.perPage = config.perPage;\n    this.orientation = config.orientation;\n    \n    this.validateConfig(['perPage', 'orientation']);\n  }\n\n  async searchImages(query) {\n    try {\n      LoggingService.debug(this.serviceName, 'Searching images', { query });\n      \n      const url = this.buildUrl(`/search/photos?query=${encodeURIComponent(query)}&per_page=${this.perPage}&orientation=${this.orientation}`);\n      const response = await this.fetchWithTimeout(url, {\n        headers: {\n          'Authorization': `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}`\n        }\n      });\n\n      const data = await this.handleResponse(response);\n      LoggingService.info(this.serviceName, 'Image search successful');\n      return data.results;\n    } catch (error) {\n      LoggingService.error(this.serviceName, 'Image search failed', error);\n      throw error instanceof ApiError ? error : new ApiError(\n        this.serviceName,\n        'Failed to search images',\n        500,\n        error\n      );\n    }\n  }\n\n  async getRandomImage(query) {\n    try {\n      LoggingService.debug(this.serviceName, 'Fetching random image', { query });\n      \n      const url = this.buildUrl(`/photos/random?query=${encodeURIComponent(query)}&orientation=${this.orientation}`);\n      const response = await this.fetchWithTimeout(url, {\n        headers: {\n          'Authorization': `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}`\n        }\n      });\n\n      const data = await this.handleResponse(response);\n      LoggingService.info(this.serviceName, 'Random image fetch successful');\n      return data;\n    } catch (error) {\n      LoggingService.error(this.serviceName, 'Random image fetch failed', error);\n      throw error instanceof ApiError ? error : new ApiError(\n        this.serviceName,\n        'Failed to get random image',\n        500,\n        error\n      );",
+      "imports": [
+        "import BaseApiService from './BaseApiService';",
+        "import LoggingService from '../utils/logging/LoggingService';",
+        "import ApiError from '../utils/errors/ApiError';"
+      ],
+      "exports": [],
+      "symbols": [
+        "UnsplashService",
+        "url",
+        "response",
+        "data",
+        "url",
+        "response",
+        "data"
+      ],
+      "loc_head": 60,
+      "sha1": "18b735185e6ff0dafab870563af9d9e54135dc25"
+    },
+    "src\\services\\__tests__\\AnthropicService.test.js": {
+      "size": 2322,
+      "ext": ".js",
+      "first_lines": "import AnthropicService from '../AnthropicService';\nimport ApiError from '../../utils/errors/ApiError';\nimport LoggingService from '../../utils/logging/LoggingService';\n\njest.mock('../../utils/logging/LoggingService');\n\ndescribe('AnthropicService', () => {\n  let service;\n  let mockConfig;\n\n  beforeEach(() => {\n    jest.clearAllMocks();\n    mockConfig = {\n      baseUrl: 'https://api.anthropic.com',\n      model: 'claude-2',\n      maxTokens: 1000\n    };\n    service = new AnthropicService(mockConfig);\n  });\n\n  describe('constructor', () => {\n    it('should create instance with valid config', () => {\n      expect(service.model).toBe(mockConfig.model);\n      expect(service.maxTokens).toBe(mockConfig.maxTokens);\n    });\n\n    it('should throw error if required config is missing', () => {\n      expect(() => new AnthropicService({})).toThrow(ApiError);\n    });\n  });\n\n  describe('generateText', () => {\n    const mockPrompt = 'Test prompt';\n    const mockResponse = { content: 'Generated text' };\n\n    it('should generate text successfully', async () => {\n      const mockApiResponse = {\n        ok: true,\n        headers: {\n          get: jest.fn().mockReturnValue('application/json')\n        },\n        json: jest.fn().mockResolvedValue(mockResponse)\n      };\n\n      service.fetchWithTimeout = jest.fn().mockResolvedValue(mockApiResponse);\n\n      const result = await service.generateText(mockPrompt);\n\n      expect(result).toBe(mockResponse.content);\n      expect(service.fetchWithTimeout).toHaveBeenCalledWith(\n        expect.any(String),\n        expect.objectContaining({\n          method: 'POST',\n          headers: expect.objectContaining({\n            'Content-Type': 'application/json'\n          }),\n          body: expect.stringContaining(mockPrompt)\n        })\n      );\n      expect(LoggingService.info).toHaveBeenCalledWith(",
+      "imports": [
+        "import AnthropicService from '../AnthropicService';",
+        "import ApiError from '../../utils/errors/ApiError';",
+        "import LoggingService from '../../utils/logging/LoggingService';"
+      ],
+      "exports": [],
+      "symbols": [
+        "service",
+        "mockConfig",
+        "mockPrompt",
+        "mockResponse",
+        "mockApiResponse",
+        "result"
+      ],
+      "loc_head": 60,
+      "sha1": "762374dcac56279efb4a489aa82bc77ac6c4e138"
+    },
+    "src\\services\\__tests__\\BaseApiService.test.js": {
+      "size": 3775,
+      "ext": ".js",
+      "first_lines": "import BaseApiService from '../BaseApiService';\nimport ApiError from '../../utils/errors/ApiError';\nimport LoggingService from '../../utils/logging/LoggingService';\n\njest.mock('../../utils/logging/LoggingService', () => ({\n  error: jest.fn(),\n  warn: jest.fn(),\n  info: jest.fn(),\n  debug: jest.fn()\n}));\n\ndescribe('BaseApiService', () => {\n  let service;\n  let mockConfig;\n\n  beforeEach(() => {\n    jest.clearAllMocks();\n    mockConfig = {\n      baseUrl: 'https://api.example.com',\n      timeout: 5000\n    };\n    service = new BaseApiService(mockConfig);\n  });\n\n  describe('constructor', () => {\n    it('should create instance with valid config', () => {\n      expect(service.baseUrl).toBe(mockConfig.baseUrl);\n      expect(service.timeout).toBe(mockConfig.timeout);\n      expect(service.serviceName).toBe('BaseApiService');\n    });\n\n    it('should throw error if config is missing', () => {\n      expect(() => new BaseApiService()).toThrow(ApiError);\n    });\n  });\n\n  describe('handleResponse', () => {\n    it('should handle JSON response', async () => {\n      const mockData = { key: 'value' };\n      const response = {\n        ok: true,\n        headers: {\n          get: jest.fn().mockReturnValue('application/json')\n        },\n        json: jest.fn().mockResolvedValue(mockData)\n      };\n\n      const result = await service.handleResponse(response);\n      expect(result).toEqual(mockData);\n    });\n\n    it('should handle non-JSON response', async () => {\n      const response = {\n        ok: true,\n        headers: {\n          get: jest.fn().mockReturnValue('text/plain')\n        }\n      };\n\n      const result = await service.handleResponse(response);",
+      "imports": [
+        "import BaseApiService from '../BaseApiService';",
+        "import ApiError from '../../utils/errors/ApiError';",
+        "import LoggingService from '../../utils/logging/LoggingService';"
+      ],
+      "exports": [],
+      "symbols": [
+        "service",
+        "mockConfig",
+        "mockData",
+        "response",
+        "result",
+        "response",
+        "result"
+      ],
+      "loc_head": 60,
+      "sha1": "baed7ad379e3e7436760fb6d4ce72af93b809984"
+    },
+    "src\\services\\__tests__\\BGGService.test.js": {
+      "size": 3183,
+      "ext": ".js",
+      "first_lines": "import BGGService from '../BGGService';\nimport ApiError from '../../utils/errors/ApiError';\nimport LoggingService from '../../utils/logging/LoggingService';\nimport { XMLParser } from 'fast-xml-parser';\n\njest.mock('../../utils/logging/LoggingService');\njest.mock('fast-xml-parser');\n\ndescribe('BGGService', () => {\n  let service;\n  let mockConfig;\n\n  beforeEach(() => {\n    jest.clearAllMocks();\n    mockConfig = {\n      baseUrl: 'https://boardgamegeek.com/xmlapi2',\n      timeout: 5000,\n      retryAttempts: 3,\n      retryDelay: 1000\n    };\n    service = new BGGService(mockConfig);\n  });\n\n  describe('searchGame', () => {\n    const mockQuery = 'Catan';\n    const mockXmlData = '<items><item id=\"13\"></item></items>';\n    const mockParsedData = { items: { item: [{ id: '13' }] } };\n\n    beforeEach(() => {\n      XMLParser.prototype.parse.mockReturnValue(mockParsedData);\n    });\n\n    it('should search games successfully', async () => {\n      const mockResponse = {\n        ok: true,\n        text: jest.fn().mockResolvedValue(mockXmlData)\n      };\n\n      service.fetchWithRetry = jest.fn().mockResolvedValue(mockResponse);\n\n      const result = await service.searchGame(mockQuery);\n\n      expect(result).toEqual(mockParsedData);\n      expect(service.fetchWithRetry).toHaveBeenCalledWith(\n        expect.stringContaining(encodeURIComponent(mockQuery))\n      );\n      expect(LoggingService.info).toHaveBeenCalledWith(\n        'BGGService',\n        'Game search successful'\n      );\n    });\n\n    it('should handle search errors', async () => {\n      service.fetchWithRetry = jest.fn().mockRejectedValue(\n        new Error('Search failed')\n      );\n\n      await expect(service.searchGame(mockQuery))\n        .rejects\n        .toThrow(ApiError);",
+      "imports": [
+        "import BGGService from '../BGGService';",
+        "import ApiError from '../../utils/errors/ApiError';",
+        "import LoggingService from '../../utils/logging/LoggingService';",
+        "import { XMLParser } from 'fast-xml-parser';"
+      ],
+      "exports": [],
+      "symbols": [
+        "service",
+        "mockConfig",
+        "mockQuery",
+        "mockXmlData",
+        "mockParsedData",
+        "mockResponse",
+        "result"
+      ],
+      "loc_head": 60,
+      "sha1": "e93314507608b27a68bcb06856118b8bd740efc8"
+    },
+    "src\\services\\__tests__\\BingService.test.js": {
+      "size": 0,
+      "ext": ".js",
+      "first_lines": "",
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "loc_head": 0,
+      "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+    },
+    "src\\services\\__tests__\\CohereService.test.js": {
+      "size": 0,
+      "ext": ".js",
+      "first_lines": "",
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "loc_head": 0,
+      "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+    },
+    "src\\services\\__tests__\\ElevenLabsService.test.js": {
+      "size": 0,
+      "ext": ".js",
+      "first_lines": "",
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "loc_head": 0,
+      "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+    },
+    "src\\services\\__tests__\\ImageExtractorService.test.js": {
+      "size": 3300,
+      "ext": ".js",
+      "first_lines": "import ServiceName from '../ServiceName';\nimport ApiError from '../../utils/errors/ApiError';\nimport LoggingService from '../../utils/logging/LoggingService';\n\n// Mock dependencies\njest.mock('../../utils/logging/LoggingService');\n\ndescribe('ImageExtractorService', () => {\n  let service;\n  let mockConfig;\n\n  beforeEach(() => {\n    // Reset mocks between tests\n    jest.clearAllMocks();\n    \n    mockConfig = {\n      baseUrl: 'https://api.image-extractor.com',\n      timeout: 30000,\n      formats: ['jpg', 'png'],\n      minQuality: 80\n    };\n    \n    service = new ImageExtractorService(mockConfig);\n  });\n\n  describe('extractImagesFromPDF', () => {\n    const mockPdfBuffer = Buffer.from('mock pdf content');\n    const mockImages = ['image1.jpg', 'image2.png'];\n\n    it('should successfully extract images from PDF', async () => {\n      // Mock successful API response\n      const mockResponse = {\n        ok: true,\n        headers: {\n          get: jest.fn().mockReturnValue('application/json')\n        },\n        json: () => Promise.resolve({ images: mockImages })\n      };\n\n      service.fetchWithTimeout = jest.fn().mockResolvedValue(mockResponse);\n\n      const result = await service.extractImagesFromPDF(mockPdfBuffer);\n\n      expect(result).toEqual(mockImages);\n      expect(service.fetchWithTimeout).toHaveBeenCalledWith(\n        expect.stringContaining('/extract'),\n        expect.objectContaining({\n          method: 'POST',\n          headers: expect.objectContaining({\n            'Authorization': expect.stringContaining('Bearer')\n          })\n        })\n      );\n      expect(LoggingService.info).toHaveBeenCalledWith(\n        'ImageExtractorService',\n        'Image extraction successful'\n      );\n    });\n\n    it('should handle API errors gracefully', async () => {",
+      "imports": [
+        "import ServiceName from '../ServiceName';",
+        "import ApiError from '../../utils/errors/ApiError';",
+        "import LoggingService from '../../utils/logging/LoggingService';"
+      ],
+      "exports": [],
+      "symbols": [
+        "service",
+        "mockConfig",
+        "mockPdfBuffer",
+        "mockImages",
+        "mockResponse",
+        "result"
+      ],
+      "loc_head": 60,
+      "sha1": "f3a158246001795cf07cbb41a3dabe4c5eaee710"
+    },
+    "src\\services\\__tests__\\LoggingService.test.js": {
+      "size": 1962,
+      "ext": ".js",
+      "first_lines": "import ServiceName from '../ServiceName';\nimport ApiError from '../../utils/errors/ApiError';\nimport LoggingService from '../../utils/logging/LoggingService';\n\njest.mock('../../utils/logging/LoggingService');\n\ndescribe('BaseApiService', () => {\n  let service;\n  let mockConfig;\n\n  beforeEach(() => {\n    jest.clearAllMocks();\n    mockConfig = {\n      baseUrl: 'https://api.example.com',\n      timeout: 5000\n    };\n    service = new BaseApiService(mockConfig);\n  });\n\n  afterEach(() => {\n    jest.resetAllMocks();\n  });\n\n  describe('error logging', () => {\n    it('should log errors when handling failed responses', async () => {\n      const response = {\n        ok: false,\n        statusText: 'Server Error',\n        status: 500\n      };\n\n      await expect(service.handleResponse(response)).rejects.toThrow(ApiError);\n      expect(LoggingService.error).toHaveBeenCalledWith(\n        'BaseApiService',\n        'Response handling failed',\n        expect.any(ApiError)\n      );\n    });\n\n    it('should log timeouts', async () => {\n      jest.useFakeTimers();\n      global.fetch.mockImplementation(() => new Promise(resolve => {\n        setTimeout(resolve, 6000);\n      }));\n\n      const fetchPromise = service.fetchWithTimeout('https://api.example.com/test');\n      jest.advanceTimersByTime(5001);\n\n      await expect(fetchPromise).rejects.toThrow(ApiError);\n      expect(LoggingService.error).toHaveBeenCalledWith(\n        'BaseApiService',\n        'Request failed',\n        expect.any(Error)\n      );\n      jest.useRealTimers();\n    });\n\n    it('should log validation errors', () => {\n      expect(() => {\n        service.validateConfig(['nonexistentField']);",
+      "imports": [
+        "import ServiceName from '../ServiceName';",
+        "import ApiError from '../../utils/errors/ApiError';",
+        "import LoggingService from '../../utils/logging/LoggingService';"
+      ],
+      "exports": [],
+      "symbols": [
+        "service",
+        "mockConfig",
+        "response",
+        "fetchPromise"
+      ],
+      "loc_head": 60,
+      "sha1": "2ad02dfbce2c510d0b69b4cd054269ed306173c2"
+    },
+    "src\\services\\__tests__\\OpenAIService.test.js": {
+      "size": 0,
+      "ext": ".js",
+      "first_lines": "",
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "loc_head": 0,
+      "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+    },
+    "src\\services\\__tests__\\ServiceFactory.test.js": {
+      "size": 0,
+      "ext": ".js",
+      "first_lines": "",
+      "imports": [],
+      "exports": [],
+      "symbols": [],
+      "loc_head": 0,
+      "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+    },
+    "src\\services\\__tests__\\UnsplashService.test.js": {
+      "size": 3215,
+      "ext": ".js",
+      "first_lines": "import UnsplashService from '../UnsplashService';\nimport ApiError from '../../utils/errors/ApiError';\nimport LoggingService from '../../utils/logging/LoggingService';\n\njest.mock('../../utils/logging/LoggingService');\n\ndescribe('UnsplashService', () => {\n  let service;\n  let mockConfig;\n\n  beforeEach(() => {\n    jest.clearAllMocks();\n    mockConfig = {\n      baseUrl: 'https://api.unsplash.com',\n      perPage: 10,\n      orientation: 'landscape'\n    };\n    service = new UnsplashService(mockConfig);\n  });\n\n  describe('searchImages', () => {\n    const mockQuery = 'board games';\n    const mockImages = [\n      { id: '1', urls: { regular: 'image1.jpg' } },\n      { id: '2', urls: { regular: 'image2.jpg' } }\n    ];\n\n    it('should search images successfully', async () => {\n      const mockResponse = {\n        ok: true,\n        headers: {\n          get: jest.fn().mockReturnValue('application/json')\n        },\n        json: jest.fn().mockResolvedValue({ results: mockImages })\n      };\n\n      service.fetchWithTimeout = jest.fn().mockResolvedValue(mockResponse);\n\n      const result = await service.searchImages(mockQuery);\n\n      expect(result).toEqual(mockImages);\n      expect(service.fetchWithTimeout).toHaveBeenCalledWith(\n        expect.stringContaining(encodeURIComponent(mockQuery)),\n        expect.objectContaining({\n          headers: {\n            'Authorization': expect.stringContaining('Client-ID')\n          }\n        })\n      );\n      expect(LoggingService.info).toHaveBeenCalledWith(\n        'UnsplashService',\n        'Image search successful'\n      );\n    });\n\n    it('should handle search errors', async () => {\n      service.fetchWithTimeout = jest.fn().mockRejectedValue(\n        new Error('Search failed')\n      );\n",
+      "imports": [
+        "import UnsplashService from '../UnsplashService';",
+        "import ApiError from '../../utils/errors/ApiError';",
+        "import LoggingService from '../../utils/logging/LoggingService';"
+      ],
+      "exports": [],
+      "symbols": [
+        "service",
+        "mockConfig",
+        "mockQuery",
+        "mockImages",
+        "mockResponse",
+        "result"
+      ],
+      "loc_head": 60,
+      "sha1": "6d98d569ab9a0a9694e890db44d0071953de50c1"
+    },
+    "src\\utils\\translation.js": {
+      "size": 1453,
+      "ext": ".js",
+      "first_lines": "const fetch = require('node-fetch');\n\nconst libreTranslateURL = 'http://localhost:5002/translate';\n\nasync function translateText(text, targetLanguage) {\n    try {\n        if (!text) return '';\n        \n        // Pre-process text to remove unwanted headers\n        text = text.replace(/^(Introduction|Outro|Pr\u00e9sentation du jeu|Composants et mise en place|Aper\u00e7u du gameplay|Actions possibles|Phase de score|Conditions de fin de partie):?\\n+/gmi, '');\n        \n        const response = await fetch(libreTranslateURL, {\n            method: 'POST',\n            body: JSON.stringify({\n                q: text,\n                source: 'en',\n                target: targetLanguage,\n                format: 'text'\n            }),\n            headers: { 'Content-Type': 'application/json' }\n        });\n\n        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);\n\n        const data = await response.json();\n        \n        // Post-process translation to improve quality\n        let translation = data.translatedText\n            .replace(/\\[pause\\]/g, '[PAUSE 2s]')\n            .replace(/\\.\\s/g, '. [PAUSE 1s] ')\n            .replace(/\\b(Introduction|Outro)\\b/gi, '')\n            .replace(/\\[Image:.*?\\]/g, '');\n            \n        return translation;\n    } catch (error) {\n        console.error(\"Translation error:\", error);\n        throw error;\n    }\n}\n\nmodule.exports = { translateText };",
+      "imports": [
+        "const fetch = require('node-fetch');"
+      ],
+      "exports": [],
+      "symbols": [
+        "fetch",
+        "libreTranslateURL",
+        "response",
+        "data",
+        "translation"
+      ],
+      "loc_head": 41,
+      "sha1": "6622f81c62de02ee073240b4de1a9d28e31c76a5"
+    },
+    "src\\utils\\errors\\ApiError.js": {
+      "size": 706,
+      "ext": ".js",
+      "first_lines": "import LoggingService from '../utils/logging/LoggingService';\nimport ApiError from '../utils/errors/ApiError';\n\nclass ApiError extends Error {\n  constructor(service, message, statusCode = 500, originalError = null) {\n    super(message);\n    this.name = 'ApiError';\n    this.service = service;\n    this.statusCode = statusCode;\n    this.originalError = originalError;\n    this.timestamp = new Date().toISOString();\n  }\n\n  toJSON() {\n    return {\n      name: this.name,\n      service: this.service,\n      message: this.message,\n      statusCode: this.statusCode,\n      timestamp: this.timestamp,\n      originalError: this.originalError?.message\n    };\n  }\n}\n\nexport default ApiError;",
+      "imports": [
+        "import LoggingService from '../utils/logging/LoggingService';",
+        "import ApiError from '../utils/errors/ApiError';"
+      ],
+      "exports": [],
+      "symbols": [
+        "ApiError"
+      ],
+      "loc_head": 26,
+      "sha1": "1034f224110c888e8e4830d9e6a861abe8b5eefb"
+    },
+    "src\\utils\\errors\\__tests__\\ApiError.test.js": {
+      "size": 1016,
+      "ext": ".js",
+      "first_lines": "import ApiError from '../ApiError';\n\ndescribe('ApiError', () => {\n  const service = 'TestService';\n  const message = 'Test error';\n  const statusCode = 404;\n  const originalError = new Error('Original error');\n\n  it('should create error with all properties', () => {\n    const error = new ApiError(service, message, statusCode, originalError);\n    \n    expect(error.name).toBe('ApiError');\n    expect(error.service).toBe(service);\n    expect(error.message).toBe(message);\n    expect(error.statusCode).toBe(statusCode);\n    expect(error.originalError).toBe(originalError);\n    expect(error.timestamp).toBeDefined();\n  });\n\n  it('should serialize to JSON correctly', () => {\n    const error = new ApiError(service, message, statusCode, originalError);\n    const json = error.toJSON();\n    \n    expect(json).toEqual({\n      name: 'ApiError',\n      service,\n      message,\n      statusCode,\n      timestamp: expect.any(String),\n      originalError: originalError.message\n    });\n  });\n});",
+      "imports": [
+        "import ApiError from '../ApiError';"
+      ],
+      "exports": [],
+      "symbols": [
+        "service",
+        "message",
+        "statusCode",
+        "originalError",
+        "error",
+        "error",
+        "json"
+      ],
+      "loc_head": 33,
+      "sha1": "aeb36cadf8bb5524897dfee775e33c226152a32a"
+    },
+    "src\\utils\\logging\\LoggingService.js": {
+      "size": 1138,
+      "ext": ".js",
+      "first_lines": "class LoggingService {\n  static logLevels = {\n    ERROR: 'ERROR',\n    WARN: 'WARN',\n    INFO: 'INFO',\n    DEBUG: 'DEBUG'\n  };\n\n  static log(level, service, message, data = null) {\n    const timestamp = new Date().toISOString();\n    const logEntry = {\n      timestamp,\n      level,\n      service,\n      message,\n      data\n    };\n\n    console.log(`[${timestamp}] ${level} - ${service}: ${message}`);\n    if (data) {\n      console.log('Data:', JSON.stringify(data, null, 2));\n    }\n\n    return logEntry;\n  }\n\n  static error(service, message, error = null) {\n    return this.log(this.logLevels.ERROR, service, message, error);\n  }\n\n  static warn(service, message, data = null) {\n    return this.log(this.logLevels.WARN, service, message, data);\n  }\n\n  static info(service, message, data = null) {\n    return this.log(this.logLevels.INFO, service, message, data);\n  }\n\n  static debug(service, message, data = null) {\n    if (process.env.NODE_ENV === 'development') {\n      return this.log(this.logLevels.DEBUG, service, message, data);\n    }\n    return null;\n  }\n}\n\nexport default LoggingService;",
+      "imports": [],
+      "exports": [],
+      "symbols": [
+        "LoggingService",
+        "timestamp",
+        "logEntry"
+      ],
+      "loc_head": 47,
+      "sha1": "da01615bcfc2d688dea1a9e445e4220388567e02"
+    },
+    "src\\utils\\logging\\__tests__\\LoggingService.test.js": {
+      "size": 857,
+      "ext": ".js",
+      "first_lines": "import LoggingService from '../LoggingService';\n\ndescribe('LoggingService', () => {\n  let consoleSpy;\n\n  beforeEach(() => {\n    consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});\n  });\n\n  afterEach(() => {\n    consoleSpy.mockRestore();\n  });\n\n  describe('logging methods', () => {\n    it('should log messages with correct levels', () => {\n      const testService = 'TestService';\n      const testMessage = 'Test message';\n      \n      LoggingService.error(testService, testMessage);\n      expect(consoleSpy).toHaveBeenCalledWith(\n        expect.stringContaining('ERROR - TestService: Test message')\n      );\n      \n      LoggingService.info(testService, testMessage);\n      expect(consoleSpy).toHaveBeenCalledWith(\n        expect.stringContaining('INFO - TestService: Test message')\n      );\n    });\n  });\n});",
+      "imports": [
+        "import LoggingService from '../LoggingService';"
+      ],
+      "exports": [],
+      "symbols": [
+        "consoleSpy",
+        "testService",
+        "testMessage"
+      ],
+      "loc_head": 30,
+      "sha1": "1afb1b0979c1bdbe22f6180bf23022956554ec56"
+    }
+  }
+}

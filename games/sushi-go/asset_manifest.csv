@@ -1,0 +1,11 @@
+type,id,path,source,license
+image,cover,assets/sushi-go/cover.jpg,official,custom
+image,logo,assets/sushi-go/logo.png,official,custom
+image,maki,assets/sushi-go/maki.png,official,custom
+image,pudding,assets/sushi-go/pudding.png,official,custom
+image,sashimi,assets/sushi-go/sashimi.png,official,custom
+image,temaki,assets/sushi-go/temaki.png,official,custom
+image,wasabi,assets/sushi-go/wasabi.png,official,custom
+audio,music,assets/sushi-go/background.mp3,official,custom
+audio,sfx_card,assets/sushi-go/card_place.wav,official,custom
+audio,sfx_score,assets/sushi-go/score.wav,official,custom

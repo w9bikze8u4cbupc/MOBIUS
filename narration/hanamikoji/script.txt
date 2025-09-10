@@ -1,0 +1,29 @@
+[mark:S_INTRO] Welcome to Hanamikoji, a quick, elegant two-player duel to win the favor of seven geishas.
+
+[mark:S_SETUP_ROW_START] Lay out the seven geisha cards in ascending order.[mark:S_SETUP_ROW_END]
+
+[mark:S_SETUP_FAVOR_START] Place a favor marker in the center of each geisha.[mark:S_SETUP_FAVOR_END]
+
+[mark:S_SETUP_SHUFFLE] Shuffle all twenty-one item cards.[mark:S_SETUP_SHUFFLE_END]
+
+[mark:S_SETUP_BURN] Remove one card face-down to the box—it won’t be used this round.[mark:S_SETUP_BURN_END]
+
+[mark:S_SETUP_DEAL] Deal six cards to each player.[mark:S_SETUP_DEAL_END]
+
+[mark:S_SETUP_ACTIONS] Give each player the four action tiles, colored side up.[mark:S_SETUP_ACTIONS_END]
+
+
+
+[mark:S_ROUND_BEGIN] Each round, players alternate turns. On your turn, draw one card, then perform one unused action.[mark:S_ROUND_BEGIN_END]
+
+[mark:S_DRAW] Draw one card from the deck.[mark:S_DRAW_END]
+
+[mark:S_ACTION] Choose one of the four actions: Secret, Discard Two, Gift three, or Competition two by two.[mark:S_ACTION_END]
+
+
+
+[mark:S_SCORE_REVEAL] After both players use all four actions, reveal and play your secret card.[mark:S_SCORE_REVEAL_END]
+
+[mark:S_SCORE_COMPARE] For each geisha, compare the number of gifts on each side and move the favor marker to the winner.[mark:S_SCORE_COMPARE_END]
+
+[mark:S_SCORE_WIN] If you have four geishas or eleven or more charm points, you win immediately.[mark:S_SCORE_WIN_END]

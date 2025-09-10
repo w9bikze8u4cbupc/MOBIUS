@@ -11,11 +11,26 @@ concurrency:
 
 jobs:
   validate:
-    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [windows-2022, macos-14, ubuntu-22.04]
+        include:
+          - platform: windows
+            runner: windows-2022
+            shell: pwsh
+          - platform: macos
+            runner: macos-14
+            shell: bash
+          - platform: linux
+            runner: ubuntu-22.04
+            shell: bash
         game: [sushi-go]
+    runs-on: ${{ matrix.runner }}
+    env:
+      GAME: ${{ matrix.game }}
+      PLATFORM: ${{ matrix.platform }}
+      SSIM_MIN: "0.95"
+
     steps:
       - uses: actions/checkout@v4
 
@@ -46,58 +61,51 @@ jobs:
           sudo apt-get install -y ffmpeg
 
       - name: Prepare assets
+        shell: ${{ matrix.shell }}
         run: |
-          mkdir -p dist/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}
-          cp tests/assets/${{ matrix.game }}/tutorial.mp4 dist/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/tutorial.mp4
+          mkdir -p "dist/${GAME}/${PLATFORM}"
+          cp "tests/assets/${GAME}/tutorial.mp4" "dist/${GAME}/${PLATFORM}/tutorial.mp4"
 
       - name: ffprobe source video
+        shell: ${{ matrix.shell }}
         run: |
           ffprobe -v error -select_streams v:0 \
             -show_entries stream=width,height,avg_frame_rate,r_frame_rate,pix_fmt,sample_aspect_ratio \
-            -of json dist/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/tutorial.mp4 > artifacts/${{ matrix.game }}-${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}-ffprobe.json
+            -of json "dist/${GAME}/${PLATFORM}/tutorial.mp4" > "artifacts/${GAME}-${PLATFORM}-ffprobe.json"
 
       - run: npm ci
 
       - name: Generate container.json
-        run: node scripts/generate_container_json.cjs
-        env:
-          GAME: ${{ matrix.game }}
-          RUNNER_OS: ${{ runner.os }}
+        run: npx cross-env GAME=$GAME PLATFORM=$PLATFORM RUNNER_OS=$RUNNER_OS npm run gen:container
 
       - name: Extract frames
-        run: >
-          ffmpeg -y -i dist/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/tutorial.mp4
-          -vf fps=1,format=rgba -vsync 0
-          tests/golden/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/frames/%06d.png
+        run: npx cross-env GAME=$GAME PLATFORM=$PLATFORM npm run frames
 
       - name: Print directories and frame counts
         run: |
-          echo "RUNNER_OS=$RUNNER_OS, platform=${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}"
-          echo "Container exists?" && test -f tests/golden/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/container.json && echo yes || echo no
+          echo "RUNNER_OS=$RUNNER_OS, platform=$PLATFORM"
+          echo "Container exists?" && test -f "dist/${GAME}/${PLATFORM}/container.json" && echo yes || echo no
 
       - name: Count golden frames (cross-platform)
         run: |
-          node -e "const fs=require('fs');const p=`tests/golden/sushi-go/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/frames`;console.log(fs.existsSync(p)?fs.readdirSync(p).filter(f=>!f.startsWith('.')).length:0)"
+          node -e "const fs=require('fs');const p=`dist/${GAME}/${PLATFORM}/frames`;console.log(fs.existsSync(p)?fs.readdirSync(p).filter(f=>!f.startsWith('.')).length:0)"
 
-      - name: Validate container.json
-        run: node scripts/validate_container_json.cjs "tests/golden/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/container.json"
+      - name: Validate container.json (Ajv)
+        run: node scripts/validate_container_json.cjs "dist/${GAME}/${PLATFORM}/container.json"
 
       - name: Compare ffprobe vs container.json
-        run: node scripts/compare_ffprobe_vs_container.cjs "artifacts/${{ matrix.game }}-${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}-ffprobe.json" "tests/golden/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/container.json"
+        run: node scripts/compare_ffprobe_vs_container.cjs \
+               "artifacts/${GAME}-${PLATFORM}-ffprobe.json" \
+               "dist/${GAME}/${PLATFORM}/container.json"
 
       - name: Golden check
-        run: node scripts/check_golden.cjs --perOs | tee "${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}_golden.log"
-        env:
-          GAME: ${{ matrix.game }}
-          SSIM_MIN: '0.95'
-
-      - name: Show golden check summary
-        run: grep -E "Resolved|golden dir|frames dir|SSIM" "${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}_golden.log" || true
+        shell: ${{ matrix.shell }}
+        run: |
+          npx cross-env GAME=$GAME PLATFORM=$PLATFORM SSIM_MIN=$SSIM_MIN npm run golden:check | tee "${PLATFORM}_golden.log"
+          grep -E "Resolved|golden dir|frames dir|SSIM" "${PLATFORM}_golden.log" || true
 
       - name: Checklist
-        run: node scripts/ci/validate_mobius_checklist.cjs --game ${{ matrix.game }}
-        env:
-          PLATFORM: ${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}
+        run: npx cross-env GAME=$GAME PLATFORM=$PLATFORM npm run checklist:new
 
       - name: Show JUnit head (if exists)
         run: |
@@ -107,10 +115,12 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: junit-and-diffs-${{ matrix.os }}-${{ matrix.game }}
+          name: junit-and-diffs-${{ matrix.platform }}-${{ matrix.game }}
           path: |
-            artifacts/${{ matrix.game }}-${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}-ffprobe.json
+            artifacts/${{ matrix.game }}-${{ matrix.platform }}-ffprobe.json
             tests/golden/reports/**/*.xml
             tests/golden/${{ matrix.game }}/**/debug/**
             tests/golden/${{ matrix.game }}/**/frames/**
-            ${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}_golden.log
+            ${{ matrix.platform }}_golden.log
+            dist/${{ matrix.game }}/${{ matrix.platform }}/container.json
+            dist/${{ matrix.game }}/${{ matrix.platform }}/frames/**

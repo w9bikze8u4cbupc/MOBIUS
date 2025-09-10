@@ -16,8 +16,8 @@
     },
     "git": {
       "version": "2.51.0.windows.1",
-      "branch": "main",
-      "commit": "6d1fca93519c0b0557363858469d63bc71465492"
+      "branch": "feat/space-invaders-golden-pass",
+      "commit": "5b921ce23e1cdacb01402694e20dd245f219cf3e"
     },
     "os": {
       "name": "Windows",
@@ -25,5 +25,37 @@
       "release": "10.0.26100",
       "arch": "x64"
     }
+  },
+  "media": {
+    "video": [
+      {
+        "path": "dist/space-invaders/windows/tutorial.mp4",
+        "codec": "h264",
+        "width": 960,
+        "height": 540,
+        "pix_fmt": "yuv420p",
+        "fps": "30/1",
+        "sample_aspect_ratio": "1:1",
+        "bitrateKbps": 8000,
+        "durationSec": 0,
+        "sha256": ""
+      }
+    ],
+    "captions": [
+      {
+        "path": "dist/space-invaders/windows/tutorial.srt",
+        "language": "en",
+        "charCount": 0,
+        "sha256": ""
+      }
+    ],
+    "images": [
+      {
+        "path": "dist/space-invaders/windows/poster.jpg",
+        "width": 1920,
+        "height": 1080,
+        "sha256": ""
+      }
+    ]
   }
 }

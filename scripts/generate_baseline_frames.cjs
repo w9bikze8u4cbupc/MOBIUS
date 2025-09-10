@@ -11,6 +11,11 @@ const placeholderPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ
 osList.forEach(os => {
   const baselineDir = path.join('tests', 'golden', game, os);
   
+  // Create the directory if it doesn't exist
+  if (!fs.existsSync(baselineDir)) {
+    fs.mkdirSync(baselineDir, { recursive: true });
+  }
+  
   // Create baseline frames
   ['5s', '10s', '20s'].forEach(time => {
     const baselinePath = path.join(baselineDir, `baseline_${time}.png`);

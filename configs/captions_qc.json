@@ -1,0 +1,10 @@
+{
+  "format": "srt",
+  "maxCharsPerLine": 42,
+  "maxLines": 2,
+  "maxCps": 17,
+  "minGapMs": 120,
+  "snapToWordBoundaries": true,
+  "includeSoundLabels": true,
+  "syncToleranceMs": 80
+}

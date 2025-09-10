@@ -1,0 +1,5 @@
+{
+  "publisher": { "name": "Pandasaurus", "license": "editorial", "attribution": "Courtesy of Pandasaurus" },
+  "bgg": [{ "id": 123456, "author": "userXYZ", "license": "CC-BY 3.0" }],
+  "placeholders": [{ "type": "token", "source": "game-icons.net/egg", "license": "CC-BY 3.0" }]
+}

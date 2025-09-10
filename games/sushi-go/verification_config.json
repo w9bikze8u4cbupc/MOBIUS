@@ -1,0 +1,46 @@
+{
+  "coverage": {
+    "requiredOps": [
+      "round1.deal",
+      "round1.choose",
+      "round1.pass",
+      "round1.reveal",
+      "round2.deal",
+      "round2.choose",
+      "round2.pass",
+      "round2.reveal",
+      "round3.deal",
+      "round3.choose",
+      "round3.pass",
+      "round3.reveal",
+      "scoring.maki",
+      "scoring.pudding",
+      "scoring.other",
+      "scoring.total"
+    ]
+  },
+  "timing": {
+    "minOnScreen": 2.0,
+    "minTransition": 0.3,
+    "maxTransition": 0.4,
+    "deadZoneMerge": 0.3
+  },
+  "audio": {
+    "voice": {
+      "targetLUFS": -16.0,
+      "maxTP": -1.0,
+      "maxLRA": 11.0
+    },
+    "music": {
+      "targetLUFS": -19.0,
+      "maxTP": -1.0,
+      "maxLRA": 11.0
+    }
+  },
+  "video": {
+    "resolution": "960x540",
+    "fps": 30,
+    "pixelFormat": "yuv420p",
+    "sar": "1:1"
+  }
+}

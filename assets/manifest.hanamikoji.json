@@ -1,0 +1,19 @@
+{
+  "assets": {
+    "asset:geisha:purple": { "path": "assets/geisha/purple.png" },
+    "asset:geisha:red":    { "path": "assets/geisha/red.png" },
+    "asset:geisha:yellow": { "path": "assets/geisha/yellow.png" },
+    "asset:geisha:blue":   { "path": "assets/geisha/blue.png" },
+    "asset:geisha:orange": { "path": "assets/geisha/orange.png" },
+    "asset:geisha:green":  { "path": "assets/geisha/green.png" },
+    "asset:geisha:pink":   { "path": "assets/geisha/pink.png" },
+    "asset:marker:favor":  { "path": "assets/markers/favor.png" },
+    "asset:marker:action": { "path": "assets/markers/action.png" },
+    "asset:back:itemCard": { "path": "assets/cards/item_back.png" }
+  },
+  "placeholders": {
+    "image": "assets/placeholders/slate.png"
+  },
+  "license": "Placeholders only. Replace with licensed assets before publishing.",
+  "credits": "Artwork © respective publishers."
+}

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">
+  <voice name="en-US-JennyNeural">
+    <prosody rate="0.9" pitch="0%">
+      Welcome to Sushi Go! 
+      <break time="500ms"/>
+      A fast-playing card game where you are eating at a sushi restaurant and trying to grab the best combination of sushi dishes.
+      <break time="1s"/>
+    </prosody>
+    
+    <prosody rate="1.0" pitch="0%">
+      <mark name="setup"/>
+      To set up the game, you'll need the sushi cards, chopsticks, and a score pad. 
+      <break time="500ms"/>
+      Sushi Go is played with 2 to 5 players, ages 8 and up.
+      <break time="1s"/>
+    </prosody>
+    
+    <prosody rate="1.0" pitch="0%">
+      <mark name="round1"/>
+      Let's begin the first round.
+      <break time="500ms"/>
+      Deal three cards face down to each player.
+      <break time="1s"/>
+      <mark name="choose1"/>
+      Now, simultaneously choose one card to keep and place it face down in front of you.
+      <break time="2s"/>
+      <mark name="pass1"/>
+      Pass the remaining cards to the player on your left.
+      <break time="1s"/>
+      <mark name="reveal1"/>
+      Turn over your chosen card to reveal it.
+      <break time="1s"/>
+    </prosody>
+    
+    <prosody rate="1.0" pitch="0%">
+      <mark name="round2"/>
+      In the second round, we'll do the same thing, but pass cards to the right this time.
+      <break time="500ms"/>
+      Deal three cards face down to each player.
+      <break time="1s"/>
+      <mark name="choose2"/>
+      Choose one card to keep and place it face down in front of you.
+      <break time="2s"/>
+      <mark name="pass2"/>
+      Pass the remaining cards to the player on your right.
+      <break time="1s"/>
+      <mark name="reveal2"/>
+      Turn over your chosen card to reveal it.
+      <break time="1s"/>
+    </prosody>
+    
+    <prosody rate="1.0" pitch="0%">
+      <mark name="round3"/>
+      For the third and final round, we'll pass to the left again.
+      <break time="500ms"/>
+      Deal three cards face down to each player.
+      <break time="1s"/>
+      <mark name="choose3"/>
+      Choose one card to keep and place it face down in front of you.
+      <break time="2s"/>
+      <mark name="pass3"/>
+      Pass the remaining cards to the player on your left.
+      <break time="1s"/>
+      <mark name="reveal3"/>
+      Turn over your chosen card to reveal it.
+      <break time="1s"/>
+    </prosody>
+    
+    <prosody rate="1.0" pitch="0%">
+      <mark name="scoring"/>
+      Now it's time to score the game.
+      <break time="500ms"/>
+      <mark name="maki"/>
+      First, count Maki Roll cards. The player with the most earns six points. The player with the second most earns three points.
+      <break time="1s"/>
+      <mark name="pudding"/>
+      Next, check Pudding cards. The player with the most pudding cards will earn six points at the end of the game. The player with the least will lose six points.
+      <break time="1s"/>
+      <mark name="other"/>
+      Score points for Tempura, Sashimi, Dumplings, and other cards according to their values.
+      <break time="1s"/>
+      <mark name="total"/>
+      Finally, add up all points to determine the winner!
+      <break time="1s"/>
+    </prosody>
+    
+    <prosody rate="0.9" pitch="0%">
+      Congratulations! You've learned how to play Sushi Go!
+      <break time="500ms"/>
+      Enjoy your meal!
+    </prosody>
+  </voice>
+</speak>

@@ -1,0 +1,326 @@
+{
+  "_schema": "GIG",
+  "version": "1.1.0",
+  "id": "gig:loveletter:v1",
+  "game": {
+    "title": "Love Letter",
+    "shortTitle": "Love Letter",
+    "designer": "Seiji Kanai",
+    "publisher": ["AEG", "HABA"],
+    "minPlayers": 2,
+    "maxPlayers": 4,
+    "minAge": 10,
+    "estDurationMin": 20,
+    "complexity": "light",
+    "edition": "Base"
+  },
+  "sources": [
+    {
+      "name": "Official Rulebook (PDF)",
+      "url": "https://www.aegames.com/sites/default/files/2022-08/Love_Letter_Rulebook_0.pdf"
+    }
+  ],
+  "assetManifest": "assets/manifest.loveletter.json",
+  "components": [
+    {
+      "id": "comp:card:guard",
+      "name": "Guard (1)",
+      "kind": "card",
+      "count": 5,
+      "props": { "value": 1, "ability": "Name a non-Guard card and choose another player. If that player has that card, he or she is out of the round." },
+      "publicInfo": "public",
+      "asset": "asset:card:guard"
+    },
+    {
+      "id": "comp:card:priest",
+      "name": "Priest (2)",
+      "kind": "card",
+      "count": 2,
+      "props": { "value": 2, "ability": "Look at another player's hand." },
+      "publicInfo": "public",
+      "asset": "asset:card:priest"
+    },
+    {
+      "id": "comp:card:baron",
+      "name": "Baron (3)",
+      "kind": "card",
+      "count": 2,
+      "props": { "value": 3, "ability": "You and another player secretly compare hands. The player with the lower value is out of the round." },
+      "publicInfo": "public",
+      "asset": "asset:card:baron"
+    },
+    {
+      "id": "comp:card:handmaid",
+      "name": "Handmaid (4)",
+      "kind": "card",
+      "count": 2,
+      "props": { "value": 4, "ability": "Until your next turn, ignore all effects from other players' cards." },
+      "publicInfo": "public",
+      "asset": "asset:card:handmaid"
+    },
+    {
+      "id": "comp:card:prince",
+      "name": "Prince (5)",
+      "kind": "card",
+      "count": 2,
+      "props": { "value": 5, "ability": "Choose any player (including yourself) to discard his or her hand and draw a new card." },
+      "publicInfo": "public",
+      "asset": "asset:card:prince"
+    },
+    {
+      "id": "comp:card:king",
+      "name": "King (6)",
+      "kind": "card",
+      "count": 1,
+      "props": { "value": 6, "ability": "Trade hands with another player of your choice." },
+      "publicInfo": "public",
+      "asset": "asset:card:king"
+    },
+    {
+      "id": "comp:card:countess",
+      "name": "Countess (7)",
+      "kind": "card",
+      "count": 1,
+      "props": { "value": 7, "ability": "If you have this card and the King or Prince in your hand, you must discard this card." },
+      "publicInfo": "public",
+      "asset": "asset:card:countess"
+    },
+    {
+      "id": "comp:card:princess",
+      "name": "Princess (8)",
+      "kind": "card",
+      "count": 1,
+      "props": { "value": 8, "ability": "If you discard this card, you are out of the round." },
+      "publicInfo": "public",
+      "asset": "asset:card:princess"
+    },
+    {
+      "id": "comp:tokens:affection",
+      "name": "Affection Tokens",
+      "kind": "token",
+      "count": 11,
+      "publicInfo": "public",
+      "asset": "asset:token:affection"
+    }
+  ],
+  "areas": [
+    {
+      "id": "area:table:deck",
+      "name": "Deck",
+      "scope": "table",
+      "kind": "pile"
+    },
+    {
+      "id": "area:table:discard",
+      "name": "Discard Pile",
+      "scope": "table",
+      "kind": "pile"
+    },
+    {
+      "id": "area:p1:hand",
+      "name": "P1 Hand",
+      "scope": "player",
+      "owner": "p1",
+      "kind": "stack"
+    },
+    {
+      "id": "area:p2:hand",
+      "name": "P2 Hand",
+      "scope": "player",
+      "owner": "p2",
+      "kind": "stack"
+    },
+    {
+      "id": "area:p3:hand",
+      "name": "P3 Hand",
+      "scope": "player",
+      "owner": "p3",
+      "kind": "stack"
+    },
+    {
+      "id": "area:p4:hand",
+      "name": "P4 Hand",
+      "scope": "player",
+      "owner": "p4",
+      "kind": "stack"
+    }
+  ],
+  "actions": [
+    {
+      "id": "action:draw",
+      "name": "Draw",
+      "description": "Draw a card from the deck",
+      "ioPattern": "custom",
+      "anim": { "templateId": "draw_card" },
+      "timing": { "effort": "short", "preferredSec": 1.5 }
+    },
+    {
+      "id": "action:play",
+      "name": "Play",
+      "description": "Play a card from your hand",
+      "ioPattern": "custom",
+      "anim": { "templateId": "play_card" },
+      "timing": { "effort": "short", "preferredSec": 2.0 }
+    }
+  ],
+  "rules": {
+    "setup": {
+      "id": "step:setup",
+      "kind": "compound",
+      "label": "Setup",
+      "children": [
+        {
+          "id": "step:setup:shuffle",
+          "kind": "atomic",
+          "label": "Shuffle the deck",
+          "speak": { "markStart": "S_SETUP_SHUFFLE", "markEnd": "S_SETUP_SHUFFLE_END" },
+          "anim": { "templateId": "shuffle_deck" },
+          "timing": { "effort": "short", "preferredSec": 2.0 }
+        },
+        {
+          "id": "step:setup:deal",
+          "kind": "atomic",
+          "label": "Deal 1 card to each player",
+          "speak": { "markStart": "S_SETUP_DEAL", "markEnd": "S_SETUP_DEAL_END" },
+          "anim": { "templateId": "deal_cards", "params": { "cardsPerPlayer": 1 } },
+          "timing": { "effort": "short", "preferredSec": 2.0 }
+        },
+        {
+          "id": "step:setup:remove",
+          "kind": "atomic",
+          "label": "Remove 1 card from the game",
+          "speak": { "markStart": "S_SETUP_REMOVE", "markEnd": "S_SETUP_REMOVE_END" },
+          "anim": { "templateId": "move_face_down", "focus": ["area:table:discard"] },
+          "timing": { "effort": "short", "preferredSec": 1.5 }
+        }
+      ]
+    },
+    "turnStructure": {
+      "startingPlayer": "random",
+      "order": "clockwise",
+      "concurrency": "serial",
+      "perTurn": {
+        "id": "step:turn",
+        "kind": "compound",
+        "label": "On your turn",
+        "children": [
+          {
+            "id": "step:turn:draw",
+            "kind": "atomic",
+            "label": "Draw a card",
+            "speak": { "markStart": "S_DRAW", "markEnd": "S_DRAW_END" },
+            "anim": { "templateId": "draw_card", "focus": ["area:table:deck"] },
+            "timing": { "effort": "short", "preferredSec": 1.5 }
+          },
+          {
+            "id": "step:turn:choose",
+            "kind": "atomic",
+            "label": "Choose a card to play",
+            "speak": { "markStart": "S_CHOOSE", "markEnd": "S_CHOOSE_END" },
+            "timing": { "effort": "short", "preferredSec": 1.5 }
+          },
+          {
+            "id": "step:turn:play",
+            "kind": "atomic",
+            "label": "Play the card",
+            "speak": { "markStart": "S_PLAY", "markEnd": "S_PLAY_END" },
+            "anim": { "templateId": "play_card" },
+            "timing": { "effort": "short", "preferredSec": 2.0 }
+          }
+        ]
+      }
+    },
+    "scoring": {
+      "id": "step:scoring",
+      "kind": "compound",
+      "label": "Scoring",
+      "children": [
+        {
+          "id": "step:scoring:round",
+          "kind": "atomic",
+          "label": "Round ends when only one player remains or deck is empty",
+          "speak": { "markStart": "S_ROUND_END", "markEnd": "S_ROUND_END_END" },
+          "timing": { "effort": "short", "preferredSec": 2.0 }
+        },
+        {
+          "id": "step:scoring:award",
+          "kind": "atomic",
+          "label": "Award affection token to highest value card",
+          "speak": { "markStart": "S_AWARD", "markEnd": "S_AWARD_END" },
+          "anim": { "templateId": "award_token" },
+          "timing": { "effort": "short", "preferredSec": 2.0 }
+        },
+        {
+          "id": "step:scoring:win",
+          "kind": "atomic",
+          "label": "First player to win 5 rounds wins the game",
+          "speak": { "markStart": "S_WIN", "markEnd": "S_WIN_END" },
+          "timing": { "effort": "short", "preferredSec": 2.0 }
+        }
+      ]
+    },
+    "endConditions": [
+      {
+        "id": "end:rounds",
+        "name": "Win 5 rounds",
+        "condition": { "op": "gte", "left": { "ref": "player.roundsWon" }, "right": 5 },
+        "winnerRule": "firstToAchieve"
+      }
+    ]
+  },
+  "timingHints": {
+    "atomicMinSec": 1.5,
+    "atomicMaxSec": 5.0,
+    "beatGapSec": 0.2,
+    "showVsTellRatio": 0.7
+  },
+  "animationCatalog": [
+    { "id": "shuffle_deck", "name": "Shuffle Deck", "params": [] },
+    { "id": "deal_cards", "name": "Deal Cards", "params": [{ "key": "cardsPerPlayer", "type": "number", "default": 1 }] },
+    { "id": "draw_card", "name": "Draw Card", "params": [] },
+    { "id": "play_card", "name": "Play Card", "params": [] },
+    { "id": "move_face_down", "name": "Move Face-down", "params": [] },
+    { "id": "award_token", "name": "Award Token", "params": [] }
+  ],
+  "verification": {
+    "coverageGoals": [
+      {
+        "id": "cov:setup",
+        "name": "All setup beats appear at least once",
+        "targets": [
+          { "stepId": "step:setup:shuffle" },
+          { "stepId": "step:setup:deal" },
+          { "stepId": "step:setup:remove" }
+        ],
+        "minHits": 1
+      },
+      {
+        "id": "cov:turn",
+        "name": "All turn actions demonstrated",
+        "targets": [
+          { "stepId": "step:turn:draw" },
+          { "stepId": "step:turn:choose" },
+          { "stepId": "step:turn:play" }
+        ],
+        "minHits": 1
+      },
+      {
+        "id": "cov:scoring",
+        "name": "All scoring steps covered",
+        "targets": [
+          { "stepId": "step:scoring:round" },
+          { "stepId": "step:scoring:award" },
+          { "stepId": "step:scoring:win" }
+        ],
+        "minHits": 1
+      }
+    ],
+    "invariants": [
+      {
+        "op": "eq",
+        "left": { "ref": "deck.totalCards" },
+        "right": 16
+      }
+    ]
+  }
+}

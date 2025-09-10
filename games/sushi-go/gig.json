@@ -1,0 +1,208 @@
+{
+  "id": "sushi-go",
+  "title": "Sushi Go!",
+  "version": "1.0.0",
+  "description": "A fast-playing card game where you are eating at a sushi restaurant and trying to grab the best combination of sushi dishes.",
+  "setup": {
+    "players": "2-5",
+    "age": "8+",
+    "time": "15-20 min",
+    "components": [
+      "Sushi cards",
+      "Chopsticks",
+      "Score pad"
+    ]
+  },
+  "rounds": [
+    {
+      "id": "round1",
+      "name": "First Round",
+      "description": "Deal 3 cards to each player. Players simultaneously choose one card to keep and pass the rest to the left.",
+      "operations": [
+        {
+          "id": "deal",
+          "type": "action",
+          "title": "Deal Cards",
+          "description": "Deal 3 cards face down to each player",
+          "timing": {
+            "duration": 3.0
+          }
+        },
+        {
+          "id": "choose",
+          "type": "action",
+          "title": "Choose a Card",
+          "description": "Select one card to keep and place it face down in front of you",
+          "timing": {
+            "duration": 5.0
+          }
+        },
+        {
+          "id": "pass",
+          "type": "action",
+          "title": "Pass Remaining Cards",
+          "description": "Pass the remaining cards to the player on your left",
+          "timing": {
+            "duration": 2.0
+          }
+        },
+        {
+          "id": "reveal",
+          "type": "action",
+          "title": "Reveal Cards",
+          "description": "Turn over your chosen card to reveal it",
+          "timing": {
+            "duration": 2.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "round2",
+      "name": "Second Round",
+      "description": "Same as first round, but pass cards to the right this time.",
+      "operations": [
+        {
+          "id": "deal",
+          "type": "action",
+          "title": "Deal Cards",
+          "description": "Deal 3 cards face down to each player",
+          "timing": {
+            "duration": 3.0
+          }
+        },
+        {
+          "id": "choose",
+          "type": "action",
+          "title": "Choose a Card",
+          "description": "Select one card to keep and place it face down in front of you",
+          "timing": {
+            "duration": 5.0
+          }
+        },
+        {
+          "id": "pass",
+          "type": "action",
+          "title": "Pass Remaining Cards",
+          "description": "Pass the remaining cards to the player on your right",
+          "timing": {
+            "duration": 2.0
+          }
+        },
+        {
+          "id": "reveal",
+          "type": "action",
+          "title": "Reveal Cards",
+          "description": "Turn over your chosen card to reveal it",
+          "timing": {
+            "duration": 2.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "round3",
+      "name": "Third Round",
+      "description": "Same as first round, pass cards to the left again.",
+      "operations": [
+        {
+          "id": "deal",
+          "type": "action",
+          "title": "Deal Cards",
+          "description": "Deal 3 cards face down to each player",
+          "timing": {
+            "duration": 3.0
+          }
+        },
+        {
+          "id": "choose",
+          "type": "action",
+          "title": "Choose a Card",
+          "description": "Select one card to keep and place it face down in front of you",
+          "timing": {
+            "duration": 5.0
+          }
+        },
+        {
+          "id": "pass",
+          "type": "action",
+          "title": "Pass Remaining Cards",
+          "description": "Pass the remaining cards to the player on your left",
+          "timing": {
+            "duration": 2.0
+          }
+        },
+        {
+          "id": "reveal",
+          "type": "action",
+          "title": "Reveal Cards",
+          "description": "Turn over your chosen card to reveal it",
+          "timing": {
+            "duration": 2.0
+          }
+        }
+      ]
+    }
+  ],
+  "scoring": {
+    "id": "scoring",
+    "name": "Scoring",
+    "description": "Count points for each player based on collected cards",
+    "operations": [
+      {
+        "id": "maki",
+        "type": "scoring",
+        "title": "Maki Rolls",
+        "description": "Players with the most and second most Maki Roll cards earn 6 and 3 points respectively",
+        "timing": {
+          "duration": 4.0
+        }
+      },
+      {
+        "id": "pudding",
+        "type": "scoring",
+        "title": "Pudding Cards",
+        "description": "Most pudding cards at the end of the game earn 6 points, least lose 6 points",
+        "timing": {
+          "duration": 4.0
+        }
+      },
+      {
+        "id": "other",
+        "type": "scoring",
+        "title": "Other Cards",
+        "description": "Score points for Tempura, Sashimi, Dumplings, and other cards according to their values",
+        "timing": {
+          "duration": 6.0
+        }
+      },
+      {
+        "id": "total",
+        "type": "scoring",
+        "title": "Total Score",
+        "description": "Add up all points to determine the winner",
+        "timing": {
+          "duration": 3.0
+        }
+      }
+    ]
+  },
+  "opsMustCover": [
+    "round1.deal",
+    "round1.choose",
+    "round1.pass",
+    "round1.reveal",
+    "round2.deal",
+    "round2.choose",
+    "round2.pass",
+    "round2.reveal",
+    "round3.deal",
+    "round3.choose",
+    "round3.pass",
+    "round3.reveal",
+    "scoring.maki",
+    "scoring.pudding",
+    "scoring.other",
+    "scoring.total"
+  ]
+}
