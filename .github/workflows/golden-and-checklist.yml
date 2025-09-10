@@ -54,6 +54,12 @@ jobs:
           -vf fps=1,format=rgba -vsync 0
           tests/golden/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/frames/%06d.png
 
+      - name: Print directories and frame counts
+        run: |
+          echo "RUNNER_OS=$RUNNER_OS, platform=${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}"
+          echo "Container exists?" && test -f tests/golden/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/container.json && echo yes || echo no
+          echo "Golden frames:" && ls tests/golden/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/frames | wc -l || true
+
       - name: Golden check
         run: node scripts/check_golden.cjs --perOs
         env:
