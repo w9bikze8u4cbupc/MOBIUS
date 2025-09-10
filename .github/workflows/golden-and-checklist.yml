@@ -28,7 +28,8 @@ jobs:
         run: choco install -y ffmpeg --version 8.0
       - name: Install ffmpeg
         if: runner.os == 'macOS'
-        run: brew install ffmpeg
+        run: |
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install ffmpeg
       - name: Install ffmpeg
         if: runner.os == 'Linux'
         run: |
@@ -64,7 +65,10 @@ jobs:
         run: |
           echo "RUNNER_OS=$RUNNER_OS, platform=${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}"
           echo "Container exists?" && test -f tests/golden/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/container.json && echo yes || echo no
-          echo "Golden frames:" && ls tests/golden/${{ matrix.game }}/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/frames | wc -l || true
+
+      - name: Count golden frames (cross-platform)
+        run: |
+          node -e "const fs=require('fs');const p=`tests/golden/sushi-go/${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}/frames`;console.log(fs.existsSync(p)?fs.readdirSync(p).filter(f=>!f.startsWith('.')).length:0)"
 
       - name: Golden check
         run: node scripts/check_golden.cjs --perOs
@@ -76,6 +80,10 @@ jobs:
         run: node scripts/ci/validate_mobius_checklist.cjs --game ${{ matrix.game }}
         env:
           PLATFORM: ${{ runner.os == 'Windows' && 'windows' || runner.os == 'macOS' && 'macos' || 'linux' }}
+
+      - name: Show JUnit head (if exists)
+        run: |
+          node -e "const fs=require('fs'),path=require('path');const d='tests/golden/reports';if(fs.existsSync(d)){for(const f of fs.readdirSync(d)){if(f.endsWith('.xml')){console.log('---',f,'---');console.log(fs.readFileSync(path.join(d,f),'utf8').split('\n').slice(0,40).join('\n'));}}}"
 
       - name: Upload JUnit and artifacts
         if: always()
