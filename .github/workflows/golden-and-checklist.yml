@@ -14,10 +14,19 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        os: [windows-2022, macos-14, ubuntu-22.04]
         game: [sushi-go]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Echo environment versions
+        run: |
+          echo "OS/Tools:"
+          uname -a || true
+          sw_vers || true
+          node -v
+          ffmpeg -version | head -n1
+          ffprobe -version | head -n1
 
       - uses: actions/setup-node@v4
         with:
