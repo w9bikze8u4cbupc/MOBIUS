@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "budgets": {
+    "default_fps": 5
+  },
+  "entries": []
+}

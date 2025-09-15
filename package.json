@@ -4,6 +4,10 @@
   "description": "A pipeline for generating game tutorial videos from structured game rules",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": ">=20.14.0 <21"
+  },
+  "packageManager": "npm@10",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "node src/api/index.js",
@@ -17,9 +21,9 @@
     "gen:shotlists": "node scripts/compile-shotlist.mjs gigs/hanamikoji.json > tmp/shotlist.json",
     "gen:timelines": "echo 'Generating timelines...'",
     "render:proxy": "node scripts/render-ffmpeg.mjs tmp/timeline.json assets out/preview.mp4 --preview",
-    "golden:check": "npm run golden:check:sushi && npm run golden:check:loveletter",
+    "golden:check": "cross-env node scripts/check_golden.cjs --perOs",
     "golden:update:sushi": "node scripts/generate_golden.cjs --game \"Sushi Go\" --in \"out/sushi-go/preview.mp4\" --out \"tests/golden/sushi-go\" --frames \"5,10,20\"",
-    "golden:update:loveletter": "node scripts/generate_golden.cjs --game \"Love Letter\" --in \"out/love-letter/preview.mp4\" --out \"tests/golden/love-letter\" --frames \"5,10,20\"",
+    "golden:update:loveletter": "node scripts/generate_golden.cjs --game \"Love Letter\" --in \"out/love-letter/preview.mp4\" --out \"tests/golden/loveletter\" --frames \"5,10,20\"",
     "golden:check:sushi": "node scripts/check_golden.cjs --game \"Sushi Go\" --in \"out/sushi-go/preview.mp4\" --golden \"tests/golden/sushi-go\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\"",
     "golden:check:loveletter": "node scripts/check_golden.cjs --game \"Love Letter\" --in \"out/love-letter/preview.mp4\" --golden \"tests/golden/loveletter\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\"",
     "golden:approve": "npm run golden:update:sushi && npm run golden:update:loveletter",
@@ -41,12 +45,17 @@
     "mobius:checklist:win": "set RUNNER_OS=Windows && node scripts/ci/validate_mobius_checklist.cjs --game",
     "gen:container": "cross-env node scripts/generate_container_json.cjs",
     "frames": "cross-env node scripts/extract_frames.cjs",
-    "golden:check": "cross-env node scripts/check_golden.cjs --perOs",
     "checklist:new": "cross-env node scripts/ci/validate_mobius_checklist.cjs",
     "sushi:win": "cross-env GAME=sushi-go PLATFORM=windows RUNNER_OS=windows INPUT_FILE=dist/sushi-go/windows/tutorial.mp4 npm-run-all gen:container frames golden:check checklist:new",
     "sushi:mac": "cross-env GAME=sushi-go PLATFORM=macos RUNNER_OS=macos INPUT_FILE=dist/sushi-go/macos/tutorial.mp4 npm-run-all gen:container frames golden:check checklist:new",
     "sushi:linux": "cross-env GAME=sushi-go PLATFORM=linux RUNNER_OS=linux INPUT_FILE=dist/sushi-go/linux/tutorial.mp4 npm-run-all gen:container frames golden:check checklist:new",
-    "golden:check:single": "cross-env node scripts/check_golden.cjs --perOs"
+    "golden:check:single": "cross-env node scripts/check_golden.cjs --perOs",
+    "smoke": "npm run gen:container && npm run frames -- --fps 30 --sar 1:1 && npm run golden:check && node scripts/compare_ffprobe_vs_container.cjs artifacts/${GAME}-${PLATFORM}-ffprobe.json dist/${GAME}/${PLATFORM}/container.json",
+    "frames:validate": "node scripts/validate_frame_count.cjs",
+    "frames:perf": "node scripts/validate_frame_perf.cjs",
+    "junit:validate": "node scripts/validate_junit.cjs",
+    "perf:baseline": "node scripts/compare_perf_to_baseline.cjs",
+    "ci:validate": "npm run frames:validate && npm run frames:perf && npm run junit:validate && node scripts/compare_perf_to_baseline.cjs"
   },
   "keywords": [
     "game",
@@ -68,7 +77,7 @@
     "openai": "^5.20.0",
     "pdf-parse": "^1.1.1",
     "pdf-to-img": "^5.0.0",
-    "pdfjs-dist": "^3.11.174",
+    "pdfjs-dist": "^5.4.149",
     "sharp": "^0.34.3",
     "sqlite3": "^5.1.7",
     "typescript": "^5.0.0",

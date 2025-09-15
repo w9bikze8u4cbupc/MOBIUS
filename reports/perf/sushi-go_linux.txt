@@ -1,0 +1,1 @@
+Perf: sushi-go/linux 840.00 fps (budget: 5 fps) PASS

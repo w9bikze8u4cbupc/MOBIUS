@@ -1,0 +1,37 @@
+--- a/scripts/compare_perf_to_baseline.cjs
++++ b/scripts/compare_perf_to_baseline.cjs
+@@ -1,5 +1,20 @@
+ #!/usr/bin/env node
+ const fs = require('fs');
+ const path = require('path');
++
++function exists(p) { try { return p && fs.existsSync(p); } catch { return false; } }
++
++const candidatePaths = [
++  process.env.PERF_BASELINE_PATH,
++  path.resolve(__dirname, '..', 'baselines', 'perf.json'),
++  path.resolve(__dirname, '..', 'perf_baseline.json'),
++].filter(Boolean);
++
++const baselinePath = candidatePaths.find(exists);
++if (!baselinePath) {
++  console.error('[perf-baseline] No baseline file found. Tried:', candidatePaths.join(' | '));
++  process.exit(1);
++}
++console.log('[perf-baseline] Using baseline:', baselinePath);
++
+ const assertPerfBaselineShape = require('./lib/assertPerfBaselineShape.cjs');
+ const probeVideo = require('./lib/probeVideo.cjs');
+ const computePerfKey = require('./lib/computePerfKey.cjs');
+@@ -30,7 +45,7 @@ function writeJUnit(cases, junitPath = 'reports/junit/perf_baseline.xml') {
+ function comparePerfToBaseline() {
+   // Load baseline
+   let baseline = {};
+-  try {
++  try { 
+     // Load and validate baseline
+-    const baselinePath = path.join(__dirname, '../perf_baseline.json');
++    // const baselinePath = path.join(__dirname, '../perf_baseline.json');
+     if (fs.existsSync(baselinePath)) {
+       const baselineData = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
+       assertPerfBaselineShape(baselineData);

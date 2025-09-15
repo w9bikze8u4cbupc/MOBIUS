@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   validate:
@@ -34,6 +34,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Echo platform resolution
+        run: node -e "console.log('PLATFORM=%s RUNNER_OS=%s', process.env.PLATFORM, process.env.RUNNER_OS)"
+
+      - name: Unit check for getPlatformSlug
+        run: |
+          node - <<'NODE'
+          process.env.PLATFORM = '${{ matrix.platform }}'; process.env.RUNNER_OS = ''; const slug = (() => {
+            const pEnv = (process.env.PLATFORM || '').toLowerCase();
+            if (['macos','linux','windows'].includes(pEnv)) return pEnv;
+            const runner = (process.env.RUNNER_OS || '').toLowerCase();
+            if (runner.includes('mac')) return 'macos';
+            if (runner.includes('win')) return 'windows';
+            if (runner.includes('linux')) return 'linux';
+            const plat = process.platform; if (plat==='darwin') return 'macos'; if (plat==='win32') return 'windows'; if (plat==='linux') return 'linux'; return 'linux';
+          })();
+          if (slug !== '${{ matrix.platform }}') { throw new Error('Expected ${{ matrix.platform }}, got '+slug); }
+          console.log('getPlatformSlug OK:', slug);
+          NODE
+
       - name: Echo environment versions
         run: |
           echo "OS/Tools:"
@@ -43,9 +62,29 @@ jobs:
           ffmpeg -version | head -n1
           ffprobe -version | head -n1
 
+      - name: Toolchain versions
+        run: |
+          echo "### Toolchain versions" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "**ffmpeg**"
+            ffmpeg -version | head -n 1 || true
+            echo
+            echo "**ffprobe**"
+            ffprobe -version | head -n 1 || true
+            echo
+            echo "**node / npm**"
+            node -v || true
+            npm -v || true
+            echo
+            echo "**which ffmpeg/ffprobe**"
+            which ffmpeg || where ffmpeg || true
+            which ffprobe || where ffprobe || true
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20.14.0'
+          cache: 'npm'
 
       - name: Install ffmpeg
         if: runner.os == 'Windows'
@@ -111,11 +150,75 @@ jobs:
         run: |
           node -e "const fs=require('fs'),path=require('path');const d='tests/golden/reports';if(fs.existsSync(d)){for(const f of fs.readdirSync(d)){if(f.endsWith('.xml')){console.log('---',f,'---');console.log(fs.readFileSync(path.join(d,f),'utf8').split('\n').slice(0,40).join('\n'));}}}"
 
+      - name: Verify JUnit exists
+        run: |
+          set -e
+          if ls tests/golden/reports/**/*.xml >/dev/null 2>&1; then
+            echo "JUnit present"
+          else
+            echo "JUnit missing" >&2
+            exit 2
+          fi
+
+      - name: Validate JUnit XML
+        run: |
+          npx cross-env npm run junit:validate
+
+      - name: Performance Budget Check
+        run: |
+          npx cross-env GAME=$GAME PLATFORM=$PLATFORM npm run frames:perf
+
+      - name: Compare perf to baseline
+        run: node scripts/compare_perf_to_baseline.cjs
+        env:
+          PERF_TOLERANCE: "0.1"
+          PERF_WARN_ONLY: ${{ github.ref != 'refs/heads/main' && '1' || '0' }}
+
+      - name: CI Summary - Perf Results
+        run: |
+          echo "### Performance Results" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "reports/junit/perf_baseline.xml" ]; then
+            echo "_perf_baseline.xml_:" >> "$GITHUB_STEP_SUMMARY"
+            node -e "
+              const fs = require('fs');
+              const xml = fs.readFileSync('reports/junit/perf_baseline.xml', 'utf8');
+              const matches = xml.match(/<testcase[^>]*name=\"([^\"]*)\"[^>]*>[^<]*<failure[^>]*message=\"([^\"]*)\"/g) || [];
+              if (matches.length > 0) {
+                console.log('| Test | Failure |');
+                console.log('|------|---------|');
+                matches.forEach(m => {
+                  const name = m.match(/name=\"([^\"]*)\"/)[1];
+                  const failure = m.match(/message=\"([^\"]*)\"/)[1];
+                  console.log('|', name, '|', failure, '|');
+                });
+              } else {
+                console.log('✅ All performance tests passed');
+              }
+            " >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No performance results found" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Aggregate Perf Summary
+        run: node scripts/aggregate_perf_summary.cjs
+
+      - name: CI Summary - Perf Summary
+        run: |
+          echo "### Performance Summary" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "reports/perf_summary.txt" ]; then
+            cat "reports/perf_summary.txt" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No performance summary found" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Prepare slim frame artifacts
+        run: node scripts/make_slim_artifacts.cjs
+
       - name: Upload JUnit and artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: junit-and-diffs-${{ matrix.platform }}-${{ matrix.game }}
+          name: junit-and-diffs-${{ matrix.platform }}-${{ matrix.game }}-${{ github.run_number }}
           path: |
             artifacts/${{ matrix.game }}-${{ matrix.platform }}-ffprobe.json
             tests/golden/reports/**/*.xml
@@ -124,3 +227,83 @@ jobs:
             ${{ matrix.platform }}_golden.log
             dist/${{ matrix.game }}/${{ matrix.platform }}/container.json
             dist/${{ matrix.game }}/${{ matrix.platform }}/frames/**
+          if-no-files-found: error
+
+      - name: Upload Smoke Test Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-${{ matrix.platform }}-${{ env.GAME }}-${{ github.run_number }}
+          path: |
+            dist/${{ matrix.game }}/${{ matrix.platform }}/frames/**
+            tests/golden/reports/**/*.xml
+            reports/perf/**/*.json
+            reports/perf/**/*.txt
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
+
+      - name: Upload slim artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-slim-${{ matrix.platform }}-${{ env.GAME }}-${{ github.run_number }}
+          path: |
+            artifacts/frames_slim/**
+            reports/junit/**/*.xml
+            reports/perf/**/*.{json,txt}
+          retention-days: 7
+          compression-level: 6
+          if-no-files-found: warn
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Validation Summary"
+            echo ""
+            echo "- JUnit files: $(ls tests/golden/reports/**/*.xml 2>/dev/null | wc -l | tr -d ' ' || echo 0)"
+            echo "- Perf JSONs: $(ls reports/perf/**/*.json 2>/dev/null | wc -l | tr -d ' ' || echo 0)"
+            echo ""
+            echo "Artifacts: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  consistency-check:
+    needs: validate
+    runs-on: ubuntu-22.04
+    env:
+      GAME: sushi-go
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded-artifacts
+          pattern: junit-and-diffs-*
+          merge-multiple: true
+
+      - name: Cross-OS container consistency (inline)
+        run: |
+          node - <<'NODE'
+          const fs=require('fs'), path=require('path');
+          const GAME=process.env.GAME||'sushi-go';
+          const base=path.join('dist', GAME);
+          const plats=['macos','linux','windows'].filter(p=>fs.existsSync(path.join(base,p,'container.json')));
+          if(plats.length<2){ console.log('[consistency] need >=2 platforms; found:', plats.join(', ')); process.exit(0); }
+          const read=p=>JSON.parse(fs.readFileSync(path.join(base,p,'container.json'),'utf8'));
+          const fields=['width','height','fps','sar','pix_fmt'];
+          const ref=read(plats[0]); let ok=true;
+          for(const p of plats.slice(1)){ const d=read(p);
+            for(const f of fields){
+              if(String(ref[f])!==String(d[f])){
+                ok=false; console.error(`[consistency] ${f} mismatch: ${plats[0]}=${ref[f]} vs ${p}=${d[f]}`);
+              }
+            }
+          }
+          console.log('[consistency] compared:', plats.join(', '));
+          if(!ok){ process.exit(1); }
+          NODE
+        env:
+          GAME: sushi-go

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="perf-baseline" tests="1" failures="0" skipped="0">
+  <testcase classname="perf-baseline" name="sushi-go-linux-unknown-unknown">
+    <system-out>{"measured":840,"allowed":0,"tolerance":0.05,"ffmpeg":"unknown","node":"v20.12.2"}</system-out>
+  </testcase>
+</testsuite>

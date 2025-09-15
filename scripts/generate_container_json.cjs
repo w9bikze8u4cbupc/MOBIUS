@@ -3,11 +3,31 @@ const os = require("os");
 const cp = require("child_process");
 const path = require("path");
 
+// Helper for consistent path display in logs
+const forLog = (p) => p.replace(/\\/g, '/'); // keep file ops with path.*, only prettify logs
+
+function getPlatformSlug() {
+  const pEnv = (process.env.PLATFORM || '').toLowerCase();
+  if (pEnv === 'macos' || pEnv === 'linux' || pEnv === 'windows') return pEnv;
+
+  const runner = (process.env.RUNNER_OS || '').toLowerCase(); // "Windows" | "macOS" | "Linux"
+  if (runner.includes('mac')) return 'macos';
+  if (runner.includes('win')) return 'windows';
+  if (runner.includes('linux')) return 'linux';
+
+  const plat = process.platform; // 'win32' | 'darwin' | 'linux'
+  if (plat === 'darwin') return 'macos';
+  if (plat === 'win32') return 'windows';
+  if (plat === 'linux') return 'linux';
+  return 'linux';
+}
+
+// Optional: log for quick triage
+console.log(`[platform] PLATFORM=${process.env.PLATFORM || ''} RUNNER_OS=${process.env.RUNNER_OS || ''} resolved=${getPlatformSlug()}`);
+
 // Get environment variables or use defaults
 const GAME = process.env.GAME || "space-invaders";
-const PLATFORM = process.env.PLATFORM || process.env.RUNNER_OS ||
-  (process.platform === "win32" ? "windows" : 
-   process.platform === "darwin" ? "macos" : "linux");
+const PLATFORM = getPlatformSlug();
 
 // Map runner OS to directory slug (case-insensitive comparison)
 const slug = PLATFORM.toLowerCase() === "windows" ? "windows" : 

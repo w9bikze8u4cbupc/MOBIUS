@@ -4,20 +4,28 @@ const fsp = require('fs/promises');
 const path = require('path');
 
 // Common helpers
-function getPlatformSlug(osOverride) {
-  // Prefer RUNNER_OS for absolute consistency with CI naming
-  const fromEnv = (osOverride || process.env.RUNNER_OS || '').toLowerCase();
-  if (fromEnv === 'windows') return 'windows';
-  if (fromEnv === 'macos') return 'macos';
-  if (fromEnv === 'linux') return 'linux';
+function getPlatformSlug() {
+  const pEnv = (process.env.PLATFORM || '').toLowerCase();
+  if (pEnv === 'macos' || pEnv === 'linux' || pEnv === 'windows') return pEnv;
 
-  // Local fallback
-  const p = (osOverride || process.platform);
-  if (p === 'win32') return 'windows';
-  if (p === 'darwin') return 'macos';
-  if (p === 'linux') return 'linux';
-  return p.replace(/\W+/g, '_');
+  const runner = (process.env.RUNNER_OS || '').toLowerCase(); // "Windows" | "macOS" | "Linux"
+  if (runner.includes('mac')) return 'macos';
+  if (runner.includes('win')) return 'windows';
+  if (runner.includes('linux')) return 'linux';
+
+  const plat = process.platform; // 'win32' | 'darwin' | 'linux'
+  if (plat === 'darwin') return 'macos';
+  if (plat === 'win32') return 'windows';
+  if (plat === 'linux') return 'linux';
+  return 'linux';
 }
+
+// Optional: log for quick triage
+console.log(`[platform] PLATFORM=${process.env.PLATFORM || ''} RUNNER_OS=${process.env.RUNNER_OS || ''} resolved=${getPlatformSlug()}`);
+
+// Helper for consistent path display in logs
+const forLog = (p) => p.replace(/\\/g, '/'); // keep file ops with path.*, only prettify logs
+
 
 function resolveGoldenDir(game, { perOs = false, os } = {}) {
   const base = path.join('tests', 'golden', game);
@@ -265,6 +273,12 @@ async function main() {
   const tpTol = parseFloat(opts.tp_tol || '1.0');
   const junitOut = opts.junit; // Optional JUnit output path
 
+  // Validate SSIM_MIN input shape
+  const ssimEnv = process.env.SSIM_MIN;
+  if (ssimEnv && !/^\d+(\.\d+)?$/.test(ssimEnv)) {
+    throw new Error(`Invalid SSIM_MIN=${ssimEnv}. Use numeric like 0.95`);
+  }
+
   console.log('Input:', input);
   console.log('Game:', game);
   console.log('SSIM Threshold:', ssimThresh);
@@ -272,6 +286,12 @@ async function main() {
   if (!input || !fs.existsSync(input)) {
     console.error(`Input not found: ${input}`);
     process.exit(1);
+  }
+
+  // Enforce SSIM_MIN in CI (prevents accidental lowering)
+  const min = Number(process.env.SSIM_MIN || '0.95');
+  if (process.env.CI && min < 0.95) {
+    throw new Error(`SSIM_MIN=${min} is below required CI threshold of 0.95`);
   }
 
   // Auto-detect --perOs if OS subdir exists
@@ -287,7 +307,7 @@ async function main() {
   const resolvedGoldenDir = resolveGoldenDir(game, { perOs: usePerOs });
 
   // Log resolved paths
-  console.log(`[golden-check] GAME=${game} PLATFORM=${platformSlug} perOs=${usePerOs} goldenDir=${resolvedGoldenDir} framesDir=${path.join(resolvedGoldenDir, 'frames')}`);
+  console.log(`[golden-check] GAME=${game} PLATFORM=${platformSlug} perOs=${usePerOs} goldenDir=${forLog(resolvedGoldenDir)} framesDir=${forLog(path.join(resolvedGoldenDir, 'frames'))}`);
 
   // Baseline presence guard - fail with clear message if baseline directory is missing
   if (!fs.existsSync(resolvedGoldenDir)) {
@@ -296,12 +316,19 @@ async function main() {
     process.exit(1);
   }
 
-  // Clean up old debug images
-  const debugDir = await cleanDebugDir(resolvedGoldenDir);
-  
   // Define the golden frames directory
   const goldenFramesDir = path.join(resolvedGoldenDir, 'frames');
 
+  // Golden presence guard (prevents silent pass with missing frames)
+  const countFrames = (dir) => fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => /\.(png|jpe?g)$/i.test(f)).length : 0;
+  const nGolden = countFrames(goldenFramesDir);
+  if (nGolden === 0) {
+    throw new Error(`[golden-check] No golden frames found at ${forLog(goldenFramesDir)}. If this is a new platform, run the safe promotion script to seed baselines.`);
+  }
+
+  // Clean up old debug images
+  const debugDir = await cleanDebugDir(resolvedGoldenDir);
+  
   const goldenContainer = loadJson(path.join(resolvedGoldenDir, 'container.json'));
   
   // Validate container.json structure

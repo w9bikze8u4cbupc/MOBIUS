@@ -1,0 +1,30 @@
+--- a/scripts/promote_baselines.cjs
++++ b/scripts/promote_baselines.cjs
+@@ -1,5 +1,15 @@
+ #!/usr/bin/env node
+ 
++// Fail-safe promotion semantics in CI
++const DRY = process.env.DRY_RUN === '1' || process.argv.includes('--dry-run');
++const DRY_RUN = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true';
++const ALLOW_REGRESSION = process.env.ALLOW_REGRESSION === '1' || process.argv.includes('--allow-regression');
++const ALLOW_REGRESSION_REASON = process.env.ALLOW_REGRESSION_REASON || null;
++const requireBaselineOnMain = process.env.PERF_REQUIRE_BASELINE_ON_MAIN === '1';
++
++const branch = (process.env.GITHUB_REF_NAME || '').toLowerCase();
++const isMain = /^(main|master)$/.test(branch);
++const lastCommit = process.env.GIT_LAST_COMMIT_MESSAGE || '';
++const hasTrailer = /\[(baseline|perf-baseline)\]/i.test(lastCommit);
++const reason = process.env.ALLOW_REGRESSION_REASON;
++
++if (!isMain) {
++  console.error('[promote] Blocked: only main branch may promote baselines.');
++  process.exit(1);
++}
++if (!hasTrailer) {
++  console.error('[promote] Blocked: commit must include [baseline] or [perf-baseline] trailer.');
++  process.exit(1);
++}
++
+ // Fail-safe promotion semantics in CI
+ const DRY = process.env.DRY_RUN === '1' || process.argv.includes('--dry-run');
+ const DRY_RUN = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true';

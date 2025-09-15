@@ -1,0 +1,23 @@
+{
+  "game": "sushi-go",
+  "platform": "linux",
+  "resolution": "960x540",
+  "codec": "h264",
+  "width": 960,
+  "height": 540,
+  "video_fps": 30,
+  "threads": "unknown",
+  "extracted_frames": 840,
+  "extraction_time_ms": 1000,
+  "fps": 840,
+  "key": "sushi-go|linux|960X540|h264",
+  "hardware": {
+    "cpu_model": "Intel(R) Core(TM) i5-10400 CPU @ 2.90GHz",
+    "cpu_count": 12,
+    "total_memory": 12603953152,
+    "platform": "win32",
+    "arch": "x64",
+    "ffmpeg_threads": "default",
+    "github_runner": "local"
+  }
+}

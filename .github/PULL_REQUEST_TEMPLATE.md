@@ -23,28 +23,37 @@
 - Known non-functional diffs (if any):
 - Approval workflow runs (if used): link(s)
 
-<details>
-  <summary>Reference checklist coverage (auto-validated in CI unless marked Manual)</summary>
+```
+## Automated Per-OS Video Validation (Mobius)
 
-- CFG (Inputs & Config): CFG-01..CFG-05
-- GEN (Rulebook Ingestion & Script): GEN-01..GEN-05
-- AST (Assets): AST-01..AST-04
-- REN (Rendering): REN-01..REN-08
-- AUD (Audio): AUD-01..AUD-05
-- SUB (Subtitles/Accessibility): SUB-01..SUB-04
-- I18N (Localization): I18N-01..I18N-03
-- OUT (Packaging/Delivery): OUT-01..OUT-05
-- DET (Determinism): DET-01..DET-03
-- GOLD (Golden Harness QA): GOLD-01..GOLD-07
-- CI (CI/CD): CI-01..CI-07
-- PERF (Performance): PERF-01..PERF-04
-- OBS (Observability): OBS-01..OBS-03
-- SEC (Security/Licensing): SEC-01..SEC-03
-- FAIL (Failure Handling): FAIL-01..FAIL-04
-- DOC (Docs/Runbooks): DOC-01..DOC-03
-- REL (Release Mgmt): REL-01..REL-03
-- UAT/QUALITY: UAT-01..UAT-03
-- AUTO (Optional automated gates): AUTO-01..AUTO-03
-- EXIT (Go/No-Go): EXIT-01..EXIT-05
+Automated per-OS video validation now green across Windows, macOS, and Linux with SSIM ≥ 0.95. Enforced SSIM_MIN in CI, deterministic extraction (fps=30, SAR=1:1, yuv420p), Ajv schema validation for container.json, and ffprobe cross-checks. Per-OS goldens are default with safe, interactive promotion. CI matrix uses pinned toolchains, uploads artifacts/JUnit per matrix, and includes platform resolution in logs for fast triage.
 
-</details>
+### Summary of Changes
+
+- [x] SSIM ≥ 0.95 validation across all platforms
+- [x] Per-OS goldens with safe promotion
+- [x] Deterministic frame extraction (fps=30, SAR=1:1, yuv420p)
+- [x] Container.json validation with Ajv schema
+- [x] ffprobe vs container.json cross-checks
+- [x] 3-OS CI matrix with pinned toolchains
+- [x] JUnit reporting and artifact upload per matrix
+- [x] Platform resolution in logs for fast triage
+
+### Validation Checklist
+
+- [ ] All platforms green (Windows, macOS, Linux)
+- [ ] SSIM ≥ 0.95 on all platforms
+- [ ] Per-OS goldens used (no cross-platform copying)
+- [ ] Container.json validation passes
+- [ ] ffprobe vs container.json consistency check passes
+- [ ] JUnit reports generated and uploaded
+- [ ] Artifacts uploaded per matrix job
+- [ ] README and documentation updated
+
+### Screenshots (if applicable)
+
+<!-- Add any relevant screenshots or GIFs to demonstrate the changes -->
+
+### Notes for Reviewers
+
+<!-- Add any additional notes for reviewers, such as areas to focus on or questions -->

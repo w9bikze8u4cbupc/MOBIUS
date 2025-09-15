@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="frame-count" tests="1" failures="0">
+  <testcase classname="frame-count" name="sushi-go-macos">
+    
+    <system-out>{"expected": 840, "actual": 840, "tolerance": 5, "duration": 28.000, "fps": "30/1"}</system-out>
+  </testcase>
+</testsuite>

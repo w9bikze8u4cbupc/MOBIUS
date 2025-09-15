@@ -14,6 +14,28 @@
 const fs = require('fs');
 const path = require('path');
 
+// Helper for consistent path display in logs
+const forLog = (p) => p.replace(/\\/g, '/'); // keep file ops with path.*, only prettify logs
+
+function getPlatformSlug() {
+  const pEnv = (process.env.PLATFORM || '').toLowerCase();
+  if (pEnv === 'macos' || pEnv === 'linux' || pEnv === 'windows') return pEnv;
+
+  const runner = (process.env.RUNNER_OS || '').toLowerCase(); // "Windows" | "macOS" | "Linux"
+  if (runner.includes('mac')) return 'macos';
+  if (runner.includes('win')) return 'windows';
+  if (runner.includes('linux')) return 'linux';
+
+  const plat = process.platform; // 'win32' | 'darwin' | 'linux'
+  if (plat === 'darwin') return 'macos';
+  if (plat === 'win32') return 'windows';
+  if (plat === 'linux') return 'linux';
+  return 'linux';
+}
+
+// Optional: log for quick triage
+console.log(`[platform] PLATFORM=${process.env.PLATFORM || ''} RUNNER_OS=${process.env.RUNNER_OS || ''} resolved=${getPlatformSlug()}`);
+
 function parseArgs(argv) {
   const out = {};
   for (let i = 2; i < argv.length; i++) {
@@ -25,18 +47,6 @@ function parseArgs(argv) {
     }
   }
   return out;
-}
-
-function osSlug() {
-  const ro = process.env.RUNNER_OS;
-  if (ro === 'Windows') return 'Windows';
-  if (ro === 'macOS') return 'macOS';
-  if (ro === 'Linux') return 'Linux';
-  // Fallback to Node's platform
-  const p = process.platform;
-  if (p === 'win32') return 'Windows';
-  if (p === 'darwin') return 'macOS';
-  return 'Linux';
 }
 
 function readJson(p) {
