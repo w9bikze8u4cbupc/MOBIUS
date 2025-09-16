@@ -1,0 +1,10 @@
+{
+  "assets": {
+    "placeholder": {
+      "path": "assets/placeholder.png"
+    }
+  },
+  "placeholders": {
+    "image": "assets/placeholder.png"
+  }
+}

@@ -47,8 +47,38 @@ const __dirname = dirname(__filename);
 const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:3000').trim();
 app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
+// Body parsing with limits
+app.use(express.json({ 
+  limit: '10mb',
+  // Request timeout (60 seconds)
+  timeout: 60000
+}));
+
+// Concurrency limiting middleware
+const MAX_CONCURRENT_REQUESTS = 20;
+let currentRequests = 0;
+
+function concurrencyLimiter(req, res, next) {
+  if (currentRequests >= MAX_CONCURRENT_REQUESTS) {
+    return res.status(429).json({ 
+      error: 'Too many concurrent requests', 
+      maxConcurrent: MAX_CONCURRENT_REQUESTS 
+    });
+  }
+  
+  currentRequests++;
+  
+  // Ensure we decrement when the request finishes
+  const originalEnd = res.end;
+  res.end = function() {
+    currentRequests--;
+    originalEnd.apply(this, arguments);
+  };
+  
+  next();
+}
+
+app.use(concurrencyLimiter);
 
 // Static files
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
@@ -105,11 +135,26 @@ console.warn = function (...args) {
   originalWarn.apply(console, args);
 };
 
-// Simple request logger (dev)
-app.use((req, _res, next) => {
-  console.log(`${req.method} ${req.path} - auth skipped in dev`);
+// Request ID middleware for correlation
+function requestIdMiddleware(req, res, next) {
+  // Check for existing X-Request-ID header
+  const requestId = req.headers['x-request-id'] ||
+                   req.headers['X-Request-ID'] ||
+                   `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  // Attach to request object
+  req.requestId = requestId;
+  
+  // Add to response headers for tracing
+  res.setHeader('X-Request-ID', requestId);
+  
+  // Enhanced logging with request ID
+  console.log(`[${requestId}] ${req.method} ${req.path} - auth skipped in dev`);
+  
   next();
-});
+}
+
+app.use(requestIdMiddleware);
 
 
 
@@ -484,10 +529,10 @@ function extractComponentsFromDescription(description) {
   if (!description) return [];
   const cleanText = description.replace(/<[^>]*>/g, ' ').replace(/&[^;]+;/g, ' ');
   const patterns = [
-    /components?:\s*([\s\S]+?)(?:\n\n|\r\n\r\n|setup|gameplay|overview|$)/i,
-    /contents?:\s*([\s\S]+?)(?:\n\n|\r\n\r\n|setup|gameplay|overview|$)/i,
-    /includes?:\s*([\s\S]+?)(?:\n\n|\r\n\r\n|setup|gameplay|overview|$)/i,
-    /game contains?:\s*([\s\S]+?)(?:\n\n|\r\n\r\n|setup|gameplay|overview|$)/i
+    new RegExp('components?:\\s*([\\s\\S]+?)(?:\\n\\n|\\r\\n\\r\\n|setup|gameplay|overview|$)', 'i'),
+    new RegExp('contents?:\\s*([\\s\\S]+?)(?:\\n\\n|\\r\\n\\r\\n|setup|gameplay|overview|$)', 'i'),
+    new RegExp('includes?:\\s*([\\s\\S]+?)(?:\\n\\n|\\r\\n\\r\\n|setup|gameplay|overview|$)', 'i'),
+    new RegExp('game contains?:\\s*([\\s\\S]+?)(?:\\n\\n|\\r\\n\\r\\n|setup|gameplay|overview|$)', 'i')
   ];
   for (const pattern of patterns) {
     const match = cleanText.match(pattern);
@@ -2066,6 +2111,52 @@ app.post('/api/generate-storyboard', async (req, res) => {
   }
 });
 
+// Simple in-memory cache for TTS audio
+const ttsCache = new Map();
+const MAX_CACHE_SIZE = 100;
+
+// Function to generate cache key
+function generateTtsCacheKey(text, voice, language) {
+  // Create a hash of the input parameters
+  const crypto = require('crypto');
+  const hash = crypto.createHash('md5');
+  hash.update(`${text}-${voice}-${language}`);
+  return hash.digest('hex');
+}
+
+// Function to chunk long text into smaller segments
+function chunkText(text, maxChunkSize = 2000) {
+  // Split text into sentences
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+  const chunks = [];
+  let currentChunk = '';
+  
+  for (const sentence of sentences) {
+    // If adding this sentence would exceed the chunk size, save the current chunk
+    if (currentChunk.length + sentence.length > maxChunkSize && currentChunk.length > 0) {
+      chunks.push(currentChunk.trim());
+      currentChunk = sentence;
+    } else {
+      // Otherwise, add the sentence to the current chunk
+      currentChunk += sentence;
+    }
+  }
+  
+  // Add the last chunk if it exists
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk.trim());
+  }
+  
+  return chunks;
+}
+
+// Function to generate 0.2s silence in MP3 format
+function generateSilence() {
+  // Return a small buffer with MP3 silence (0.2s of silence)
+  // This is a simplified approach - in practice, you might want to generate actual silence
+  return Buffer.from([0xFF, 0xFB, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+}
+
 app.post('/tts', async (req, res) => {
   const startTime = Date.now();
   const { text, voice, language, gameName } = req.body;
@@ -2074,27 +2165,101 @@ app.post('/tts', async (req, res) => {
   
   if (!text) return res.status(400).json({ error: 'No text provided for TTS' });
   if (!gameName) return res.status(400).json({ error: 'No game name provided' });
-  if (!voice) return res.status(400).json({ error: 'No voice provided' });
+  
+  // Auto-select a default voice when none is provided
+  let selectedVoice = voice;
+  if (!selectedVoice) {
+    // Default voices for different languages
+    const defaultVoices = {
+      'en': '21m00Tcm4TlvDq8ikWAM', // Rachel
+      'fr': '21m00Tcm4TlvDq8ikWAM', // Rachel (multilingual)
+      'es': '21m00Tcm4TlvDq8ikWAM', // Rachel (multilingual)
+      'de': '21m00Tcm4TlvDq8ikWAM', // Rachel (multilingual)
+      'it': '21m00Tcm4TlvDq8ikWAM', // Rachel (multilingual)
+    };
+    
+    // Select based on language, fallback to English
+    selectedVoice = defaultVoices[language] || defaultVoices['en'];
+    console.log(`No voice provided, auto-selected voice: ${selectedVoice}`);
+  }
+  
+  // Check cache first
+  const cacheKey = generateTtsCacheKey(text, selectedVoice, language);
+  if (ttsCache.has(cacheKey)) {
+    console.log(`TTS cache hit for key: ${cacheKey}`);
+    const cachedAudio = ttsCache.get(cacheKey);
+    const totalTime = Date.now() - startTime;
+    console.log(`TTS completed (cached) in ${totalTime}ms for ${text.length} characters`);
+    return res.type('audio/mpeg').send(cachedAudio);
+  }
   
   try {
-    const response = await axios.post(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voice}`,
-      { text, model_id: 'eleven_multilingual_v2' },
-      {
-        headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
-        responseType: 'arraybuffer',
-        timeout: 45000 // 45 seconds timeout for TTS
+    let audioBuffer;
+    
+    // If text is too long, chunk it and synthesize per chunk
+    if (text.length > 3000) {
+      console.log(`Text too long (${text.length} chars), chunking...`);
+      const chunks = chunkText(text, 2000);
+      const audioChunks = [];
+      
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        console.log(`Synthesizing chunk ${i + 1}/${chunks.length} (${chunk.length} chars)`);
+        
+        const response = await axios.post(
+          `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice}`,
+          { text: chunk, model_id: 'eleven_multilingual_v2' },
+          {
+            headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
+            responseType: 'arraybuffer',
+            timeout: 45000 // 45 seconds timeout for TTS
+          }
+        );
+        
+        audioChunks.push(response.data);
+        
+        // Add 0.2s silence between chunks (except for the last chunk)
+        if (i < chunks.length - 1) {
+          audioChunks.push(generateSilence());
+        }
+        
+        // Add a small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
-    );
+      
+      // Concatenate all audio chunks
+      audioBuffer = Buffer.concat(audioChunks);
+    } else {
+      // For shorter text, synthesize directly
+      const response = await axios.post(
+        `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice}`,
+        { text, model_id: 'eleven_multilingual_v2' },
+        {
+          headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
+          responseType: 'arraybuffer',
+          timeout: 45000 // 45 seconds timeout for TTS
+        }
+      );
+      audioBuffer = response.data;
+    }
+    
+    // Cache the result
+    if (ttsCache.size >= MAX_CACHE_SIZE) {
+      // Remove the oldest entry
+      const firstKey = ttsCache.keys().next().value;
+      if (firstKey) ttsCache.delete(firstKey);
+    }
+    ttsCache.set(cacheKey, audioBuffer);
+    
     const gameDir = path.join(OUTPUT_DIR, `${gameName.replace(/[^a-zA-Z0-9]/g, '_')}_${getDateString()}`);
     await ensureDir(gameDir);
     const audioPath = path.join(gameDir, `audio_section_${language}_${Date.now()}.mp3`);
-    await fsPromises.writeFile(audioPath, response.data);
+    await fsPromises.writeFile(audioPath, audioBuffer);
     
     const totalTime = Date.now() - startTime;
     console.log(`TTS completed in ${totalTime}ms for ${text.length} characters`);
     
-    res.type('audio/mpeg').send(response.data);
+    res.type('audio/mpeg').send(audioBuffer);
   } catch (error) {
     const totalTime = Date.now() - startTime;
     console.error(`TTS failed after ${totalTime}ms:`, error.message);
@@ -2353,6 +2518,80 @@ app.get('/api/health', (req, res) => {
   }
 });
 
+// Enhanced health endpoint with detailed system information
+app.get('/api/health/details', (req, res) => {
+  try {
+    // Get git information
+    const { execSync } = require('child_process');
+    let gitSha = 'unknown';
+    let gitBranch = 'unknown';
+    try {
+      gitSha = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+      gitBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
+    } catch (e) {
+      // Git not available
+    }
+
+    // Get Poppler version
+    let popplerVersion = 'unknown';
+    try {
+      const { spawnSync } = require('child_process');
+      const result = spawnSync('pdftoppm', ['-v'], { encoding: 'utf8' });
+      if (result.stderr) {
+        const match = result.stderr.match(/poppler version (\d+\.\d+\.\d+)/i);
+        if (match) {
+          popplerVersion = match[1];
+        }
+      }
+    } catch (e) {
+      // Poppler not available
+    }
+
+    // Check if OUTPUT_DIR is writable
+    const fs = require('fs');
+    let outputDirWritable = false;
+    try {
+      const testFile = `${OUTPUT_DIR}/.write_test`;
+      fs.writeFileSync(testFile, 'test');
+      fs.unlinkSync(testFile);
+      outputDirWritable = true;
+    } catch (e) {
+      // Not writable
+    }
+
+    res.json({
+      ok: true,
+      service: 'mobius-games-tutorial-generator',
+      version: '1.0.0',
+      time: new Date().toISOString(),
+      git: {
+        sha: gitSha,
+        branch: gitBranch
+      },
+      node: process.version,
+      poppler: {
+        version: popplerVersion
+      },
+      paths: {
+        uploadsDir: UPLOADS_DIR,
+        outputDir: OUTPUT_DIR,
+        staticMounts: ['/static', '/uploads', '/output']
+      },
+      permissions: {
+        outputDirWritable: outputDirWritable,
+        elevenLabsApiKeyPresent: !!process.env.ELEVENLABS_API_KEY
+      },
+      env: {
+        OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+        ELEVENLABS_API_KEY: !!process.env.ELEVENLABS_API_KEY,
+        IMAGE_EXTRACTOR_API_KEY: !!process.env.IMAGE_EXTRACTOR_API_KEY
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
     // Ignore favicon requests on API origin (prevents Firefox ORB warning)  
     app.get('/favicon.ico', (req, res) => res.sendStatus(204));
 
@@ -2362,9 +2601,53 @@ mountExtractComponentsRoute(app);
 // Mount Poppler health route
 mountPopplerHealthRoute(app);
 
-// Start server (BOTTOM OF FILE)  
-app.listen(port, () => {  
-  console.log('API file loaded!');  
-  console.log(`Uploads dir: ${UPLOADS_DIR}`);  
-  console.log(`Starting server on ${BACKEND_URL}`);  
+// Add development vs production URL separation
+function isDevMode() {
+  return process.env.NODE_ENV !== 'production';
+}
+
+// Enhanced URL whitelist that separates dev and prod
+function isUrlWhitelistedSecure(url) {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+    
+    // In production, only allow specific domains
+    if (!isDevMode()) {
+      const PROD_WHITELIST = [
+        'boardgamegeek.com',
+        'cf.geekdo-images.com',
+        'geekdo-static.com'
+      ];
+      return PROD_WHITELIST.some(allowedHost => 
+        hostname === allowedHost || 
+        hostname.endsWith('.' + allowedHost)
+      );
+    }
+    
+    // In development, allow localhost/127.0.0.1 plus specific domains
+    const DEV_WHITELIST = [
+      'localhost',
+      '127.0.0.1',
+      'boardgamegeek.com',
+      'cf.geekdo-images.com',
+      'geekdo-static.com'
+    ];
+    return DEV_WHITELIST.some(allowedHost => 
+      hostname === allowedHost || 
+      hostname.endsWith('.' + allowedHost) ||
+      // For IP addresses, check exact match
+      (hostname.match(/^(\d{1,3}\.){3}\d{1,3}$/) && DEV_WHITELIST.includes(hostname))
+    );
+  } catch (e) {
+    console.warn('Invalid URL format:', url);
+    return false;
+  }
+}
+
+// Start server (BOTTOM OF FILE)
+app.listen(port, () => {
+  console.log('API file loaded!');
+  console.log(`Uploads dir: ${UPLOADS_DIR}`);
+  console.log(`Starting server on ${BACKEND_URL}`);
 });

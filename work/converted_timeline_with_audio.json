@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "generatedAt": "2025-09-16T15:49:13.384Z",
+    "audioPath": "C:\\Users\\danie\\Documents\\mobius-games-tutorial-generator\\src\\api\\uploads\\MobiusGames\\CATAN_20250916\\audio_section_en_1758029188054.mp3\r",
+    "durationSec": 48
+  },
+  "items": [
+    {
+      "id": "shot:0",
+      "label": "Scene 1",
+      "tStart": 0,
+      "tEnd": 7,
+      "durationSec": 7,
+      "section": "tutorial",
+      "anim": {
+        "templateId": "generic"
+      }
+    },
+    {
+      "id": "shot:1",
+      "label": "Scene 2",
+      "tStart": 7,
+      "tEnd": 11,
+      "durationSec": 4,
+      "section": "tutorial",
+      "anim": {
+        "templateId": "generic"
+      }
+    },
+    {
+      "id": "shot:2",
+      "label": "Scene 3",
+      "tStart": 11,
+      "tEnd": 21,
+      "durationSec": 10,
+      "section": "tutorial",
+      "anim": {
+        "templateId": "generic"
+      }
+    },
+    {
+      "id": "shot:3",
+      "label": "Scene 4",
+      "tStart": 21,
+      "tEnd": 25,
+      "durationSec": 4,
+      "section": "tutorial",
+      "anim": {
+        "templateId": "generic"
+      }
+    },
+    {
+      "id": "shot:4",
+      "label": "Scene 5",
+      "tStart": 25,
+      "tEnd": 35,
+      "durationSec": 10,
+      "section": "tutorial",
+      "anim": {
+        "templateId": "generic"
+      }
+    },
+    {
+      "id": "shot:5",
+      "label": "Scene 6",
+      "tStart": 35,
+      "tEnd": 43,
+      "durationSec": 8,
+      "section": "tutorial",
+      "anim": {
+        "templateId": "generic"
+      }
+    },
+    {
+      "id": "shot:6",
+      "label": "Scene 7",
+      "tStart": 43,
+      "tEnd": 48,
+      "durationSec": 5,
+      "section": "tutorial",
+      "anim": {
+        "templateId": "generic"
+      }
+    }
+  ]
+}

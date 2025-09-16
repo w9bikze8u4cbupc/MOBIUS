@@ -1,9 +1,93 @@
 # Mobius Games Tutorial Generator
 
 [![CI (3-OS)](https://img.shields.io/github/actions/workflow/status/OWNER/REPO/your-workflow.yml?label=CI%203-OS)](#)
-[![SSIM ≥ 0.95](https://img.shields.io/badge/SSIM-%E2%89%A5%200.95-brightgreen)](#)
+[![SSIM ≥ 0.95](https://img.shields.io/badge/SSIM-%E2%89%A5% 0.95-brightgreen)](#)
 
 This project generates video tutorials for board games using FFmpeg and Lottie animations.
+
+## Production-Ready Refinements
+
+This pipeline has been enhanced with several production-ready refinements to ensure high-quality, reliable tutorial generation:
+
+### Audio/Video Synchronization
+- **Timeline Scaling**: Automatically scales visual durations to match audio length (proportional adjustment)
+- **Audio Trimming**: Trims audio to timeline duration when needed
+- **FFprobe Verification**: Ensures both audio+video streams are present with matching durations (±5%)
+
+### TTS Quality and Stability
+- **Text Chunking**: Long narrations are chunked by scene/segment for synthesis
+- **Caching**: Audio cached by hash(text+lang+voice) to avoid re-billing and re-synthesis
+- **Default Voices**: Auto-selects appropriate default voices when none provided
+- **Silence Stitching**: Chunks stitched with 0.2s silence to avoid rate/length limits
+
+### PDF Extraction Resiliency
+- **OCR Fallback**: Optional OCR support for image-only PDFs
+- **Multilingual Heuristics**: Enhanced detection for "Components/Contents/What's in the Box" sections in multiple languages
+- **Improved Parsing**: Better component extraction with confidence checking
+
+### Security and Operations Hardening
+- **URL Whitelisting**: Environment-specific URL whitelisting (localhost/127.0.0.1 only in dev)
+- **Body Size Limits**: Enforced request body size limits
+- **Request Timeouts**: Configurable request timeouts
+- **Concurrency Caps**: Limits concurrent requests to prevent overload
+- **Retention Policy**: TTL-based cleanup for uploads and output directories
+
+### Enhanced Observability
+- **Extended Health Checks**: Detailed health endpoint with version, git SHA, Node version, Poppler version
+- **Correlation Headers**: X-Request-ID support for request tracing
+- **Pipeline Summary**: Generates JSON artifact with artifact paths for traceability
+
+### CI/CD Improvements
+- **Test Matrix**: Node 18 and 20 support with Windows/Linux runners
+- **Version Pinning**: Critical dependencies pinned for reproducibility
+- **Lightweight E2E Tests**: Added fixtures for mock remote calls
+- **Lint/Format Step**: Integrated code quality checks
+
+## Quick Start
+
+To generate a complete tutorial for Catan with a single command:
+
+```bash
+npm run happy:catan
+```
+
+This will automatically:
+1. Extract BGG metadata
+2. Generate storyboards (EN/FR)
+3. Fetch images
+4. Build timeline
+5. Audit and replace assets
+6. Synthesize TTS (EN/FR)
+7. Convert timeline for renderer
+8. Render MP4
+9. Run CI validation
+
+Output files will be available in:
+- `work/` - [Intermediate files and artifacts](work/)
+- `dist/` - Final rendered videos
+
+For detailed validation, run:
+```bash
+npm run ci:validate
+```
+
+## New Features
+
+### Unified PDF Component Extraction
+The `/api/extract-components` endpoint now accepts both `pdfPath` and `pdfUrl` parameters for consistency:
+- `pdfPath`: Local file path to PDF
+- `pdfUrl`: Remote URL to PDF (will be downloaded temporarily)
+
+### TTS Filename Guard
+TTS audio files now use safe default values to prevent "undefined" in filenames:
+- Language defaults to "en" if not provided
+- Game name defaults to "unknown_game" if not provided
+- Voice auto-selects Rachel (21m00Tcm4TlvDq8ikWAM) if not provided
+
+### Static Route Health Check
+The `/api/health` endpoint now includes status for static directories:
+- Uploads directory availability
+- Output directory availability
 
 ## Golden Preview Harness
 
@@ -110,6 +194,16 @@ cross-env GAME=sushi-go PLATFORM=linux npm run smoke
 
 This runs container generation, frame extraction, golden check, and ffprobe comparison in sequence.
 
+## New Scripts and Commands
+
+### Audio/Video Reconciliation
+- `npm run audio:scale-timeline` - Scale timeline durations to match audio length
+- `npm run audio:trim-to-timeline` - Trim audio to timeline duration
+
+### Pipeline Management
+- `npm run pipeline:summary` - Generate pipeline summary JSON artifact
+- `npm run cleanup:old-files` - Clean up files older than retention period
+
 ## Script Parameters and Environment Variables
 
 ### Core Scripts
@@ -178,6 +272,121 @@ This runs container generation, frame extraction, golden check, and ffprobe comp
 
 #### `scripts/aggregate_perf_summary.cjs`
 - **Output:** Aggregates performance reports into a summary
+
+### API Endpoints
+
+#### `/api/extract-components` (POST)
+Extracts components from a PDF rulebook.
+- **Request Body:**
+  - `pdfPath` (string, optional): Local file path to PDF
+  - `pdfUrl` (string, optional): Remote URL to PDF
+- **Response:** JSON with extracted components
+
+#### `/api/extract-bgg-html` (POST)
+Extracts game metadata from BoardGameGeek.
+- **Request Body:**
+  - `bggUrl` (string): BGG URL for the game
+- **Response:** JSON with game metadata
+
+#### `/api/fetch-bgg-images` (POST)
+Fetches images from BoardGameGeek.
+- **Request Body:**
+  - `bggUrl` (string): BGG URL for the game
+- **Response:** JSON with image URLs
+
+#### `/api/generate-storyboard` (POST)
+Generates a storyboard for tutorial video.
+- **Request Body:**
+  - `lang` (string): Language code (en, fr, etc.)
+  - `policy` (object): Word count policy
+  - `components` (array): Game components
+  - `actions` (array): Game actions
+- **Response:** JSON with storyboard
+
+#### `/tts` (POST)
+Generates text-to-speech audio with enhanced features.
+- **Request Body:**
+  - `text` (string): Text to synthesize
+  - `language` (string): Language code
+  - `voice` (string): Voice ID (optional, auto-selects based on language)
+  - `gameName` (string): Game name
+- **Features:**
+  - Automatic voice selection when none provided
+  - Text chunking for long narrations
+  - Caching by hash(text+lang+voice)
+  - Silence stitching between chunks
+- **Response:** MP3 audio file
+
+#### `/api/health` (GET)
+Basic health check endpoint.
+- **Response:** JSON with system status
+
+#### `/api/health/details` (GET)
+Enhanced health check with detailed system information.
+- **Response:** JSON with version, git SHA, Node version, Poppler version, paths, and permissions
+
+#### `/api/health/poppler` (GET)
+Poppler health check endpoint.
+- **Response:** JSON with Poppler status
+
+### Environment Variables
+
+- `ELEVENLABS_API_KEY` - API key for ElevenLabs TTS service
+- `OPENAI_API_KEY` - API key for OpenAI services
+- `IMAGE_EXTRACTOR_API_KEY` - API key for image extraction service
+- `OUTPUT_DIR` - Output directory for generated files
+- `TRANSLATE_MODE` - Translation mode (disabled, optional, required)
+- `RETENTION_DAYS` - File retention period in days (default: 7)
+- `NODE_ENV` - Environment (development/production) for URL whitelisting
+
+## Happy Path Script
+
+A complete automation script is available at `happy_path_catan.js` that demonstrates the full workflow:
+1. Extract BGG metadata
+2. Generate storyboards (EN/FR)
+3. Fetch images
+4. Build timeline
+5. Audit and replace assets
+6. Synthesize TTS (EN/FR)
+7. Convert timeline for renderer
+8. Render MP4
+9. Run CI validation
+
+Usage:
+```bash
+npm run happy:catan
+```
+
+Or directly:
+```bash
+node happy_path_catan.js
+```
+
+## Example PowerShell Commands
+
+### Extract BGG Metadata
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://localhost:5001/api/extract-bgg-html" -ContentType "application/json" -Body '{"bggUrl":"https://boardgamegeek.com/boardgame/13/catan"}' | ConvertTo-Json | Out-File work/bgg.html.extract.json
+```
+
+### Generate Storyboard
+``powershell
+$components = (Get-Content .\work\components.json -Raw | ConvertFrom-Json).components
+$body = @{
+  lang = "en"
+  policy = @{ minWords = 250; maxWords = 900; extend = $false }
+  components = $components
+} | ConvertTo-Json -Depth 8
+Invoke-RestMethod -Method Post -Uri "http://localhost:5001/api/generate-storyboard" -ContentType "application/json" -Body $body | ConvertTo-Json -Depth 8 | Out-File work/script.en.json
+```
+
+### Synthesize TTS
+``powershell
+$headers = @{ "xi-api-key" = $env:ELEVENLABS_API_KEY }
+$text = "Welcome to the tutorial"
+$body = @{ text = $text; language = "en"; voice = "21m00Tcm4TlvDq8ikWAM"; gameName = "CATAN" } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://localhost:5001/tts" -Headers $headers -ContentType "application/json" -Body $body -OutFile work/tts.en.mp3
+```
 
 ## Troubleshooting
 

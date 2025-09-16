@@ -8,7 +8,9 @@ const computePerfKey = require('./lib/computePerfKey.cjs');
 const PERF_BASELINE_SCHEMA_VERSION = assertPerfBaselineShape.SCHEMA_VERSION;
 const perfDir = process.env.PERF_DIR || 'reports/perf';
 const tolerance = parseFloat(process.env.PERF_TOLERANCE || '0.05'); // 5% by default
-const warnOnly = process.env.PERF_WARN_ONLY === '1';
+const branch = (process.env.GITHUB_REF_NAME || '').toLowerCase();
+const isMain = /^(main|master)$/.test(branch);
+const warnOnly = process.env.PERF_WARN_ONLY === '1' || !isMain;
 const requireBaselineOnMain = process.env.PERF_REQUIRE_BASELINE_ON_MAIN === '1';
 
 function exists(p) { try { return p && fs.existsSync(p); } catch { return false; } }

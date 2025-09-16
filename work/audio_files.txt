@@ -1,0 +1,3 @@
+C:\Users\danie\Documents\mobius-games-tutorial-generator\src\api\uploads\MobiusGames\CATAN_20250916\audio_section_en_1758029188054.mp3
+C:\Users\danie\Documents\mobius-games-tutorial-generator\src\api\uploads\MobiusGames\CATAN_20250916\audio_section_fr_1758029203068.mp3
+C:\Users\danie\Documents\mobius-games-tutorial-generator\src\api\uploads\MobiusGames\CATAN_20250916\audio_section_undefined_1758029134099.mp3

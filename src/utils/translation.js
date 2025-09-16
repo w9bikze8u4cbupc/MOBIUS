@@ -4,6 +4,24 @@ const LT_URL = process.env.LT_URL || 'http://localhost:5002/translate';
 const TRANSLATE_MODE = (process.env.TRANSLATE_MODE || 'optional').toLowerCase();
 // optional modes: 'disabled' | 'optional' | 'required'
 
+async function checkLibreTranslateHealth() {
+    try {
+        const healthUrl = LT_URL.replace('/translate', '/health');
+        const response = await fetch(healthUrl, { 
+            method: 'GET',
+            timeout: 3000 // 3 second timeout
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Health check failed with status ${response.status}`);
+        }
+        
+        return true;
+    } catch (error) {
+        throw new Error(`LibreTranslate health check failed: ${error.message}`);
+    }
+}
+
 async function translateText(text, targetLanguage) {
     try {
         if (!text) return '';
@@ -11,6 +29,11 @@ async function translateText(text, targetLanguage) {
         // Handle disabled mode
         if (TRANSLATE_MODE === 'disabled') {
             return { text, provider: 'libretranslate', mode: 'disabled', skipped: true };
+        }
+        
+        // For required mode, check health first
+        if (TRANSLATE_MODE === 'required') {
+            await checkLibreTranslateHealth();
         }
         
         // Pre-process text to remove unwanted headers

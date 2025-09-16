@@ -3,7 +3,7 @@
 // Minimal, self-contained component extractor for rulebooks
 export function extractComponentsFromText(pdfText, verbose = false) {
   // Multilingual section headers for component detection
-  const START_RE = /(?:^|\n)\s*(contents\s*&\s*setup|components?|box contents|game components|material|componentes|inhalt|composants|materiali)\b/i;
+  const START_RE = /(?:^|\n)\s*(contents\s*&\s*setup|components?|box contents|game components|material|componentes|inhalt|composants|materiali|contenu|contenuto|contenido|what's in the box|ce qu'il y a dans la boîte|was ist im spiel|qué hay en la caja)\b/i;
   const END_RE = /(?:^|\n)\s*(object of the game|game overview|setup ends|1\s+plot at court|setup\b(?!.*contents)|rules?|how to play)/i;
 
   // Base canonical labels that should be available for all games

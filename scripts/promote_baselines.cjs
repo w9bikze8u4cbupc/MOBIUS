@@ -132,15 +132,19 @@ if (process.argv.includes('--force')) {
   process.exit(0);
 }
 
+function detectLowering(newMinFps, existingMinFps) {
+  return newMinFps < existingMinFps;
+}
+
 function updateBaseline(key, newMinFps, metadata) {
   const existing = baselineEntries.find(e => `${e.game}|${e.platform}` === key);
   if (existing) {
-    if (newMinFps < existing.min_fps && !ALLOW_REGRESSION) {
+    if (detectLowering(newMinFps, existing.min_fps) && !ALLOW_REGRESSION) {
       throw new Error(`Refusing to lower baseline for ${key} (${newMinFps.toFixed(2)} < ${existing.min_fps.toFixed(2)}). Use --allow-regression with a reason.`);
     }
     
     // If allowing regression, require a reason
-    if (newMinFps < existing.min_fps && ALLOW_REGRESSION) {
+    if (detectLowering(newMinFps, existing.min_fps) && ALLOW_REGRESSION) {
       let reason = ALLOW_REGRESSION_REASON;
       
       // Check for commit trailer reason if not provided via env var

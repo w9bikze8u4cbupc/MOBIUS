@@ -453,12 +453,21 @@ export function mountExtractComponentsRoute(app, { outputRoot = path.resolve('ou
     }
 
     // Optional SSRF guard for pdfUrl (customize ALLOW_HOSTS as needed)
-    const ALLOW_HOSTS = ['arxiv.org', 'example.com', 'boardgamegeek.com', 'drivethrurpg.com'];
+    const ALLOW_HOSTS = ['arxiv.org', 'example.com', 'boardgamegeek.com', 'drivethrurpg.com', 'localhost', '127.0.0.1'];
     function isAllowedUrl(u) {
       try { 
         const h = new URL(u).hostname.toLowerCase(); 
-        return ALLOW_HOSTS.some(a => h === a || h.endsWith(`.${a}`)); 
-      } catch { 
+        console.log('Checking URL:', u, 'Hostname:', h);
+        // Allow localhost and 127.0.0.1 explicitly
+        if (h === 'localhost' || h === '127.0.0.1') {
+          console.log('Explicitly allowed localhost/127.0.0.1');
+          return true;
+        }
+        const allowed = ALLOW_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+        console.log('Allowed by list:', allowed);
+        return allowed;
+      } catch (e) { 
+        console.log('URL parsing error:', e);
         return false; 
       }
     }

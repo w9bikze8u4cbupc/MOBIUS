@@ -1,0 +1,5 @@
+{
+  "error": "Request failed with status code 500",
+  "responseStatus": 500,
+  "responseData": "{\"error\":\"Failed to generate audio\",\"details\":\"Request failed with status code 404\"}"
+}

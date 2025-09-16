@@ -1,0 +1,49 @@
+{
+  "timeline": [
+    {
+      "id": "shot:0",
+      "type": "components",
+      "start": 0,
+      "end": 7,
+      "data": {
+        "template": "generic"
+      }
+    },
+    {
+      "id": "shot:1",
+      "type": "components",
+      "start": 7,
+      "end": 17,
+      "data": {
+        "template": "generic"
+      }
+    },
+    {
+      "id": "shot:2",
+      "type": "components",
+      "start": 17,
+      "end": 27,
+      "data": {
+        "template": "generic"
+      }
+    },
+    {
+      "id": "shot:3",
+      "type": "components",
+      "start": 27,
+      "end": 35,
+      "data": {
+        "template": "generic"
+      }
+    },
+    {
+      "id": "shot:4",
+      "type": "components",
+      "start": 35,
+      "end": 40,
+      "data": {
+        "template": "generic"
+      }
+    }
+  ]
+}

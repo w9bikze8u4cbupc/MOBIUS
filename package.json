@@ -24,6 +24,14 @@
     "golden:check": "cross-env node scripts/check_golden.cjs --perOs",
     "golden:update:sushi": "node scripts/generate_golden.cjs --game \"Sushi Go\" --in \"out/sushi-go/preview.mp4\" --out \"tests/golden/sushi-go\" --frames \"5,10,20\"",
     "golden:update:loveletter": "node scripts/generate_golden.cjs --game \"Love Letter\" --in \"out/love-letter/preview.mp4\" --out \"tests/golden/loveletter\" --frames \"5,10,20\"",
+    "pipeline:summary": "node scripts/generate-pipeline-summary.js",
+    "audio:scale-timeline": "node scripts/scale-timeline-to-audio.js",
+    "audio:trim-to-timeline": "node scripts/trim-audio-to-timeline.js",
+    "cleanup:old-files": "node scripts/cleanup-old-files.js",
+    "preflight": "node scripts/preflight.js",
+    "validate:schema": "node scripts/schema-validator.js",
+    "validate:storyboard": "node scripts/schema-validator.js --storyboard",
+    "validate:timeline": "node scripts/schema-validator.js --timeline",
     "golden:check:sushi": "node scripts/check_golden.cjs --game \"Sushi Go\" --in \"out/sushi-go/preview.mp4\" --golden \"tests/golden/sushi-go\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\"",
     "golden:check:loveletter": "node scripts/check_golden.cjs --game \"Love Letter\" --in \"out/love-letter/preview.mp4\" --golden \"tests/golden/loveletter\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\"",
     "golden:approve": "npm run golden:update:sushi && npm run golden:update:loveletter",
@@ -55,7 +63,8 @@
     "frames:perf": "node scripts/validate_frame_perf.cjs",
     "junit:validate": "node scripts/validate_junit.cjs",
     "perf:baseline": "node scripts/compare_perf_to_baseline.cjs",
-    "ci:validate": "npm run frames:validate && npm run frames:perf && npm run junit:validate && node scripts/compare_perf_to_baseline.cjs"
+    "ci:validate": "npm run test && node scripts/ci-validate.mjs",
+    "happy:catan": "node happy_path_catan.js"
   },
   "keywords": [
     "game",
@@ -67,6 +76,7 @@
   "author": "Mobius Games",
   "license": "MIT",
   "dependencies": {
+    "canvas": "^3.2.0",
     "cheerio": "^1.1.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",

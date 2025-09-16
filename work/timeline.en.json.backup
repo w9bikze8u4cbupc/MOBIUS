@@ -1,0 +1,51 @@
+{
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "tracks": [
+    {
+      "type": "video",
+      "clips": [
+        {
+          "type": "image",
+          "src": "",
+          "start": 0,
+          "duration": 7,
+          "fit": "cover"
+        },
+        {
+          "type": "image",
+          "src": "",
+          "start": 7,
+          "duration": 10,
+          "fit": "cover"
+        },
+        {
+          "type": "image",
+          "src": "",
+          "start": 17,
+          "duration": 10,
+          "fit": "cover"
+        },
+        {
+          "type": "image",
+          "src": "",
+          "start": 27,
+          "duration": 8,
+          "fit": "cover"
+        },
+        {
+          "type": "image",
+          "src": "",
+          "start": 35,
+          "duration": 5,
+          "fit": "cover"
+        }
+      ]
+    },
+    {
+      "type": "audio",
+      "clips": []
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "lang": "en",
+  "policy": {
+    "minWords": 250,
+    "maxWords": 900,
+    "extend": false
+  },
+  "components": []
+}
