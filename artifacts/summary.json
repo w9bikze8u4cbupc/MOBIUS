@@ -1,0 +1,15 @@
+{
+  "pass": 5,
+  "fail": 1,
+  "skip": 0,
+  "info": 3,
+  "status": "FAIL",
+  "failures": [
+    "Prereq check error: The term 'tesseract' is not recognized as a name of a cmdlet, function, script file, or executable program."
+  ],
+  "infos": [
+    "Profile 'smoke' expanded to: readyz, health, cors, ssrf, tts, timeline",
+    "node=v20.12.2 npm=10.7.0 ffmpeg/ffprobe present",
+    "Tesseract not installed (OCR optional)"
+  ]
+}

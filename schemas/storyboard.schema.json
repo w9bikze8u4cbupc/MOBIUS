@@ -1,0 +1,137 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schemas/storyboard.schema.json",
+  "title": "Storyboard",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "storyboard"
+  ],
+  "properties": {
+    "success": {
+      "type": "boolean"
+    },
+    "storyboard": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "scenes"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "languageDefault": {
+          "type": "string",
+          "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+        },
+        "voice": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "publishers": {
+          "type": "array"
+        },
+        "designers": {
+          "type": "array"
+        },
+        "scenes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "segments"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "key": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "titleFr": {
+                "type": "string"
+              },
+              "segments": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "required": [
+                    "id",
+                    "durationSec",
+                    "textEn",
+                    "textFr",
+                    "type"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "durationSec": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "image": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "textEn": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "textFr": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "discriminator": {
+                    "propertyName": "type"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "totalDurationSec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "timingMeta": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "baseTotalSec": {
+              "type": "number"
+            },
+            "targetTotalSec": {
+              "type": "number"
+            },
+            "wordCount": {
+              "type": "number"
+            },
+            "wpm": {
+              "type": "number"
+            },
+            "visualFactor": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    }
+  }
+}

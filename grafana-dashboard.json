@@ -1,0 +1,132 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Mobius Games Tutorial Generator",
+    "tags": ["mobius", "tts", "pdf", "performance"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "type": "graph",
+        "title": "HTTP Request Latency (P95)",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, route))",
+            "legendFormat": "{{route}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Latency"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 2,
+        "type": "graph",
+        "title": "TTS Cache Hit Ratio",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(tts_cache_hits_total[5m]) / rate(tts_requests_total[5m])",
+            "legendFormat": "Cache Hit Ratio",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percentunit", "label": "Hit Ratio"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "type": "graph",
+        "title": "PDF Extraction Duration",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(extract_pdf_seconds_sum[5m]) / rate(extract_pdf_seconds_count[5m])",
+            "legendFormat": "Avg Duration",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Duration"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "type": "graph",
+        "title": "Render Duration",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(render_seconds_sum[5m]) / rate(render_seconds_count[5m])",
+            "legendFormat": "Avg Duration",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Duration"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 5,
+        "type": "graph",
+        "title": "Error Rates by Route",
+        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum by (route) (rate(http_request_duration_seconds_count{status=~\"5..\"}[5m]))",
+            "legendFormat": "{{route}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Requests/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "type": "stat",
+        "title": "Total TTS Requests",
+        "gridPos": {"x": 12, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "tts_requests_total",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": ["last"]
+          }
+        }
+      },
+      {
+        "id": 7,
+        "type": "stat",
+        "title": "TTS Cache Hits",
+        "gridPos": {"x": 18, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "tts_cache_hits_total",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": ["last"]
+          }
+        }
+      }
+    ]
+  }
+}

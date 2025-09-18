@@ -7,16 +7,24 @@ import { fileURLToPath } from 'url';
 import fs, { promises as fsPromises, existsSync } from 'fs';
 import sizeOf from 'image-size';
 
-import axios from 'axios';
-import * as cheerio from 'cheerio';
-import OpenAI from 'openai';
+// Add security and operational hardening imports
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+
+// Add pdfjs legacy mitigation polyfill
+if (process.env.USE_PDFJS_LEGACY === '1') {
+  import('./polyfills.js').catch(err => {
+    console.warn('Failed to load polyfills:', err);
+  });
+}
 import * as pdfToImg from 'pdf-to-img';
 import sharp from 'sharp';
 import { XMLParser } from 'fast-xml-parser';
 import xml2js from 'xml2js';
 import multer from 'multer';
 import { ensureDir } from 'fs-extra';
-
+import OpenAI from 'openai';
+import axios from 'axios';
 // Import alpha-safe utilities
 import { AlphaOps, generatePreviewImageAlphaSafe } from './alphaOps.js';
 
@@ -26,61 +34,20 @@ import { mountExtractComponentsRoute, mountPopplerHealthRoute } from './extractC
 // Project modules (keep as you already use them later)
 import db from './db.js';
 import { explainChunkWithAI, extractComponentsWithAI } from './aiUtils.js';
+
+
 import { extractTextFromPDF } from './pdfUtils.js';
 import { extractComponentsFromText } from './utils.js';
 
-dotenv.config();
+// Import metrics and URL validation
+import { recordTtsRequest, recordTtsCacheHit, recordExtractPdfDuration, recordRenderDuration, recordHttpRequestDuration } from './metrics.js';
+import { validateUrl } from './urlValidator.js';
 
-const app = express();
-app.use(express.json());
-
-// Ignore favicon requests on API origin (prevents Firefox ORB warning)  
-app.get('/favicon.ico', (req, res) => res.sendStatus(204));
-
-const port = process.env.PORT || 5001;
-const bggMetadataCache = new Map();
-
+// ESM __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// CORS: use FRONTEND_URL from .env (falls back to localhost:3000)
-const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:3000').trim();
-app.use(cors({ origin: FRONTEND_URL, credentials: true }));
-
-// Body parsing with limits
-app.use(express.json({ 
-  limit: '10mb',
-  // Request timeout (60 seconds)
-  timeout: 60000
-}));
-
-// Concurrency limiting middleware
-const MAX_CONCURRENT_REQUESTS = 20;
-let currentRequests = 0;
-
-function concurrencyLimiter(req, res, next) {
-  if (currentRequests >= MAX_CONCURRENT_REQUESTS) {
-    return res.status(429).json({ 
-      error: 'Too many concurrent requests', 
-      maxConcurrent: MAX_CONCURRENT_REQUESTS 
-    });
-  }
-  
-  currentRequests++;
-  
-  // Ensure we decrement when the request finishes
-  const originalEnd = res.end;
-  res.end = function() {
-    currentRequests--;
-    originalEnd.apply(this, arguments);
-  };
-  
-  next();
-}
-
-app.use(concurrencyLimiter);
-
-// Static files
+// Ensure uploads/tmp exists
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 function ensureUploadsTmp() {
   try {
@@ -94,6 +61,53 @@ function ensureUploadsTmp() {
     return null;
   }
 }
+
+// Add event loop delay monitoring
+import { monitorEventLoopDelay } from 'perf_hooks';
+const eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
+eventLoopDelay.enable();
+
+globalThis.__eventLoopDelayMs = () => eventLoopDelay.mean / 1e6;
+
+dotenv.config();
+
+const app = express();
+const port = process.env.PORT || 5001;
+
+// Add security and operational hardening middleware
+app.set("trust proxy", 1);
+app.use(helmet({ contentSecurityPolicy: false })); // disable CSP for API-only server
+
+// CORS configuration
+const CORS_ORIGIN = process.env.CORS_ORIGIN?.split(",") || [];
+app.use(cors({ 
+  origin: CORS_ORIGIN,
+  methods: ["GET","POST","OPTIONS"],
+  credentials: true
+}));
+
+// Rate limiting
+const ttsRateLimit = rateLimit({ 
+  windowMs: 60_000, // 1 minute
+  max: parseInt(process.env.TTS_RATE_LIMIT || "60"), // 60 req/min/IP by default
+  message: { error: "Too many TTS requests, please try again later" }
+});
+
+const apiRateLimit = rateLimit({ 
+  windowMs: 60_000, // 1 minute
+  max: parseInt(process.env.API_RATE_LIMIT || "600"), // 600 req/min/IP by default
+  message: { error: "Too many API requests, please try again later" }
+});
+
+app.use("/tts", ttsRateLimit);
+app.use("/api/", apiRateLimit);
+
+// Body parsing with limits
+app.use(express.json({ 
+  limit: process.env.REQUEST_BODY_LIMIT || '10mb',
+  // Request timeout
+  timeout: parseInt(process.env.REQUEST_TIMEOUT_MS || "60000")
+}));
 ensureUploadsTmp();
 app.use('/static', express.static(UPLOADS_DIR));
 app.use('/uploads', express.static(UPLOADS_DIR));
@@ -123,6 +137,9 @@ if (!fs.existsSync(OUTPUT_DIR)) {
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 }
 
+// BGG metadata cache
+const bggMetadataCache = new Map();
+
 // Configure multer for different upload needs
 const uploadPdfImages = multer({ dest: path.join(process.cwd(), 'uploads') });
 
@@ -150,6 +167,17 @@ function requestIdMiddleware(req, res, next) {
   
   // Enhanced logging with request ID
   console.log(`[${requestId}] ${req.method} ${req.path} - auth skipped in dev`);
+  
+  // Record start time for metrics
+  const startTime = Date.now();
+  
+  // Override res.end to capture request duration
+  const originalEnd = res.end;
+  res.end = function() {
+    const duration = (Date.now() - startTime) / 1000;
+    recordHttpRequestDuration(duration);
+    originalEnd.apply(this, arguments);
+  };
   
   next();
 }
@@ -538,7 +566,7 @@ function extractComponentsFromDescription(description) {
     const match = cleanText.match(pattern);
     if (match) {
       return match[1]
-        .split(/\n|•|–|-|\*/)
+        .split(/\n|•||–|-|\*/)
         .map(line => line.trim())
         .filter(line => line.length > 3 && !line.match(/^\d+$/))
         .map(line => line.replace(/^\d+\s*x?\s*/i, '').trim())
@@ -746,6 +774,7 @@ app.post('/api/extract-components', async (req, res) => {
 // POST /api/extract-images - extract embedded images from a PDF rulebook
 // Form-data: pdf (file)
 app.post('/api/extract-images', uploadPdfImages.single('pdf'), async (req, res) => {
+  const startTime = Date.now();
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'No PDF uploaded (field name "pdf")' });
@@ -789,6 +818,11 @@ app.post('/api/extract-images', uploadPdfImages.single('pdf'), async (req, res) 
       if (files.length === 0) {
         return res.status(204).json({ success: true, images: [] });
       }
+      
+      // Record PDF extraction duration metric
+      const duration = (Date.now() - startTime) / 1000;
+      recordExtractPdfDuration(duration);
+      
       return res.json({ success: true, images: files, outputDir: `/output/pdf-images/${path.basename(jobDir)}` });
     });
   } catch (err) {
@@ -800,10 +834,25 @@ app.post('/api/extract-images', uploadPdfImages.single('pdf'), async (req, res) 
 // POST /api/extract-pdf-images - extract embedded images from a PDF URL
 // JSON body: { pdfUrl }
 app.post('/api/extract-pdf-images', async (req, res) => {
+  const startTime = Date.now();
   try {
     const { pdfUrl } = req.body;
     if (!pdfUrl || typeof pdfUrl !== 'string') {
       return res.status(400).json({ success: false, error: 'No PDF URL provided (field name "pdfUrl")' });
+    }
+
+    // Validate URL
+    const urlValidation = await validateUrl(pdfUrl, {
+      allowHttpsOnly: true,
+      allowPrivateIps: false
+    });
+    
+    if (!urlValidation.valid) {
+      console.warn(`URL validation failed for ${pdfUrl}: ${urlValidation.reason}`);
+      return res.status(400).json({ 
+        success: false, 
+        error: `Invalid URL: ${urlValidation.reason}` 
+      });
     }
 
     // Download PDF to temporary location
@@ -896,6 +945,11 @@ app.post('/api/extract-pdf-images', async (req, res) => {
       }
       
       const jobId = path.basename(jobDir);
+      
+      // Record PDF extraction duration metric
+      const duration = (Date.now() - startTime) / 1000;
+      recordExtractPdfDuration(duration);
+      
       return res.json({ 
         success: true, 
         images, 
@@ -912,10 +966,24 @@ app.post('/api/extract-pdf-images', async (req, res) => {
 // GET /api/extract-actions - extract images from "Actions" pages in PDF
 // Query param: pdfUrl
 app.get('/api/extract-actions', async (req, res) => {
+  const startTime = Date.now();
   try {
     const pdfUrl = req.query.pdfUrl;
     if (!pdfUrl || typeof pdfUrl !== 'string') {
       return res.status(400).json({ error: 'pdfUrl query parameter required' });
+    }
+
+    // Validate URL
+    const urlValidation = await validateUrl(pdfUrl, {
+      allowHttpsOnly: true,
+      allowPrivateIps: false
+    });
+    
+    if (!urlValidation.valid) {
+      console.warn(`URL validation failed for ${pdfUrl}: ${urlValidation.reason}`);
+      return res.status(400).json({ 
+        error: `Invalid URL: ${urlValidation.reason}` 
+      });
     }
 
     // Download PDF to temporary location
@@ -993,6 +1061,10 @@ app.get('/api/extract-actions', async (req, res) => {
     if (Array.isArray(actionPages) && actionPages.length) {
       res.set('X-Actions-Pages', actionPages.join(','));
     }
+    
+    // Record PDF extraction duration metric
+    const duration = (Date.now() - startTime) / 1000;
+    recordExtractPdfDuration(duration);
     
     res.json(filteredImages);
   } catch (err) {
@@ -1365,14 +1437,15 @@ async function extractBGGMetadataFromAPI(gameId) {
 
 app.post('/api/extract-bgg-html', async (req, res) => {
   try {
-    const { url } = req.body;
-    if (!url || !url.match(/^https?:\/\/boardgamegeek\.com\/boardgame\/\d+(\/.*)?$/)) {
+    const { url, bggUrl } = req.body;
+    const effectiveUrl = url || bggUrl;
+    if (!effectiveUrl || !effectiveUrl.match(/^https?:\/\/boardgamegeek\.com\/boardgame\/\d+(\/.*)?$/)) {
       return res.status(400).json({ error: 'Invalid or missing BGG boardgame URL' });
     }
-    if (bggMetadataCache.has(url)) {
-      return res.json({ success: true, metadata: bggMetadataCache.get(url) });
+    if (bggMetadataCache.has(effectiveUrl)) {
+      return res.json({ success: true, metadata: bggMetadataCache.get(effectiveUrl) });
     }
-    const gameId = extractGameIdFromBGGUrl(url);
+    const gameId = extractGameIdFromBGGUrl(effectiveUrl);
     if (gameId) {
       try {
         const apiData = await extractBGGMetadataFromAPI(gameId);
@@ -1681,7 +1754,7 @@ app.post('/api/search-images', async (req, res) => {
 
 app.post('/api/extract-extra-images', async (req, res) => {
   try {
-    const raw = req.body.extraImageUrls;
+    const raw = req.body.extraImageUrls || req.body.urls;
     if (!raw || (Array.isArray(raw) && raw.length === 0)) {
       return res.status(400).json({ error: 'No extra image URLs provided' });
     }
@@ -2116,10 +2189,10 @@ const ttsCache = new Map();
 const MAX_CACHE_SIZE = 100;
 
 // Function to generate cache key
-function generateTtsCacheKey(text, voice, language) {
-  // Create a hash of the input parameters
-  const crypto = require('crypto');
-  const hash = crypto.createHash('md5');
+async function generateTtsCacheKey(text, voice, language) {
+  // Create a hash of the input parameters using dynamic import
+  const { createHash } = await import('crypto');
+  const hash = createHash('md5');
   hash.update(`${text}-${voice}-${language}`);
   return hash.digest('hex');
 }
@@ -2157,11 +2230,15 @@ function generateSilence() {
   return Buffer.from([0xFF, 0xFB, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
 }
 
+
 app.post('/tts', async (req, res) => {
   const startTime = Date.now();
   const { text, voice, language, gameName } = req.body;
   
   console.log(`TTS request for game: ${gameName}, voice: ${voice}, text length: ${text?.length || 0}`);
+  
+  // Record TTS request metric
+  recordTtsRequest();
   
   if (!text) return res.status(400).json({ error: 'No text provided for TTS' });
   if (!gameName) return res.status(400).json({ error: 'No game name provided' });
@@ -2184,9 +2261,11 @@ app.post('/tts', async (req, res) => {
   }
   
   // Check cache first
-  const cacheKey = generateTtsCacheKey(text, selectedVoice, language);
+  const cacheKey = await generateTtsCacheKey(text, selectedVoice, language);
   if (ttsCache.has(cacheKey)) {
     console.log(`TTS cache hit for key: ${cacheKey}`);
+    // Record cache hit metric
+    recordTtsCacheHit();
     const cachedAudio = ttsCache.get(cacheKey);
     const totalTime = Date.now() - startTime;
     console.log(`TTS completed (cached) in ${totalTime}ms for ${text.length} characters`);
@@ -2465,20 +2544,13 @@ app.get('/load-project/:id', (req, res) => {
       res.json({
         id: row.id,
         name: row.name,
-        metadata: JSON.parse(row.metadata),
-        components: JSON.parse(row.components),
-        images: JSON.parse(row.images),
-        script: row.script,
-        audio: row.audio,
-        created_at: row.created_at
+        metadata: JSON.parse(row.metadata)
       });
-    } catch (parseErr) {
-      console.error('Failed to parse project data:', parseErr);
-      return res.status(500).json({ error: 'Failed to parse project data' });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to load project' });
     }
   });
 });
-
 
 // Health / Hello Pipeline endpoint (INSERT this block above the server start)
 app.get('/api/health', (req, res) => {
@@ -2518,25 +2590,59 @@ app.get('/api/health', (req, res) => {
   }
 });
 
-// Enhanced health endpoint with detailed system information
-app.get('/api/health/details', (req, res) => {
+// Projects endpoint
+app.get('/api/projects', (req, res) => {
   try {
-    // Get git information
-    const { execSync } = require('child_process');
+    const rows = db.prepare('SELECT * FROM projects').all();
+    const projects = rows.map(row => {
+      try {
+        return ({
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          components: JSON.parse(row.components),
+          images: JSON.parse(row.images),
+          script: row.script,
+          audio: row.audio,
+          created_at: row.created_at
+        });
+      } catch (parseErr) {
+        console.error('Failed to parse project data:', parseErr);
+        return null;
+      }
+    }).filter(Boolean);
+    
+    res.json(projects);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Enhanced health details endpoint
+app.get('/api/health/details', async (req, res) => {
+  try {
+    // Import event loop metrics
+    const { getEventLoopDelayMs, getResourceUsage, getMemoryUsage } = await import('./eventLoopMetrics.js');
+    
+    // Get git info
     let gitSha = 'unknown';
     let gitBranch = 'unknown';
     try {
+      const { execSync } = await import('child_process');
       gitSha = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
       gitBranch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
     } catch (e) {
       // Git not available
     }
 
-    // Get Poppler version
+    // Get poppler version
     let popplerVersion = 'unknown';
     try {
-      const { spawnSync } = require('child_process');
-      const result = spawnSync('pdftoppm', ['-v'], { encoding: 'utf8' });
+      const { spawnSync } = await import('child_process');
+      const pdfimagesPath = process.platform === 'win32' 
+        ? 'C:\\Release-24.08.0-0\\poppler-24.08.0\\Library\\bin\\pdfimages.exe'
+        : 'pdfimages';
+      const result = spawnSync(pdfimagesPath, ['-v'], { encoding: 'utf8' });
       if (result.stderr) {
         const match = result.stderr.match(/poppler version (\d+\.\d+\.\d+)/i);
         if (match) {
@@ -2547,17 +2653,22 @@ app.get('/api/health/details', (req, res) => {
       // Poppler not available
     }
 
-    // Check if OUTPUT_DIR is writable
-    const fs = require('fs');
+    // Check if OUTPUT_DIR is writable using dynamic import
     let outputDirWritable = false;
     try {
+      const { writeFileSync, unlinkSync } = await import('fs');
       const testFile = `${OUTPUT_DIR}/.write_test`;
-      fs.writeFileSync(testFile, 'test');
-      fs.unlinkSync(testFile);
+      writeFileSync(testFile, 'test');
+      unlinkSync(testFile);
       outputDirWritable = true;
     } catch (e) {
       // Not writable
     }
+
+    // Get event loop and resource metrics
+    const eventLoopDelayMs = getEventLoopDelayMs();
+    const resourceUsage = getResourceUsage();
+    const memoryUsage = getMemoryUsage();
 
     res.json({
       ok: true,
@@ -2585,15 +2696,21 @@ app.get('/api/health/details', (req, res) => {
         OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
         ELEVENLABS_API_KEY: !!process.env.ELEVENLABS_API_KEY,
         IMAGE_EXTRACTOR_API_KEY: !!process.env.IMAGE_EXTRACTOR_API_KEY
-      }
+      },
+      // New metrics
+      eventLoopDelayMs: Math.round(eventLoopDelayMs * 100) / 100,
+      rssMB: memoryUsage.rssMB,
+      heapUsedMB: memoryUsage.heapUsedMB,
+      cpuUser: Math.round(resourceUsage.userCpuTime),
+      cpuSystem: Math.round(resourceUsage.systemCpuTime)
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-    // Ignore favicon requests on API origin (prevents Firefox ORB warning)  
-    app.get('/favicon.ico', (req, res) => res.sendStatus(204));
+// Ignore favicon requests on API origin (prevents Firefox ORB warning)  
+app.get('/favicon.ico', (req, res) => res.sendStatus(204));
 
 // Mount component extractor route
 mountExtractComponentsRoute(app);
@@ -2605,6 +2722,68 @@ mountPopplerHealthRoute(app);
 function isDevMode() {
   return process.env.NODE_ENV !== 'production';
 }
+
+// Add metrics endpoint
+import { getMetrics } from './metrics.js';
+
+// Add metrics endpoint security
+const METRICS_ALLOW_CIDR = (process.env.METRICS_ALLOW_CIDR || "127.0.0.1/32,::1/128").split(",");
+const METRICS_TOKEN = process.env.METRICS_TOKEN;
+
+// Metrics security middleware
+function metricsSecurity(req, res, next) {
+  // If token is set, require it
+  if (METRICS_TOKEN) {
+    if (!METRICS_TOKEN) return res.status(503).send("Metrics token not set");
+    const hdr = req.headers.authorization || "";
+    return hdr === `Bearer ${METRICS_TOKEN}` ? next() : res.status(403).send("Forbidden");
+  }
+  
+  // Otherwise, use IP allowlist
+  const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString();
+  
+  // Simple check for localhost IPs (in production, you'd want a proper CIDR check)
+  const isLocalhost = ip.includes("127.0.0.1") || ip === "::1" || ip.includes("localhost");
+  
+  // In dev mode, allow localhost
+  if (isDevMode() && isLocalhost) {
+    return next();
+  }
+  
+  // In production, check against allowlist
+  if (!isDevMode() && isLocalhost) {
+    return next();
+  }
+  
+  // For now, we'll allow localhost in both modes for simplicity
+  // In a real production environment, you'd implement proper CIDR checking
+  if (isLocalhost) {
+    return next();
+  }
+  
+  return res.status(403).json({ error: "Forbidden" });
+}
+
+app.get('/metrics', metricsSecurity, async (req, res) => {
+  try {
+    res.set('Content-Type', 'text/plain');
+    res.end(getMetrics());
+  } catch (ex) {
+    res.status(500).end(ex.message);
+  }
+});
+
+// Liveness and readiness endpoints
+app.get("/livez", (_,r)=>r.status(200).send("OK"));
+app.get("/readyz", async (req, res) => {
+  const issues = [];
+  if (!process.env.ELEVENLABS_API_KEY) issues.push("tts_key");
+  const rssMB = Math.round(process.memoryUsage().rss / 1e6);
+  const loopMs = Math.round(globalThis.__eventLoopDelayMs?.() || 0);
+  if (loopMs > 250) issues.push("event_loop_delay");
+  if (issues.length) return res.status(503).json({ status:"degraded", issues, rssMB, loopMs });
+  res.json({ status:"ready", rssMB, loopMs });
+});
 
 // Enhanced URL whitelist that separates dev and prod
 function isUrlWhitelistedSecure(url) {
@@ -2645,9 +2824,31 @@ function isUrlWhitelistedSecure(url) {
   }
 }
 
-// Start server (BOTTOM OF FILE)
-app.listen(port, () => {
+// Add graceful shutdown handling
+const connections = new Set();
+
+const server = app.listen(port, () => {
   console.log('API file loaded!');
   console.log(`Uploads dir: ${UPLOADS_DIR}`);
   console.log(`Starting server on ${BACKEND_URL}`);
 });
+
+server.on("connection", (conn) => {
+  connections.add(conn);
+  conn.on("close", () => connections.delete(conn));
+});
+
+function shutdown(signal) {
+  console.log(`[${signal}] shutting down...`);
+  server.close(() => {
+    console.log("HTTP server closed");
+    process.exit(0);
+  });
+  // Force close lingering sockets after 10s
+  setTimeout(() => {
+    for (const c of connections) c.destroy();
+    process.exit(1);
+  }, 10_000).unref();
+}
+
+["SIGINT","SIGTERM"].forEach(sig => process.on(sig, () => shutdown(sig)));

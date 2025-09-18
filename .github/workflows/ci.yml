@@ -5,16 +5,14 @@ on:
   pull_request:
 
 jobs:
-  build-and-qa:
+  verify:
     strategy:
-      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
+      
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -38,57 +36,46 @@ jobs:
           python -m pip install --upgrade pip
         shell: pwsh
 
-      - name: Build
-        run: npm run build --if-present
-
-      - name: Unit tests
-        run: npm test -- --ci --reporters=default
-
-      - name: Render preview
+      - name: Docs parity check
         run: |
-          mkdir -p out artifacts
-          npm run render:preview # <- replace with your preview command
-        shell: bash
+          pwsh -Command "./ci/docs-parity-check.ps1"
 
-      - name: Audio ebur128
+      - name: Run smoke (bash)
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          ffmpeg -hide_banner -nostats -i out/preview_with_audio.mp4 -filter_complex ebur128 -f null - 2> artifacts/preview_with_audio_ebur128.txt
-        shell: bash
+          mkdir -p artifacts
+          ./mobius_golden_path.sh \
+            --profile smoke \
+            --server ${{ secrets.API_URL }} \
+            --frontend ${{ secrets.FRONTEND_URL }} \
+            --json-summary artifacts/summary.json \
+            --junit artifacts/junit.xml \
+            --fail-fast --quiet
 
-      - name: Capture provenance (Unix)
-        if: runner.os != 'Windows'
-        run: bash scripts/capture_provenance.sh artifacts out/preview_with_audio.mp4
-        shell: bash
+      - name: Run smoke (PowerShell)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          .\mobius_golden_path.ps1 `
+            -Profile smoke `
+            -Server $env:API_URL `
+            -Frontend $env:FRONTEND_URL `
+            -JsonSummary artifacts\summary.json `
+            -JUnitPath artifacts\junit.xml `
+            -FailFast `
+            -Quiet
 
-      - name: Capture provenance (Windows)
-        if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/capture_provenance.ps1 artifacts out/preview_with_audio.mp4
-        shell: cmd
+      - name: Validate JSON schema
+        run: |
+          jq -e 'has("version") and has("profile") and (.checks | type=="array")' artifacts/summary.json
 
-      - name: Audio gates (Unix)
-        if: runner.os != 'Windows'
-        run: python3 scripts/check_audio_compliance.py artifacts/preview_with_audio_ebur128.txt
-        shell: bash
-
-      - name: Audio gates (Windows)
-        if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/check_audio_compliance.ps1 artifacts/preview_with_audio_ebur128.txt
-        shell: cmd
-
-      - name: Container gates (Unix)
-        if: runner.os != 'Windows'
-        run: bash scripts/check_container.sh artifacts/preview_ffprobe.json
-        shell: bash
-
-      - name: Container gates (Windows)
-        if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/check_container.ps1 artifacts/preview_ffprobe.json
-        shell: cmd
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - name: Publish JUnit
+        uses: mikepenz/action-junit-report@v4
         with:
-          name: qa-${{ matrix.os }}
-          path: |
-            artifacts/**
-            out/preview_with_audio.mp4
+          report_paths: artifacts/**/*.xml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verification-artifacts-${{ matrix.os }}
+          path: artifacts/

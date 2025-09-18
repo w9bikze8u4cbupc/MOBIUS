@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="MobiusGoldenPath" tests="5" failures="1" skipped="1">
+  <testcase classname="MobiusGoldenPath" name="1. [PASS] /health 200" time="0.123">
+  </testcase>
+  <testcase classname="MobiusGoldenPath" name="2. [FAIL] /metrics HTTP 401" time="0.456">
+    <failure message="/metrics HTTP 401">/metrics HTTP 401</failure>
+  </testcase>
+  <testcase classname="MobiusGoldenPath" name="3. [SKIP] Local text PDF not found" time="0.001">
+    <skipped/>
+  </testcase>
+  <testcase classname="MobiusGoldenPath" name="4. [INFO] TTS cold=850ms warm=220ms" time="1.234">
+  </testcase>
+  <testcase classname="MobiusGoldenPath" name="5. [PASS] CORS preflight OK (200)" time="0.345">
+  </testcase>
+</testsuite>

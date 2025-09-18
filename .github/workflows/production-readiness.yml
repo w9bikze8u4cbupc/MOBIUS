@@ -1,0 +1,78 @@
+name: Production Readiness
+
+on:
+  push:
+    branches: [ main, production ]
+  pull_request:
+    branches: [ main, production ]
+
+jobs:
+  validate-production-readiness:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Check for required environment variables (strict mode)
+      run: |
+        echo "Checking for required environment variables..."
+        if [ -z "$ELEVENLABS_API_KEY" ]; then
+          echo "ELEVENLABS_API_KEY is not set"
+          exit 1
+        fi
+        echo "All required environment variables are set"
+      env:
+        ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+    
+    - name: Validate required binaries
+      run: |
+        echo "Checking for required binaries..."
+        if ! command -v ffmpeg &> /dev/null; then
+          echo "ffmpeg is not installed"
+          exit 1
+        fi
+        if ! command -v ffprobe &> /dev/null; then
+          echo "ffprobe is not installed"
+          exit 1
+        fi
+        if ! command -v poppler &> /dev/null; then
+          echo "poppler is not installed"
+          exit 1
+        fi
+        echo "All required binaries are available"
+    
+    - name: Run strict preflight checks
+      run: npm run preflight -- --strict --require-tts
+      env:
+        ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        CI: true
+    
+    - name: Validate storyboard schema (strict mode)
+      run: npm run validate:storyboard:strict
+    
+    - name: Validate timeline schema (strict mode)
+      run: npm run validate:timeline:strict
+    
+    - name: Run production checks script
+      run: node scripts/production-checks.js
+    
+    - name: Verify asset provenance
+      run: |
+        node scripts/generate-provenance.js
+        # Check that metadata files exist for assets
+        find uploads -type f -name "*.jpg" -o -name "*.png" -o -name "*.mp4" -o -name "*.wav" | while read asset; do
+          if [ ! -f "${asset}.meta.json" ]; then
+            echo "Missing metadata for $asset"
+            exit 1
+          fi
+        done
+        echo "All assets have metadata"

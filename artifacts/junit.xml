@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="MobiusGoldenPath" tests="9" failures="1" skipped="0">
+  <testcase classname="MobiusGoldenPath" name="1. Profile 'smoke' expanded to: readyz, health, cors, ssrf, tts, timeline">
+  </testcase>
+  <testcase classname="MobiusGoldenPath" name="2. node=v20.12.2 npm=10.7.0 ffmpeg/ffprobe present">
+  </testcase>
+  <testcase classname="MobiusGoldenPath" name="3. Prereq check error: The term 'tesseract' is not recognized as a name of a cmdlet, function, script file, or executable program.">
+    <failure message="Prereq check error: The term 'tesseract' is not recognized as a name of a cmdlet, function, script file, or executable program.">Prereq check error: The term 'tesseract' is not recognized as a name of a cmdlet, function, script file, or executable program.</failure>
+  </testcase>
+  <testcase classname="MobiusGoldenPath" name="4. /readyz is 200">
+  </testcase>
+  <testcase classname="MobiusGoldenPath" name="5. /health 200">
+  </testcase>
+  <testcase classname="MobiusGoldenPath" name="6. /livez 200">
+  </testcase>
+  <testcase classname="MobiusGoldenPath" name="7. Helmet headers present: x-content-type-options, x-frame-options">
+  </testcase>
+  <testcase classname="MobiusGoldenPath" name="8. Frontend proxy to backend OK">
+  </testcase>
+  <testcase classname="MobiusGoldenPath" name="9. CORS preflight OK (200)">
+  </testcase>
+</testsuite>

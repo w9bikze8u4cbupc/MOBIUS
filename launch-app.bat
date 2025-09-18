@@ -5,6 +5,9 @@ title Mobius Games Tutorial Generator
 REM Change to repo root (this file should live in the repo root)
 cd /d "%~dp0"
 
+REM Set BROWSER to none to prevent auto-opening
+set BROWSER=none
+
 REM Check Node/npm
 where node >nul 2>nul
 if errorlevel 1 (
@@ -45,15 +48,7 @@ start "Mobius Tutorial Generator" /min cmd /c "npm run dev"
 
 REM Wait for frontend to be ready then open browser
 echo Waiting for http://localhost:3000 ...
-powershell -NoLogo -NoProfile -Command ^
-  "$deadline = (Get-Date).AddSeconds(120);" ^
-  "while((Get-Date) -lt $deadline){" ^
-  "try{ $c = New-Object Net.Sockets.TcpClient('127.0.0.1',3000); $c.Close(); exit 0 }catch{}" ^
-  "Start-Sleep -Seconds 1 }; exit 1"
-if errorlevel 1 (
-  echo Timed out waiting for port 3000. The app may still be starting.
-  goto :eof
-)
+timeout /t 30 /nobreak >nul
 start "" "http://localhost:3000"
 goto :eof
 

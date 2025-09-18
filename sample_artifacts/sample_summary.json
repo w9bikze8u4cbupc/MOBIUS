@@ -1,0 +1,49 @@
+{
+  "version": "1.0.0",
+  "commit": "4108664d1a90345a99be3065552b1f20e394222a",
+  "profile": "smoke",
+  "started_at": "2025-09-17T10:30:00Z",
+  "finished_at": "2025-09-17T10:30:15Z",
+  "duration_ms": 15000,
+  "env": {
+    "server": "http://localhost:5001",
+    "frontend": "http://localhost:3000"
+  },
+  "thresholds": {
+    "preview_max_ms": 15000,
+    "tts_ratio": 0.8,
+    "tts_delta_ms": 200
+  },
+  "flags": {
+    "Server": "http://localhost:5001",
+    "Frontend": "http://localhost:3000",
+    "MetricsTok": "[REDACTED]",
+    "StartStack": false,
+    "TimeoutDefault": 15,
+    "TimeoutPreview": 60,
+    "Quiet": true,
+    "Only": null,
+    "Profile": "smoke",
+    "FailFast": true,
+    "RetryCount": 2,
+    "RetryDelayMs": 300,
+    "PreviewMaxMs": 15000,
+    "TtsCacheRatio": 0.8,
+    "TtsCacheDeltaMs": 200,
+    "JUnitPath": "artifacts/junit.xml"
+  },
+  "checks": [],
+  "totals": {
+    "pass": 3,
+    "fail": 1,
+    "skip": 1,
+    "info": 2
+  },
+  "failures": [
+    "/metrics HTTP 401"
+  ],
+  "infos": [
+    "TTS cold=850ms warm=220ms",
+    "CORS A-C-A-Origin: http://localhost:3000"
+  ]
+}

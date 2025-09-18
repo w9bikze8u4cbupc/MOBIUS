@@ -1,43 +1,27 @@
 # Changelog
 
-## [Unreleased]
+All notable changes to the Mobius Games Verification Scripts will be documented in this file.
+
+## [1.0.0] - 2025-09-17
 
 ### Added
-- PERF_BASELINE_PATH environment variable support in compare_perf_to_baseline.cjs for flexible baseline file location
-- Branch-aware warn-only default behavior (warn-only on non-main branches, strict on main)
-- Promotion guardrails in promote_baselines.cjs:
-  - Only main branch can promote baselines
-  - Commit must include [baseline] or [perf-baseline] trailer
-  - Baseline lowering requires ALLOW_REGRESSION_REASON
-  - DRY_RUN=1 prints intent without changing files
-- Translation toggles in src/utils/translation.js:
-  - TRANSLATE_MODE environment variable with three modes: disabled|optional|required
-  - LT_URL environment variable for custom LibreTranslate endpoint
-  - Health check before translation calls in required mode with 3-second timeout
-- Unit tests for detectLowering function in promotion guardrails
+- Initial release of verification scripts for Mobius Games Tutorial Generator
+- Cross-platform support (bash and PowerShell)
+- Comprehensive security, performance, and reliability checks
+- CI-ready features including JSON summaries and JUnit XML reports
+- Support for smoke and full verification profiles
+- Backward compatibility aliases with deprecation warnings
 
-### Changed
-- Updated compare_perf_to_baseline.cjs to use candidate paths for baseline file with fallback logic
-- Enhanced JUnit reporting in perf baseline comparator with detailed test cases and system output payloads
-- Improved translation error handling with graceful fallback in optional mode
+### Deprecated
+- `--json-out` flag (use `--json-summary` instead) - Will be removed in v2.0.0
+- `--junit-out` flag (use `--junit` instead) - Will be removed in v2.0.0
+- `--timeout` flag (use `--timeout-default` instead) - Will be removed in v2.0.0
+- `--retries` flag (use `--retry` instead) - Will be removed in v2.0.0
+- `--metrics-token` flag (use `--metrics-tok` instead) - Will be removed in v2.0.0
 
-### CI/CD Improvements
-- Added TRANSLATE_MODE: disabled to CI job environment for network-safe validation
-- Configured PERF_BASELINE_PATH: baselines/perf.json in CI job environment
-- Ensured JUnit artifact upload with if-no-files-found: error
-- Disabled matrix fail-fast and pinned caches for more stable builds
-- Enhanced step summary to show perf metrics and artifact pointers
-
-### Security
-- Verified 0 vulnerabilities in production dependencies with npm audit --omit=dev
-
-## [1.0.0] - 2025-09-15
-### Added
-- Initial release of Mobius Games Tutorial Generator
-- Pipeline for generating game tutorial videos from structured game rules
-- Cross-platform support (Windows, macOS, Linux)
-- Visual/audio regression testing
-- Audio compliance with EBU R128 standards
-- Video container specification validation
-- Per-OS baseline comparisons
-- System/toolchain information capture for reproducibility
+### Fixed
+- Bash script variable expansion issues with `set -u`
+- Terminology consistency (standardized on "preview" instead of "timeline")
+- Proper XML entity escaping in JUnit output
+- Timing attributes in JUnit XML for richer CI reports
+- Enhanced docs parity checking for PowerShell flags
