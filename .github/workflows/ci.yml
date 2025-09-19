@@ -2,13 +2,16 @@ name: CI
 
 on:
   push:
+    branches: [ main ]
   pull_request:
+    branches: [ main ]
 
 jobs:
   verify:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
+      fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -79,3 +82,68 @@ jobs:
         with:
           name: verification-artifacts-${{ matrix.os }}
           path: artifacts/
+
+  tests-bash:
+    name: Bash tests (bats)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bats
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats
+      - name: Run bats tests
+        run: |
+          bats --version
+          bats test/*.bats
+
+  tests-powershell:
+    name: PowerShell tests (Pester)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -Scope CurrentUser -Force
+      - name: Run Pester tests
+        shell: pwsh
+        run: |
+          Invoke-Pester -Path test -CI -Output Detailed
+
+  json-schema-check:
+    name: JSON schema sanity (jq)
+    runs-on: ubuntu-latest
+    needs: [verify]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: verification-artifacts-ubuntu-latest
+          path: artifacts
+      - name: Verify summary.json shape
+        run: |
+          jq -e '
+            has("version") and has("commit") and has("profile") and
+            has("started_at") and has("finished_at") and has("duration_ms") and
+            (.env|has("server") and has("frontend")) and
+            (.thresholds|has("preview_max_ms") and has("tts_ratio") and has("tts_delta_ms")) and
+            (.flags|type=="object") and
+            (.checks|type=="array") and
+            (.totals|has("pass") and has("fail") and has("skip"))
+          ' artifacts/summary.json
+          jq -e '
+            # if checks exist, ensure timing is present
+            ( .checks|length == 0 ) or
+            ( .checks|all(has("id") and has("type") and has("duration_ms")) )
+          ' artifacts/summary.json
+
+  # Required checks on main branch
+  required-checks:
+    needs: [verify, tests-bash, tests-powershell, json-schema-check]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: All CI checks passed
+        run: echo "All required CI checks have passed"

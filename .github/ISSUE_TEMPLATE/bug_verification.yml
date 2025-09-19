@@ -1,0 +1,87 @@
+name: Verification Bug Report
+about: Report an issue with the verification scripts
+title: '[Bug] '
+labels: ['bug', 'verification']
+assignees: ''
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Profile
+      description: Which profile were you running?
+      options:
+        - smoke
+        - full
+      default: 0
+    validations:
+      required: true
+  - type: input
+    id: server
+    attributes:
+      label: Server URL
+      description: The backend server URL you were testing against
+      placeholder: http://localhost:5001
+    validations:
+      required: true
+  - type: input
+    id: frontend
+    attributes:
+      label: Frontend URL
+      description: The frontend URL you were testing against
+      placeholder: http://localhost:3000
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit/Tag
+      description: The commit hash or tag version you were using
+      placeholder: v1.0.0
+    validations:
+      required: true
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Artifacts
+      description: Please attach or link to your summary.json and junit.xml files
+      placeholder: Drag and drop files here or paste links
+    validations:
+      required: false
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction Steps
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Run '...'
+        2. See error '...'
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Additional environment details
+      placeholder: |
+        OS: [e.g. Ubuntu 20.04, Windows 10]
+        Shell: [e.g. bash 5.0, PowerShell 7.2]
+        Node.js version: [e.g. 20.11.0]

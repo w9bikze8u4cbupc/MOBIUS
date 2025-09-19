@@ -32,7 +32,43 @@
     "TtsCacheDeltaMs": 200,
     "JUnitPath": "artifacts/junit.xml"
   },
-  "checks": [],
+  "checks": [
+    {
+      "id": 1,
+      "type": "PASS",
+      "message": "/health 200",
+      "timestamp": "2025-09-17T10:30:01Z",
+      "duration_ms": 123
+    },
+    {
+      "id": 2,
+      "type": "FAIL",
+      "message": "/metrics HTTP 401",
+      "timestamp": "2025-09-17T10:30:02Z",
+      "duration_ms": 456
+    },
+    {
+      "id": 3,
+      "type": "SKIP",
+      "message": "Local text PDF not found",
+      "timestamp": "2025-09-17T10:30:03Z",
+      "duration_ms": 1
+    },
+    {
+      "id": 4,
+      "type": "INFO",
+      "message": "TTS cold=850ms warm=220ms",
+      "timestamp": "2025-09-17T10:30:05Z",
+      "duration_ms": 1234
+    },
+    {
+      "id": 5,
+      "type": "PASS",
+      "message": "CORS preflight OK (200)",
+      "timestamp": "2025-09-17T10:30:06Z",
+      "duration_ms": 345
+    }
+  ],
   "totals": {
     "pass": 3,
     "fail": 1,

@@ -1,0 +1,74 @@
+name: New Verification Check
+about: Propose a new verification check
+title: '[Feature] '
+labels: ['enhancement', 'verification']
+assignees: ''
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new verification check!
+  - type: input
+    id: check_id
+    attributes:
+      label: Check ID
+      description: A short, unique identifier for this check
+      placeholder: e.g., memory-pressure, db-connection, cache-warmup
+    validations:
+      required: true
+  - type: input
+    id: endpoints
+    attributes:
+      label: Endpoints
+      description: Which API endpoints or services does this check target?
+      placeholder: e.g., /api/health, /metrics, database connection
+    validations:
+      required: true
+  - type: input
+    id: thresholds
+    attributes:
+      label: Thresholds
+      description: What are the performance or correctness thresholds?
+      placeholder: e.g., response time < 200ms, error rate < 1%
+    validations:
+      required: false
+  - type: dropdown
+    id: failure_semantics
+    attributes:
+      label: Failure Semantics
+      description: What should happen when this check fails?
+      options:
+        - FAIL (critical issue)
+        - WARN (non-critical issue)
+        - SKIP (conditional check)
+      default: 0
+    validations:
+      required: true
+  - type: textarea
+    id: flake_considerations
+    attributes:
+      label: Flake Considerations
+      description: What external factors might cause this check to flake? How can we make it robust?
+      placeholder: |
+        - Network latency
+        - External service dependencies
+        - Timing-sensitive operations
+    validations:
+      required: false
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Detailed description of what this check should verify
+    validations:
+      required: true
+  - type: textarea
+    id: implementation_notes
+    attributes:
+      label: Implementation Notes
+      description: Any technical details about how to implement this check
+      placeholder: |
+        - Use curl with specific flags
+        - Requires specific headers
+        - Needs retry logic

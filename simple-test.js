@@ -1,20 +1,18 @@
-#!/usr/bin/env node
-
-import { harvestAllImages } from './scripts/harvest-images.js';
+import axios from 'axios';
 
 async function test() {
-  console.log('Testing harvestAllImages...');
   try {
-    const result = await harvestAllImages({ 
-      title: "Abyss", 
-      verbose: true 
+    const response = await axios.post('http://localhost:5001/start-extraction', {
+      bggUrl: 'https://boardgamegeek.com/boardgame/155987/abyss'
+    }, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
-    console.log('Success! Got results:');
-    console.log(`Images count: ${result.images.length}`);
-    console.log(`Provider counts:`, result.providerCounts);
+    console.log('Success:', response.data);
   } catch (error) {
-    console.error('Error:', error.message);
+    console.error('Error:', error.response ? error.response.data : error.message);
   }
 }
 
-test().catch(console.error);
+test();

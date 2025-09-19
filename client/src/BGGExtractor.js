@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { extractMetadata } from './api/client';
 
 const BGGExtractor = () => {
   const [bggUrl, setBggUrl] = useState('');
@@ -29,31 +30,26 @@ const BGGExtractor = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/start-extraction', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bggUrl }),
-      });
-      const data = await response.json();
+      const data = await extractMetadata(bggUrl);
       if (data.success) {
         setFields({
-          gameName: data.gameName || '',
-          imageUrl: data.imageUrl || '',
+          gameName: data.title || '',
+          imageUrl: data.cover_image || '',
           description: data.description || '',
-          yearPublished: data.yearPublished || '',
-          minPlayers: data.minPlayers || '',
-          maxPlayers: data.maxPlayers || '',
-          minPlayTime: data.minPlayTime || '',
-          maxPlayTime: data.maxPlayTime || '',
-          minAge: data.minAge || '',
-          publishers: data.publishers || [],
+          yearPublished: data.year || '',
+          minPlayers: data.player_count.split('-')[0] || '',
+          maxPlayers: data.player_count.split('-')[1] || '',
+          minPlayTime: data.play_time.split('-')[0]?.replace('min', '').trim() || '',
+          maxPlayTime: data.play_time.split('-')[1]?.replace('min', '').trim() || '',
+          minAge: data.min_age?.replace('+', '').trim() || '',
+          publishers: data.publisher || [],
           designers: data.designers || [],
           artists: data.artists || [],
-          categories: data.categories || [],
+          categories: data.theme || [],
           mechanics: data.mechanics || [],
-          rating: data.rating || '',
-          rank: data.rank || '',
-          bggId: data.bggId || '',
+          rating: data.average_rating || '',
+          rank: data.bgg_rank || '',
+          bggId: data.bgg_id || '',
           bggUrl: data.bggUrl || bggUrl,
         });
       } else {

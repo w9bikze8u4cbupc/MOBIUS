@@ -1,175 +1,176 @@
 # Production-Ready Enhancements Summary
 
 ## Overview
-This document summarizes all the enhancements made to make the component extraction system production-ready across more games.
+This document summarizes all the enhancements made to transform the Mobius Games Tutorial Generator from a basic prototype into a production-ready application with robust security, reliability, and operational features.
 
-## 1. Consistency Checks
+## Development Workflow Enhancements
 
-### Implementation
-Added validation logic to check that breakdown sums match the top-level quantity when applicable:
-- Allies/Monsters sum must equal Exploration cards count
-- Multiplier breakdowns (count × value) must sum counts to top-level tokens
+### Process Management
+- **PID Files**: Added process ID tracking for clean shutdowns
+- **Force-Kill**: Implemented SIGKILL/-Force termination for stuck processes
+- **Port Verification**: Added checks to ensure ports are actually free before startup
+- **Log Rotation**: Automatic log file rotation with timestamped backups
 
-### Features
-- Warnings logged in verbose mode when mismatches are detected
-- Components marked with low confidence when inconsistencies found
-- Clear error messages showing expected vs. actual values
+### Location Awareness
+- **Scripts**: Updated all development scripts to work from any directory
+- **Path Resolution**: Used `$PSScriptRoot` and `__dirname` for reliable path resolution
 
-### Example Output
-```
-⚠️  BREAKDOWN MISMATCH: Exploration cards total 70 != sum of subtypes 71 (Allies: 65, Monsters: 6)
-⚠️  BREAKDOWN MISMATCH: Monster tokens total 19 != sum of multipliers 20
-```
+### Smoke Testing
+- **Startup Verification**: Added smoke tests during dev startup
+- **Health Checks**: Integrated `/healthz` and `/readyz` endpoints for validation
+- **Quick Validation**: Scripts now verify critical paths work correctly
 
-## 2. Synonym Coverage
+### Status Commands
+- **Process Monitoring**: Added `dev-status` commands to check running processes
+- **Log Inspection**: Easy access to current and rotated log files
+- **Health Reporting**: Real-time status of backend and frontend services
 
-### Implementation
-Extended synonym support while maintaining strict canonical labels:
-- Ordered synonym list for easy maintenance
-- "Pearl token(s)" → "Pearls"
-- "Main board" / "Gameboard" → "Game board"
-- "Location(s)" → "Location tiles"
-- "Threat token" remains excluded unless explicitly added to a game's allowlist
+## API Hygiene
 
-### Benefits
-- Better matching without loosening the allowlist
-- Easy to extend with new synonyms
-- Maintains backward compatibility
+### Rate Limiting
+- **Token Bucket Implementation**: Created configurable rate limiter for BGG API calls
+- **User-Agent Headers**: Added proper identification for BGG requests
+- **Exponential Backoff**: Built-in retry logic with increasing delays
+- **Friendly Headers**: Standard HTTP headers for client-side rate limit handling
 
-## 3. OCR Resilience
+### Caching
+- **BGG Response Cache**: Memoization of BGG API responses to avoid repeat fetches
+- **TTL Configuration**: Configurable cache expiration (default 6-12 hours)
+- **URL Normalization**: Cache keys that handle bggUrl variations consistently
 
-### Implementation
-Extended OCR normalization with additional common glitches:
-- "expi0ration" → "exploration"
-- "t0kens" → "tokens"
-- De-duplication of repeated words: "Plastic Plastic Cups" → "Plastic Cups"
-- Normalization of stray colons/dashes around counts
+## PDF Pipeline Resilience
 
-### Features
-- Comprehensive OCR correction before pattern matching
-- Handles common scanning artifacts
-- Improves extraction accuracy with poor quality scans
+### Worker Threads
+- **Off-Main-Thread Processing**: Heavy PDF/image work moved to worker threads
+- **Concurrency Limits**: Bounded worker pool to prevent resource exhaustion
+- **Job Recycling**: Workers automatically recycled after N jobs to avoid leaks
+- **Memory Monitoring**: Heap usage tracking with automatic cleanup
 
-## 4. Section Scoping Fallback Rules
+### Error Handling
+- **Clear Error Envelopes**: Structured error responses with actionable hints
+- **Size Recommendations**: Guidance for PDF size issues
+- **Rebuild Suggestions**: Help text for sharp/pdf-to-image rebuild scenarios
 
-### Implementation
-Enhanced fallback logic with confidence requirements:
-- At least 2 distinct allowed labels present, OR
-- Lines formatted as "Label — Quantity" for ≥2 lines
-- Otherwise, returns empty with verbose note "low-confidence fallback suppressed"
+## Health Endpoints
 
-### Benefits
-- Prevents false positives when section headers are missing
-- Maintains accuracy even with fallback to full text
-- Clear logging when fallback is suppressed
+### Liveness (`/livez`)
+- **Basic Check**: Simple "OK" response to confirm service is running
+- **Fast Response**: Minimal overhead health check for load balancers
 
-## 5. Reason Codes for Logging
+### Readiness (`/readyz`)
+- **Comprehensive Validation**: Multi-point health check including:
+  - Outbound HTTP connectivity (BGG fetch to known small ID)
+  - Temp directory writeability for thumbnails
+  - Cache directory read/write access
+  - Required API key presence
+  - Event loop responsiveness
+  - Memory usage within limits
 
-### Implementation
-Standardized machine-parsable reason codes:
-- Kept: `matched_quantity`, `bare_item_colon`, `number_word`, `item_with_parentheses`, `simple_item`
-- Dropped: `caption_reward`, `image_reference`, `example`, `reward_text`, `instruction`, `setup_instruction`, `not_in_allowlist`, `no_pattern_match`, `breakdown_only`
+## Observability
 
-### Benefits
-- Faster triage of future regressions
-- Machine-readable logs for automated analysis
-- Consistent categorization of extraction decisions
+### Structured Logging
+- **JSON Format**: Consistent structured logging with levels (info/warn/error)
+- **Correlation IDs**: Per-request tracing with `X-Request-ID` support
+- **Timing Metrics**: Request duration tracking in logs
+- **Context Enrichment**: Automatic inclusion of method, path, timestamp
 
-## 6. Golden Pack + CI Gating
+### Debug Instrumentation
+- **Upstream Response Times**: BGG fetch timing metrics
+- **PDF Conversion Timings**: Processing duration tracking
+- **Memory Monitoring**: RSS and heap usage reporting
 
-### Implementation
-- Promoted Abyss to a "golden pack" with comprehensive test coverage
-- Created YAML configuration for multi-game golden tests
-- Added scripts for running all tests together
+## CI/CD Improvements
 
-### Features
-- YAML-based test configuration for easy extension
-- Template for future games
-- CI-required checks to prevent regressions
+### GitHub Actions Hardening
+- **Node Matrix**: Testing across Node.js 18.x and 20.x versions
+- **Dependency Caching**: npm cache for faster builds
+- **Concurrency Safety**: Workflow concurrency groups with cancel-in-progress
+- **Log Upload**: Automatic artifact upload on failure for debugging
+- **Build Verification**: Frontend build checks in CI environment
 
-### Example YAML Structure
-```yaml
-abyss:
-  expected:
-    - { label: "Game board", quantity: 1 }
-    - { label: "Exploration cards", quantity: 71, breakdown:
-        [ {label: "Allies", quantity: 65}, {label: "Monsters", quantity: 6} ] }
-    # ... more components
-```
+### Integration Testing
+- **Headless Health Checks**: Automated startup → health check → shutdown flow
+- **JSON Shape Validation**: Assertion of expected response structures
+- **Smoke Testing**: Quick validation of critical user paths
 
-## 7. Enhanced Negative Tests
+## Security Hardening
 
-### Implementation
-Added comprehensive negative test coverage:
-- "Player board(s)" lines correctly ignored for Abyss
-- Setup instruction lines with valid nouns but imperative verbs dropped
-- Extended test suite with more edge cases
+### SSRF Prevention
+- **URL Allowlist**: Strict hostname validation for outbound requests
+- **BGG-Only Access**: Prevented access to internal services or unauthorized endpoints
+- **Private IP Blocking**: Rejection of requests to private network ranges
 
-### Benefits
-- Prevents false positives
-- Ensures robust exclusion patterns
-- Validates edge case handling
+### PDF Safety
+- **Size Limits**: Maximum file size enforcement (50MB default)
+- **MIME Validation**: Content type checking for PDF files
+- **Signature Verification**: Magic header validation for PDF format
+- **Content Parsing**: Actual PDF parsing to ensure document validity
 
-## 8. E2E Quick Check Integration
+### Temp File Management
+- **Auto-Reap**: Automatic cleanup of temporary files after TTL expiration
+- **Secure Storage**: Proper temporary directory usage with permissions
+- **Resource Cleanup**: Prevention of disk space exhaustion
 
-### Implementation
-- JSON output validation for downstream consumers
-- Verification of required fields: supply quantities, exact labels, breakdown structure
-- Ready for integration into full pipeline testing
+## Configuration Management
 
-### Features
-- Validates extractor output format
-- Ensures compatibility with downstream systems
-- Provides clear error messages for integration issues
+### Environment Examples
+- **Backend**: [.env.example](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/.env.example) with all required variables
+- **Frontend**: [client/.env.example](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/client/.env.example) with API configuration
 
-## New Test Scripts
+### Timeout Configuration
+- **Request Timeouts**: Configurable via `REQUEST_TIMEOUT_MS`
+- **Health Check Timeouts**: Separate timeout for health endpoints
+- **BGG Fetch Timeouts**: Customizable BGG API call timeouts
 
-All new test scripts have been added to package.json:
+## Documentation
 
-```bash
-npm run test:consistency     # Test breakdown sum assertions
-npm run test:synonyms        # Test synonym coverage
-npm run test:ocr             # Test OCR enhancements
-npm run test:fallback        # Test section scoping fallback rules
-npm run test:reason-codes    # Test reason code standardization
-npm run test:enhanced-negative  # Test additional negative cases
-npm run test:all             # Run all tests together
-```
+### Operations & Security Guide
+- **Security Model**: Comprehensive documentation of implemented protections
+- **Health Endpoints**: Semantics and usage of /healthz and /readyz
+- **Observability**: Logging format and correlation ID usage
+- **Worker Pool**: Concurrency, recycling, and memory safety notes
 
-## Files Created/Modified
+### README Updates
+- **API Hygiene**: Rate limiting and caching documentation
+- **Health Checks**: Endpoint usage and semantics
+- **Observability**: Logging and debugging guidance
+- **Troubleshooting**: Quick reference for common issues
 
-1. `src/api/utils.js` - Main extraction logic with all enhancements
-2. `golden-tests.yaml` - Golden pack configuration
-3. Test files:
-   - `test-consistency.js` - Breakdown sum assertions
-   - `test-synonyms.js` - Synonym coverage tests
-   - `test-ocr.js` - OCR enhancement tests
-   - `test-fallback.js` - Section scoping fallback tests
-   - `test-reason-codes.js` - Reason code standardization tests
-   - `test-enhanced-negative.js` - Additional negative tests
-4. `package.json` - Added new test scripts
-5. `PRODUCTION_READY_ENHANCEMENTS.md` - This documentation
+## Testing Infrastructure
 
-## Benefits
+### Unit Tests
+- **URL Validator**: Tests for BGG allowlist and validation logic
+- **Rate Limiter**: Token bucket behavior and refill logic
+- **Component Tests**: Existing test suite expansion
 
-1. **Production-Ready**: System is now robust enough for production use across multiple games
-2. **Maintainable**: Ordered synonym lists and reason codes make maintenance easier
-3. **Debuggable**: Comprehensive logging and reason codes enable fast issue resolution
-4. **Extensible**: YAML configuration and modular design support future games
-5. **Reliable**: Consistency checks and enhanced negative tests prevent regressions
-6. **Compatible**: E2E validation ensures downstream system compatibility
+### Integration Tests
+- **Hardening Verification**: Script to validate all security features
+- **Smoke Tests**: Quick validation of critical user flows
+- **E2E Testing**: Playwright tests for UI interactions
 
-## Usage Examples
+## Verification Results
 
-### Run All Tests
-```bash
-npm run test:all
-```
+All implemented features have been verified to work correctly:
 
-### Verbose Extraction with All Features
-```bash
-npm run extract:text -- fixtures/abyss.contents.txt --verbose
-```
+✅ **Development Workflow**: PID files, force-kill, log rotation, smoke tests  
+✅ **API Hygiene**: Rate limiting, caching, User-Agent headers  
+✅ **PDF Resilience**: Worker threads, error handling, safety checks  
+✅ **Health Endpoints**: /healthz and /readyz with comprehensive validation  
+✅ **Observability**: Structured logs, correlation IDs, timing metrics  
+✅ **CI/CD**: GitHub Actions improvements, integration testing  
+✅ **Security**: SSRF prevention, PDF safety, temp file management  
+✅ **Configuration**: Environment examples, timeout settings  
+✅ **Documentation**: Operations guide, README updates  
+✅ **Testing**: Unit tests, integration tests, E2E validation  
 
-### CI Integration
-The system is ready for CI gating with the golden pack tests preventing merges when critical functionality breaks.
+## Impact
+
+These enhancements have transformed the Mobius Games Tutorial Generator into a production-ready application with:
+
+- **Enhanced Security**: Protection against SSRF, file upload attacks, and unauthorized access
+- **Improved Reliability**: Robust error handling, worker thread isolation, and resource management
+- **Better Observability**: Structured logging, metrics, and debugging capabilities
+- **Operational Excellence**: Production-grade deployment scripts, health checks, and monitoring
+- **Developer Experience**: Streamlined development workflow with quick validation and testing
+
+The application is now ready for production deployment with confidence in its security, reliability, and maintainability.

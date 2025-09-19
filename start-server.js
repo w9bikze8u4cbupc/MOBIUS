@@ -1,5 +1,5 @@
 // Simple script to start the server with pdfjs legacy mitigation
-process.env.USE_PDFJS_LEGACY = '1';
+// process.env.USE_PDFJS_LEGACY = '1'; // Removed to prevent conflicts with body-parser
 process.env.BASE = process.env.BASE || 'http://localhost:3000';
 
 // Import polyfills before importing the main server

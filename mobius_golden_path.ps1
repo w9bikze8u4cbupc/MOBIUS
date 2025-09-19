@@ -203,25 +203,37 @@ function ShouldRun([string]$key) {
 
 # --- Logging functions (robust pattern) ---
 function Info($msg) {
+  $startTime = Get-Date
   if (-not $Quiet) { Write-Host "[INFO] $msg" -ForegroundColor Cyan }
-  $Results.Add(@{type="INFO"; msg=$msg; timestamp=(Get-Date)})
+  $endTime = Get-Date
+  $duration = ($endTime - $startTime).TotalMilliseconds
+  $Results.Add(@{type="INFO"; msg=$msg; timestamp=$startTime; duration=$duration})
 }
 
 function Pass($msg) { 
+  $startTime = Get-Date
   Write-Host "[PASS] $msg" -ForegroundColor Green
-  $Results.Add(@{type="PASS"; msg=$msg; timestamp=(Get-Date)})
+  $endTime = Get-Date
+  $duration = ($endTime - $startTime).TotalMilliseconds
+  $Results.Add(@{type="PASS"; msg=$msg; timestamp=$startTime; duration=$duration})
 }
 
 function Fail($msg) {
+  $startTime = Get-Date
   Write-Host "[FAIL] $msg" -ForegroundColor Red
   $Global:AnyFail = $true
-  $Results.Add(@{type="FAIL"; msg=$msg; timestamp=(Get-Date)})
+  $endTime = Get-Date
+  $duration = ($endTime - $startTime).TotalMilliseconds
+  $Results.Add(@{type="FAIL"; msg=$msg; timestamp=$startTime; duration=$duration})
   if ($FailFast) { throw "Fail-fast: $msg" }
 }
 
 function Skipped($msg) { 
+  $startTime = Get-Date
   Write-Host "[SKIP] $msg" -ForegroundColor Yellow
-  $Results.Add(@{type="SKIP"; msg=$msg; timestamp=(Get-Date)})
+  $endTime = Get-Date
+  $duration = ($endTime - $startTime).TotalMilliseconds
+  $Results.Add(@{type="SKIP"; msg=$msg; timestamp=$startTime; duration=$duration})
 }
 
 # Null-safe, PS7-compatible HTTP helper
@@ -517,6 +529,19 @@ if ($JsonSummary) {
     JUnitPath = $JUnitPath
   }
   
+  # Create checks array with timing information
+  $checks = @()
+  for ($i = 0; $i -lt $Results.Count; $i++) {
+    $r = $Results[$i]
+    $checks += @{
+      id = $i + 1
+      type = $r.type
+      message = $r.msg
+      timestamp = $r.timestamp.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+      duration_ms = $r.duration
+    }
+  }
+  
   $summary = [ordered]@{
     version = $ScriptVersion
     commit = $Commit
@@ -534,7 +559,7 @@ if ($JsonSummary) {
       tts_delta_ms = $TtsCacheDeltaMs
     }
     flags = $Flags
-    checks = @()  # Would be populated with individual check results in a full implementation
+    checks = $checks
     totals = @{
       pass = ($Results | ? { $_.type -eq "PASS" }).Count
       fail = ($Results | ? { $_.type -eq "FAIL" }).Count

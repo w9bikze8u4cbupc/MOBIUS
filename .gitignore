@@ -82,3 +82,18 @@ node_modules/
 *.dll
 *.pack
 *.pyd
+
+# Development logs and PID files
+logs/
+*.pid
+
+# Cache directories
+cache/
+*.cache
+
+# OCR output files
+*.ocr.txt
+
+# Test files
+test.pdf
+test-output.txt

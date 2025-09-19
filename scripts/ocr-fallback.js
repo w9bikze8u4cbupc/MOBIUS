@@ -1,94 +1,118 @@
-#!/usr/bin/env node
-
-import { spawnSync } from 'child_process';
-import { readFileSync, writeFileSync } from 'fs';
+import fs from 'fs';
 import path from 'path';
+import { spawn } from 'child_process';
+import LoggingService from '../src/utils/logging/LoggingService.js';
 
-// Use full path to tesseract OCR tool
-const TESSERACT_PATH = 'tesseract'; // Assumes tesseract is in PATH
-
-function hasTesseract() {
+async function extractTextWithOCR(pdfPath, outputPath) {
   try {
-    const r = spawnSync(TESSERACT_PATH, ["--version"], { stdio: "ignore" });
-    return r.status === 0;
-  } catch (error) {
-    return false;
-  }
-}
-
-function extractTextWithOCR(pdfPath, outputPath) {
-  if (!hasTesseract()) {
-    console.error("Tesseract OCR is not available.");
-    process.exit(1);
-  }
-
-  try {
-    // Convert PDF to images first (using pdftoppm)
-    const pdftoppmPath = 'pdftoppm';
-    const ppmPrefix = path.join(path.dirname(outputPath), 'temp_ocr');
+    // Convert PDF to images using pdftoppm
+    const imageDir = path.dirname(pdfPath);
+    const imageBase = path.basename(pdfPath, '.pdf');
     
-    const pdftoppmArgs = [
-      '-png',
-      pdfPath,
-      ppmPrefix
-    ];
+    // Use full path to pdftoppm on Windows for compatibility
+    const pdftoppmPath = process.platform === 'win32' 
+      ? 'C:\\Release-24.08.0-0\\poppler-24.08.0\\Library\\bin\\pdftoppm.exe'
+      : 'pdftoppm';
     
-    const pdftoppmResult = spawnSync(pdftoppmPath, pdftoppmArgs, { stdio: 'inherit' });
-    if (pdftoppmResult.status !== 0) {
-      console.error('Error converting PDF to images for OCR');
-      process.exit(1);
-    }
+    const ppmPrefix = path.join(imageDir, imageBase);
     
-    // Perform OCR on each image
-    const fs = require('fs');
-    const files = fs.readdirSync(path.dirname(outputPath))
-      .filter(f => f.startsWith('temp_ocr') && f.endsWith('.png'))
-      .map(f => path.join(path.dirname(outputPath), f));
+    // Convert PDF to PPM images
+    const convertProcess = spawn(pdftoppmPath, ['-png', '-r', '300', pdfPath, ppmPrefix]);
     
-    let fullText = '';
-    for (const file of files) {
-      const textOutput = file.replace('.png', '');
-      const ocrArgs = [
-        file,
-        textOutput,
-        'txt'
-      ];
-      
-      const ocrResult = spawnSync(TESSERACT_PATH, ocrArgs, { stdio: 'inherit' });
-      if (ocrResult.status === 0) {
-        const textFile = textOutput + '.txt';
-        if (fs.existsSync(textFile)) {
-          fullText += readFileSync(textFile, 'utf8') + '\n\n';
-          // Clean up text file
-          fs.unlinkSync(textFile);
+    await new Promise((resolve, reject) => {
+      convertProcess.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`PDF to image conversion failed with code ${code}`));
         }
-      }
-      // Clean up image file
-      fs.unlinkSync(file);
+      });
+      
+      convertProcess.on('error', (error) => {
+        reject(new Error(`PDF to image conversion error: ${error.message}`));
+      });
+    });
+    
+    // Find all generated images
+    const imageFiles = fs.readdirSync(imageDir)
+      .filter(file => file.startsWith(imageBase) && file.endsWith('.png'))
+      .map(file => path.join(imageDir, file))
+      .sort();
+    
+    if (imageFiles.length === 0) {
+      throw new Error('No images generated from PDF');
     }
     
-    // Write combined text to output file
-    writeFileSync(outputPath, fullText);
-    console.log(`OCR extraction completed. Output saved to ${outputPath}`);
+    // Extract text from each image using Tesseract
+    let fullText = '';
     
-    return fullText;
+    for (const imageFile of imageFiles) {
+      const textFile = imageFile.replace('.png', '.txt');
+      
+      // Use Tesseract to extract text
+      const tesseractProcess = spawn('tesseract', [imageFile, textFile.replace('.txt', ''), '-l', 'eng']);
+      
+      await new Promise((resolve, reject) => {
+        tesseractProcess.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`Tesseract failed with code ${code}`));
+          }
+        });
+        
+        tesseractProcess.on('error', (error) => {
+          reject(new Error(`Tesseract error: ${error.message}`));
+        });
+      });
+      
+      // Read extracted text
+      if (fs.existsSync(textFile)) {
+        const text = fs.readFileSync(textFile, 'utf8');
+        fullText += text + '\n\n';
+        
+        // Clean up temporary files
+        fs.unlinkSync(textFile);
+        fs.unlinkSync(imageFile);
+      }
+    }
+    
+    // Write final text to output file
+    fs.writeFileSync(outputPath, fullText.trim());
+    
+    LoggingService.info('OCR-Fallback', 'OCR extraction completed successfully', { 
+      pdfPath, 
+      pages: imageFiles.length,
+      outputLength: fullText.length 
+    });
+    
+    return fullText.trim();
   } catch (error) {
-    console.error('Error during OCR extraction:', error.message);
-    process.exit(1);
+    LoggingService.error('OCR-Fallback', 'OCR extraction failed', { 
+      pdfPath, 
+      error: error.message 
+    });
+    
+    throw error;
   }
 }
 
-// If called directly, process command line arguments
-if (import.meta.url === `file://${process.argv[1]}`) {
-  if (process.argv.length !== 4) {
-    console.error('Usage: node ocr-fallback.js <input.pdf> <output.txt>');
-    process.exit(1);
-  }
-  
-  const pdfPath = process.argv[2];
-  const outputPath = process.argv[3];
-  
-  extractTextWithOCR(pdfPath, outputPath);
+// Get command line arguments
+const args = process.argv.slice(2);
+const pdfPath = args[0];
+const outputPath = args[1];
+
+if (!pdfPath || !outputPath) {
+  console.error('Usage: node ocr-fallback.js <pdfPath> <outputPath>');
+  process.exit(1);
 }
 
-export { extractTextWithOCR };
+// Execute OCR extraction
+extractTextWithOCR(pdfPath, outputPath)
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('OCR extraction failed:', error.message);
+    process.exit(1);
+  });

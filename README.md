@@ -1,5 +1,9 @@
 ### Mobius Games Verification Scripts – Quickstart
 
+[![GitHub Actions](https://github.com/w9bikze8u4cbupc/mobius-games-tutorial-generator/workflows/CI/badge.svg)](https://github.com/w9bikze8u4cbupc/mobius-games-tutorial-generator/actions)
+[![Release](https://img.shields.io/github/v/release/w9bikze8u4cbupc/mobius-games-tutorial-generator)](https://github.com/w9bikze8u4cbupc/mobius-games-tutorial-generator/releases)
+[![License](https://img.shields.io/github/license/w9bikze8u4cbupc/mobius-games-tutorial-generator)](LICENSE)
+
 #### What is this
 Cross-platform verification scripts for Mobius Games Tutorial Generator that validate security, performance, reliability, and connectivity. Two entry points:
 - Bash: mobius_golden_path.sh
@@ -12,25 +16,25 @@ Cross-platform verification scripts for Mobius Games Tutorial Generator that val
 
 #### Quickstart
 
-Bash (PR smoke):
+PR smoke (bash):
 ```bash
 mkdir -p artifacts
-./mobius_golden_path.sh \
+mobius_golden_path.sh \
   --profile smoke \
-  --server http://localhost:3000 \
-  --frontend http://localhost:8080 \
+  --server http://localhost:5001 \
+  --frontend http://localhost:3000 \
   --json-summary artifacts/summary.json \
   --junit artifacts/junit.xml \
   --fail-fast --quiet
 ```
 
-PowerShell (PR smoke):
+PR smoke (PowerShell):
 ```powershell
 mkdir artifacts -ea 0 | Out-Null
 .\mobius_golden_path.ps1 `
   -Profile smoke `
-  -Server http://localhost:3000 `
-  -Frontend http://localhost:8080 `
+  -Server http://localhost:5001 `
+  -Frontend http://localhost:3000 `
   -JsonSummary artifacts\summary.json `
   -JUnitPath artifacts\junit.xml `
   -FailFast `
@@ -39,7 +43,8 @@ mkdir artifacts -ea 0 | Out-Null
 
 Nightly (full) with metrics token:
 ```bash
-./mobius_golden_path.sh \
+mkdir -p artifacts
+mobius_golden_path.sh \
   --profile full \
   --server "$API_URL" \
   --frontend "$FRONTEND_URL" \
@@ -49,9 +54,9 @@ Nightly (full) with metrics token:
 ```
 
 #### Sample Artifacts
-For reference, sample artifacts demonstrating the output format can be found in the `sample_artifacts` directory:
-- [sample_junit.xml](sample_artifacts/sample_junit.xml) - Example JUnit XML output
-- [sample_summary.json](sample_artifacts/sample_summary.json) - Example JSON summary output
+For reference, sample artifacts demonstrating the output format can be found in the [sample_artifacts](sample_artifacts/) directory:
+- [sample_junit.xml](sample_artifacts/sample_junit.xml) - Example JUnit XML output with timing attributes
+- [sample_summary.json](sample_artifacts/sample_summary.json) - Example JSON summary output with schema validation
 
 #### Common flags
 
@@ -124,4 +129,61 @@ jobs:
 ```
 
 #### See also
-VERIFICATION_SCRIPTS_OPERATIONAL_GUIDE.md for full details and troubleshooting.
+[VERIFICATION_SCRIPTS_OPERATIONAL_GUIDE.md](VERIFICATION_SCRIPTS_OPERATIONAL_GUIDE.md) for full details and troubleshooting.
+
+## Development Scripts
+
+This project includes several helper scripts to streamline development:
+
+- `dev-up.sh` / `dev-up.ps1` - Start the development environment
+- `dev-down.sh` / `dev-down.ps1` - Stop the development environment
+- `dev-restart.sh` / `dev-restart.ps1` - Restart the development environment
+
+### Enhanced Features
+
+The development scripts now include several production-grade enhancements:
+
+1. **Location Awareness**: Scripts can be run from any directory
+2. **Log Rotation**: Old logs are timestamped and archived to prevent giant log files
+3. **PID File Management**: Precise process control using PID files
+4. **Force-Kill Capability**: Two-pass termination (graceful then force)
+5. **Port Verification**: Ensures ports are actually free before exiting
+6. **Optional Log Cleanup**: Logs preserved by default, cleaned only with explicit flag
+7. **Smoke Testing**: Built-in quick validation of backend functionality
+
+### Usage Examples
+
+```bash
+# Start development environment
+./dev-up.sh
+
+# Start with smoke test
+./dev-up.sh --smoke
+
+# Stop development environment
+./dev-down.sh
+
+# Clean shutdown (removes logs)
+./dev-down.sh --clean-logs
+
+# Restart with smoke test
+./dev-restart.sh --smoke
+```
+
+```powershell
+# Start development environment
+.\dev-up.ps1
+
+# Start with smoke test
+.\dev-up.ps1 -Smoke
+
+# Stop development environment
+.\dev-down.ps1
+
+# Clean shutdown (removes logs)
+.\dev-down.ps1 -CleanLogs
+
+# Restart with smoke test
+.\dev-restart.ps1 -Smoke
+```
+

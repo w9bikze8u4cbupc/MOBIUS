@@ -1,0 +1,70 @@
+name: Health Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight UTC
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run linting
+      run: npm run lint
+    
+    - name: Run tests
+      run: npm test --if-present
+    
+    - name: Start services
+      run: |
+        chmod +x ./dev-up.sh
+        ./dev-up.sh --smoke &
+        sleep 10
+    
+    - name: Check health endpoint
+      run: |
+        curl -f http://localhost:5001/healthz || exit 1
+    
+    - name: Check readiness endpoint
+      run: |
+        curl -f http://localhost:5001/readyz || exit 1
+    
+    - name: Test extraction endpoint
+      run: |
+        curl -f -X POST http://localhost:5001/start-extraction -H "Content-Type: application/json" -d '{"bggUrl": "https://boardgamegeek.com/boardgame/155987/abyss"}' || exit 1
+    
+    - name: Run frontend build (CI only)
+      run: |
+        cd client
+        npm ci
+        npm run build
+        cd ..
+    
+    - name: Run integration test
+      run: |
+        node scripts/integration-test.js
+    
+    - name: Stop services
+      if: always()
+      run: |
+        chmod +x ./dev-down.sh
+        ./dev-down.sh

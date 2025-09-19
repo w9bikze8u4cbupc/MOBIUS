@@ -6,19 +6,19 @@ import path, { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import fs, { promises as fsPromises, existsSync } from 'fs';
 import sizeOf from 'image-size';
-
 // Add security and operational hardening imports
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-
 // Add pdfjs legacy mitigation polyfill
 if (process.env.USE_PDFJS_LEGACY === '1') {
   import('./polyfills.js').catch(err => {
     console.warn('Failed to load polyfills:', err);
   });
 }
-import * as pdfToImg from 'pdf-to-img';
-import sharp from 'sharp';
+// Delay import of pdf modules until needed
+let pdfToImg, sharp;
+// Import * as pdfToImg from 'pdf-to-img';
+// Import sharp from 'sharp';
 import { XMLParser } from 'fast-xml-parser';
 import xml2js from 'xml2js';
 import multer from 'multer';
@@ -27,26 +27,20 @@ import OpenAI from 'openai';
 import axios from 'axios';
 // Import alpha-safe utilities
 import { AlphaOps, generatePreviewImageAlphaSafe } from './alphaOps.js';
-
 // Import component extractor
 import { mountExtractComponentsRoute, mountPopplerHealthRoute } from './extractComponents.js';
-
 // Project modules (keep as you already use them later)
 import db from './db.js';
 import { explainChunkWithAI, extractComponentsWithAI } from './aiUtils.js';
+import { extractTextFromPDF, validatePDFFile, extractImagesFromPDF } from './pdfUtils.js';
 
-
-import { extractTextFromPDF } from './pdfUtils.js';
 import { extractComponentsFromText } from './utils.js';
-
 // Import metrics and URL validation
 import { recordTtsRequest, recordTtsCacheHit, recordExtractPdfDuration, recordRenderDuration, recordHttpRequestDuration } from './metrics.js';
-import { validateUrl } from './urlValidator.js';
-
+import { validateUrl, isAllowedUrl } from '../utils/urlValidator.js';
 // ESM __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
 // Ensure uploads/tmp exists
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 function ensureUploadsTmp() {
@@ -61,53 +55,152 @@ function ensureUploadsTmp() {
     return null;
   }
 }
-
 // Add event loop delay monitoring
 import { monitorEventLoopDelay } from 'perf_hooks';
 const eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
 eventLoopDelay.enable();
-
 globalThis.__eventLoopDelayMs = () => eventLoopDelay.mean / 1e6;
-
 dotenv.config();
-
 const app = express();
 const port = process.env.PORT || 5001;
+
+// Add temporary file lifecycle management
+
+const TMP_DIR = path.join(process.cwd(), 'tmp');
+const TMP_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+function sweepTmp() {
+  try {
+    if (!fs.existsSync(TMP_DIR)) {
+      fs.mkdirSync(TMP_DIR, { recursive: true });
+      return;
+    }
+    
+    const now = Date.now();
+    const files = fs.readdirSync(TMP_DIR);
+    
+    for (const f of files) {
+      const fp = path.join(TMP_DIR, f);
+      try {
+        const st = fs.statSync(fp);
+        if (now - st.mtimeMs > TMP_TTL_MS) {
+          fs.unlinkSync(fp);
+        }
+      } catch (err) {
+        // Ignore errors for individual files
+        console.warn('Failed to process temp file:', fp, err.message);
+      }
+    }
+  } catch (err) {
+    console.warn('Temporary directory sweep failed:', err.message);
+  }
+}
+
+// Run cleanup every hour
+setInterval(sweepTmp, 60 * 60 * 1000).unref();
+
+// Add configurable timeouts (already declared above)
+// const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS) || 30000;
+// const HEALTH_CHECK_TIMEOUT_MS = parseInt(process.env.HEALTH_CHECK_TIMEOUT_MS) || 5000;
+// const BGG_FETCH_TIMEOUT_MS = parseInt(process.env.BGG_FETCH_TIMEOUT_MS) || 10000;
+
+// Apply timeout middleware
+app.use((req, res, next) => {
+  // Set request timeout
+  req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+    console.warn(`Request timeout after ${REQUEST_TIMEOUT_MS}ms`);
+    res.status(408).json({ error: 'Request timeout' });
+  });
+  
+  // Set socket timeout
+  res.setTimeout(REQUEST_TIMEOUT_MS, () => {
+    console.warn(`Response timeout after ${REQUEST_TIMEOUT_MS}ms`);
+    res.status(408).json({ error: 'Response timeout' });
+  });
+  
+  next();
+});
 
 // Add security and operational hardening middleware
 app.set("trust proxy", 1);
 app.use(helmet({ contentSecurityPolicy: false })); // disable CSP for API-only server
-
 // CORS configuration
-const CORS_ORIGIN = process.env.CORS_ORIGIN?.split(",") || [];
+const CORS_ORIGIN = process.env.CORS_ORIGIN?.split(",") || ['http://localhost:3000'];
 app.use(cors({ 
   origin: CORS_ORIGIN,
   methods: ["GET","POST","OPTIONS"],
   credentials: true
 }));
-
 // Rate limiting
 const ttsRateLimit = rateLimit({ 
   windowMs: 60_000, // 1 minute
   max: parseInt(process.env.TTS_RATE_LIMIT || "60"), // 60 req/min/IP by default
   message: { error: "Too many TTS requests, please try again later" }
 });
-
 const apiRateLimit = rateLimit({ 
   windowMs: 60_000, // 1 minute
   max: parseInt(process.env.API_RATE_LIMIT || "600"), // 600 req/min/IP by default
   message: { error: "Too many API requests, please try again later" }
 });
-
 app.use("/tts", ttsRateLimit);
 app.use("/api/", apiRateLimit);
-
 // Body parsing with limits
 app.use(express.json({ 
   limit: process.env.REQUEST_BODY_LIMIT || '10mb',
   // Request timeout
-  timeout: parseInt(process.env.REQUEST_TIMEOUT_MS || "60000")
+  timeout: parseInt(process.env.REQUEST_TIMEOUT_MS || "60000"),
+  // Custom verify function to handle pdfjs-dist interference
+  verify: (req, res, buf, encoding) => {
+    // Store the raw buffer for manual parsing if needed
+    req.rawBody = buf;
+  }
 }));
+
+// Custom JSON parsing middleware to handle pdfjs-dist interference (fallback)
+function customJsonParser(req, res, next) {
+  // Only handle JSON requests when express.json failed
+  if (req.headers['content-type'] !== 'application/json') {
+    return next();
+  }
+  
+  // If body is already parsed and valid, continue
+  if (req.body && typeof req.body === 'object') {
+    return next();
+  }
+  
+  // Only try custom parsing if we have rawBody from express.json verify function
+  if (!req.rawBody) {
+    return next();
+  }
+  
+  const data = req.rawBody.toString();
+  
+  if (!data) {
+    return next();
+  }
+  
+  try {
+    req.body = JSON.parse(data);
+    next();
+  } catch (error) {
+    console.warn('Custom JSON parsing failed:', error.message);
+    console.warn('Raw data:', data);
+    // Try to fix common pdfjs-dist interference issues
+    try {
+      // Remove any characters that might have been added by pdfjs-dist
+      const cleanedData = data.replace(/[\x00-\x1F\x7F]/g, '');
+      req.body = JSON.parse(cleanedData);
+      next();
+    } catch (cleanError) {
+      console.warn('Cleaned JSON parsing also failed:', cleanError.message);
+      return res.status(400).json({ error: 'Invalid JSON in request body' });
+    }
+  }
+}
+
+// Apply the custom JSON parser after the express.json middleware as fallback
+app.use(customJsonParser);
+
 ensureUploadsTmp();
 app.use('/static', express.static(UPLOADS_DIR));
 app.use('/uploads', express.static(UPLOADS_DIR));
@@ -123,11 +216,21 @@ app.get('/demo', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'demo.html'));
 });
 
+// Enhanced health check with timeout configuration
+app.get('/healthz', (req, res) => {
+  // Set a shorter timeout for health checks
+  req.setTimeout(HEALTH_CHECK_TIMEOUT_MS, () => {
+    res.status(408).send('Health check timeout');
+  });
+  
+  res.send('ok');
+});
+
 // Config
+
 const BACKEND_URL = (process.env.BACKEND_URL || `http://localhost:${port}`).trim(); // server-side var (no REACT_APP_ prefix)
 const IMAGE_EXTRACTOR_API_KEY = process.env.IMAGE_EXTRACTOR_API_KEY;
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(UPLOADS_DIR, 'MobiusGames');
 if (!OUTPUT_DIR || typeof OUTPUT_DIR !== 'string') {
   console.error('Invalid OUTPUT_DIR configuration');
@@ -136,13 +239,10 @@ if (!OUTPUT_DIR || typeof OUTPUT_DIR !== 'string') {
 if (!fs.existsSync(OUTPUT_DIR)) {
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 }
-
 // BGG metadata cache
 const bggMetadataCache = new Map();
-
 // Configure multer for different upload needs
 const uploadPdfImages = multer({ dest: path.join(process.cwd(), 'uploads') });
-
 // Quiet a noisy warn (optional)
 const originalWarn = console.warn;
 console.warn = function (...args) {
@@ -151,7 +251,6 @@ console.warn = function (...args) {
   }
   originalWarn.apply(console, args);
 };
-
 // Request ID middleware for correlation
 function requestIdMiddleware(req, res, next) {
   // Check for existing X-Request-ID header
@@ -166,7 +265,14 @@ function requestIdMiddleware(req, res, next) {
   res.setHeader('X-Request-ID', requestId);
   
   // Enhanced logging with request ID
-  console.log(`[${requestId}] ${req.method} ${req.path} - auth skipped in dev`);
+  console.log(JSON.stringify({
+    level: 'info',
+    requestId: requestId,
+    method: req.method,
+    path: req.path,
+    timestamp: new Date().toISOString(),
+    message: 'Request started'
+  }));
   
   // Record start time for metrics
   const startTime = Date.now();
@@ -176,19 +282,35 @@ function requestIdMiddleware(req, res, next) {
   res.end = function() {
     const duration = (Date.now() - startTime) / 1000;
     recordHttpRequestDuration(duration);
+    
+    // Log request completion
+    console.log(JSON.stringify({
+      level: 'info',
+      requestId: requestId,
+      method: req.method,
+      path: req.path,
+      durationMs: Math.round(duration * 1000),
+      timestamp: new Date().toISOString(),
+      message: 'Request completed'
+    }));
+    
     originalEnd.apply(this, arguments);
   };
   
   next();
 }
-
 app.use(requestIdMiddleware);
-
-
-
+// Lazy load pdf modules when needed
+async function loadPdfModules() {
+  if (!pdfToImg) {
+    pdfToImg = await import('pdf-to-img');
+  }
+  if (!sharp) {
+    sharp = await import('sharp');
+  }
+}
 
 // Helper functions you already had can remain below (getDateString, estimateTargetDurationSec, retimeStoryboard, your routes, etc.)
-
 function getDateString() {
   const date = new Date();
   return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
@@ -234,7 +356,6 @@ function retimeStoryboard(scenes, targetTotalSec) {
     }
   }
 }
-
 function splitIntoSections(text) {
   const regex = /(^|\n)(##? |[A-Z][A-Z\s\d\-\(\)\.]{3,}$|^\d+\.\s)/gm;
   const parts = text.split(regex);
@@ -247,22 +368,18 @@ function splitIntoSections(text) {
   if (parts[0]) sections.unshift(parts[0].trim());
   return sections.filter(Boolean);
 }
-
 function extractGameIdFromBGGUrl(url) {
   const match = url.match(/\/boardgame\/(\d+)/);
   return match ? match[1] : null;
 }
-
 function _toArrayish(val) {
   if (!val) return [];
   if (Array.isArray(val)) return val.filter(Boolean).map(s => String(s).trim()).filter(Boolean);
   return String(val).split(/,|\n|;/).map(s => s.trim()).filter(Boolean);
 }
-
 function _unique(arr) {
   return Array.from(new Set(arr.filter(Boolean)));
 }
-
 function _enList(arr) {
   const a = _unique(_toArrayish(arr));
   if (a.length === 0) return '';
@@ -270,7 +387,6 @@ function _enList(arr) {
   if (a.length === 2) return `${a[0]} and ${a[1]}`;
   return `${a.slice(0, -1).join(', ')}, and ${a[a.length - 1]}`;
 }
-
 function _frList(arr) {
   const a = _unique(_toArrayish(arr));
   if (a.length === 0) return '';
@@ -278,35 +394,29 @@ function _frList(arr) {
   if (a.length === 2) return `${a[0]} et ${a[1]}`;
   return `${a.slice(0, -1).join(', ')}, et ${a[a.length - 1]}`;
 }
-
 function _pickCoverImage(images = []) {
   const arr = Array.isArray(images) ? images : [];
   const byName = arr.find(img => /cover|box|thumbnail/i.test(img?.name || ''));
   const byType = arr.find(img => /cover/i.test(img?.type || ''));
   return byName || byType || arr[0] || null;
 }
-
 function _pickComponentImages(images = [], max = 3) {
   const arr = Array.isArray(images) ? images : [];
   const comps = arr.filter(img => /component/i.test(img?.type || '') || /token|card|board|tile/i.test(img?.name || ''));
   const rest = arr.filter(img => !comps.includes(img));
   return _unique([...comps, ...rest]).slice(0, max);
 }
-
 function _uid(prefix = 'id') {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
-
 function resolveImageByKey(images, key) {
   return images.find(i => (i.id || i.path) === key);
 }
-
 function buildStoryboard(opts = {}) {
   const metadata = opts.metadata || {};
   const images = Array.isArray(opts.images) ? opts.images : [];
   const components = Array.isArray(opts.components) ? opts.components : [];
   const langDefault = opts.language || 'en';
-
   const title = metadata.title || 'this game';
   const playerCount = metadata.player_count || '';
   const playTime = metadata.play_time || '';
@@ -315,12 +425,9 @@ function buildStoryboard(opts = {}) {
   const mechanics = _toArrayish(metadata.mechanics);
   const designers = _toArrayish(metadata.designers);
   const publishers = _toArrayish(metadata.publisher);
-
   const cover = _pickCoverImage(images);
   const compImgs = _pickComponentImages(images, 3);
-
   const scenes = [];
-
   scenes.push({
     id: _uid('scene'),
     key: 'intro',
@@ -343,7 +450,6 @@ function buildStoryboard(opts = {}) {
       }
     ]
   });
-
   if (themes.length || mechanics.length) {
     scenes.push({
       id: _uid('scene'),
@@ -372,7 +478,6 @@ function buildStoryboard(opts = {}) {
       ].filter(Boolean)
     });
   }
-
   const goalTextEn =
     (metadata && metadata.goal && metadata.goal.en) ||
     (opts && opts.goalTextEn) ||
@@ -381,7 +486,6 @@ function buildStoryboard(opts = {}) {
     (metadata && metadata.goal && metadata.goal.fr) ||
     (opts && opts.goalTextFr) ||
     `Dans ${title}, votre objectif est d’atteindre la condition de victoire du livret — souvent en marquant le plus de points ou en remplissant des objectifs clés.`;
-
   scenes.push({
     id: _uid('scene'),
     key: 'goal',
@@ -397,7 +501,6 @@ function buildStoryboard(opts = {}) {
       }
     ]
   });
-
   if (compImgs.length > 0) {
     scenes.push({
       id: _uid('scene'),
@@ -412,13 +515,10 @@ function buildStoryboard(opts = {}) {
         textFr: `Voici l’un des composants que vous utiliserez pendant la partie.`
       }))
     });
-
     const compImageMulti = (opts && opts.compImageMulti) || {};
     const componentsScene = scenes.find(s => s.key === 'components');
-
     if (componentsScene && Object.keys(compImageMulti).length) {
       const extraSegments = [];
-
       components.forEach((comp, idx) => {
         const extraKeys = compImageMulti[idx] || [];
         extraKeys.forEach(k => {
@@ -433,11 +533,9 @@ function buildStoryboard(opts = {}) {
           });
         });
       });
-
       const seen = new Set(
         (componentsScene.segments || []).map(seg => seg.image?.id || seg.image?.path || seg.image?.url)
       );
-
       extraSegments.forEach(seg => {
         const key = seg.image?.id || seg.image?.path || seg.image?.url;
         if (!seen.has(key)) {
@@ -447,7 +545,6 @@ function buildStoryboard(opts = {}) {
       });
     }
   }
-
   scenes.push({
     id: _uid('scene'),
     key: 'setup',
@@ -463,7 +560,6 @@ function buildStoryboard(opts = {}) {
       }
     ]
   });
-
   scenes.push({
     id: _uid('scene'),
     key: 'how_to_play',
@@ -486,7 +582,6 @@ function buildStoryboard(opts = {}) {
       }
     ]
   });
-
   scenes.push({
     id: _uid('scene'),
     key: 'tips_outro',
@@ -509,7 +604,6 @@ function buildStoryboard(opts = {}) {
       }
     ]
   });
-
   const baseTotal = scenes.flatMap(s => s.segments || []).reduce((sum, seg) => sum + (seg.durationSec || 0), 0);
   const targetTotalSec = estimateTargetDurationSec(opts.wordCount || 0, {
     wpm: 110,
@@ -519,7 +613,6 @@ function buildStoryboard(opts = {}) {
   });
   retimeStoryboard(scenes, targetTotalSec);
   const totalDurationSec = scenes.flatMap(s => s.segments || []).reduce((sum, seg) => sum + (seg.durationSec || 0), 0);
-
   return {
     id: _uid('sb'),
     languageDefault: langDefault,
@@ -538,7 +631,6 @@ function buildStoryboard(opts = {}) {
     }
   };
 }
-
 function extractBGGId(url) {
   const patterns = [
     /boardgame\/(\d+)/,
@@ -552,7 +644,6 @@ function extractBGGId(url) {
   }
   return null;
 }
-
 function extractComponentsFromDescription(description) {
   if (!description) return [];
   const cleanText = description.replace(/<[^>]*>/g, ' ').replace(/&[^;]+;/g, ' ');
@@ -576,7 +667,6 @@ function extractComponentsFromDescription(description) {
   }
   return [];
 }
-
 function extractTheme(description) {
   if (!description) return 'Theme information not available';
   const cleanText = description.replace(/<[^>]*>/g, '').trim();
@@ -585,11 +675,9 @@ function extractTheme(description) {
   if (sentences.length === 1) return sentences[0].trim() + '.';
   return cleanText.substring(0, 200) + '...';
 }
-
 function isHttpUrl(u) {
   return typeof u === 'string' && /^https?:\/\//i.test(u);
 }
-
 async function generatePreviewImage(filePath, outputPath = 'uploads/tmp', quality = 75) {
   try {
     // Use alpha-safe preview generation
@@ -600,7 +688,6 @@ async function generatePreviewImage(filePath, outputPath = 'uploads/tmp', qualit
     return null;
   }
 }
-
 async function extractImagesFromUrl(url, apiKey, mode = 'basic') {
   console.log('extractImagesFromUrl called for:', url);
   const startRes = await axios.post(
@@ -609,7 +696,6 @@ async function extractImagesFromUrl(url, apiKey, mode = 'basic') {
     { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' } }
   );
   const extractionId = startRes.data.data.id;
-
   let status = startRes.data.data.status;
   let images = [];
   let attempts = 0;
@@ -625,26 +711,6 @@ async function extractImagesFromUrl(url, apiKey, mode = 'basic') {
   if (status === 'done') return images.map(img => img.url);
   throw new Error(`Extraction failed or timed out for ${url}`);
 }
-
-async function extractImagesFromPDF(pdfPath, outputDir) {
-  const pdfResult = await pdfToImg.pdf(pdfPath);
-  await fsPromises.mkdir(outputDir, { recursive: true });
-  const images = [];
-  let pageIndex = 0;
-  for await (const page of pdfResult) {
-    try {
-      pageIndex++;
-      const pageFileName = `page${pageIndex}.png`;
-      const pagePath = path.join(outputDir, pageFileName);
-      await fsPromises.writeFile(pagePath, page);
-      images.push(pagePath);
-    } catch (err) {
-      console.error(`Failed to save page ${pageIndex}:`, err);
-    }
-  }
-  return images;
-}
-
 async function extractAndStoreImagesSafe(filePathOrUrl, outputDir = path.join(__dirname, 'uploads', 'extracted-images')) {
   await ensureDir(outputDir);
   let results = [];
@@ -702,7 +768,6 @@ app.post('/api/explain-chunk', async (req, res) => {
     res.status(500).json({ error: 'Failed to generate explanation.' });
   }
 });
-
 app.post('/save-project', (req, res) => {
   const { name, metadata, components, images, script, audio } = req.body;
   db.run(
@@ -718,7 +783,6 @@ app.post('/save-project', (req, res) => {
     }
   );
 });
-
 app.get('/api/bgg-components', async (req, res) => {
   try {
     const { url } = req.query;
@@ -748,7 +812,6 @@ app.get('/api/bgg-components', async (req, res) => {
     res.status(500).json({ error: 'Failed to extract components', details: error.message });
   }
 });
-
 app.post('/api/extract-components', async (req, res) => {
   try {
     const pdfPath = req.body.pdfPath;
@@ -770,7 +833,6 @@ app.post('/api/extract-components', async (req, res) => {
     res.status(500).json({ success: false, error: err.message, extractionMethod: 'error', extractionStats: null });
   }
 });
-
 // POST /api/extract-images - extract embedded images from a PDF rulebook
 // Form-data: pdf (file)
 app.post('/api/extract-images', uploadPdfImages.single('pdf'), async (req, res) => {
@@ -783,7 +845,6 @@ app.post('/api/extract-images', uploadPdfImages.single('pdf'), async (req, res) 
     const outRoot = path.join(process.cwd(), 'output', 'pdf-images');
     const jobDir = path.join(outRoot, String(Date.now()));
     fs.mkdirSync(jobDir, { recursive: true });
-
     // pdfimages will emit files like: <prefix>-000.png
     const prefix = path.join(jobDir, 'img');
     const args = ['-all', '-png', pdfPath, prefix];
@@ -794,10 +855,8 @@ app.post('/api/extract-images', uploadPdfImages.single('pdf'), async (req, res) 
       : 'pdfimages';
     
     const proc = spawn(pdfimagesPath, args);
-
     let stderrBuf = '';
     proc.stderr.on('data', (d) => (stderrBuf += d.toString()));
-
     proc.on('close', (code) => {
       if (code !== 0) {
         return res.status(500).json({
@@ -814,7 +873,6 @@ app.post('/api/extract-images', uploadPdfImages.single('pdf'), async (req, res) 
           // Public URL if /output is served
           url: `/output/pdf-images/${path.basename(jobDir)}/${f}`,
         }));
-
       if (files.length === 0) {
         return res.status(204).json({ success: true, images: [] });
       }
@@ -830,7 +888,6 @@ app.post('/api/extract-images', uploadPdfImages.single('pdf'), async (req, res) 
     return res.status(500).json({ success: false, error: 'Unexpected server error.' });
   }
 });
-
 // POST /api/extract-pdf-images - extract embedded images from a PDF URL
 // JSON body: { pdfUrl }
 app.post('/api/extract-pdf-images', async (req, res) => {
@@ -840,7 +897,6 @@ app.post('/api/extract-pdf-images', async (req, res) => {
     if (!pdfUrl || typeof pdfUrl !== 'string') {
       return res.status(400).json({ success: false, error: 'No PDF URL provided (field name "pdfUrl")' });
     }
-
     // Validate URL
     const urlValidation = await validateUrl(pdfUrl, {
       allowHttpsOnly: true,
@@ -854,7 +910,6 @@ app.post('/api/extract-pdf-images', async (req, res) => {
         error: `Invalid URL: ${urlValidation.reason}` 
       });
     }
-
     // Download PDF to temporary location
     const tempDir = path.join(process.cwd(), 'uploads', 'temp');
     fs.mkdirSync(tempDir, { recursive: true });
@@ -876,11 +931,9 @@ app.post('/api/extract-pdf-images', async (req, res) => {
       writer.on('finish', resolve);
       writer.on('error', reject);
     });
-
     const outRoot = path.join(process.cwd(), 'output', 'pdf-images');
     const jobDir = path.join(outRoot, String(Date.now()));
     fs.mkdirSync(jobDir, { recursive: true });
-
     // pdfimages will emit files like: <prefix>-000.png
     const prefix = path.join(jobDir, 'img');
     const args = ['-all', '-png', tempPdfPath, prefix];
@@ -891,16 +944,13 @@ app.post('/api/extract-pdf-images', async (req, res) => {
       : 'pdfimages';
     
     const proc = spawn(pdfimagesPath, args);
-
     let stderrBuf = '';
     proc.stderr.on('data', (d) => (stderrBuf += d.toString()));
-
     proc.on('close', (code) => {
       // Clean up temp file
       fs.unlink(tempPdfPath, (err) => {
         if (err) console.warn('Failed to delete temp PDF:', err);
       });
-
       if (code !== 0) {
         return res.status(500).json({
           success: false,
@@ -912,7 +962,6 @@ app.post('/api/extract-pdf-images', async (req, res) => {
       // Collect emitted images with rich metadata
       const files = fs.readdirSync(jobDir)
         .filter((f) => /\.(png|jpg|jpeg|jpx|ppm|webp)$/i.test(f));
-
       const images = files.map((filename) => {
         const fullPath = path.join(jobDir, filename);
         let width = null, height = null, type = null, sizeBytes = null;
@@ -928,7 +977,6 @@ app.post('/api/extract-pdf-images', async (req, res) => {
           const st = fs.statSync(fullPath);
           sizeBytes = st.size;
         } catch (_) {}
-
         return {
           name: filename,
           filename: filename,
@@ -939,7 +987,6 @@ app.post('/api/extract-pdf-images', async (req, res) => {
           sizeBytes,
         };
       });
-
       if (images.length === 0) {
         return res.status(204).json({ success: true, images: [] });
       }
@@ -962,7 +1009,6 @@ app.post('/api/extract-pdf-images', async (req, res) => {
     return res.status(500).json({ success: false, error: 'Unexpected server error: ' + err.message });
   }
 });
-
 // GET /api/extract-actions - extract images from "Actions" pages in PDF
 // Query param: pdfUrl
 app.get('/api/extract-actions', async (req, res) => {
@@ -972,7 +1018,6 @@ app.get('/api/extract-actions', async (req, res) => {
     if (!pdfUrl || typeof pdfUrl !== 'string') {
       return res.status(400).json({ error: 'pdfUrl query parameter required' });
     }
-
     // Validate URL
     const urlValidation = await validateUrl(pdfUrl, {
       allowHttpsOnly: true,
@@ -985,7 +1030,6 @@ app.get('/api/extract-actions', async (req, res) => {
         error: `Invalid URL: ${urlValidation.reason}` 
       });
     }
-
     // Download PDF to temporary location
     const tempDir = path.join(process.cwd(), 'uploads', 'temp');
     fs.mkdirSync(tempDir, { recursive: true });
@@ -1007,7 +1051,6 @@ app.get('/api/extract-actions', async (req, res) => {
       writer.on('finish', resolve);
       writer.on('error', reject);
     });
-
     // Detect action pages using localized pdftotext with caching
     const pdfKey = String(req.query.pdfUrl || '').trim();
     const langsParam = req.query.langs || req.query.lang || 'en';
@@ -1036,12 +1079,10 @@ app.get('/api/extract-actions', async (req, res) => {
       });
       return res.json([]); // No actions pages detected
     }
-
     // Create job directory
     const jobTs = new Date().toISOString().replace(/[:.]/g, '-');
     const jobDir = path.join(process.cwd(), 'output', 'actions', jobTs);
     fs.mkdirSync(jobDir, { recursive: true });
-
     // Extract images for detected action pages
     const images = await extractForActionPages(tempPdfPath, actionPages, jobDir);
     
@@ -1072,13 +1113,11 @@ app.get('/api/extract-actions', async (req, res) => {
     return res.status(500).json({ error: 'Failed to extract actions images: ' + err.message });
   }
 });
-
 // Heuristics utilities
 function inferSource(fileName) {
   // Match your naming: pN_img-001.png => "embedded", pN_snap.png => "snapshot"
   return /_snap(?:\.|$)/i.test(fileName) ? 'snapshot' : 'embedded';
 }
-
 function aspectPenalty(w, h) {
   const aspect = w / Math.max(1, h);
   // Mild penalty for odd shapes, stronger penalty for extreme shapes
@@ -1087,39 +1126,29 @@ function aspectPenalty(w, h) {
   if (aspect < 0.2 || aspect > 5.0) p -= 0.5;
   return p;
 }
-
 function computeScore(meta) {
   const { width: w = 0, height: h = 0, format = 'png', source = 'embedded', fileSize = 0 } = meta;
   const area = w * h;
-
   // Base score grows with area (log to dampen huge images)
   let s = Math.log10(1 + area); // ~0..6 range for typical sizes
-
   // Prefer PNG slightly (often used for assets with transparency)
   if (String(format).toLowerCase() === 'png') s += 0.3;
-
   // Prefer embedded slightly over snapshots (if both exist)
   if (source === 'embedded') s += 0.2;
   else if (source === 'snapshot') s -= 0.05;
-
   // Penalize odd/extreme aspect ratios
   s += aspectPenalty(w, h);
-
   // Tiny artifacts are already filtered by your 12,000 px rule; add a soft nudge for very small file sizes
   if (fileSize > 0 && fileSize < 8_000) s -= 0.25;
-
   // Keep stable decimals
   return Number(s.toFixed(3));
 }
-
 // In-memory cache for pdftotext page detection (no deps)
 const ACTIONS_DETECT_CACHE = new Map();
 // Defaults: 10 minutes TTL, max 50 entries
 const ACTIONS_DETECT_TTL_MS = Number(process.env.ACTIONS_DETECT_TTL_MS || 10 * 60 * 1000);
 const ACTIONS_DETECT_MAX = Number(process.env.ACTIONS_DETECT_MAX || 50);
-
 function nowMs() { return Date.now(); }
-
 function normalizeLangsKey(langsParam) {
   if (!langsParam) return 'en';
   const raw = Array.isArray(langsParam) ? langsParam : String(langsParam).split(/[,\s]+/).filter(Boolean);
@@ -1127,17 +1156,14 @@ function normalizeLangsKey(langsParam) {
   const uniq = Array.from(new Set(raw.map(s => s.toLowerCase()))).sort();
   return uniq.join(',');
 }
-
 function normalizeExtraKey(extra) {
   return String(extra || '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
-
 function buildDetectCacheKey(pdfKey, langsParam, extraKeywords) {
   const lk = normalizeLangsKey(langsParam);
   const ek = normalizeExtraKey(extraKeywords);
   return `${pdfKey}||langs=${lk}||extra=${ek}`;
 }
-
 function detectCacheGet(key) {
   const entry = ACTIONS_DETECT_CACHE.get(key);
   if (!entry) return null;
@@ -1147,7 +1173,6 @@ function detectCacheGet(key) {
   }
   return entry.pages;
 }
-
 function detectCacheSet(key, pages) {
   // Naive LRU-ish eviction: drop oldest when over capacity
   if (ACTIONS_DETECT_CACHE.size >= ACTIONS_DETECT_MAX) {
@@ -1156,7 +1181,6 @@ function detectCacheSet(key, pages) {
   }
   ACTIONS_DETECT_CACHE.set(key, { ts: nowMs(), pages });
 }
-
 // [NEW] Language keyword sets and matching helpers
 const KEYWORDS_BY_LANG = {
   en: [
@@ -1180,7 +1204,6 @@ const KEYWORDS_BY_LANG = {
     'fase azioni', 'fase delle azioni', 'azioni disponibili'
   ]
 };
-
 function normalizeBasic(s) {
   return String(s || '')
     .toLowerCase()
@@ -1188,18 +1211,15 @@ function normalizeBasic(s) {
     .replace(/[\u0300-\u036f]/g, '')     // strip diacritics
     .replace(/[''`´]/g, "'");            // unify apostrophes
 }
-
 function canonicalizePageText(s) {
   // Join hyphenated line-breaks and collapse whitespace after normalization
   const joined = String(s || '').replace(/-\s*[\r\n]+\s*/g, '');
   const norm = normalizeBasic(joined);
   return norm.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
-
 function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
-
 function toBoundaryPattern(keyword) {
   // Allow flexible whitespace between tokens; require non-[a-z0-9] boundaries
   const kn = normalizeBasic(keyword).trim().replace(/\s+/g, ' ');
@@ -1208,7 +1228,6 @@ function toBoundaryPattern(keyword) {
   const core = tokens.join('\\s+');
   return new RegExp(`(^|[^a-z0-9])${core}([^a-z0-9]|$)`);
 }
-
 function parseLangsParam(langsParam) {
   if (!langsParam) return ['en'];
   let raw = Array.isArray(langsParam) ? langsParam : String(langsParam).split(/[,\s]+/);
@@ -1218,7 +1237,6 @@ function parseLangsParam(langsParam) {
   }
   return raw.filter(code => KEYWORDS_BY_LANG[code]);
 }
-
 function buildKeywords(langsParam, extraKeywords) {
   const langs = parseLangsParam(langsParam);
   const set = new Set();
@@ -1232,9 +1250,7 @@ function buildKeywords(langsParam, extraKeywords) {
   }
   return Array.from(set);
 }
-
 // [REPLACE] Localized detection
-
 function detectActionPagesLocalized(pdfPath, { langs = 'en', extraKeywords = '' } = {}) {
   // Use full path to pdftotext on Windows for compatibility
   const pdftotextPath = process.platform === 'win32' 
@@ -1247,11 +1263,9 @@ function detectActionPagesLocalized(pdfPath, { langs = 'en', extraKeywords = '' 
     return []; // Return empty array instead of throwing
   }
   const text = res.stdout || '';
-
   // Compile keyword regexes once
   const keywords = buildKeywords(langs, extraKeywords);
   const patterns = keywords.map(toBoundaryPattern).filter(Boolean);
-
   const pages = [];
   let p = 1, buf = '';
   for (const ch of text) {
@@ -1269,12 +1283,10 @@ function detectActionPagesLocalized(pdfPath, { langs = 'en', extraKeywords = '' 
   }
   return pages;
 }
-
 // Legacy function for backward compatibility
 function detectActionPages(pdfPath) {
   return detectActionPagesLocalized(pdfPath, { langs: 'en', extraKeywords: '' });
 }
-
 // Helper function to extract images from specific pages
 async function extractForActionPages(pdfPath, pages, jobDir) {
   const images = [];
@@ -1346,7 +1358,6 @@ async function extractForActionPages(pdfPath, pages, jobDir) {
   
   return images;
 }
-
 // Helper function to get image metadata
 async function getImageMetadata(fullPath, page) {
   try {
@@ -1384,91 +1395,132 @@ async function getImageMetadata(fullPath, page) {
   }
 }
 
-// src/api/index.js — after deletion, keep canonical route only: /api/extract-components
-// [removed] legacy duplicate endpoint '/extract-components' — use '/api/extract-components' instead.
-
-async function extractBGGMetadataFromAPI(gameId) {
-  try {
-    const url = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}&stats=1`;
-    const { data: xml } = await axios.get(url, {
-      headers: { 'User-Agent': 'BoardGameTutorialGenerator/1.0' },
-      timeout: 10000
-    });
-    const parser = new xml2js.Parser({ explicitArray: false });
-    const result = await parser.parseStringPromise(xml);
-    if (!result.items || !result.items.item) {
-      throw new Error('Game not found in BGG API');
-    }
-    const item = result.items.item;
-    const gameName = Array.isArray(item.name)
-      ? item.name.find(n => n.$.type === 'primary')?.$.value || item.name[0].$.value
-      : item.name.$.value;
-
-    const linksArr = item.link ? (Array.isArray(item.link) ? item.link : [item.link]) : [];
-    const publishers = linksArr.filter(link => link.$.type === 'boardgamepublisher').map(link => link.$.value);
-    const designers = linksArr.filter(link => link.$.type === 'boardgamedesigner').map(link => link.$.value);
-    const artists = linksArr.filter(link => link.$.type === 'boardgameartist').map(link => link.$.value);
-    const categories = linksArr.filter(link => link.$.type === 'boardgamecategory').map(link => link.$.value);
-    const mechanics = linksArr.filter(link => link.$.type === 'boardgamemechanic').map(link => link.$.value);
-
-    return {
-      title: gameName || '',
-      publisher: publishers,
-      player_count: `${item.minplayers?.$.value || '?'}-${item.maxplayers?.$.value || '?'}`,
-      play_time: `${item.playingtime?.$.value || item.maxplaytime?.$.value || '?'} min`,
-      min_age: `${item.minage?.$.value || '?'}+`,
-      theme: categories,
-      mechanics,
-      designers,
-      artists,
-      description: item.description || '',
-      average_rating: item.statistics?.ratings?.average?.$.value ? parseFloat(item.statistics.ratings.average.$.value).toFixed(1) : '',
-      bgg_rank: item.statistics?.ratings?.ranks?.rank?.$?.value || '',
-      bgg_id: gameId,
-      year: item.yearpublished?.$.value || '',
-      cover_image: item.image || '',
-      thumbnail: item.thumbnail || item.image || ''
-    };
-  } catch (error) {
-    console.error('Error extracting from BGG API:', error.message);
-    throw error;
-  }
-}
 
 app.post('/api/extract-bgg-html', async (req, res) => {
   try {
-    const { url, bggUrl } = req.body;
-    const effectiveUrl = url || bggUrl;
-    if (!effectiveUrl || !effectiveUrl.match(/^https?:\/\/boardgamegeek\.com\/boardgame\/\d+(\/.*)?$/)) {
-      return res.status(400).json({ error: 'Invalid or missing BGG boardgame URL' });
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: 'URL is required' });
+    
+    // Check cache first
+    if (bggMetadataCache.has(url)) {
+      return res.json({ success: true, metadata: bggMetadataCache.get(url) });
     }
-    if (bggMetadataCache.has(effectiveUrl)) {
-      return res.json({ success: true, metadata: bggMetadataCache.get(effectiveUrl) });
-    }
-    const gameId = extractGameIdFromBGGUrl(effectiveUrl);
-    if (gameId) {
+    
+    // Add strong headers to avoid Cloudflare/bot detection
+    let response;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount <= maxRetries) {
       try {
-        const apiData = await extractBGGMetadataFromAPI(gameId);
-        bggMetadataCache.set(url, apiData);
-        return res.json({ success: true, metadata: apiData });
-      } catch (apiError) {
-        console.log('BGG API failed; falling back to HTML + LLM...', apiError.message);
+        response = await axios.get(url, { 
+          timeout: 15000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Cache-Control': 'max-age=0'
+          }
+        });
+        break; // Success, exit retry loop
+      } catch (error) {
+        retryCount++;
+        if (retryCount > maxRetries) {
+          throw error; // Re-throw if max retries exceeded
+        }
+        console.warn(`BGG fetch attempt ${retryCount} failed, retrying in ${retryCount * 2} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, retryCount * 2000)); // Exponential backoff
       }
     }
-    const { data: html } = await axios.get(url, {
-      headers: {
-        'User-Agent': 'BoardGameTutorialGenerator/1.0',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Connection': 'keep-alive'
-      },
-      timeout: 15000
-    });
-    const $ = cheerio.load(html);
+    
+    // Check if we got a Cloudflare/blocked page
+    const responseBody = response.data;
+    const isBlocked = responseBody.includes('Checking your browser') || 
+        responseBody.includes('captcha') || 
+        responseBody.includes('Cloudflare') ||
+        responseBody.includes('Access denied') ||
+        responseBody.includes('blocked') ||
+        responseBody.includes('security check') ||
+        (response.headers['server'] && response.headers['server'].includes('cloudflare')) ||
+        response.status === 403 ||
+        response.status === 401;
+    
+    if (isBlocked) {
+      console.error('Blocked by Cloudflare or anti-bot protection');
+      // Try fallback to XML API
+      try {
+        const gameId = extractGameIdFromBGGUrl(url);
+        if (gameId) {
+          const xmlApiUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}&stats=1`;
+          const xmlResponse = await axios.get(xmlApiUrl, { 
+            timeout: 15000,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36'
+            }
+          });
+          
+          const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
+          const data = parser.parse(xmlResponse.data);
+          const game = data.items?.item;
+          
+          if (game) {
+            const extractValue = (field) => {
+              if (!field) return '';
+              if (Array.isArray(field)) return field.map(item => item['@_value'] || item).join(', ');
+              return field['@_value'] || field;
+            };
+            
+            const fallbackMetadata = {
+              title: extractValue(game.name),
+              publisher: [],
+              player_count: `${extractValue(game.minplayers)}-${extractValue(game.maxplayers)}`,
+              play_time: `${extractValue(game.minplaytime)}-${extractValue(game.maxplaytime)}`,
+              min_age: extractValue(game.minage),
+              theme: [],
+              mechanics: [],
+              designers: [],
+              artists: [],
+              description: game.description || '',
+              average_rating: game.statistics?.ratings?.average ? extractValue(game.statistics.ratings.average) : '',
+              bgg_rank: '',
+              bgg_id: gameId || '',
+              year: extractValue(game.yearpublished),
+              cover_image: game.image || '',
+              thumbnail: game.thumbnail || ''
+            };
+            
+            bggMetadataCache.set(url, fallbackMetadata);
+            return res.json({ success: true, metadata: fallbackMetadata });
+          }
+        }
+      } catch (xmlError) {
+        console.error('XML API fallback also failed:', xmlError.message);
+      }
+      
+      return res.status(500).json({ 
+        error: 'Blocked by Cloudflare or anti-bot protection. Try again later.',
+        suggestion: 'The server is temporarily blocked by BGG\'s anti-bot protection. Please try again in a few minutes or use a different URL.'
+      });
+    }
+    
+    // Load cheerio for HTML parsing
+    const cheerio = (await import('cheerio')).default;
+    const $ = cheerio.load(responseBody);
+    
+    // Try to extract OpenGraph data first
     const ogTitle = $('meta[property="og:title"]').attr('content') || '';
     const ogDescription = $('meta[property="og:description"]').attr('content') || '';
     const ogImage = $('meta[property="og:image"]').attr('content') || '';
+    
+    // If we have basic OpenGraph data, return a quick metadata object
     if (ogTitle && ogDescription) {
+      const gameId = extractGameIdFromBGGUrl(url);
       const quickMetadata = {
         title: ogTitle,
         publisher: [],
@@ -1490,13 +1542,16 @@ app.post('/api/extract-bgg-html', async (req, res) => {
       bggMetadataCache.set(url, quickMetadata);
       return res.json({ success: true, metadata: quickMetadata });
     }
+    
     let mainContentText = $('#mainbody').text().trim() || $('body').text().trim();
     if (!mainContentText || mainContentText.length < 30) {
+      // Log the HTML content for debugging
+      console.warn('BGG HTML content for debugging (first 2000 chars):', responseBody.substring(0, 2000));
       return res.status(400).json({ error: 'No extractable content found on the page.' });
     }
+    
     const prompt = `
 You are an expert boardgame data extractor specializing in gathering information for creating high-quality YouTube tutorial videos. Extract the following metadata from the text below:
-
 Required fields (return empty string if not found):
 - name
 - publisher
@@ -1510,7 +1565,6 @@ Required fields (return empty string if not found):
 - description
 - complexity_rating
 - year_published
-
 Tutorial-specific:
 - components_list
 - setup_complexity
@@ -1519,18 +1573,15 @@ Tutorial-specific:
 - notable_mechanics
 - target_audience
 - similar_games
-
 Optional:
 - image_urls
 - average_rating
 - bgg_rank
 - expansions
-
 Return clean JSON only.
-
 Text:
-"""${mainContentText.slice(0, 8000)}"`
-    const response = await openai.chat.completions.create({
+"""${mainContentText.slice(0, 8000)}"""`;
+    const openaiResponse = await openai.chat.completions.create({
       model: 'gpt-4',
       messages: [
         { role: 'system', content: 'You are an expert boardgame metadata analyst.' },
@@ -1539,7 +1590,7 @@ Text:
       temperature: 0,
       max_tokens: 800
     });
-    const content = response.choices[0].message.content;
+    const content = openaiResponse.choices[0].message.content;
     let rawMetadata;
     try {
       rawMetadata = JSON.parse(content);
@@ -1569,7 +1620,11 @@ Text:
     res.json({ success: true, metadata: mappedMetadata });
   } catch (error) {
     console.error('Error in /api/extract-bgg-html:', error.message);
-    res.status(500).json({ error: 'Failed to extract BGG metadata from HTML' });
+    res.status(500).json({ 
+      error: 'Failed to extract BGG metadata from HTML',
+      details: error.message,
+      suggestion: 'Try again later or use the XML API fallback by providing a direct BGG URL.'
+    });
   }
 });
 
@@ -1585,48 +1640,139 @@ const storage = multer.diskStorage({
     cb(null, `${timestamp}_${safeName}`);
   }
 });
-const upload = multer({ storage });
-
-app.post('/upload-pdf', upload.single('pdf'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const pdfPath = req.file.path;
-    const pdfBase = path.basename(pdfPath, path.extname(pdfPath)).replace(/[^a-zA-Z0-9._-]/g, '_');
-    const outputDir = path.join(__dirname, 'uploads', 'images', pdfBase);
-    const pagePaths = await extractImagesFromPDF(pdfPath, outputDir);
-    const images = [];
-    for (const p of pagePaths) {
-      const name = path.basename(p);
-      let preview = null;
-      try {
-        const prev = await generatePreviewImage(p, 'uploads/tmp');
-        if (prev) preview = `/uploads/tmp/${path.basename(prev)}`;
-      } catch (e) {
-        console.warn('Preview generation failed for', p, e.message);
-      }
-      let rel = path.relative(path.join(__dirname, 'uploads'), p).replace(/\\/g, '/');
-      if (!rel.startsWith('/')) rel = `/${rel}`;
-      images.push({
-        id: `pdf-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        name,
-        path: `/uploads${rel}`,
-        preview,
-        source: 'pdf',
-        type: 'page'
-      });
+// Enhanced PDF upload endpoint with better error messages
+const uploadPdf = multer({
+  dest: 'uploads/',
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Check file extension
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext !== '.pdf') {
+      return cb(new Error('Only PDF files are allowed. File must have .pdf extension.'));
     }
-    res.json({
-      pdfPath: req.file.path,
-      originalName: req.file.originalname,
-      size: req.file.size,
-      images
-    });
-  } catch (err) {
-    console.error('PDF upload error:', err);
-    res.status(500).json({ error: 'Failed to upload PDF', details: err.message });
+    
+    // Check MIME type
+    if (file.mimetype !== 'application/pdf') {
+      return cb(new Error('Invalid file type. File must be a valid PDF document.'));
+    }
+    
+    cb(null, true);
   }
 });
 
+// Add PDF signature checking function
+function looksLikePdf(buf) {
+  // PDF header starts with "%PDF-"
+  return buf && buf.length > 4 && buf.slice(0,5).toString('ascii') === '%PDF-';
+}
+
+app.post('/upload-pdf', uploadPdf.single('pdf'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        error: 'No file uploaded',
+        suggestion: 'Please select a PDF file to upload.'
+      });
+    }
+    
+    // Validate PDF file with detailed error messages
+    const validation = await validatePDFFile(req.file.path);
+    if (!validation.valid) {
+      // Clean up uploaded file
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkError) {
+        console.warn('Failed to clean up uploaded file:', unlinkError.message);
+      }
+      
+      return res.status(400).json({ 
+        error: validation.error,
+        suggestion: 'Please ensure your PDF file is valid and under 50MB in size.',
+        validationDetails: {
+          fileSize: req.file.size,
+          fileName: req.file.originalname,
+          fileType: req.file.mimetype
+        }
+      });
+    }
+    
+    // Additional safety check: verify PDF signature
+    try {
+      const fileBuffer = fs.readFileSync(req.file.path);
+      if (!looksLikePdf(fileBuffer)) {
+        // Clean up uploaded file
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (unlinkError) {
+          console.warn('Failed to clean up uploaded file:', unlinkError.message);
+        }
+        
+        return res.status(400).json({ 
+          error: 'Invalid PDF file - missing PDF signature',
+          suggestion: 'The uploaded file does not appear to be a valid PDF document. Please check the file and try again.',
+          validationDetails: {
+            fileSize: req.file.size,
+            fileName: req.file.originalname,
+            fileType: req.file.mimetype,
+            hasPdfSignature: false
+          }
+        });
+      }
+    } catch (readError) {
+      // Clean up uploaded file
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkError) {
+        console.warn('Failed to clean up uploaded file:', unlinkError.message);
+      }
+      
+      return res.status(500).json({ 
+        error: 'Failed to read uploaded file for validation',
+        suggestion: 'There was an error reading the uploaded file. Please try again.',
+        validationDetails: {
+          fileSize: req.file.size,
+          fileName: req.file.originalname,
+          fileType: req.file.mimetype
+        }
+      });
+    }
+    
+    res.json({
+      message: 'File uploaded successfully',
+      pdfPath: req.file.path,
+      filename: req.file.originalname,
+      size: req.file.size,
+      validationDetails: {
+        fileSize: req.file.size,
+        fileName: req.file.originalname,
+        fileType: req.file.mimetype,
+        hasPdfSignature: true
+      }
+    });
+  } catch (error) {
+    // Clean up uploaded file if it exists
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkError) {
+        console.warn('Failed to clean up uploaded file:', unlinkError.message);
+      }
+    }
+    
+    console.error('PDF upload error:', error);
+    res.status(500).json({ 
+      error: 'Failed to upload PDF: ' + error.message,
+      suggestion: 'Please try uploading a smaller PDF file (< 50MB) or check file permissions.',
+      validationDetails: req.file ? {
+        fileSize: req.file.size,
+        fileName: req.file.originalname,
+        fileType: req.file.mimetype
+      } : null
+    });
+  }
+});
 app.post('/api/fetch-bgg-images', async (req, res) => {
   try {
     const { gameName } = req.body;
@@ -1691,13 +1837,11 @@ app.post('/api/fetch-bgg-images', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch BGG images: ' + error.message });
   }
 });
-
 // Add this under your other routes (e.g., below /api/fetch-bgg-images)
 app.post('/api/search-images', async (req, res) => {
   try {
     const { gameName, bggId, pageLimit = 2, max = 60 } = req.body || {};
     let id = bggId;
-
     if (!id) {
       if (!gameName || !gameName.trim()) {
         return res.status(400).json({ error: 'Provide gameName or bggId' });
@@ -1709,10 +1853,8 @@ app.post('/api/search-images', async (req, res) => {
       if (!match) return res.status(404).json({ error: 'Game not found on BGG for image search' });
       id = match[1];
     }
-
     const pages = Math.min(Math.max(1, Number(pageLimit) || 1), 5);
     const galleryUrls = Array.from({ length: pages }, (_, i) => `https://boardgamegeek.com/boardgame/${id}/images?pageid=${i + 1}`);
-
     const images = [];
     for (const url of galleryUrls) {
       try {
@@ -1734,7 +1876,6 @@ app.post('/api/search-images', async (req, res) => {
         console.warn('search-images extract failed for', url, e.message);
       }
     }
-
     // Dedupe by exact path and clamp to max
     const seen = new Set();
     const deduped = [];
@@ -1744,14 +1885,12 @@ app.post('/api/search-images', async (req, res) => {
       deduped.push(img);
       if (deduped.length >= max) break;
     }
-
     res.json({ success: true, images: deduped, bggId: id });
   } catch (err) {
     console.error('search-images error:', err);
     res.status(500).json({ error: 'Search images failed', details: err.message });
   }
 });
-
 app.post('/api/extract-extra-images', async (req, res) => {
   try {
     const raw = req.body.extraImageUrls || req.body.urls;
@@ -1804,7 +1943,6 @@ app.post('/api/extract-extra-images', async (req, res) => {
     return res.status(500).json({ error: 'Failed to extract extra images', details: err.message });
   }
 });
-
 app.post('/extract-images', async (req, res) => {
   try {
     const { sources } = req.body;
@@ -1822,7 +1960,6 @@ app.post('/extract-images', async (req, res) => {
     res.status(500).json({ error: 'Failed to extract images', details: err.message });
   }
 });
-
 app.post('/crop-component', async (req, res) => {
   console.log('--- Component cropping started ---');
   try {
@@ -1861,7 +1998,6 @@ app.post('/crop-component', async (req, res) => {
     res.status(500).json({ error: 'Failed to crop component', details: err.message });
   }
 });
-
 async function extractMetadata(rulebookText) {
   const prompt = `You are an expert boardgame analyst. Extract the following JSON:
 {
@@ -1882,7 +2018,6 @@ async function extractMetadata(rulebookText) {
   "notable_rules": []
 }
 Use only the text.
-
 Rulebook text:
 ${rulebookText.slice(0, 2000)}`;
   try {
@@ -1909,7 +2044,6 @@ ${rulebookText.slice(0, 2000)}`;
     };
   }
 }
-
 async function summarizeChunkEnglish(chunk) {
   const prompt = `You are an expert boardgame explainer. Write a concise summary with structure:
 1. Game overview
@@ -1918,7 +2052,6 @@ async function summarizeChunkEnglish(chunk) {
 4. Turn structure and main actions
 5. How the game ends and how to win
 6. Notable rules
-
 ${chunk}`;
   try {
     const response = await openai.chat.completions.create({
@@ -1936,7 +2069,6 @@ ${chunk}`;
     return 'Error summarizing chunk.';
   }
 }
-
 app.post('/summarize', async (req, res) => {
   console.log('--- Summarization started ---');
   const startTime = Date.now();
@@ -1955,7 +2087,6 @@ app.post('/summarize', async (req, res) => {
       targetWordCount = 0,
       rulebookWordCount = 0
     } = req.body;
-
     console.log(`Processing for game: ${gameName}, language: ${language}, detail: ${detailPercentage}%, rulebook words: ${rulebookWordCount}`);
     
     if (!rulebookText) {
@@ -1966,7 +2097,6 @@ app.post('/summarize', async (req, res) => {
       console.log('Error: No game name provided');
       return res.status(400).json({ error: 'No game name provided' });
     }
-
     const extractedMetadata = await extractMetadata(rulebookText);
     let tempMetadata = {
       publisher: metadata?.publisher || extractedMetadata.publisher,
@@ -1976,7 +2106,6 @@ app.post('/summarize', async (req, res) => {
       theme: metadata?.theme || extractedMetadata.theme,
       edition: metadata?.edition || extractedMetadata.edition
     };
-
     const metadataForPrompt = {};
     const fieldsToCustomize = {
       publisher: 'Publisher',
@@ -1992,7 +2121,6 @@ app.post('/summarize', async (req, res) => {
     if (metadataForPrompt.theme === 'Not found') {
       return res.status(200).json({ needsTheme: true, metadata: metadataForPrompt });
     }
-
     const chunks = splitIntoSections(rulebookText);
     const chunkSummaries = [];
     const maxChunks = 15;
@@ -2003,7 +2131,6 @@ app.post('/summarize', async (req, res) => {
       chunkSummaries.push(summary);
       await delay(500);
     }
-
     let calculatedTargetWordCount = targetWordCount;
     
     // Enhanced target length calculation based on rulebook complexity
@@ -2030,7 +2157,6 @@ app.post('/summarize', async (req, res) => {
     const targetLengthLine = finalTargetWordCount > 0
       ? `Target length: approximately ${finalTargetWordCount} words (${Math.round(finalTargetWordCount / 150)}-${Math.round(finalTargetWordCount / 120)} minutes when spoken).`
       : `Target length: aim for 5–15 minutes (20–30 for complex games).`;
-
     function safeStringify(obj) {
       try {
         return JSON.stringify(obj ?? null, null, 2);
@@ -2038,27 +2164,20 @@ app.post('/summarize', async (req, res) => {
         return String(obj);
       }
     }
-
     const componentsJson = safeStringify(components);
     const metadataJson = safeStringify(metadata);
     const previousSummaryBlock = (resummarize && previousSummary)
       ? `\nPrevious Summary:\n${previousSummary}\n`
       : '';
-
     const englishBasePrompt = `
     You are an expert boardgame educator. Write a complete, engaging, tutorial script for the game using ONLY the provided rulebook text and data blocks.
-
     ${targetLengthLine}
-
     Include sections: Introduction, Component Overview, Setup, Objective, Gameplay Flow, Key Rules & Special Cases, Example Turn, End Game & Scoring, Tips/Strategy/Common Mistakes, Variants & Expansions (if any), and Recap & CTA.
-
     Use conversational, friendly language and include visual cues in brackets (e.g., [Show close-up of cards]).
     `.trim();
-
     const contextHeader = (resummarize && previousSummary)
       ? 'Here is the rulebook text and additional context:'
       : 'Here is the rulebook text and data:';
-
     const contextBlock = [
       contextHeader,
       '',
@@ -2071,9 +2190,7 @@ app.post('/summarize', async (req, res) => {
       'Rulebook Text:',
       (typeof rulebookText === 'string' ? rulebookText : '')
     ].join('\n');
-
     const finalPrompt = `${englishBasePrompt}\n\n${contextBlock}`;
-
     const englishSummaryResponse = await openai.chat.completions.create({
       model: 'gpt-4',
       messages: [
@@ -2088,7 +2205,6 @@ app.post('/summarize', async (req, res) => {
     console.log(`AI summary generated in ${Date.now() - startTime}ms, length: ${englishSummary.length} chars`);
     
     let finalOutputSummary = englishSummary;
-
     if (language === 'french') {
       try {
         const translationResponse = await openai.chat.completions.create({
@@ -2111,10 +2227,8 @@ app.post('/summarize', async (req, res) => {
         });
       }
     }
-
     const gameDir = path.join(OUTPUT_DIR, `${gameName.replace(/[^a-zA-Z0-9]/g, '_')}_${getDateString()}`);
     await ensureDir(gameDir);
-
     const summaryContent =
       `# ${gameName} Tutorial Script\n` +
       `**Generated on**: ${new Date().toISOString()}\n` +
@@ -2126,13 +2240,11 @@ app.post('/summarize', async (req, res) => {
       `**Theme**: ${metadataForPrompt.theme}\n` +
       `**Edition**: ${metadataForPrompt.edition}\n` +
       finalOutputSummary;
-
     const summaryPath = path.join(gameDir, `summary_${language}.md`);
     await fsPromises.writeFile(summaryPath, summaryContent);
     
     const totalTime = Date.now() - startTime;
     console.log(`--- Summarization completed in ${totalTime}ms ---`);
-
     res.json({ summary: finalOutputSummary, metadata: metadataForPrompt, components });
   } catch (error) {
     const totalTime = Date.now() - startTime;
@@ -2156,7 +2268,6 @@ app.post('/summarize', async (req, res) => {
     res.status(500).json({ error: 'Failed to generate summary', details: error.message });
   }
 });
-
 app.post('/api/generate-storyboard', async (req, res) => {
   try {
     const {
@@ -2183,11 +2294,9 @@ app.post('/api/generate-storyboard', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
 // Simple in-memory cache for TTS audio
 const ttsCache = new Map();
 const MAX_CACHE_SIZE = 100;
-
 // Function to generate cache key
 async function generateTtsCacheKey(text, voice, language) {
   // Create a hash of the input parameters using dynamic import
@@ -2196,7 +2305,6 @@ async function generateTtsCacheKey(text, voice, language) {
   hash.update(`${text}-${voice}-${language}`);
   return hash.digest('hex');
 }
-
 // Function to chunk long text into smaller segments
 function chunkText(text, maxChunkSize = 2000) {
   // Split text into sentences
@@ -2222,15 +2330,12 @@ function chunkText(text, maxChunkSize = 2000) {
   
   return chunks;
 }
-
 // Function to generate 0.2s silence in MP3 format
 function generateSilence() {
   // Return a small buffer with MP3 silence (0.2s of silence)
   // This is a simplified approach - in practice, you might want to generate actual silence
   return Buffer.from([0xFF, 0xFB, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
 }
-
-
 app.post('/tts', async (req, res) => {
   const startTime = Date.now();
   const { text, voice, language, gameName } = req.body;
@@ -2329,205 +2434,14 @@ app.post('/tts', async (req, res) => {
       if (firstKey) ttsCache.delete(firstKey);
     }
     ttsCache.set(cacheKey, audioBuffer);
-    
-    const gameDir = path.join(OUTPUT_DIR, `${gameName.replace(/[^a-zA-Z0-9]/g, '_')}_${getDateString()}`);
-    await ensureDir(gameDir);
-    const audioPath = path.join(gameDir, `audio_section_${language}_${Date.now()}.mp3`);
-    await fsPromises.writeFile(audioPath, audioBuffer);
-    
-    const totalTime = Date.now() - startTime;
-    console.log(`TTS completed in ${totalTime}ms for ${text.length} characters`);
-    
-    res.type('audio/mpeg').send(audioBuffer);
   } catch (error) {
-    const totalTime = Date.now() - startTime;
-    console.error(`TTS failed after ${totalTime}ms:`, error.message);
-    
-    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-      return res.status(408).json({ 
-        error: 'TTS request timeout - audio generation took too long. Try reducing text length.',
-        timeout: true
-      });
-    }
-    if (error.response) {
-      if (error.response.status === 401 && error.response.data.toString().includes('quota_exceeded')) {
-        return res.status(400).json({ error: 'ElevenLabs quota exceeded. Please check your subscription or try again later.' });
-      }
-      if (error.response.status === 400) {
-        return res.status(400).json({ error: 'ElevenLabs processing error: ' + error.response.data.toString(), details: error.message });
-      }
-    }
-    res.status(500).json({ error: 'Failed to generate audio', details: error.message });
+    console.error('TTS generation error:', error);
+    return res.status(500).json({ error: 'Failed to generate TTS audio' });
   }
+  const totalTime = Date.now() - startTime;
+  console.log(`TTS completed in ${totalTime}ms for ${text.length} characters`);
+  return res.type('audio/mpeg').send(audioBuffer);
 });
-
-app.post('/start-extraction', async (req, res) => {
-  try {
-    const { bggUrl, extraImageUrls } = req.body;
-    if (!bggUrl && !extraImageUrls) {
-      return res.status(400).json({ error: 'Provide at least a BGG URL or Extra Image URLs.' });
-    }
-    let gameInfo = {};
-    let components = [];
-    if (bggUrl) {
-      const bggIdMatch = bggUrl.match(/boardgame\/(\d+)/);
-      if (!bggIdMatch) return res.status(400).json({ error: 'Invalid BGG URL format' });
-      const gameId = bggIdMatch[1];
-      const detailUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}&type=boardgame&stats=1`;
-      const response = await axios.get(detailUrl, { timeout: 10000, headers: { 'User-Agent': 'BoardGameTutorialGenerator/1.0' } });
-      const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
-      const data = parser.parse(response.data);
-      const game = data.items?.item;
-      if (!game) throw new Error('Game not found on BGG');
-      const extractValue = (field) => {
-        if (!field) return '';
-        if (Array.isArray(field)) return field.map(item => item['@_value'] || item).join(', ');
-        return field['@_value'] || field;
-      };
-      gameInfo = {
-        success: true,
-        bggId: gameId,
-        gameName: extractValue(game.name),
-        imageUrl: game.image || '',
-        thumbnailUrl: game.thumbnail || '',
-        description: game.description || '',
-        yearPublished: extractValue(game.yearpublished) || '',
-        minPlayers: game.minplayers ? game.minplayers['@_value'] : '',
-        maxPlayers: game.maxplayers ? game.maxplayers['@_value'] : '',
-        minPlayTime: game.minplaytime ? game.minplaytime['@_value'] : '',
-        maxPlayTime: game.maxplaytime ? game.maxplaytime['@_value'] : '',
-        playingTime: game.playingtime ? game.playingtime['@_value'] : '',
-        minAge: game.minage ? game.minage['@_value'] : '',
-        publishers: [],
-        designers: [],
-        artists: [],
-        categories: [],
-        mechanics: [],
-        rating: '',
-        rank: '',
-        bggUrl
-      };
-      if (game.link && Array.isArray(game.link)) {
-        game.link.forEach(link => {
-          const type = link['@_type'];
-          const value = link['@_value'];
-          switch (type) {
-            case 'boardgamepublisher': gameInfo.publishers.push(value); break;
-            case 'boardgamedesigner': gameInfo.designers.push(value); break;
-            case 'boardgameartist': gameInfo.artists.push(value); break;
-            case 'boardgamecategory': gameInfo.categories.push(value); break;
-            case 'boardgamemechanic': gameInfo.mechanics.push(value); break;
-          }
-        });
-      }
-      if (game.statistics?.ratings) {
-        const ratings = game.statistics.ratings;
-        gameInfo.rating = ratings.average ? ratings.average['@_value'] : '';
-        if (ratings.ranks?.rank) {
-          const ranks = Array.isArray(ratings.ranks.rank) ? ratings.ranks.rank : [ratings.ranks.rank];
-          const overallRank = ranks.find(r => r['@_name'] === 'boardgame');
-          gameInfo.rank = overallRank ? overallRank['@_value'] : '';
-        }
-      }
-      try {
-        const bggExtractionResponse = await axios.get(`http://localhost:${port}/api/bgg-components?url=${encodeURIComponent(bggUrl)}`);
-        const extractedComponents = bggExtractionResponse.data.components || [];
-        components = extractedComponents.map(c => ({
-          name: typeof c === 'string' ? c : c.name,
-          quantity: (typeof c === 'object' && c.quantity) ? c.quantity : null,
-          selected: true,
-          source: 'BGG_robust_extraction'
-        }));
-      } catch (e) {
-        console.error('BGG robust component extraction failed:', e.message);
-        if (game.description) {
-          const desc = game.description.toLowerCase();
-          const extracted = extractComponentsFromText(desc);
-          extracted.forEach(comp => {
-            if (!components.some(c => c.name.toLowerCase() === comp.name.toLowerCase())) {
-              components.push({ ...comp, selected: true, source: 'BGG_description_fallback' });
-            }
-          });
-        }
-      }
-      if (components.length === 0) {
-        components = [
-          { name: 'Game Board', quantity: 1, selected: true, source: 'default' },
-          { name: 'Rulebook', quantity: 1, selected: true, source: 'default' },
-          { name: 'Cards', quantity: null, selected: true, source: 'default' },
-          { name: 'Tokens', quantity: null, selected: true, source: 'default' }
-        ];
-      }
-    }
-
-    let extraImages = [];
-    if (extraImageUrls) {
-      let urls = Array.isArray(extraImageUrls) ? extraImageUrls : String(extraImageUrls).split(/,|\n|;/);
-      urls = urls.map(u => u.trim()).filter(Boolean);
-      urls = Array.from(new Set(urls));
-      urls = urls.filter(u => /^https?:\/\//i.test(u));
-      for (const url of urls) {
-        try {
-          const imageUrls = await extractImagesFromUrl(url, IMAGE_EXTRACTOR_API_KEY, 'basic');
-          for (const imgUrl of imageUrls) {
-            extraImages.push({
-              id: `ext-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-              path: imgUrl,
-              source: 'image_extractor',
-              type: 'Component',
-              description: '',
-              name: `Image from ${url}`,
-              originalUrl: url,
-              preview: null
-            });
-          }
-        } catch (err) {
-          console.error(`Failed to extract from ${url}:`, err);
-        }
-      }
-    }
-
-    const bggImages = [];
-    if (gameInfo.imageUrl) {
-      bggImages.push({ id: `bgg-${Date.now()}-${Math.random().toString(36).slice(2)}`, path: gameInfo.imageUrl, source: 'BGG', type: 'cover', name: 'Box Cover', description: 'Game box cover from BoardGameGeek', preview: null });
-    }
-    if (gameInfo.thumbnailUrl && gameInfo.thumbnailUrl !== gameInfo.imageUrl) {
-      bggImages.push({ id: `bgg-${Date.now()}-${Math.random().toString(36).slice(2)}`, path: gameInfo.thumbnailUrl, source: 'BGG', type: 'thumbnail', name: 'Thumbnail', description: 'Game thumbnail from BoardGameGeek', preview: null });
-    }
-
-    const allImages = [...bggImages, ...extraImages];
-
-    const formattedGameInfo = {
-      success: true,
-      bgg_id: gameInfo.bggId || '',
-      title: gameInfo.gameName || '',
-      cover_image: gameInfo.imageUrl || '',
-      thumbnail: gameInfo.thumbnailUrl || '',
-      description: gameInfo.description || '',
-      year: gameInfo.yearPublished || '',
-      publisher: gameInfo.publishers || [],
-      player_count: gameInfo.minPlayers && gameInfo.maxPlayers ? `${gameInfo.minPlayers}-${gameInfo.maxPlayers}` : (gameInfo.minPlayers || gameInfo.maxPlayers || ''),
-      play_time: gameInfo.minPlayTime && gameInfo.maxPlayTime ? `${gameInfo.minPlayTime}-${gameInfo.maxPlayTime} min` : (gameInfo.playingTime ? `${gameInfo.playingTime} min` : ''),
-      min_age: gameInfo.minAge ? `${gameInfo.minAge}+` : '',
-      theme: gameInfo.categories || [],
-      edition: gameInfo.yearPublished || '',
-      designers: gameInfo.designers || [],
-      mechanics: gameInfo.mechanics || [],
-      artists: gameInfo.artists || [],
-      average_rating: gameInfo.rating || '',
-      bgg_rank: gameInfo.rank || '',
-      bggUrl: gameInfo.bggUrl || '',
-      allImages,
-      components
-    };
-
-    res.json(formattedGameInfo);
-  } catch (error) {
-    console.error('Extraction error:', error);
-    res.status(500).json({ error: 'Failed to extract info: ' + error.message });
-  }
-});
-
 app.get('/load-project/:id', (req, res) => {
   const apiKey = req.headers['x-api-key'];
   if (!apiKey || apiKey !== process.env.API_KEY) {
@@ -2552,43 +2466,220 @@ app.get('/load-project/:id', (req, res) => {
   });
 });
 
-// Health / Hello Pipeline endpoint (INSERT this block above the server start)
-app.get('/api/health', (req, res) => {
-  try {
-    const routes = [];
-    if (app && app._router && Array.isArray(app._router.stack)) {
-      app._router.stack.forEach(layer => {
-        if (layer.route && layer.route.path) {
-          const methods = Object.keys(layer.route.methods || {})
-            .filter(Boolean)
-            .map(m => m.toUpperCase());
-          routes.push(`${methods.join('|')} ${layer.route.path}`);
-        }
-      });
-    }
+// Add configurable timeouts
+const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS) || 30000;
+const HEALTH_CHECK_TIMEOUT_MS = parseInt(process.env.HEALTH_CHECK_TIMEOUT_MS) || 5000;
+const BGG_FETCH_TIMEOUT_MS = parseInt(process.env.BGG_FETCH_TIMEOUT_MS) || 10000;
 
+// Apply timeout middleware
+app.use((req, res, next) => {
+  // Set request timeout
+  req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+    console.warn(`Request timeout after ${REQUEST_TIMEOUT_MS}ms`);
+    res.status(408).json({ error: 'Request timeout' });
+  });
+  
+  // Set socket timeout
+  res.setTimeout(REQUEST_TIMEOUT_MS, () => {
+    console.warn(`Response timeout after ${REQUEST_TIMEOUT_MS}ms`);
+    res.status(408).json({ error: 'Response timeout' });
+  });
+  
+  next();
+});
+
+// Enhanced health check with timeout configuration
+app.get('/healthz', (req, res) => {
+  // Set a shorter timeout for health checks
+  req.setTimeout(HEALTH_CHECK_TIMEOUT_MS, () => {
+    res.status(408).send('Health check timeout');
+  });
+  
+  res.send('ok');
+});
+
+// Enhanced BGG fetching with timeout and retry logic
+async function fetchBGGWithTimeout(url, timeout = BGG_FETCH_TIMEOUT_MS, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      
+      const response = await axios.get(url, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'BoardGameTutorialGenerator/1.0' },
+        timeout: timeout
+      });
+      
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      if (i === retries - 1) throw error;
+      
+      // Exponential backoff
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+    }
+  }
+}
+
+// BGG URL whitelist function for SSRF protection (using shared validator)
+function isAllowedBGGUrl(raw) {
+  return isAllowedUrl(raw);
+}
+
+// Enhanced start-extraction endpoint with better error handling and BGG URL validation
+app.post('/start-extraction', async (req, res) => {
+  try {
+    const { bggUrl, extraImageUrls } = req.body;
+    
+    // Validate BGG URL if provided
+    if (bggUrl && !isAllowedBGGUrl(bggUrl)) {
+      return res.status(400).json({ error: 'Invalid BGG URL (host not allowed)' });
+    }
+    
+    if (!bggUrl && !extraImageUrls) {
+      return res.status(400).json({ error: 'Provide at least a BGG URL or Extra Image URLs.' });
+    }
+    
+    let gameInfo = {};
+    let components = [];
+    
+    if (bggUrl) {
+      const bggIdMatch = bggUrl.match(/boardgame\/(\d+)/);
+      if (!bggIdMatch) return res.status(400).json({ error: 'Invalid BGG URL format' });
+      const gameId = bggIdMatch[1];
+      const detailUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}&type=boardgame&stats=1`;
+      
+      try {
+        const response = await fetchBGGWithTimeout(detailUrl, BGG_FETCH_TIMEOUT_MS);
+        const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
+        const data = parser.parse(response.data);
+        const game = data.items?.item;
+        if (!game) throw new Error('Game not found on BGG');
+        
+        const extractValue = (field) => {
+          if (!field) return '';
+          if (Array.isArray(field)) return field.map(item => item['@_value'] || item).join(', ');
+          return field['@_value'] || field;
+        };
+        
+        gameInfo = {
+          success: true,
+          bggId: gameId,
+          gameName: extractValue(game.name),
+          imageUrl: game.image || '',
+          thumbnailUrl: game.thumbnail || '',
+          description: game.description || '',
+          yearPublished: extractValue(game.yearpublished) || '',
+          minPlayers: game.minplayers ? game.minplayers['@_value'] : '',
+          maxPlayers: game.maxplayers ? game.maxplayers['@_value'] : '',
+          minPlayTime: game.minplaytime ? game.minplaytime['@_value'] : '',
+          maxPlayTime: game.maxplaytime ? game.maxplaytime['@_value'] : '',
+          playingTime: game.playingtime ? game.playingtime['@_value'] : '',
+          minAge: game.minage ? game.minage['@_value'] : '',
+          publishers: [],
+          designers: [],
+          artists: [],
+          categories: [],
+          mechanics: [],
+          rating: '',
+          rank: '',
+          bggUrl: bggUrl
+        };
+        
+        if (game.link && Array.isArray(game.link)) {
+          game.link.forEach(link => {
+            const type = link['@_type'];
+            const value = link['@_value'];
+            switch (type) {
+              case 'boardgamepublisher': gameInfo.publishers.push(value); break;
+              case 'boardgamedesigner': gameInfo.designers.push(value); break;
+              case 'boardgameartist': gameInfo.artists.push(value); break;
+              case 'boardgamecategory': gameInfo.categories.push(value); break;
+              case 'boardgamemechanic': gameInfo.mechanics.push(value); break;
+            }
+          });
+        }
+        
+        if (game.statistics?.ratings) {
+          const ratings = game.statistics.ratings;
+          gameInfo.rating = ratings.average ? ratings.average['@_value'] : '';
+          if (ratings.ranks?.rank) {
+            const ranks = Array.isArray(ratings.ranks.rank) ? ratings.ranks.rank : [ratings.ranks.rank];
+            const overallRank = ranks.find(r => r['@_name'] === 'boardgame');
+            gameInfo.rank = overallRank ? overallRank['@_value'] : '';
+          }
+        }
+        
+        try {
+          const bggExtractionResponse = await axios.get(`http://localhost:${port}/api/bgg-components?url=${encodeURIComponent(bggUrl)}`);
+          const extractedComponents = bggExtractionResponse.data.components || [];
+          components = extractedComponents.map(c => ({
+            name: typeof c === 'string' ? c : c.name,
+            quantity: (typeof c === 'object' && c.quantity) ? c.quantity : null,
+            selected: true,
+            source: 'BGG_robust_extraction'
+          }));
+        } catch (e) {
+          console.error('BGG robust component extraction failed:', e.message);
+          if (game.description) {
+            const desc = game.description.toLowerCase();
+            const extracted = extractComponentsFromText(desc);
+            extracted.forEach(comp => {
+              if (!components.some(c => c.name.toLowerCase() === comp.name.toLowerCase())) {
+                components.push({ ...comp, selected: true, source: 'BGG_description_fallback' });
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('BGG fetch error:', error);
+        return res.status(500).json({ 
+          error: 'Failed to fetch BGG data: ' + error.message,
+          suggestion: 'Please check your internet connection or try again later. If the problem persists, the BGG API might be temporarily unavailable.'
+        });
+      }
+    }
+    
+    if (extraImageUrls) {
+      if (Array.isArray(extraImageUrls)) {
+        for (const url of extraImageUrls) {
+          // Validate extra image URLs
+          if (!isAllowedBGGUrl(url)) {
+            return res.status(400).json({ error: `Invalid extra image URL (host not allowed): ${url}` });
+          }
+          
+          try {
+            const extracted = await extractAndStoreImagesSafe(url, path.join(__dirname, 'uploads', 'images'));
+            components.push(...extracted);
+          } catch (error) {
+            console.error('Failed to extract image:', error);
+            return res.status(500).json({ 
+              error: 'Failed to extract image: ' + error.message,
+              suggestion: 'Please check the URL and try again. If the problem persists, the image might be invalid or inaccessible.'
+            });
+          }
+        }
+      } else {
+        return res.status(400).json({ error: 'extraImageUrls should be an array' });
+      }
+    }
+    
     res.json({
-      ok: true,
-      service: 'mobius-games-tutorial-generator',
-      time: new Date().toISOString(),
-      node: process.version,
-      env: {
-        OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
-        ELEVENLABS_API_KEY: !!process.env.ELEVENLABS_API_KEY,
-        IMAGE_EXTRACTOR_API_KEY: !!process.env.IMAGE_EXTRACTOR_API_KEY
-      },
-      storage: {
-        uploadsDir: UPLOADS_DIR,
-        uploadsDirExists: fs.existsSync(UPLOADS_DIR),
-        outputDir: OUTPUT_DIR,
-        outputDirExists: fs.existsSync(OUTPUT_DIR)
-      },
-      routes
+      success: true,
+      gameInfo,
+      components
     });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+  } catch (error) {
+    console.error('Start extraction error:', error);
+    res.status(500).json({ 
+      error: 'Failed to start extraction: ' + error.message,
+      suggestion: 'Please check the server logs for more details or try again with a smaller PDF file.'
+    });
   }
 });
+
+// Use the enhanced PDF upload endpoint defined earlier
 
 // Projects endpoint
 app.get('/api/projects', (req, res) => {
@@ -2617,7 +2708,6 @@ app.get('/api/projects', (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
-
 // Enhanced health details endpoint
 app.get('/api/health/details', async (req, res) => {
   try {
@@ -2634,7 +2724,6 @@ app.get('/api/health/details', async (req, res) => {
     } catch (e) {
       // Git not available
     }
-
     // Get poppler version
     let popplerVersion = 'unknown';
     try {
@@ -2652,7 +2741,6 @@ app.get('/api/health/details', async (req, res) => {
     } catch (e) {
       // Poppler not available
     }
-
     // Check if OUTPUT_DIR is writable using dynamic import
     let outputDirWritable = false;
     try {
@@ -2664,12 +2752,10 @@ app.get('/api/health/details', async (req, res) => {
     } catch (e) {
       // Not writable
     }
-
     // Get event loop and resource metrics
     const eventLoopDelayMs = getEventLoopDelayMs();
     const resourceUsage = getResourceUsage();
     const memoryUsage = getMemoryUsage();
-
     res.json({
       ok: true,
       service: 'mobius-games-tutorial-generator',
@@ -2709,27 +2795,107 @@ app.get('/api/health/details', async (req, res) => {
   }
 });
 
+// Liveness and readiness endpoints
+app.get("/livez", (_,r)=>r.status(200).send("OK"));
+
+app.get("/readyz", async (req, res) => {
+  const issues = [];
+  
+  // Check if required API keys are present
+  if (!process.env.ELEVENLABS_API_KEY) issues.push("tts_key");
+  
+  // Check event loop delay
+  const loopMs = Math.round(globalThis.__eventLoopDelayMs?.() || 0);
+  if (loopMs > 250) issues.push("event_loop_delay");
+  
+  // Check memory usage
+  const rssMB = Math.round(process.memoryUsage().rss / 1e6);
+  if (rssMB > 1000) issues.push("high_memory");
+  
+  // Check outbound HTTP connectivity (BGG fetch to a known small ID with HEAD)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch('https://boardgamegeek.com/xmlapi2/thing?id=1', {
+      method: 'HEAD',
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'MobiusGamesTutorialGenerator/1.0 (https://github.com/mobius-games/tutorial-generator)'
+      }
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      issues.push("bgg_connectivity");
+    }
+  } catch (error) {
+    issues.push("bgg_connectivity");
+  }
+  
+  // Check temp dir writeability for thumbnails
+  try {
+    const tempDir = path.join(UPLOADS_DIR, 'tmp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    const testFile = path.join(tempDir, '.write_test');
+    fs.writeFileSync(testFile, 'test');
+    fs.unlinkSync(testFile);
+  } catch (error) {
+    issues.push("temp_dir_writeability");
+  }
+  
+  // Check cache directory read/write
+  try {
+    const cacheDir = path.join(process.cwd(), 'cache', 'bgg');
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
+    
+    const testFile = path.join(cacheDir, '.write_test');
+    fs.writeFileSync(testFile, 'test');
+    fs.unlinkSync(testFile);
+  } catch (error) {
+    issues.push("cache_dir_access");
+  }
+  
+  // Return readiness status
+  if (issues.length) {
+    return res.status(500).json({ 
+      status: "not_ready", 
+      issues, 
+      rssMB, 
+      loopMs,
+      time: new Date().toISOString()
+    });
+  }
+  
+  res.json({ 
+    status: "ready", 
+    rssMB, 
+    loopMs,
+    time: new Date().toISOString()
+  });
+});
+
 // Ignore favicon requests on API origin (prevents Firefox ORB warning)  
 app.get('/favicon.ico', (req, res) => res.sendStatus(204));
-
 // Mount component extractor route
 mountExtractComponentsRoute(app);
-
 // Mount Poppler health route
 mountPopplerHealthRoute(app);
-
 // Add development vs production URL separation
 function isDevMode() {
   return process.env.NODE_ENV !== 'production';
 }
-
 // Add metrics endpoint
 import { getMetrics } from './metrics.js';
-
 // Add metrics endpoint security
 const METRICS_ALLOW_CIDR = (process.env.METRICS_ALLOW_CIDR || "127.0.0.1/32,::1/128").split(",");
 const METRICS_TOKEN = process.env.METRICS_TOKEN;
-
 // Metrics security middleware
 function metricsSecurity(req, res, next) {
   // If token is set, require it
@@ -2763,7 +2929,6 @@ function metricsSecurity(req, res, next) {
   
   return res.status(403).json({ error: "Forbidden" });
 }
-
 app.get('/metrics', metricsSecurity, async (req, res) => {
   try {
     res.set('Content-Type', 'text/plain');
@@ -2771,18 +2936,6 @@ app.get('/metrics', metricsSecurity, async (req, res) => {
   } catch (ex) {
     res.status(500).end(ex.message);
   }
-});
-
-// Liveness and readiness endpoints
-app.get("/livez", (_,r)=>r.status(200).send("OK"));
-app.get("/readyz", async (req, res) => {
-  const issues = [];
-  if (!process.env.ELEVENLABS_API_KEY) issues.push("tts_key");
-  const rssMB = Math.round(process.memoryUsage().rss / 1e6);
-  const loopMs = Math.round(globalThis.__eventLoopDelayMs?.() || 0);
-  if (loopMs > 250) issues.push("event_loop_delay");
-  if (issues.length) return res.status(503).json({ status:"degraded", issues, rssMB, loopMs });
-  res.json({ status:"ready", rssMB, loopMs });
 });
 
 // Enhanced URL whitelist that separates dev and prod
@@ -2824,9 +2977,7 @@ function isUrlWhitelistedSecure(url) {
   }
 }
 
-// Add graceful shutdown handling
 const connections = new Set();
-
 const server = app.listen(port, () => {
   console.log('API file loaded!');
   console.log(`Uploads dir: ${UPLOADS_DIR}`);
@@ -2841,7 +2992,7 @@ server.on("connection", (conn) => {
 function shutdown(signal) {
   console.log(`[${signal}] shutting down...`);
   server.close(() => {
-    console.log("HTTP server closed");
+    console.log(`HTTP server closed`);
     process.exit(0);
   });
   // Force close lingering sockets after 10s
@@ -2850,5 +3001,4 @@ function shutdown(signal) {
     process.exit(1);
   }, 10_000).unref();
 }
-
 ["SIGINT","SIGTERM"].forEach(sig => process.on(sig, () => shutdown(sig)));

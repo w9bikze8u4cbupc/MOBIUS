@@ -1,198 +1,92 @@
 # Final Hardening Implementation Summary
 
-This document summarizes the implementation of all final hardening checks and monitoring components for the Mobius Games Tutorial Generator.
+## Overview
+This document summarizes the hardening features implemented for the Mobius Games Tutorial Generator to make it production-ready with enhanced security, reliability, and observability.
 
-## 1. Metrics Sanity Check
+## Hardening Features Implemented
 
-### Implementation
-- Created PowerShell script `scripts/verify-metrics.ps1` to test metrics counters
-- Verified TTS requests and cache hits are properly recorded
-- Confirmed HTTP request duration metrics are captured
+### 1. SSRF Prevention (BGG URL Allowlist)
+- **Implementation**: Created [src/utils/urlValidator.js](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/src/utils/urlValidator.js) with hostname allowlist validation
+- **Allowlist**: boardgamegeek.com, www.boardgamegeek.com, cf.geekdo-images.com, geekdo-static.com, localhost, 127.0.0.1
+- **Integration**: Added validation to [/start-extraction](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/src/api/index.js#L2442-L2442) endpoint
+- **Testing**: Created unit tests in [src/utils/__tests__/urlValidator.test.js](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/src/utils/__tests__/urlValidator.test.js)
 
-### Verification Commands
-```powershell
-# Warm up TTS and verify counters
-Invoke-RestMethod -Uri "http://localhost:5001/tts" -Method POST -Body (@{text="cache check"; game="Catan"; lang="en"} | ConvertTo-Json) -ContentType "application/json" | Out-Null
-Invoke-RestMethod -Uri "http://localhost:5001/tts" -Method POST -Body (@{text="cache check"; game="Catan"; lang="en"} | ConvertTo-Json) -ContentType "application/json" | Out-Null
+### 2. PDF Upload Safety
+- **Size Limits**: Maximum 50MB file size limit
+- **MIME Type Checking**: Only accepts `application/pdf` files
+- **File Signature Verification**: Validates PDF magic header (`%PDF-`)
+- **Content Validation**: Parses PDF to ensure it's a valid document
+- **Integration**: Enhanced [/upload-pdf](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/src/api/index.js#L2517-L2517) endpoint with comprehensive validation
 
-# Inspect metrics
-iwr http://localhost:5001/metrics -UseBasicParsing | Select-Object -Expand Content
-```
+### 3. Temp File Lifecycle Management
+- **Implementation**: Added automatic cleanup in [src/api/index.js](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/src/api/index.js)
+- **TTL**: Files older than 24 hours are automatically removed
+- **Scheduling**: Cleanup runs every hour using `setInterval`
+- **Safety**: Uses `.unref()` to prevent blocking process exit
 
-### Acceptance Criteria
-- ✅ `tts_requests_total` increases by 2
-- ✅ `tts_cache_hits_total` increases by ≥1
-- ✅ `http_request_duration_seconds_*` present (buckets/_sum/_count)
+### 4. Rate Limiting with Friendly Headers
+- **Implementation**: Enhanced [src/utils/rateLimiter.js](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/src/utils/rateLimiter.js) with standard HTTP headers
+- **Headers**: `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+- **Configuration**: Default 10 requests per minute, configurable via environment variables
+- **Integration**: Applied to BGG API calls
 
-## 2. Alerting Templates
+### 5. Worker Pool with Recycling
+- **Implementation**: Created [src/utils/workerPool.js](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/src/utils/workerPool.js)
+- **Concurrency**: Limits to 2 workers by default
+- **Recycling**: Workers recycled after 100 jobs or 1 hour of operation
+- **Memory Safety**: Workers terminated if they exceed 500MB heap usage
+- **Integration**: Used for PDF processing in worker threads
 
-### Implementation
-- Created Prometheus alert rules file `prometheus-alerts.yml`
-- Defined alerts for high error rate, latency, and TTS cache issues
+### 6. Correlation IDs and Structured Logs
+- **Implementation**: Enhanced request ID middleware in [src/api/index.js](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/src/api/index.js)
+- **Correlation**: Passes through `X-Request-ID` header or generates new ID
+- **Structured Logging**: JSON format with requestId, method, path, timestamp, duration
+- **Integration**: Applied to all requests with request timing metrics
 
-### Alert Rules
-```yaml
-# High 5xx error rate > 2% over 5m
-- alert: HighErrorRate
+### 7. Health and Readiness Endpoints
+- **Liveness**: [/livez](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/src/api/index.js#L2774-L2774) endpoint returns "OK" for basic health check
+- **Readiness**: [/readyz](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/src/api/index.js#L2776-L2776) endpoint performs comprehensive checks:
+  - API keys presence
+  - Event loop delay
+  - Memory usage
+  - Outbound HTTP connectivity
+  - Temp directory writeability
+  - Cache directory access
 
-# P95 latency > 1s for 10m
-- alert: LatencyP95TooHigh
+### 8. Playwright E2E Smoke Tests
+- **Implementation**: Created [tests/extract-abyss-metadata.spec.js](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/tests/extract-abyss-metadata.spec.js)
+- **Configuration**: Added [playwright.config.js](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/playwright.config.js)
+- **Coverage**: Tests critical user flow of extracting metadata from BGG URL
 
-# TTS cache hit ratio < 20% for 15m
-- alert: TTSCachingDropped
-```
+### 9. CI Niceties
+- **Concurrency Safety**: Added to [github/workflows/health-check.yml](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/github/workflows/health-check.yml)
+- **Log Upload**: Uploads server logs on failure
+- **Node Matrix**: Tests on Node.js 18.x and 20.x
+- **Dependency Cache**: Uses npm cache for faster builds
 
-## 3. SSRF Guardrail Tests
+## Environment Configuration
+- **Backend**: Created [.env.example](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/.env.example) with all required variables
+- **Frontend**: Created [client/.env.example](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/client/.env.example) with API base URL
 
-### Implementation
-- Created PowerShell script `scripts/test-ssrf-guardrails.ps1`
-- Tests allow/deny matrix for URL validation
+## Documentation
+- **Operations & Security**: Created [docs/operations-security.md](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/docs/operations-security.md) with comprehensive documentation
+- **README Updates**: Added security model, health endpoints, and observability sections
 
-### Test Cases
-- ✅ Private/loopback IPv4 blocked
-- ✅ Link-local/metadata services blocked
-- ✅ IPv6 loopback blocked
-- ✅ Public domains allowed (with allowlist)
+## Testing
+- **Unit Tests**: Created tests for URL validator and rate limiter
+- **Integration Tests**: Created [scripts/simple-verify.js](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/scripts/simple-verify.js) for hardening verification
+- **E2E Tests**: Playwright tests for critical user flows
 
-## 4. Load Baseline (P95/P99)
+## Verification Results
+All hardening features have been verified to work correctly:
+- ✅ SSRF protection working - invalid hosts rejected
+- ✅ PDF upload safety with size, MIME, and signature validation
+- ✅ Temp file lifecycle management with automatic cleanup
+- ✅ Rate limiting with friendly HTTP headers
+- ✅ Worker pool with recycling and memory safety
+- ✅ Correlation IDs and structured logging
+- ✅ Health and readiness endpoints functioning
+- ✅ All unit tests passing
+- ✅ E2E smoke tests passing
 
-### Implementation
-- Documented autocannon benchmark commands
-- Provided guidance for performance testing
-
-### Benchmark Commands
-```bash
-# Health endpoint benchmark
-npx autocannon -c 20 -d 30 -p 10 http://localhost:5001/api/health
-
-# TTS endpoint benchmark
-npx autocannon -c 5 -d 60 -m POST -H "Content-Type: application/json" -b '{"text":"hello","game":"Catan","lang":"en"}' http://localhost:5001/tts
-```
-
-## 5. PM2 Log Rotation Verification
-
-### Implementation
-- Created PowerShell script `scripts/verify-logrotate.ps1`
-- Configured PM2 log rotation with compression
-
-### Configuration
-```bash
-pm2 install pm2-logrotate
-pm2 set pm2-logrotate:max_size 10M
-pm2 set pm2-logrotate:retain 14
-pm2 set pm2-logrotate:compress true
-pm2 save
-```
-
-## 6. A/V Final Render with Audio
-
-### Implementation
-- Created PowerShell script `scripts/test-av-render.ps1`
-- Verified render output with ffprobe
-
-### Verification
-```bash
-node .\render_with_audio.js --timeline "work\timeline.en.json" --audioDir "src\api\uploads" --out "dist\catan.en.mp4"
-ffprobe -v error -show_streams -of json dist\catan.en.mp4
-```
-
-## 7. Pre-commit Guardrails
-
-### Implementation
-- Created PowerShell script `scripts/setup-precommit.ps1`
-- Added Husky pre-commit hook for syntax checking
-
-### Setup
-```bash
-npm i -D husky
-npx husky install
-npx husky add .husky/pre-commit "node --check src/api/index.js && echo Syntax OK"
-```
-
-## 8. Chaos/Resilience Smokes
-
-### Implementation
-- Created PowerShell script `scripts/chaos-test.ps1`
-- Documented manual tests for resilience
-
-### Test Scenarios
-- Kill render mid-flight
-- Disable outbound network temporarily
-
-## 9. Cost and Safety Limits
-
-### Implementation
-- Created PowerShell script `scripts/verify-tts-limits.ps1`
-- Verified TTS rate-limiting and budget guards
-
-### Verification
-- Test with excessive text length
-- Test with malformed requests
-
-## 10. Go-Live Runbook
-
-### Implementation
-- Created `GO_LIVE_RUNBOOK.md`
-- Documented deployment, smoke tests, and rollback procedures
-
-### Key Commands
-```bash
-# Deploy
-pm2 start ecosystem.config.js --env production
-pm2 save && pm2 startup
-
-# Smoke tests
-curl /api/health
-curl /api/health/details
-curl /metrics
-
-# Rollback
-pm2 revert 1
-```
-
-## Additional Components
-
-### Prometheus/Grafana Dashboard
-- Created `grafana-dashboard.json` with panels for:
-  - HTTP latencies
-  - TTS cache hit ratio
-  - Extract/render durations
-  - Error rates
-
-### Event Loop Metrics
-- Created `src/api/eventLoopMetrics.js` to export event loop lag
-- Updated health/details endpoint to include:
-  - `eventLoopDelayMs`
-  - `rssMB`
-  - `heapUsedMB`
-  - `cpuUser`
-  - `cpuSystem`
-
-### Package.json Scripts
-Added npm scripts for all verification commands:
-- `npm run metrics:verify`
-- `npm run ssrf:test`
-- `npm run logrotate:verify`
-- `npm run av:test`
-- `npm run precommit:setup`
-- `npm run chaos:test`
-- `npm run tts:limits:verify`
-- `npm run hardening:checks`
-
-## Verification Status
-
-All final hardening checks have been implemented and verified:
-
-✅ Metrics counters move correctly
-✅ Alert rules load cleanly
-✅ SSRF guardrails block private IPs
-✅ PM2 log rotation configured
-✅ A/V render produces correct output
-✅ Pre-commit hooks block syntax errors
-✅ Chaos/resilience tests documented
-✅ TTS limits prevent abuse
-✅ Go-live runbook complete
-✅ Grafana dashboard ready
-✅ Event loop metrics captured
-
-The Mobius Games Tutorial Generator is now fully hardened and ready for production deployment with comprehensive monitoring and alerting capabilities.
+The Mobius Games Tutorial Generator is now production-ready with comprehensive security, reliability, and observability features.

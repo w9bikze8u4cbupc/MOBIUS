@@ -109,7 +109,8 @@ PASS=0 FAIL=0 SKIP=0 INFO=0
 # Capture logs for JSON summary and quiet mode:
 declare -a LOG_TYPES=()
 declare -a LOG_MSGS=()
-declare -a LOG_TIMINGS=()  # Add timing tracking
+declare -a LOG_TIMESTAMPS=()
+declare -a LOG_DURATIONS=()
 
 _log() {
   # levels: INFO, PASS, FAIL, WARN, SKIP
@@ -119,6 +120,8 @@ _log() {
   case "$level" in
     "PASS")  echo -e "\033[32m[PASS]\033[0m $*";;
     "FAIL")  echo -e "\033[31m[FAIL]\033[0m $*";;
+    "SKIP")  echo -e "\033[33m[SKIP]\033[0m $*";;
+    "WARN")  echo -e "\033[33m[WARN]\033[0m $*";;
     *)       echo -e "\033[36m[INFO]\033[0m $*";;
   esac
 }
@@ -131,7 +134,8 @@ Info() {
   ((INFO++))
   LOG_TYPES+=("INFO")
   LOG_MSGS+=("$*")
-  LOG_TIMINGS+=("$duration")
+  LOG_TIMESTAMPS+=("$(date -u +"%Y-%m-%dT%H:%M:%SZ")")
+  LOG_DURATIONS+=("$duration")
 }
 
 Pass() { 
@@ -142,7 +146,8 @@ Pass() {
   ((PASS++))
   LOG_TYPES+=("PASS")
   LOG_MSGS+=("$*")
-  LOG_TIMINGS+=("$duration")
+  LOG_TIMESTAMPS+=("$(date -u +"%Y-%m-%dT%H:%M:%SZ")")
+  LOG_DURATIONS+=("$duration")
 }
 
 Fail() { 
@@ -153,7 +158,8 @@ Fail() {
   ((FAIL++))
   LOG_TYPES+=("FAIL")
   LOG_MSGS+=("$*")
-  LOG_TIMINGS+=("$duration")
+  LOG_TIMESTAMPS+=("$(date -u +"%Y-%m-%dT%H:%M:%SZ")")
+  LOG_DURATIONS+=("$duration")
   if [[ "$FAIL_FAST" == "true" ]]; then
     echo "Fail-fast enabled. Aborting."
     write_junit_if_needed
@@ -170,7 +176,8 @@ Skip() {
   ((SKIP++))
   LOG_TYPES+=("SKIP")
   LOG_MSGS+=("$*")
-  LOG_TIMINGS+=("$duration")
+  LOG_TIMESTAMPS+=("$(date -u +"%Y-%m-%dT%H:%M:%SZ")")
+  LOG_DURATIONS+=("$duration")
 }
 
 # Add JUnit writer helpers near top (after logging arrays):
@@ -240,12 +247,26 @@ flags_file = sys.argv[2]
 # We'll reconstruct from environment text dumps emitted below
 types = os.environ.get("MB_LOG_TYPES","").split("\n") if os.environ.get("MB_LOG_TYPES") else []
 msgs  = os.environ.get("MB_LOG_MSGS","").split("\n") if os.environ.get("MB_LOG_MSGS") else []
+timestamps = os.environ.get("MB_LOG_TIMESTAMPS","").split("\n") if os.environ.get("MB_LOG_TIMESTAMPS") else []
+durations = os.environ.get("MB_LOG_DURATIONS","").split("\n") if os.environ.get("MB_LOG_DURATIONS") else []
 pass_cnt = int(os.environ.get("MB_PASS","0"))
 fail_cnt = int(os.environ.get("MB_FAIL","0"))
 skip_cnt = int(os.environ.get("MB_SKIP","0"))
 info_cnt = int(os.environ.get("MB_INFO","0"))
 failures = [m for t,m in zip(types,msgs) if t=="FAIL"]
 infos    = [m for t,m in zip(types,msgs) if t=="INFO"]
+
+# Create checks array with timing information
+checks = []
+for i in range(len(types)):
+    if i < len(msgs) and i < len(timestamps) and i < len(durations):
+        checks.append({
+            "id": i+1,
+            "type": types[i],
+            "message": msgs[i],
+            "timestamp": timestamps[i],
+            "duration_ms": float(durations[i]) if durations[i] else 0
+        })
 
 # Read flags
 flags = {}
@@ -276,7 +297,7 @@ result = {
         "tts_delta_ms": int(os.environ.get("TTS_CACHE_DELTA_MS", "0"))
     },
     "flags": flags,
-    "checks": [],
+    "checks": checks,
     "totals": {
         "pass": pass_cnt,
         "fail": fail_cnt,
@@ -357,7 +378,7 @@ while [[ $# -gt 0 ]]; do
     --frontend) FRONTEND="$2"; shift 2;;
     --metrics-token) METRICS_TOKEN="$2"; shift 2;;
     --metrics-token-legacy) 
-      echo "WARNING: --metrics-token-legacy is deprecated, use --metrics-token instead" >&2
+      echo "WARNING: --metrics-token-legacy is deprecated, use --metrics-token instead (will be removed in v2.0.0)" >&2
       METRICS_TOKEN="$2"; shift 2;;
     --start-stack) START_STACK="true"; shift;;
     --local-text-pdf) LOCAL_TEXT_PDF="$2"; shift 2;;
@@ -367,26 +388,26 @@ while [[ $# -gt 0 ]]; do
     --image-urls2) IFS=, read -r -a IMAGE_URLS2 <<< "$2"; shift 2;;
     --timeout-default) TIMEOUT_DEFAULT="$2"; shift 2;;
     --timeout) 
-      echo "WARNING: --timeout is deprecated, use --timeout-default instead" >&2
+      echo "WARNING: --timeout is deprecated, use --timeout-default instead (will be removed in v2.0.0)" >&2
       TIMEOUT_DEFAULT="$2"; shift 2;;
     --timeout-preview) TIMEOUT_PREVIEW="$2"; shift 2;;
     --quiet) QUIET=1; shift;;
     --json-summary) JSON_SUMMARY="$2"; shift 2;;
     --json-out) 
-      echo "WARNING: --json-out is deprecated, use --json-summary instead" >&2
+      echo "WARNING: --json-out is deprecated, use --json-summary instead (will be removed in v2.0.0)" >&2
       JSON_SUMMARY="$2"; shift 2;;
     --only) IFS=, read -r -a ONLY_KEYS <<< "$2"; shift 2;;
     --profile) PROFILE="$2"; shift 2;;
     --fail-fast) FAIL_FAST="true"; shift;;
     --junit) JUNIT_PATH="$2"; shift 2;;
     --junit-out) 
-      echo "WARNING: --junit-out is deprecated, use --junit instead" >&2
+      echo "WARNING: --junit-out is deprecated, use --junit instead (will be removed in v2.0.0)" >&2
       JUNIT_PATH="$2"; shift 2;;
     --tts-cache-ratio) TTS_CACHE_RATIO="$2"; shift 2;;
     --tts-cache-delta-ms) TTS_CACHE_DELTA_MS="$2"; shift 2;;
     --retry) RETRY="$2"; shift 2;;
     --retries) 
-      echo "WARNING: --retries is deprecated, use --retry instead" >&2
+      echo "WARNING: --retries is deprecated, use --retry instead (will be removed in v2.0.0)" >&2
       RETRY="$2"; shift 2;;
     --retry-delay-ms) RETRY_DELAY_MS="$2"; shift 2;;
     --preview-max-ms) PREVIEW_MAX_MS="$2"; shift 2;;
@@ -633,6 +654,12 @@ echo "PASS: $PASS  FAIL: $FAIL  SKIP: $SKIP  INFO: $INFO"
 {
   for i in "${!LOG_MSGS[@]}"; do echo "${LOG_MSGS[$i]}"; done
 } | awk '1' | { MB_LOG_MSGS="$(cat)"; export MB_LOG_MSGS; }
+{
+  for i in "${!LOG_TIMESTAMPS[@]}"; do echo "${LOG_TIMESTAMPS[$i]}"; done
+} | awk '1' | { MB_LOG_TIMESTAMPS="$(cat)"; export MB_LOG_TIMESTAMPS; }
+{
+  for i in "${!LOG_DURATIONS[@]}"; do echo "${LOG_DURATIONS[$i]}"; done
+} | awk '1' | { MB_LOG_DURATIONS="$(cat)"; export MB_LOG_DURATIONS; }
 export MB_PASS="$PASS" MB_FAIL="$FAIL" MB_SKIP="$SKIP" MB_INFO="$INFO"
 
 # Write JUnit XML and JSON summary at the very end (before exit)
