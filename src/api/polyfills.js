@@ -1,13 +1,15 @@
 // src/api/polyfills.js
 try {
-  import('canvas').then(({ DOMMatrix }) => {
-    if (typeof global.DOMMatrix === 'undefined' && DOMMatrix) {
-      global.DOMMatrix = DOMMatrix;
-      console.log('[polyfills] DOMMatrix polyfilled from node-canvas');
-    }
-  }).catch(err => {
-    console.warn('[polyfills] Failed to import canvas:', err);
-  });
+  import('canvas')
+    .then(({ DOMMatrix }) => {
+      if (typeof global.DOMMatrix === 'undefined' && DOMMatrix) {
+        global.DOMMatrix = DOMMatrix;
+        console.log('[polyfills] DOMMatrix polyfilled from node-canvas');
+      }
+    })
+    .catch((err) => {
+      console.warn('[polyfills] Failed to import canvas:', err);
+    });
 } catch (err) {
   console.warn('[polyfills] Failed to load canvas:', err);
 }

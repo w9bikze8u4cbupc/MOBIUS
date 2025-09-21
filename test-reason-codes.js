@@ -6,7 +6,7 @@ import { extractComponentsFromText } from './src/api/utils.js';
 function testReasonCodes() {
   console.log('🧪 REASON CODES TEST');
   console.log('='.repeat(40));
-  
+
   // Test text with various patterns
   const testText = `
   Contents & Setup
@@ -20,13 +20,13 @@ function testReasonCodes() {
   
   Game Overview
   `;
-  
+
   console.log('🔍 TESTING REASON CODES...');
   const components = extractComponentsFromText(testText, true);
-  
+
   console.log('\n📊 RESULTS:');
   console.log(`Found ${components.length} components`);
-  
+
   console.log('\n🎉 REASON CODES TEST COMPLETE');
 }
 

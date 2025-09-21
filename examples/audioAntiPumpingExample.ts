@@ -1,19 +1,19 @@
 // Example demonstrating Audio Anti-Pumping functionality
 
-import { LabelGen } from '../src/render/LabelGen';
 import { buildAudioAntiPumping } from '../src/render/FiltergraphBuilder';
+import { LabelGen } from '../src/render/LabelGen';
 
 function demonstrateAudioAntiPumping() {
   const lb = new LabelGen();
-  
+
   // Example: Music bus with voiceover sidechain
   // This prevents the background music from "breathing" when VO is silent
   const antiPumpingResult = buildAudioAntiPumping('music_track', 'vo_track');
-  
+
   console.log('=== Audio Anti-Pumping Chain ===');
   console.log('Graph:', antiPumpingResult.graph);
   console.log('Output Label:', antiPumpingResult.outA);
-  
+
   // Explanation of the filter chain:
   // 1. sidechaincompress: Applies compression to music when VO is active
   //    - threshold=0.06: Trigger level for compression
@@ -29,7 +29,7 @@ function demonstrateAudioAntiPumping() {
   //    - s=10: Compress factor
   // 3. alimiter: Audio limiter to prevent clipping
   //    - limit=-1.0: Maximum true peak level
-  
+
   console.log('\n=== Filter Chain Explanation ===');
   console.log('1. sidechaincompress: Applies compression to music when VO is active');
   console.log('   - threshold=0.06: Trigger level for compression');

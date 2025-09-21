@@ -14,14 +14,14 @@ describe('Animation Templates', () => {
         opacity: 0.6,
         feather: 15,
         start: 1.0,
-        end: 5.0
+        end: 5.0,
       });
 
       expect(result.graph).toContain('format=rgba');
       expect(result.graph).toContain('color=c=black@0.6');
       expect(result.graph).toContain('drawbox=');
       expect(result.graph).toContain('gblur=sigma=15');
-      expect(result.graph).toContain("enable='between(t,1,5)'");
+      expect(result.graph).toContain('enable=\'between(t,1,5)\'');
       expect(result.outV).toBe('spot_out0');
     });
 
@@ -33,7 +33,7 @@ describe('Animation Templates', () => {
         h: 200,
         start: 1.0,
         end: 5.0,
-        feather: 0
+        feather: 0,
       });
 
       expect(result.graph).not.toContain('gblur');
@@ -53,18 +53,18 @@ describe('Animation Templates', () => {
         marginX: 100,
         marginY: 150,
         start: 2.0,
-        end: 6.0
+        end: 6.0,
       });
 
       expect(result.graph).toContain('format=rgba');
       expect(result.graph).toContain('drawtext=');
-      expect(result.graph).toContain("fontfile='/path/to/font.ttf'");
-      expect(result.graph).toContain("text='Player 1 Turn'");
+      expect(result.graph).toContain('fontfile=\'/path/to/font.ttf\'');
+      expect(result.graph).toContain('text=\'Player 1 Turn\'');
       expect(result.graph).toContain('fontsize=48');
       expect(result.graph).toContain('fontcolor=#FFFFFF');
       expect(result.graph).toContain('box=1');
       expect(result.graph).toContain('boxcolor=#000000@0.7');
-      expect(result.graph).toContain("enable='between(t,2,6)'");
+      expect(result.graph).toContain('enable=\'between(t,2,6)\'');
       expect(result.outV).toBe('lt_out0');
     });
 
@@ -75,7 +75,7 @@ describe('Animation Templates', () => {
         font: '/path/to/font.ttf',
         align: 'left',
         start: 0,
-        end: 5
+        end: 5,
       });
       expect(leftResult.graph).toContain('x=80');
 
@@ -85,7 +85,7 @@ describe('Animation Templates', () => {
         font: '/path/to/font.ttf',
         align: 'right',
         start: 0,
-        end: 5
+        end: 5,
       });
       expect(rightResult.graph).toContain('(w - text_w - 80)');
     });
@@ -111,7 +111,7 @@ describe('Audio Ducking', () => {
         duckDb: -15,
         attack: 0.05,
         release: 0.3,
-        threshold: 0.1
+        threshold: 0.1,
       });
 
       expect(result.graph).toContain('threshold=0.1');

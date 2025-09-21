@@ -6,7 +6,7 @@ import { extractComponentsFromText } from './src/api/utils.js';
 function testOCREnhancements() {
   console.log('🧪 OCR ENHANCEMENTS TEST');
   console.log('='.repeat(40));
-  
+
   // Test text with OCR issues
   const ocrText = `
   Contents & Setup
@@ -19,26 +19,26 @@ function testOCREnhancements() {
   
   Game Overview
   `;
-  
+
   console.log('🔍 TESTING OCR ENHANCEMENTS...');
   const components = extractComponentsFromText(ocrText, true);
-  
+
   console.log('\n📊 RESULTS:');
   console.log(`Found ${components.length} components`);
-  
+
   // Check that OCR issues were corrected
-  const gameBoard = components.find(c => c.name === 'Game board');
-  const explorationCards = components.find(c => c.name === 'Exploration cards');
-  const monsterTokens = components.find(c => c.name === 'Monster tokens');
-  const plasticCups = components.find(c => c.name === 'Plastic cups');
-  const pearls = components.find(c => c.name === 'Pearls');
-  
+  const gameBoard = components.find((c) => c.name === 'Game board');
+  const explorationCards = components.find((c) => c.name === 'Exploration cards');
+  const monsterTokens = components.find((c) => c.name === 'Monster tokens');
+  const plasticCups = components.find((c) => c.name === 'Plastic cups');
+  const pearls = components.find((c) => c.name === 'Pearls');
+
   if (gameBoard) console.log('✅ "b0ard" correctly normalized to "board"');
   if (explorationCards) console.log('✅ "Expi0ration" correctly normalized to "Exploration"');
   if (monsterTokens) console.log('✅ "M0nster t0kens" correctly normalized to "Monster tokens"');
   if (plasticCups) console.log('✅ "Plastic Plastic Cups" de-duplicated to "Plastic Cups"');
   if (pearls && pearls.count === 50) console.log('✅ Stray dash normalized correctly');
-  
+
   console.log('\n🎉 OCR ENHANCEMENTS TEST COMPLETE');
 }
 

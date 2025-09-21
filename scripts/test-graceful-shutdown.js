@@ -3,33 +3,34 @@
 // Script to test graceful shutdown functionality
 
 import { spawn } from 'child_process';
+
 import axios from 'axios';
 
 async function testGracefulShutdown() {
   console.log('Testing graceful shutdown functionality...');
-  
+
   // Start the server in the background
   const serverProcess = spawn('node', ['start-server.js'], {
     stdio: 'pipe',
-    env: { ...process.env, PORT: '5002' }
+    env: { ...process.env, PORT: '5002' },
   });
-  
+
   let serverStarted = false;
-  
+
   // Wait for server to start
   serverProcess.stdout.on('data', (data) => {
     const output = data.toString();
     console.log(`[Server] ${output}`);
-    
+
     if (output.includes('Starting server on')) {
       serverStarted = true;
     }
   });
-  
+
   serverProcess.stderr.on('data', (data) => {
     console.error(`[Server Error] ${data}`);
   });
-  
+
   // Wait for server to be ready
   await new Promise((resolve) => {
     const checkServer = setInterval(async () => {
@@ -38,7 +39,7 @@ async function testGracefulShutdown() {
         resolve();
         return;
       }
-      
+
       try {
         await axios.get('http://localhost:5002/api/health');
         serverStarted = true;
@@ -49,13 +50,13 @@ async function testGracefulShutdown() {
       }
     }, 1000);
   });
-  
+
   console.log('✅ Server started successfully');
-  
+
   // Send SIGTERM signal to test graceful shutdown
   console.log('Sending SIGTERM signal...');
   serverProcess.kill('SIGTERM');
-  
+
   // Wait for server to shut down gracefully
   const shutdownResult = await new Promise((resolve) => {
     const shutdownTimeout = setTimeout(() => {
@@ -63,7 +64,7 @@ async function testGracefulShutdown() {
       serverProcess.kill('SIGKILL'); // Force kill if needed
       resolve(false);
     }, 15000);
-    
+
     serverProcess.on('exit', (code) => {
       clearTimeout(shutdownTimeout);
       if (code === 0) {
@@ -75,15 +76,15 @@ async function testGracefulShutdown() {
       }
     });
   });
-  
+
   return shutdownResult;
 }
 
 async function main() {
   console.log('Testing graceful shutdown...\n');
-  
+
   const result = await testGracefulShutdown();
-  
+
   console.log('\n' + '='.repeat(50));
   if (result) {
     console.log('🎉 Graceful shutdown is working correctly!');
@@ -94,7 +95,7 @@ async function main() {
 }
 
 // Run the test
-main().catch(error => {
+main().catch((error) => {
   console.error('Error during graceful shutdown test:', error);
   process.exit(1);
 });

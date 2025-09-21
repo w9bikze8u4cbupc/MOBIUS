@@ -18,7 +18,11 @@ export function scoreImage(img) {
   }
 
   // PNGs often contain transparency/cutouts
-  if ((img.type || '').includes('png') || (img.url || '').toLowerCase().endsWith('.png')) score += 1;
+  if (
+    (img.type || '').includes('png') ||
+    (img.url || '').toLowerCase().endsWith('.png')
+  )
+    score += 1;
 
   // Bytes per pixel (rough density proxy)
   if (img.sizeBytes && area) {

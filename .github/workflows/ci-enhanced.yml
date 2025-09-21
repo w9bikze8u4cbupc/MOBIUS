@@ -1,0 +1,65 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  lint-node:
+    runs-on: ubuntu-latest
+    if: hashFiles('package.json') != ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm ci
+      - run: npm run lint:ci
+      - run: npm run typecheck || true
+      - uses: actions/upload-artifact@v4
+        with: { name: eslint-results, path: lint-results/eslint.json, if-no-files-found: ignore }
+
+  test-node:
+    runs-on: ubuntu-latest
+    if: hashFiles('package.json') != ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm ci
+      - run: npm test -- --ci --reporters=default --reporters=jest-junit
+      - uses: actions/upload-artifact@v4
+        with: { name: node-test-results, path: test-results, if-no-files-found: ignore }
+
+  lint-python:
+    runs-on: ubuntu-latest
+    if: hashFiles('requirements-dev.txt') != ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install -r requirements-dev.txt
+      - run: black --check .
+      - run: flake8 .
+
+  test-python:
+    runs-on: ubuntu-latest
+    if: hashFiles('requirements-dev.txt') != ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install -r requirements-dev.txt -r requirements.txt || pip install -r requirements-dev.txt || true
+      - run: pytest -q --maxfail=1 --junitxml=test-results/pytest-junit.xml
+      - uses: actions/upload-artifact@v4
+        with: { name: pytest-results, path: test-results/pytest-junit.xml, if-no-files-found: ignore }
+
+  codeql:
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    uses: github/codeql-action/init@v3
+    with:
+      languages: javascript, python, go, cpp
+    secrets: inherit

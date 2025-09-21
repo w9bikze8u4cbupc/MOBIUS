@@ -12,7 +12,7 @@ console.log('1. Checking PM2 Log Rotation...');
 try {
   execSync('pm2 list', { stdio: 'pipe' });
   console.log('   ✅ PM2 is installed and running');
-  
+
   // Check if pm2-logrotate is installed
   const modules = execSync('pm2 list', { encoding: 'utf8' });
   if (modules.includes('pm2-logrotate')) {
@@ -40,7 +40,9 @@ try {
 // 3. CI Environments
 console.log('\n3. Checking CI Environment Configuration...');
 const isCI = process.env.CI || process.env.GITHUB_ACTIONS;
-console.log(`   CI Environment: ${isCI ? '✅ Detected' : 'ℹ️  Not detected (set CI=1 for strict mode)'}`);
+console.log(
+  `   CI Environment: ${isCI ? '✅ Detected' : 'ℹ️  Not detected (set CI=1 for strict mode)'}`,
+);
 
 // 4. PM2 Production Profile
 console.log('\n4. Checking PM2 Production Profile...');
@@ -60,9 +62,13 @@ try {
   const uploadDir = './uploads';
   if (fs.existsSync(uploadDir)) {
     const files = fs.readdirSync(uploadDir);
-    const metaFiles = files.filter(f => f.endsWith('.meta.json'));
-    const allFiles = files.filter(f => !f.endsWith('.meta.json') && (f.endsWith('.jpg') || f.endsWith('.png') || f.endsWith('.mp4') || f.endsWith('.wav')));
-    
+    const metaFiles = files.filter((f) => f.endsWith('.meta.json'));
+    const allFiles = files.filter(
+      (f) =>
+        !f.endsWith('.meta.json') &&
+        (f.endsWith('.jpg') || f.endsWith('.png') || f.endsWith('.mp4') || f.endsWith('.wav')),
+    );
+
     console.log(`   Found ${allFiles.length} assets and ${metaFiles.length} metadata files`);
     if (allFiles.length > 0) {
       const coverage = Math.round((metaFiles.length / allFiles.length) * 100);

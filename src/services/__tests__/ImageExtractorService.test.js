@@ -1,6 +1,6 @@
-import ServiceName from '../ServiceName';
 import ApiError from '../../utils/errors/ApiError';
 import LoggingService from '../../utils/logging/LoggingService';
+import ServiceName from '../ServiceName';
 
 // Mock dependencies
 jest.mock('../../utils/logging/LoggingService');
@@ -12,14 +12,14 @@ describe('ImageExtractorService', () => {
   beforeEach(() => {
     // Reset mocks between tests
     jest.clearAllMocks();
-    
+
     mockConfig = {
       baseUrl: 'https://api.image-extractor.com',
       timeout: 30000,
       formats: ['jpg', 'png'],
-      minQuality: 80
+      minQuality: 80,
     };
-    
+
     service = new ImageExtractorService(mockConfig);
   });
 
@@ -32,9 +32,9 @@ describe('ImageExtractorService', () => {
       const mockResponse = {
         ok: true,
         headers: {
-          get: jest.fn().mockReturnValue('application/json')
+          get: jest.fn().mockReturnValue('application/json'),
         },
-        json: () => Promise.resolve({ images: mockImages })
+        json: () => Promise.resolve({ images: mockImages }),
       };
 
       service.fetchWithTimeout = jest.fn().mockResolvedValue(mockResponse);
@@ -47,31 +47,27 @@ describe('ImageExtractorService', () => {
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
-            'Authorization': expect.stringContaining('Bearer')
-          })
-        })
+            Authorization: expect.stringContaining('Bearer'),
+          }),
+        }),
       );
       expect(LoggingService.info).toHaveBeenCalledWith(
         'ImageExtractorService',
-        'Image extraction successful'
+        'Image extraction successful',
       );
     });
 
     it('should handle API errors gracefully', async () => {
       // Mock API error
       const errorMessage = 'API Error';
-      service.fetchWithTimeout = jest.fn().mockRejectedValue(
-        new Error(errorMessage)
-      );
+      service.fetchWithTimeout = jest.fn().mockRejectedValue(new Error(errorMessage));
 
-      await expect(service.extractImagesFromPDF(mockPdfBuffer))
-        .rejects
-        .toThrow(ApiError);
+      await expect(service.extractImagesFromPDF(mockPdfBuffer)).rejects.toThrow(ApiError);
 
       expect(LoggingService.error).toHaveBeenCalledWith(
         'ImageExtractorService',
         'Image extraction failed',
-        expect.any(Error)
+        expect.any(Error),
       );
     });
   });
@@ -83,7 +79,7 @@ describe('ImageExtractorService', () => {
     it('should successfully enhance image', async () => {
       service.fetchWithTimeout = jest.fn().mockResolvedValue({
         ok: true,
-        arrayBuffer: () => Promise.resolve(mockEnhancedBuffer)
+        arrayBuffer: () => Promise.resolve(mockEnhancedBuffer),
       });
 
       const result = await service.enhanceImage(mockImageBuffer);
@@ -92,19 +88,15 @@ describe('ImageExtractorService', () => {
       expect(service.fetchWithTimeout).toHaveBeenCalledWith(
         expect.stringContaining('/enhance'),
         expect.objectContaining({
-          method: 'POST'
-        })
+          method: 'POST',
+        }),
       );
     });
 
     it('should handle enhancement errors', async () => {
-      service.fetchWithTimeout = jest.fn().mockRejectedValue(
-        new Error('Enhancement failed')
-      );
+      service.fetchWithTimeout = jest.fn().mockRejectedValue(new Error('Enhancement failed'));
 
-      await expect(service.enhanceImage(mockImageBuffer))
-        .rejects
-        .toThrow(ApiError);
+      await expect(service.enhanceImage(mockImageBuffer)).rejects.toThrow(ApiError);
     });
   });
 });

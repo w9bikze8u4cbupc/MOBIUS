@@ -1,13 +1,24 @@
 // utils/orchestrate.js
-export async function orchestrateExtraction({ pdfUrl, websiteUrl, lang = 'fr', includeWebsite = true }) {
+export async function orchestrateExtraction({
+  pdfUrl,
+  websiteUrl,
+  lang = 'fr',
+  includeWebsite = true,
+}) {
   // 1) Detect actions
   const target = websiteUrl || pdfUrl;
-  const detectRes = await fetch(`/api/detect-actions?url=${encodeURIComponent(target)}&lang=${encodeURIComponent(lang)}`);
+  const detectRes = await fetch(
+    `/api/detect-actions?url=${encodeURIComponent(target)}&lang=${encodeURIComponent(lang)}`
+  );
   const detectJson = await detectRes.json().catch(() => ({}));
   let pages = Array.isArray(detectJson.pages) ? detectJson.pages : [];
   if (!pages.length) {
     const hdr = detectRes.headers.get('X-Actions-Pages');
-    if (hdr) pages = hdr.split(',').map(s => Number(s.trim())).filter(Number.isFinite);
+    if (hdr)
+      pages = hdr
+        .split(',')
+        .map(s => Number(s.trim()))
+        .filter(Number.isFinite);
   }
 
   // 2) Extract with boosts (PDF-first)
@@ -25,19 +36,21 @@ export async function orchestrateExtraction({ pdfUrl, websiteUrl, lang = 'fr', i
   });
   if (pages.length) params.set('boostPages', pages.join(','));
 
-  const extractRes = await fetch(`/api/extract-components?${params.toString()}`);
+  const extractRes = await fetch(
+    `/api/extract-components?${params.toString()}`
+  );
   const extract = await extractRes.json();
 
   return { detectedPages: pages, extract };
 }
 
 // Advanced orchestration with configurable options
-export async function orchestrateExtractionAdvanced({ 
-  pdfUrl, 
-  websiteUrl, 
-  lang = 'fr', 
+export async function orchestrateExtractionAdvanced({
+  pdfUrl,
+  websiteUrl,
+  lang = 'fr',
   includeWebsite = true,
-  options = {} 
+  options = {},
 }) {
   const defaultOptions = {
     dpi: '300',
@@ -60,22 +73,31 @@ export async function orchestrateExtractionAdvanced({
   let detectError = null;
 
   try {
-    const detectRes = await fetch(`/api/detect-actions?url=${encodeURIComponent(target)}&lang=${encodeURIComponent(lang)}`);
-    
+    const detectRes = await fetch(
+      `/api/detect-actions?url=${encodeURIComponent(target)}&lang=${encodeURIComponent(lang)}`
+    );
+
     if (detectRes.ok) {
       const detectJson = await detectRes.json().catch(() => ({}));
       pages = Array.isArray(detectJson.pages) ? detectJson.pages : [];
-      
+
       if (!pages.length) {
         const hdr = detectRes.headers.get('X-Actions-Pages');
-        if (hdr) pages = hdr.split(',').map(s => Number(s.trim())).filter(Number.isFinite);
+        if (hdr)
+          pages = hdr
+            .split(',')
+            .map(s => Number(s.trim()))
+            .filter(Number.isFinite);
       }
     } else {
       detectError = `Actions detection failed: ${detectRes.status} ${detectRes.statusText}`;
     }
   } catch (e) {
     detectError = `Actions detection error: ${e.message}`;
-    console.warn('Actions detection failed, continuing with extraction only:', e);
+    console.warn(
+      'Actions detection failed, continuing with extraction only:',
+      e
+    );
   }
 
   // 2) Extract with boosts (PDF-first)
@@ -85,7 +107,9 @@ export async function orchestrateExtractionAdvanced({
   });
   if (pages.length) params.set('boostPages', pages.join(','));
 
-  const extractRes = await fetch(`/api/extract-components?${params.toString()}`);
+  const extractRes = await fetch(
+    `/api/extract-components?${params.toString()}`
+  );
   const extract = await extractRes.json();
 
   // 3) Enhanced response with metadata
@@ -100,6 +124,6 @@ export async function orchestrateExtractionAdvanced({
       cache: extract.cache,
       popplerMissing: extract.popplerMissing,
       options: finalOptions,
-    }
+    },
   };
 }

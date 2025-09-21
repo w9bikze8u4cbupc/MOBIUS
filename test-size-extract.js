@@ -8,11 +8,11 @@ const testUrls = [
   'https://example.com/image.jpg?resize=300,225',
   'https://example.com/image.jpg?resize=300%2C225',
   'https://example.com/image.png',
-  'https://example.com/image-150x150.gif'
+  'https://example.com/image-150x150.gif',
 ];
 
 console.log('Testing parseSizeFromUrl:');
-testUrls.forEach(url => {
+testUrls.forEach((url) => {
   const result = parseSizeFromUrl(url);
   console.log(`  ${url} ->`, result);
 });
@@ -22,11 +22,11 @@ const testSrcsets = [
   'image-300w.jpg 300w, image-600w.jpg 600w',
   'image1.jpg 150w, image2.jpg 300w, image3.jpg 600w',
   'image.jpg',
-  ''
+  '',
 ];
 
 console.log('\nTesting parseSizeFromSrcset:');
-testSrcsets.forEach(srcset => {
+testSrcsets.forEach((srcset) => {
   const result = parseSizeFromSrcset(srcset);
   console.log(`  "${srcset}" ->`, result);
 });

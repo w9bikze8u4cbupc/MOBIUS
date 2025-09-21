@@ -1,0 +1,83 @@
+name: CI Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [16.x, 18.x]
+        
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: client/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd client
+        npm ci
+    
+    - name: Run ESLint
+      run: |
+        cd client
+        npm run lint
+    
+    - name: Run Jest unit tests
+      run: |
+        cd client
+        npm test -- --ci --coverage --maxWorkers=2
+      env:
+        REACT_APP_SHOW_DEV_TEST: true
+        REACT_APP_API_BASE: http://localhost:5001
+    
+    - name: Upload Jest coverage report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: jest-coverage-${{ matrix.node-version }}
+        path: client/coverage/
+        retention-days: 7
+    
+    - name: Install Playwright browsers and dependencies
+      run: |
+        cd client
+        npx playwright install --with-deps
+    
+    - name: Run Playwright E2E tests
+      run: |
+        cd client
+        npx playwright test --trace=on-first-retry
+      env:
+        REACT_APP_SHOW_DEV_TEST: true
+        REACT_APP_API_BASE: http://localhost:5001
+    
+    - name: Upload Playwright test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: playwright-results-${{ matrix.node-version }}
+        path: |
+          client/test-results/
+          client/playwright-report/
+        retention-days: 14
+    
+    - name: Upload Playwright screenshots on failure
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: playwright-screenshots-${{ matrix.node-version }}
+        path: client/test-results/
+        retention-days: 7

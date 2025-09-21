@@ -2,14 +2,14 @@ import { harvestAllImages } from './scripts/harvest-images.js';
 
 async function testFinalScoring() {
   console.log('🔍 Testing Final Scoring with Optimized Weights...');
-  
-  const result = await harvestAllImages({ 
-    title: 'Abyss', 
-    verbose: false 
+
+  const result = await harvestAllImages({
+    title: 'Abyss',
+    verbose: false,
   });
-  
+
   console.log(`📊 Found ${result.images.length} images`);
-  
+
   // Show scoring details for first few images
   result.images.slice(0, 3).forEach((img, i) => {
     console.log(`\n🖼️  Image ${i + 1}: ${img.url}`);
@@ -21,9 +21,9 @@ async function testFinalScoring() {
     console.log(`   Focus Score: ${img.scores?.focusScore?.toFixed(4)}`);
     console.log(`   Unique Score: ${img.scores?.uniqueScore?.toFixed(4)}`);
     console.log(`   Final Score: ${img.finalScore?.toFixed(4)}`);
-    console.log(`   Weights Used:`, img.weights);
+    console.log('   Weights Used:', img.weights);
   });
-  
+
   // Check if scores are using the optimized weights
   const firstImg = result.images[0];
   if (firstImg && firstImg.weights) {

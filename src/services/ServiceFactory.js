@@ -1,14 +1,15 @@
 import apiConfig from '../config/apiConfig';
-import OpenAIService from './OpenAIService';
-import ElevenLabsService from './ElevenLabsService';
-import BGGService from './BGGService';
-import AnthropicService from './AnthropicService';
-import BingService from './BingService';
-import CohereService from './CohereService';
-import UnsplashService from './UnsplashService';
-import ImageExtractorService from './ImageExtractorService';
 import ApiError from '../utils/errors/ApiError';
 import LoggingService from '../utils/logging/LoggingService';
+
+import AnthropicService from './AnthropicService';
+import BGGService from './BGGService';
+import BingService from './BingService';
+import CohereService from './CohereService';
+import ElevenLabsService from './ElevenLabsService';
+import ImageExtractorService from './ImageExtractorService';
+import OpenAIService from './OpenAIService';
+import UnsplashService from './UnsplashService';
 
 class ServiceFactory {
   static services = {};
@@ -17,17 +18,17 @@ class ServiceFactory {
     try {
       if (!this.services[serviceName]) {
         const config = apiConfig.apis[serviceName];
-        
+
         if (!config) {
           throw new ApiError(
             'ServiceFactory',
             `Configuration not found for service: ${serviceName}`,
-            404
+            404,
           );
         }
 
         LoggingService.debug('ServiceFactory', `Initializing service: ${serviceName}`);
-        
+
         switch (serviceName) {
           case 'openai':
             this.services[serviceName] = new OpenAIService(config);
@@ -54,23 +55,16 @@ class ServiceFactory {
             this.services[serviceName] = new ImageExtractorService(config);
             break;
           default:
-            throw new ApiError(
-              'ServiceFactory',
-              `Unknown service: ${serviceName}`,
-              400
-            );
+            throw new ApiError('ServiceFactory', `Unknown service: ${serviceName}`, 400);
         }
       }
-      
+
       return this.services[serviceName];
     } catch (error) {
       LoggingService.error('ServiceFactory', `Failed to get service: ${serviceName}`, error);
-      throw error instanceof ApiError ? error : new ApiError(
-        'ServiceFactory',
-        'Internal service factory error',
-        500,
-        error
-      );
+      throw error instanceof ApiError
+        ? error
+        : new ApiError('ServiceFactory', 'Internal service factory error', 500, error);
     }
   }
 

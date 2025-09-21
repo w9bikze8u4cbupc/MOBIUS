@@ -1,0 +1,20 @@
+{
+  "level": "error",
+  "requestId": "req-1648732948499-1x9k3j4m",
+  "method": "POST",
+  "path": "/api/extract-bgg-html",
+  "timestamp": "2025-09-19T21:45:00.123Z",
+  "message": "URL validation failed",
+  "url": "http://malicious-site.com/boardgame/12345",
+  "validationResult": {
+    "valid": false,
+    "reason": "URL host is not in allowlist"
+  },
+  "response": {
+    "success": false,
+    "code": "url_disallowed",
+    "message": "URL not allowed by policy",
+    "requestId": "req-1648732948499-1x9k3j4m"
+  },
+  "statusCode": 400
+}

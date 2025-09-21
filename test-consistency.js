@@ -6,7 +6,7 @@ import { extractComponentsFromText } from './src/api/utils.js';
 function testBreakdownConsistency() {
   console.log('🧪 BREAKDOWN CONSISTENCY TEST');
   console.log('='.repeat(40));
-  
+
   // Test text with correct breakdowns
   const correctText = `
   Contents & Setup
@@ -22,10 +22,10 @@ function testBreakdownConsistency() {
   
   Game Overview
   `;
-  
+
   console.log('🔍 TESTING CORRECT BREAKDOWNS...');
   const correctComponents = extractComponentsFromText(correctText, true);
-  
+
   // Test text with incorrect breakdowns
   const incorrectText = `
   Contents & Setup
@@ -35,10 +35,10 @@ function testBreakdownConsistency() {
   
   Game Overview
   `;
-  
+
   console.log('\n🔍 TESTING INCORRECT BREAKDOWNS (should show warnings)...');
   const incorrectComponents = extractComponentsFromText(incorrectText, true);
-  
+
   console.log('\n🎉 BREAKDOWN CONSISTENCY TEST COMPLETE');
 }
 

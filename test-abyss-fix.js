@@ -6,7 +6,7 @@ import { extractComponentsFromText } from './src/api/utils.js';
 function testAbyssFix() {
   console.log('🧪 TESTING ABYSS COMPONENT EXTRACTION FIX');
   console.log('='.repeat(50));
-  
+
   // This is what the Abyss PDF actually lists in the "Contents & Setup" section:
   const abyssPdfText = `
   Contents & Setup
@@ -34,22 +34,24 @@ function testAbyssFix() {
 
   console.log('📄 INPUT TEXT (simulating PDF content):');
   console.log(abyssPdfText);
-  
+
   console.log('\n🔍 EXTRACTING COMPONENTS...');
   const components = extractComponentsFromText(abyssPdfText);
-  
+
   console.log('\n✅ EXTRACTION RESULTS:');
   console.log(`Found ${components.length} components`);
-  
+
   components.forEach((comp, i) => {
-    console.log(`${i + 1}. ${comp.name}${comp.count ? ` — ${comp.count}` : ' — null'}${comp.note ? ` (note: ${comp.note})` : ''}`);
+    console.log(
+      `${i + 1}. ${comp.name}${comp.count ? ` — ${comp.count}` : ' — null'}${comp.note ? ` (note: ${comp.note})` : ''}`,
+    );
   });
-  
+
   // Validate against expected results
   console.log('\n' + '='.repeat(50));
   console.log('🎯 VALIDATION AGAINST GROUND TRUTH');
   console.log('='.repeat(50));
-  
+
   const expected = [
     { name: 'Game Board', count: 1 },
     { name: 'Exploration Cards', count: 71, note: '65 Allies & 6 Monsters' },
@@ -59,17 +61,16 @@ function testAbyssFix() {
     { name: 'Threat Token', count: 1 },
     { name: 'Key Tokens', count: 10 },
     { name: 'Pearls', count: null },
-    { name: 'Plastic Cups', count: null }
+    { name: 'Plastic Cups', count: null },
   ];
-  
+
   let correct = 0;
-  expected.forEach(exp => {
-    const found = components.find(c => 
-      c.name === exp.name && 
-      c.count === exp.count && 
-      (exp.note ? c.note === exp.note : true)
+  expected.forEach((exp) => {
+    const found = components.find(
+      (c) =>
+        c.name === exp.name && c.count === exp.count && (exp.note ? c.note === exp.note : true),
     );
-    
+
     if (found) {
       console.log(`✅ ${exp.name}`);
       correct++;
@@ -77,15 +78,15 @@ function testAbyssFix() {
       console.log(`❌ ${exp.name}`);
     }
   });
-  
+
   console.log(`\n📊 SCORE: ${correct}/${expected.length} correct`);
-  
+
   if (correct === expected.length) {
     console.log('🎉 PERFECT! All components extracted correctly');
   } else {
     console.log('⚠️ Some components not extracted as expected');
   }
-  
+
   // Check that we're NOT extracting the problematic items
   console.log('\n🚫 CHECKING FOR PROBLEMATIC EXTRACTIONS:');
   const problematic = [
@@ -94,12 +95,12 @@ function testAbyssFix() {
     'Front Of A Location',
     'Back Of A Location',
     'The Traitor Card',
-    'Master Of Magic'
+    'Master Of Magic',
   ];
-  
+
   let falsePositives = 0;
-  problematic.forEach(item => {
-    const found = components.find(c => c.name.toLowerCase().includes(item.toLowerCase()));
+  problematic.forEach((item) => {
+    const found = components.find((c) => c.name.toLowerCase().includes(item.toLowerCase()));
     if (found) {
       console.log(`❌ FALSE POSITIVE: ${found.name}`);
       falsePositives++;
@@ -107,13 +108,13 @@ function testAbyssFix() {
       console.log(`✅ Correctly excluded: ${item}`);
     }
   });
-  
+
   if (falsePositives === 0) {
     console.log('\n🎉 SUCCESS! No false positives detected');
   } else {
     console.log(`\n⚠️ ${falsePositives} false positives found`);
   }
-  
+
   return components;
 }
 

@@ -2,16 +2,17 @@
 
 // Script to verify security and operational hardening features
 
-import axios from 'axios';
 import { spawn } from 'child_process';
-import { promisify } from 'util';
 import { exec as execCallback } from 'child_process';
+import { promisify } from 'util';
+
+import axios from 'axios';
 
 const exec = promisify(execCallback);
 
 async function testMetricsEndpoint() {
   console.log('Testing metrics endpoint security...');
-  
+
   try {
     // Test unauthorized access to metrics endpoint
     const response = await axios.get('http://localhost:5001/metrics');
@@ -30,7 +31,7 @@ async function testMetricsEndpoint() {
 
 async function testLivenessEndpoint() {
   console.log('Testing liveness endpoint...');
-  
+
   try {
     const response = await axios.get('http://localhost:5001/livez');
     if (response.status === 200 && response.data === 'OK') {
@@ -48,7 +49,7 @@ async function testLivenessEndpoint() {
 
 async function testReadinessEndpoint() {
   console.log('Testing readiness endpoint...');
-  
+
   try {
     const response = await axios.get('http://localhost:5001/readyz');
     if (response.status === 200 || response.status === 503) {
@@ -66,17 +67,18 @@ async function testReadinessEndpoint() {
 
 async function testSecurityHeaders() {
   console.log('Testing security headers...');
-  
+
   try {
     const response = await axios.get('http://localhost:5001/api/health', {
-      validateStatus: () => true // Accept any status code
+      validateStatus: () => true, // Accept any status code
     });
-    
+
     // Check for security headers
     const headers = response.headers;
-    const hasSecurityHeaders = headers['x-content-type-options'] === 'nosniff' &&
-                              headers['x-frame-options'] === 'SAMEORIGIN';
-    
+    const hasSecurityHeaders =
+      headers['x-content-type-options'] === 'nosniff' &&
+      headers['x-frame-options'] === 'SAMEORIGIN';
+
     if (hasSecurityHeaders) {
       console.log('✅ Security headers are present');
       return true;
@@ -92,15 +94,15 @@ async function testSecurityHeaders() {
 
 async function main() {
   console.log('Verifying security and operational hardening features...\n');
-  
+
   let allTestsPassed = true;
-  
+
   // Run all tests
   allTestsPassed &= await testMetricsEndpoint();
   allTestsPassed &= await testLivenessEndpoint();
   allTestsPassed &= await testReadinessEndpoint();
   allTestsPassed &= await testSecurityHeaders();
-  
+
   console.log('\n' + '='.repeat(50));
   if (allTestsPassed) {
     console.log('🎉 All security and operational hardening features are working correctly!');
@@ -111,7 +113,7 @@ async function main() {
 }
 
 // Run the verification
-main().catch(error => {
+main().catch((error) => {
   console.error('Error during verification:', error);
   process.exit(1);
 });

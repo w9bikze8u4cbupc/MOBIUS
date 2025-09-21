@@ -1,0 +1,105 @@
+{
+  "version": "1.0",
+  "name": "mobius-vibe-agent-policy",
+  "branching": {
+    "mode": "feature_only",
+    "feature_prefix": "feat/agent/",
+    "prohibit_main_push": true
+  },
+  "limits": {
+    "max_daily_prs": 3,
+    "max_changed_files": 40,
+    "max_total_diff_lines": 1500,
+    "command_timeout_sec": 900,
+    "job_timeout_sec": 1800
+  },
+  "sandbox": {
+    "enabled": true,
+    "mode": "devcontainer",
+    "entrypoint_script": "./sandbox-run.sh",
+    "resource_caps": { "cpu": "2", "memory": "4g" },
+    "network": { "egress_allowlist": ["api.github.com", "registry.npmjs.org", "pypi.org", "files.pythonhosted.org"] }
+  },
+  "workflow": {
+    "steps": [
+      "git.fetch_and_sync",
+      "git.create_feature_branch",
+      "lint.run",
+      "tests.run_smoke",
+      "commit.create_draft",
+      "pr.open_draft",
+      "ci.wait_required_checks"
+    ],
+    "auto_merge": false,
+    "rollback_on_ci_fail": true
+  },
+  "guards": {
+    "secrets": { "block_on_detect": true },
+    "dependencies": { "block_high_critical": true },
+    "license": { "allowlist": ["MIT", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0"] }
+  },
+  "quality_gates": {
+    "linters": {
+      "block_on_severity": "error",
+      "allow_new_warnings": false
+    },
+    "tests": {
+      "require_smoke_pass": true,
+      "ci_required": true
+    },
+    "codeql": { "require_clean": true },
+    "coverage": {
+      "min_overall": 0.0,
+      "min_changed_files": 0.0,
+      "enforce_on_changed_only": true
+    }
+  },
+  "commands": {
+    "whitelist": [
+      "node", "npm", "pnpm", "yarn",
+      "python", "pip", "pipx", "pytest",
+      "go", "cargo", "rustup",
+      "git", "bash", "sh",
+      "docker", "docker-compose"
+    ],
+    "denylist": ["curl", "wget", "scp", "ssh", "nc", "ncat", "telnet"]
+  },
+  "artifacts": {
+    "collect": [
+      "reports/**/*.xml",
+      "reports/**/*.json",
+      "coverage/**/*",
+      "lint-results/**/*",
+      "test-results/**/*"
+    ],
+    "retain_days": 14
+  },
+  "commit_message_template": "chore(agent): {summary}\n\nWhy:\n{rationale}\n\nChanges:\n{bulleted_changes}\n\nTests:\n{test_summary}",
+  "pr": {
+    "title_template": "Agent: {summary}",
+    "body_sections": [
+      "Summary",
+      "Diff Summary",
+      "Linter Results",
+      "Test Results (smoke)",
+      "Risk/Rollback",
+      "Checklist"
+    ],
+    "labels": ["agent", "automated", "needs-review"],
+    "require_human_approval": true
+  },
+  "logging": {
+    "level": "info",
+    "attach_logs_to_pr": true,
+    "redact_patterns": ["AKIA[0-9A-Z]{16}", "ghp_[A-Za-z0-9]{36,}"]
+  },
+  "pre_apply_gates": [
+    "lint.no_errors",
+    "tests.smoke_passed",
+    "secrets.none_detected"
+  ],
+  "post_apply_gates": [
+    "ci.required_checks_green",
+    "dependencies.no_high_or_critical_vulns"
+  ]
+}

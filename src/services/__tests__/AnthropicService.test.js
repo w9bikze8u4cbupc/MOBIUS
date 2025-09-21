@@ -1,6 +1,6 @@
-import AnthropicService from '../AnthropicService';
 import ApiError from '../../utils/errors/ApiError';
 import LoggingService from '../../utils/logging/LoggingService';
+import AnthropicService from '../AnthropicService';
 
 jest.mock('../../utils/logging/LoggingService');
 
@@ -13,7 +13,7 @@ describe('AnthropicService', () => {
     mockConfig = {
       baseUrl: 'https://api.anthropic.com',
       model: 'claude-2',
-      maxTokens: 1000
+      maxTokens: 1000,
     };
     service = new AnthropicService(mockConfig);
   });
@@ -37,9 +37,9 @@ describe('AnthropicService', () => {
       const mockApiResponse = {
         ok: true,
         headers: {
-          get: jest.fn().mockReturnValue('application/json')
+          get: jest.fn().mockReturnValue('application/json'),
         },
-        json: jest.fn().mockResolvedValue(mockResponse)
+        json: jest.fn().mockResolvedValue(mockResponse),
       };
 
       service.fetchWithTimeout = jest.fn().mockResolvedValue(mockApiResponse);
@@ -52,25 +52,21 @@ describe('AnthropicService', () => {
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           }),
-          body: expect.stringContaining(mockPrompt)
-        })
+          body: expect.stringContaining(mockPrompt),
+        }),
       );
       expect(LoggingService.info).toHaveBeenCalledWith(
         'AnthropicService',
-        'Text generation successful'
+        'Text generation successful',
       );
     });
 
     it('should handle API errors', async () => {
-      service.fetchWithTimeout = jest.fn().mockRejectedValue(
-        new Error('API Error')
-      );
+      service.fetchWithTimeout = jest.fn().mockRejectedValue(new Error('API Error'));
 
-      await expect(service.generateText(mockPrompt))
-        .rejects
-        .toThrow(ApiError);
+      await expect(service.generateText(mockPrompt)).rejects.toThrow(ApiError);
 
       expect(LoggingService.error).toHaveBeenCalled();
     });

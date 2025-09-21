@@ -1,4 +1,19 @@
-const STRIP_QUERY_PARAMS = new Set(['utm_source','utm_medium','utm_campaign','utm_term','utm_content','ver','v','ts','_','cache','width','height','w','h']);
+const STRIP_QUERY_PARAMS = new Set([
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'ver',
+  'v',
+  'ts',
+  '_',
+  'cache',
+  'width',
+  'height',
+  'w',
+  'h',
+]);
 
 /**
  * Canonicalize image URLs to reduce duplicates due to cache-busters and size params

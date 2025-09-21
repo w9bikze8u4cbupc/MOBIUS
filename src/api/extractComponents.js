@@ -1,14 +1,14 @@
+import { spawn } from 'child_process';
+import crypto from 'crypto';
 import fs from 'fs';
 import { promises as fsp } from 'fs';
 import os from 'os';
 import path from 'path';
-import crypto from 'crypto';
-import { spawn } from 'child_process';
 
 // Optional trim with sharp if installed
 let sharp = null;
-try { 
-  sharp = await import('sharp').then(m => m.default);
+try {
+  sharp = await import('sharp').then((m) => m.default);
 } catch (e) {
   console.warn('[extract-components] sharp not installed; trim disabled (npm i sharp to enable).');
 }
@@ -25,12 +25,20 @@ function resolveBin(tool) {
 function run(cmd, args, opts = {}) {
   return new Promise((resolve, reject) => {
     const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], shell: false, ...opts });
-    let out = '', err = '';
-    p.stdout.on('data', d => out += d.toString());
-    p.stderr.on('data', d => err += d.toString());
-    p.on('close', code => {
+    let out = '',
+      err = '';
+    p.stdout.on('data', (d) => (out += d.toString()));
+    p.stderr.on('data', (d) => (err += d.toString()));
+    p.on('close', (code) => {
       if (code === 0) resolve({ stdout: out, stderr: err });
-      else reject(Object.assign(new Error(`${cmd} ${args.join(' ')} exited ${code}\n${err}`), { code, stdout: out, stderr: err }));
+      else
+        reject(
+          Object.assign(new Error(`${cmd} ${args.join(' ')} exited ${code}\n${err}`), {
+            code,
+            stdout: out,
+            stderr: err,
+          }),
+        );
     });
     p.on('error', (err) => reject(err)); // ENOENT, etc.
   });
@@ -50,7 +58,8 @@ async function downloadToTemp(pdfUrl, { maxBytes = 50 * 1024 * 1024, timeoutMs =
   if (len && len > maxBytes) throw new Error(`PDF too large (${len} bytes) > limit ${maxBytes}`);
 
   const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length > maxBytes) throw new Error(`PDF too large after download (${buf.length} bytes) > limit ${maxBytes}`);
+  if (buf.length > maxBytes)
+    throw new Error(`PDF too large after download (${buf.length} bytes) > limit ${maxBytes}`);
 
   await fsp.writeFile(tmpFile, buf);
   return { tmpDir, tmpFile };
@@ -63,7 +72,7 @@ async function ensureDir(p) {
 async function listFiles(dir) {
   try {
     const entries = await fsp.readdir(dir);
-    return entries.map(e => path.join(dir, e));
+    return entries.map((e) => path.join(dir, e));
   } catch (e) {
     return [];
   }
@@ -110,7 +119,10 @@ function toPublicUrl(fullPath, jobId) {
 async function fileMeta(fullPath) {
   const stat = await fsp.stat(fullPath);
   const size = stat.size;
-  let width = null, height = null, hasAlpha = null, format = path.extname(fullPath).slice(1).toLowerCase();
+  let width = null,
+    height = null,
+    hasAlpha = null,
+    format = path.extname(fullPath).slice(1).toLowerCase();
   if (sharp) {
     try {
       const m = await sharp(fullPath).metadata();
@@ -157,9 +169,10 @@ function inferPageFromName(fullPath) {
   // prefer pattern with explicit page position: prefix-<imgIdx>-<page> or prefix-<page>-<img>
   let m = base.match(/-(\d+)-(\d+)\./); // capture two numeric groups
   if (m) {
-    const a = Number(m[1]), b = Number(m[2]);
+    const a = Number(m[1]),
+      b = Number(m[2]);
     // heuristic: page is usually the second when using -p (imgIdx-page)
-    return Number.isFinite(b) ? b : (Number.isFinite(a) ? a : null);
+    return Number.isFinite(b) ? b : Number.isFinite(a) ? a : null;
   }
   // fallback: page-12.png or p_12.png
   m = base.match(/(?:page|p)[-_]?(\d{1,4})/);
@@ -169,7 +182,7 @@ function inferPageFromName(fullPath) {
   return n ? Number(n[1]) : null;
 }
 
-function parseBool(v, d=true) {
+function parseBool(v, d = true) {
   if (v === undefined) return d;
   return v === '1' || v === 'true' || v === true;
 }
@@ -179,20 +192,29 @@ import { enhancedProcessor } from './enhancedImageProcessor.js';
 
 // Enhanced background removal with multiple approaches and quality assessment
 // Replaces basic bgRemove with intelligent multi-method processing
-async function enhancedBgRemoveIfRequested(inPath, enable = false, threshold = 245, componentType = 'default') {
+async function enhancedBgRemoveIfRequested(
+  inPath,
+  enable = false,
+  threshold = 245,
+  componentType = 'default',
+) {
   if (!enable || !sharp) return inPath;
-  
+
   try {
-    console.log(`🔧 Enhanced background removal for ${path.basename(inPath)} (type: ${componentType})`);
-    
+    console.log(
+      `🔧 Enhanced background removal for ${path.basename(inPath)} (type: ${componentType})`,
+    );
+
     // Use the advanced processor for intelligent background removal
     const result = await enhancedProcessor.processComponentImage(inPath, componentType, {
       fallbackThreshold: threshold,
-      enableQualityAssessment: true
+      enableQualityAssessment: true,
     });
-    
+
     if (result.success) {
-      console.log(`✅ Enhanced processing: ${result.method} (quality: ${(result.quality * 100).toFixed(1)}%)`);
+      console.log(
+        `✅ Enhanced processing: ${result.method} (quality: ${(result.quality * 100).toFixed(1)}%)`,
+      );
       return result.outputPath;
     } else {
       console.warn(`⚠️ Enhanced processing failed: ${result.error}`);
@@ -214,8 +236,8 @@ async function basicBgRemoveFallback(inPath, threshold = 245) {
     const maskBuf = await sharp(inPath)
       .removeAlpha()
       .greyscale()
-      .threshold(threshold)  // white => 255, content darker => 0
-      .negate()              // content => 255, white bg => 0
+      .threshold(threshold) // white => 255, content darker => 0
+      .negate() // content => 255, white bg => 0
       .toBuffer();
     await base
       .ensureAlpha()
@@ -228,10 +250,10 @@ async function basicBgRemoveFallback(inPath, threshold = 245) {
   }
 }
 
-async function coerceToWebFriendlyIfNeeded(inPath, enable=true) {
+async function coerceToWebFriendlyIfNeeded(inPath, enable = true) {
   if (!enable || !sharp) return inPath;
   const ext = path.extname(inPath).toLowerCase().slice(1);
-  const unsupported = new Set(['jp2','jpx','ppm','pgm','pbm']);
+  const unsupported = new Set(['jp2', 'jpx', 'ppm', 'pgm', 'pbm']);
   if (!unsupported.has(ext)) return inPath;
   const outPath = inPath.replace(/\.[^.]+$/, '.png');
   try {
@@ -312,7 +334,7 @@ export async function extractComponentsFromPdf({ pdfPathOrUrl, jobId, outputRoot
   const doConvert = options.convertUnsupported !== false; // default true
   const doBgRemove = options.bgremove === true; // default off for safety
   const bgThreshold = Number.isFinite(options.bgthreshold) ? Number(options.bgthreshold) : 245;
-  
+
   // NEW: Ensure defaults for scoring controls
   options.minW = options.minW || 160;
   options.minH = options.minH || 160;
@@ -324,7 +346,10 @@ export async function extractComponentsFromPdf({ pdfPathOrUrl, jobId, outputRoot
   let cleanupDir = null;
   try {
     if (/^https?:\/\//i.test(pdfPathOrUrl)) {
-      const { tmpDir, tmpFile } = await downloadToTemp(pdfPathOrUrl, { maxBytes: 50 * 1024 * 1024, timeoutMs: 20000 });
+      const { tmpDir, tmpFile } = await downloadToTemp(pdfPathOrUrl, {
+        maxBytes: 50 * 1024 * 1024,
+        timeoutMs: 20000,
+      });
       cleanupDir = tmpDir;
       localPdf = tmpFile;
     } else {
@@ -360,7 +385,8 @@ export async function extractComponentsFromPdf({ pdfPathOrUrl, jobId, outputRoot
 
     // If both failed (likely Poppler missing), return graceful signal
     if (embedded.length === 0 && snapshots.length === 0 && (embeddedError || snapshotsError)) {
-      const enoent = (err) => err && (err.code === 'ENOENT' || /not found|ENOENT/i.test(err.message));
+      const enoent = (err) =>
+        err && (err.code === 'ENOENT' || /not found|ENOENT/i.test(err.message));
       if (enoent(embeddedError) || enoent(snapshotsError)) {
         return { images: [], source: 'none', popplerMissing: true };
       }
@@ -371,7 +397,9 @@ export async function extractComponentsFromPdf({ pdfPathOrUrl, jobId, outputRoot
     for (const f of embedded) {
       const f2 = await coerceToWebFriendlyIfNeeded(f, doConvert);
       // background removal on embedded is rare; skip by default (too aggressive). Apply only if requested.
-      const f3 = doBgRemove ? await enhancedBgRemoveIfRequested(f2, true, bgThreshold, 'embedded') : f2;
+      const f3 = doBgRemove
+        ? await enhancedBgRemoveIfRequested(f2, true, bgThreshold, 'embedded')
+        : f2;
       embeddedNorm.push(f3);
     }
 
@@ -380,7 +408,9 @@ export async function extractComponentsFromPdf({ pdfPathOrUrl, jobId, outputRoot
     for (const f of snapshots) {
       const f2 = await coerceToWebFriendlyIfNeeded(f, doConvert);
       const f3 = doTrim ? await basicTrimIfPossible(f2) : f2;
-      const f4 = doBgRemove ? await enhancedBgRemoveIfRequested(f3, true, bgThreshold, 'snapshot') : f3;
+      const f4 = doBgRemove
+        ? await enhancedBgRemoveIfRequested(f3, true, bgThreshold, 'snapshot')
+        : f3;
       snapshotsNorm.push(f4);
     }
 
@@ -429,8 +459,8 @@ export async function extractComponentsFromPdf({ pdfPathOrUrl, jobId, outputRoot
     return { images: output, source };
   } finally {
     if (cleanupDir) {
-      try { 
-        await fsp.rm(cleanupDir, { recursive: true, force: true }); 
+      try {
+        await fsp.rm(cleanupDir, { recursive: true, force: true });
       } catch (e) {
         console.warn('[extract-components] cleanup failed:', e.message);
       }
@@ -441,7 +471,7 @@ export async function extractComponentsFromPdf({ pdfPathOrUrl, jobId, outputRoot
 export function mountExtractComponentsRoute(app, { outputRoot = path.resolve('output') } = {}) {
   app.get('/api/extract-components', async (req, res) => {
     const t0 = process.hrtime.bigint();
-    
+
     // Request ID for traceability
     const requestId = crypto.randomBytes(6).toString('hex');
     res.setHeader('X-Request-Id', requestId);
@@ -453,22 +483,29 @@ export function mountExtractComponentsRoute(app, { outputRoot = path.resolve('ou
     }
 
     // Optional SSRF guard for pdfUrl (customize ALLOW_HOSTS as needed)
-    const ALLOW_HOSTS = ['arxiv.org', 'example.com', 'boardgamegeek.com', 'drivethrurpg.com', 'localhost', '127.0.0.1'];
+    const ALLOW_HOSTS = [
+      'arxiv.org',
+      'example.com',
+      'boardgamegeek.com',
+      'drivethrurpg.com',
+      'localhost',
+      '127.0.0.1',
+    ];
     function isAllowedUrl(u) {
-      try { 
-        const h = new URL(u).hostname.toLowerCase(); 
+      try {
+        const h = new URL(u).hostname.toLowerCase();
         console.log('Checking URL:', u, 'Hostname:', h);
         // Allow localhost and 127.0.0.1 explicitly
         if (h === 'localhost' || h === '127.0.0.1') {
           console.log('Explicitly allowed localhost/127.0.0.1');
           return true;
         }
-        const allowed = ALLOW_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+        const allowed = ALLOW_HOSTS.some((a) => h === a || h.endsWith(`.${a}`));
         console.log('Allowed by list:', allowed);
         return allowed;
-      } catch (e) { 
+      } catch (e) {
         console.log('URL parsing error:', e);
-        return false; 
+        return false;
       }
     }
 
@@ -480,20 +517,20 @@ export function mountExtractComponentsRoute(app, { outputRoot = path.resolve('ou
       dpi: req.query.dpi ? Number(req.query.dpi) : 300,
       trim: parseBool(req.query.trim, true),
       convertUnsupported: parseBool(req.query.convert, true),
-      bgremove: parseBool(req.query.bgremove, false),           // NEW
+      bgremove: parseBool(req.query.bgremove, false), // NEW
       bgthreshold: req.query.bgthreshold ? Number(req.query.bgthreshold) : 245, // NEW
-      
+
       // NEW scoring controls (defaults conservative)
       minW: req.query.minW ? Number(req.query.minW) : 300,
       minH: req.query.minH ? Number(req.query.minH) : 300,
       maxAspect: req.query.maxAspect ? Number(req.query.maxAspect) : 5, // allow banners
       boostPages: (req.query.boostPages || '')
         .split(',')
-        .map(s => Number(s.trim()))
-        .filter(n => Number.isFinite(n)),
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isFinite(n)),
       boostFactor: req.query.boostFactor ? Number(req.query.boostFactor) : 1.2,
       embeddedBoost: req.query.embeddedBoost ? Number(req.query.embeddedBoost) : 1.04,
-      
+
       // NEW: topN limiter to avoid huge lists
       topN: req.query.topN ? Math.max(1, Number(req.query.topN)) : 100,
     };
@@ -506,7 +543,10 @@ export function mountExtractComponentsRoute(app, { outputRoot = path.resolve('ou
       res.setHeader('X-Components-Cache', 'HIT');
       res.setHeader('X-Components-Source', cached.value.source || 'none');
       res.setHeader('X-Components-Count', String(cached.value.images?.length || 0));
-      res.setHeader('X-Components-Opts', `dpi=${options.dpi};trim=${options.trim};convert=${options.convertUnsupported};bgremove=${options.bgremove};bgthreshold=${options.bgthreshold};minW=${options.minW};minH=${options.minH};maxAspect=${options.maxAspect};boostPages=[${options.boostPages.join(',')}];boostFactor=${options.boostFactor};embeddedBoost=${options.embeddedBoost};topN=${options.topN}`);
+      res.setHeader(
+        'X-Components-Opts',
+        `dpi=${options.dpi};trim=${options.trim};convert=${options.convertUnsupported};bgremove=${options.bgremove};bgthreshold=${options.bgthreshold};minW=${options.minW};minH=${options.minH};maxAspect=${options.maxAspect};boostPages=[${options.boostPages.join(',')}];boostFactor=${options.boostFactor};embeddedBoost=${options.embeddedBoost};topN=${options.topN}`,
+      );
       res.setHeader('X-Components-Time', '0ms (cache)');
       return res.json({ ...cached.value, cache: 'HIT' });
     }
@@ -526,7 +566,10 @@ export function mountExtractComponentsRoute(app, { outputRoot = path.resolve('ou
         res.setHeader('X-Components-Cache', cacheStatus);
         res.setHeader('X-Components-Source', 'none');
         res.setHeader('X-Components-Count', '0');
-        res.setHeader('X-Components-Opts', `dpi=${options.dpi};trim=${options.trim};convert=${options.convertUnsupported};bgremove=${options.bgremove};bgthreshold=${options.bgthreshold};minW=${options.minW};minH=${options.minH};maxAspect=${options.maxAspect};boostPages=[${options.boostPages.join(',')}];boostFactor=${options.boostFactor};embeddedBoost=${options.embeddedBoost};topN=${options.topN}`);
+        res.setHeader(
+          'X-Components-Opts',
+          `dpi=${options.dpi};trim=${options.trim};convert=${options.convertUnsupported};bgremove=${options.bgremove};bgthreshold=${options.bgthreshold};minW=${options.minW};minH=${options.minH};maxAspect=${options.maxAspect};boostPages=[${options.boostPages.join(',')}];boostFactor=${options.boostFactor};embeddedBoost=${options.embeddedBoost};topN=${options.topN}`,
+        );
         const ms = Number(process.hrtime.bigint() - t0) / 1e6;
         res.setHeader('X-Components-Time', `${ms.toFixed(1)}ms`);
         return res.json({
@@ -534,7 +577,8 @@ export function mountExtractComponentsRoute(app, { outputRoot = path.resolve('ou
           source: 'none',
           images: [],
           popplerMissing: true,
-          message: 'Poppler tools not available; PDF component extraction is disabled. Proceed with website images.',
+          message:
+            'Poppler tools not available; PDF component extraction is disabled. Proceed with website images.',
         });
       }
 
@@ -545,7 +589,10 @@ export function mountExtractComponentsRoute(app, { outputRoot = path.resolve('ou
       res.setHeader('X-Components-Cache', cacheStatus);
       res.setHeader('X-Components-Source', result.source || 'none');
       res.setHeader('X-Components-Count', String(finalImages.length));
-      res.setHeader('X-Components-Opts', `dpi=${options.dpi};trim=${options.trim};convert=${options.convertUnsupported};bgremove=${options.bgremove};bgthreshold=${options.bgthreshold};minW=${options.minW};minH=${options.minH};maxAspect=${options.maxAspect};boostPages=[${options.boostPages.join(',')}];boostFactor=${options.boostFactor};embeddedBoost=${options.embeddedBoost};topN=${options.topN}`);
+      res.setHeader(
+        'X-Components-Opts',
+        `dpi=${options.dpi};trim=${options.trim};convert=${options.convertUnsupported};bgremove=${options.bgremove};bgthreshold=${options.bgthreshold};minW=${options.minW};minH=${options.minH};maxAspect=${options.maxAspect};boostPages=[${options.boostPages.join(',')}];boostFactor=${options.boostFactor};embeddedBoost=${options.embeddedBoost};topN=${options.topN}`,
+      );
       const ms = Number(process.hrtime.bigint() - t0) / 1e6;
       res.setHeader('X-Components-Time', `${ms.toFixed(1)}ms`);
       return res.json({ jobId, ...result, images: finalImages, cache: cacheStatus });
@@ -556,7 +603,10 @@ export function mountExtractComponentsRoute(app, { outputRoot = path.resolve('ou
       res.setHeader('X-Components-Cache', 'MISS');
       res.setHeader('X-Components-Source', 'error');
       res.setHeader('X-Components-Count', '0');
-      res.setHeader('X-Components-Opts', `dpi=${options.dpi};trim=${options.trim};convert=${options.convertUnsupported};bgremove=${options.bgremove};bgthreshold=${options.bgthreshold};minW=${options.minW};minH=${options.minH};maxAspect=${options.maxAspect};boostPages=[${options.boostPages.join(',')}];boostFactor=${options.boostFactor};embeddedBoost=${options.embeddedBoost};topN=${options.topN}`);
+      res.setHeader(
+        'X-Components-Opts',
+        `dpi=${options.dpi};trim=${options.trim};convert=${options.convertUnsupported};bgremove=${options.bgremove};bgthreshold=${options.bgthreshold};minW=${options.minW};minH=${options.minH};maxAspect=${options.maxAspect};boostPages=[${options.boostPages.join(',')}];boostFactor=${options.boostFactor};embeddedBoost=${options.embeddedBoost};topN=${options.topN}`,
+      );
       res.setHeader('X-Components-Time', `${ms.toFixed(1)}ms`);
       return res.status(200).json({
         jobId,

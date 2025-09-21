@@ -7,21 +7,19 @@ import path from 'path';
 const DEFAULT_RETENTION_DAYS = 7;
 
 // Get retention period from environment variable or use default
-const retentionDays = process.env.RETENTION_DAYS ? parseInt(process.env.RETENTION_DAYS) : DEFAULT_RETENTION_DAYS;
+const retentionDays = process.env.RETENTION_DAYS
+  ? parseInt(process.env.RETENTION_DAYS)
+  : DEFAULT_RETENTION_DAYS;
 const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
 
 // Directories to clean up
-const directories = [
-  './uploads',
-  './output',
-  './out'
-];
+const directories = ['./uploads', './output', './out'];
 
 function isOlderThan(file, retentionMs) {
   try {
     const stats = fs.statSync(file);
     const now = Date.now();
-    return (now - stats.mtime.getTime()) > retentionMs;
+    return now - stats.mtime.getTime() > retentionMs;
   } catch (error) {
     return false;
   }
@@ -32,21 +30,21 @@ function cleanupDirectory(dir, retentionMs) {
     console.log(`Directory ${dir} does not exist, skipping...`);
     return;
   }
-  
+
   console.log(`Cleaning up directory: ${dir}`);
-  
+
   try {
     const files = fs.readdirSync(dir);
     let deletedCount = 0;
-    
+
     for (const file of files) {
       const filePath = path.join(dir, file);
-      
+
       // Skip directories for now (we could make this recursive if needed)
       if (fs.statSync(filePath).isDirectory()) {
         continue;
       }
-      
+
       if (isOlderThan(filePath, retentionMs)) {
         try {
           fs.unlinkSync(filePath);
@@ -57,7 +55,7 @@ function cleanupDirectory(dir, retentionMs) {
         }
       }
     }
-    
+
     console.log(`Deleted ${deletedCount} files from ${dir}`);
   } catch (error) {
     console.error(`Error cleaning up directory ${dir}:`, error.message);
@@ -67,11 +65,11 @@ function cleanupDirectory(dir, retentionMs) {
 // If called directly, run cleanup
 if (import.meta.url === `file://${process.argv[1]}`) {
   console.log(`Cleaning up files older than ${retentionDays} days...`);
-  
+
   for (const dir of directories) {
     cleanupDirectory(dir, retentionMs);
   }
-  
+
   console.log('Cleanup completed.');
 }
 

@@ -17,13 +17,13 @@ class TokenBucketRateLimiter {
     this.refillIntervalMs = refillIntervalMs;
     this.tokens = maxTokens;
     this.lastRefill = Date.now();
-    
+
     // Refill tokens periodically
     this.intervalId = setInterval(() => {
       this.refill();
     }, refillIntervalMs);
   }
-  
+
   // Cleanup method for testing
   cleanup() {
     if (this.intervalId) {
@@ -31,45 +31,66 @@ class TokenBucketRateLimiter {
       this.intervalId = null;
     }
   }
-  
+
   refill() {
     const now = Date.now();
     const elapsed = now - this.lastRefill;
     const tokensToAdd = Math.floor(elapsed / this.refillIntervalMs) * this.maxTokens;
-    
+
     if (tokensToAdd > 0) {
       this.tokens = Math.min(this.maxTokens, this.tokens + tokensToAdd);
       this.lastRefill = now;
-      LoggingService.debug('RateLimiter', `Refilled tokens. Current: ${this.tokens}/${this.maxTokens}`);
+      LoggingService.debug(
+        'RateLimiter',
+        `Refilled tokens. Current: ${this.tokens}/${this.maxTokens}`,
+      );
     }
   }
-  
+
   async consume(tokens = 1) {
     this.refill(); // Ensure tokens are up to date
-    
+
     if (this.tokens >= tokens) {
       this.tokens -= tokens;
-      return { success: true, limit: this.maxTokens, remaining: this.tokens, resetEpochSec: (this.lastRefill + this.refillIntervalMs) / 1000 };
+      return {
+        success: true,
+        limit: this.maxTokens,
+        remaining: this.tokens,
+        resetEpochSec: (this.lastRefill + this.refillIntervalMs) / 1000,
+      };
     }
-    
+
     // Calculate wait time
     const waitTime = this.refillIntervalMs * (tokens / this.maxTokens);
-    LoggingService.warn('RateLimiter', `Rate limit exceeded. Waiting ${waitTime}ms before next request`);
-    
+    LoggingService.warn(
+      'RateLimiter',
+      `Rate limit exceeded. Waiting ${waitTime}ms before next request`,
+    );
+
     // Wait for tokens to refill
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       setTimeout(() => {
         this.refill();
         if (this.tokens >= tokens) {
           this.tokens -= tokens;
-          resolve({ success: true, limit: this.maxTokens, remaining: this.tokens, resetEpochSec: (this.lastRefill + this.refillIntervalMs) / 1000 });
+          resolve({
+            success: true,
+            limit: this.maxTokens,
+            remaining: this.tokens,
+            resetEpochSec: (this.lastRefill + this.refillIntervalMs) / 1000,
+          });
         } else {
-          resolve({ success: false, limit: this.maxTokens, remaining: this.tokens, resetEpochSec: (this.lastRefill + this.refillIntervalMs) / 1000 });
+          resolve({
+            success: false,
+            limit: this.maxTokens,
+            remaining: this.tokens,
+            resetEpochSec: (this.lastRefill + this.refillIntervalMs) / 1000,
+          });
         }
       }, waitTime);
     });
   }
-  
+
   getTokens() {
     this.refill();
     return this.tokens;
@@ -81,6 +102,9 @@ class TokenBucketRateLimiter {
 const BGG_RATE_LIMIT_REQUESTS = parseInt(process.env.BGG_RATE_LIMIT_REQUESTS) || 10;
 const BGG_RATE_LIMIT_WINDOW_MS = parseInt(process.env.BGG_RATE_LIMIT_WINDOW_MS) || 60000;
 
-const bggRateLimiter = new TokenBucketRateLimiter(BGG_RATE_LIMIT_REQUESTS, BGG_RATE_LIMIT_WINDOW_MS);
+const bggRateLimiter = new TokenBucketRateLimiter(
+  BGG_RATE_LIMIT_REQUESTS,
+  BGG_RATE_LIMIT_WINDOW_MS,
+);
 
 export { bggRateLimiter, TokenBucketRateLimiter };

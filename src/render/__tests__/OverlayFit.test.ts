@@ -9,7 +9,7 @@ describe('OverlayFit', () => {
         mode: 'contain',
         alignment: 'center',
         width: 400,
-        height: 300
+        height: 300,
       });
 
       expect(result.graph).toContain('scale2ref=w=400:h=300');
@@ -23,7 +23,7 @@ describe('OverlayFit', () => {
         mode: 'cover',
         alignment: 'top-left',
         width: 400,
-        height: 300
+        height: 300,
       });
 
       expect(result.graph).toContain('scale2ref=w=400:h=300');
@@ -37,7 +37,7 @@ describe('OverlayFit', () => {
         mode: 'contain',
         alignment: 'right',
         width: 400,
-        height: 300
+        height: 300,
       });
 
       expect(result.graph).toContain('scale2ref=w=400:h=300');

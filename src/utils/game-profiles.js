@@ -8,21 +8,33 @@ const __dirname = path.dirname(__filename);
 
 // Base synonyms that apply to all games
 const BASE_SYNONYMS = {
-  'cards': 'card',
-  'tokens': 'token',
-  'markers': 'marker',
-  'tiles': 'tile',
-  'boards': 'board',
-  'pawns': 'pawn',
-  'meeples': 'meeple',
-  'dice': 'die',
-  'sheets': 'sheet'
+  cards: 'card',
+  tokens: 'token',
+  markers: 'marker',
+  tiles: 'tile',
+  boards: 'board',
+  pawns: 'pawn',
+  meeples: 'meeple',
+  dice: 'die',
+  sheets: 'sheet',
 };
 
 // Base allowlist terms
 const BASE_ALLOWLIST = [
-  'card', 'token', 'marker', 'tile', 'board', 'pawn', 'meeple', 
-  'die', 'sheet', 'figure', 'cube', 'disc', 'chip', 'counter'
+  'card',
+  'token',
+  'marker',
+  'tile',
+  'board',
+  'pawn',
+  'meeple',
+  'die',
+  'sheet',
+  'figure',
+  'cube',
+  'disc',
+  'chip',
+  'counter',
 ];
 
 /**
@@ -42,28 +54,34 @@ export async function loadGameProfile(gameTitle) {
 
   try {
     // Try to load game-specific profile
-    const profilePath = path.join(__dirname, '..', 'config', 'game-profiles', `${normalizedTitle}.json`);
+    const profilePath = path.join(
+      __dirname,
+      '..',
+      'config',
+      'game-profiles',
+      `${normalizedTitle}.json`,
+    );
     if (fs.existsSync(profilePath)) {
       const profile = JSON.parse(await fs.promises.readFile(profilePath, 'utf8'));
-      
+
       // Merge with base configuration
       return {
         allowlist: [...new Set([...BASE_ALLOWLIST, ...(profile.allowlist || [])])],
         expectedCounts: profile.expectedCounts || {},
         synonyms: { ...BASE_SYNONYMS, ...(profile.synonyms || {}) },
-        excludeSupply: profile.excludeSupply || []
+        excludeSupply: profile.excludeSupply || [],
       };
     }
   } catch (error) {
     console.warn(`Failed to load profile for ${gameTitle}:`, error.message);
   }
-  
+
   // Return base configuration if no game-specific profile exists
   return {
     allowlist: BASE_ALLOWLIST,
     expectedCounts: {},
     synonyms: BASE_SYNONYMS,
-    excludeSupply: []
+    excludeSupply: [],
   };
 }
 
@@ -76,14 +94,14 @@ export async function loadGameProfile(gameTitle) {
 export function normalizeComponentName(name, profile) {
   // Convert to lowercase and trim
   let normalized = name.toLowerCase().trim();
-  
+
   // Apply game-specific synonyms
   for (const [synonym, canonical] of Object.entries(profile.synonyms)) {
     if (normalized.includes(synonym)) {
       normalized = normalized.replace(new RegExp(synonym, 'g'), canonical);
     }
   }
-  
+
   return normalized;
 }
 
@@ -95,15 +113,15 @@ export function normalizeComponentName(name, profile) {
  */
 export function isSupplyOnly(name, profile) {
   const normalized = name.toLowerCase().trim();
-  
+
   // Check explicit supply exclusions
-  if (profile.excludeSupply.some(term => normalized.includes(term))) {
+  if (profile.excludeSupply.some((term) => normalized.includes(term))) {
     return true;
   }
-  
+
   // Check for common supply terms
   const supplyTerms = ['supply', 'bank', 'reserve', 'treasury'];
-  return supplyTerms.some(term => normalized.includes(term));
+  return supplyTerms.some((term) => normalized.includes(term));
 }
 
 /**
@@ -116,9 +134,9 @@ export function validateComponentCounts(components, profile) {
   const results = {
     valid: true,
     issues: [],
-    expected: profile.expectedCounts
+    expected: profile.expectedCounts,
   };
-  
+
   // Group components by normalized name
   const componentGroups = {};
   for (const component of components) {
@@ -128,7 +146,7 @@ export function validateComponentCounts(components, profile) {
     }
     componentGroups[normalizedName].push(component);
   }
-  
+
   // Check expected counts
   for (const [name, expectedCount] of Object.entries(profile.expectedCounts)) {
     const actualCount = componentGroups[name] ? componentGroups[name].length : 0;
@@ -138,10 +156,10 @@ export function validateComponentCounts(components, profile) {
         type: 'count_mismatch',
         component: name,
         expected: expectedCount,
-        actual: actualCount
+        actual: actualCount,
       });
     }
   }
-  
+
   return results;
 }

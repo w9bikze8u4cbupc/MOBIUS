@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-import { extractComponentsFromText } from './src/api/utils.js';
 import fs from 'fs';
+
+import { extractComponentsFromText } from './src/api/utils.js';
 
 /**
  * Verbose component extraction for debugging
@@ -9,15 +10,16 @@ import fs from 'fs';
 function extractTextVerbose(pdfText) {
   console.log('🔍 VERBOSE COMPONENT EXTRACTION');
   console.log('='.repeat(50));
-  
+
   const START_RE = /(?:^|\n)\s*(contents\s*&\s*setup|components|box contents|game components)\b/i;
-  const END_RE = /(?:^|\n)\s*(object of the game|game overview|setup ends|1\s+plot at court|setup\b(?!.*contents))/i;
+  const END_RE =
+    /(?:^|\n)\s*(object of the game|game overview|setup ends|1\s+plot at court|setup\b(?!.*contents))/i;
 
   // Slice to the components section
   const start = START_RE.exec(pdfText);
   let slice = pdfText;
   if (start) {
-    console.log(`\n📋 SECTION BOUNDARIES:`);
+    console.log('\n📋 SECTION BOUNDARIES:');
     console.log(`   Start: Found "${start[1]}" at position ${start.index}`);
     const rest = pdfText.slice(start.index + start[0].length);
     const end = END_RE.exec(rest);
@@ -25,16 +27,16 @@ function extractTextVerbose(pdfText) {
       console.log(`   End: Found "${end[1]}" at position ${end.index}`);
       slice = rest.slice(0, end.index);
     } else {
-      console.log(`   End: Not found, using rest of document`);
+      console.log('   End: Not found, using rest of document');
       slice = rest;
     }
   } else {
-    console.log(`\n📋 SECTION BOUNDARIES: No section headers found, using entire text`);
+    console.log('\n📋 SECTION BOUNDARIES: No section headers found, using entire text');
   }
 
   const lines = slice
     .split(/\r?\n/)
-    .map(s => s.replace(/\s+/g, ' ').trim())
+    .map((s) => s.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
 
   console.log(`\n📄 SCOPED LINES (${lines.length} lines):`);
@@ -44,12 +46,14 @@ function extractTextVerbose(pdfText) {
 
   // Run the actual extraction
   const components = extractComponentsFromText(pdfText);
-  
+
   console.log(`\n✅ FINAL COMPONENTS (${components.length} items):`);
   components.forEach((comp, i) => {
-    console.log(`   ${i + 1}. ${comp.name}${comp.count !== null ? ` — ${comp.count}` : ''}${comp.note ? ` [${comp.note}]` : ''}`);
+    console.log(
+      `   ${i + 1}. ${comp.name}${comp.count !== null ? ` — ${comp.count}` : ''}${comp.note ? ` [${comp.note}]` : ''}`,
+    );
   });
-  
+
   return components;
 }
 
@@ -88,6 +92,6 @@ if (process.argv.length > 2) {
   The Traitor card
   Master of Magic
   `;
-  
+
   extractTextVerbose(sampleText);
 }

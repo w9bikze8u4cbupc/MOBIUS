@@ -1,0 +1,103 @@
+[all]
+files = **/*.py, **/*.js, **/*.jsx, **/*.ts, **/*.tsx, **/*.json, **/*.md, **/*.html, **/*.css, **/*.scss, **/*.yml, **/*.yaml
+exclude_paths = node_modules, dist, build, out, .next, coverage, .venv, .git, tmp, .cache, .parcel-cache, logs, *.log, uploads, output, artifacts, work, __pycache__, .vscode, .husky, ffmpeg
+max_line_length = 100
+
+# Python
+[python]
+bears = PEP8Bear, PyLintBear, BanditBear, RadonBear, LineLengthBear, SpaceConsistencyBear, DuplicateFileBear
+use_spaces = true
+ignore = E203  # if you use Black
+radon_complexity = B  # A/B/C... (lower is stricter)
+
+# JavaScript via ESLint
+[javascript]
+bears = ESLintBear
+files = **/*.js, **/*.jsx
+additional_dependencies = eslint, eslint-plugin-security, eslint-plugin-import, eslint-plugin-promise, eslint-plugin-sonarjs
+
+# TypeScript via ESLint
+[typescript]
+bears = ESLintBear
+files = **/*.ts, **/*.tsx
+additional_dependencies = eslint, @typescript-eslint/parser, @typescript-eslint/eslint-plugin, eslint-plugin-security, eslint-plugin-import, eslint-plugin-promise, eslint-plugin-sonarjs
+
+# Markdown
+[markdown]
+bears = MarkdownBear
+
+# JSON
+[json]
+bears = JSONFormatBear, LineLengthBear
+
+# YAML
+[yaml]
+bears = YAMLLintBear
+
+# HTML
+[html]
+bears = HTMLLintBear
+
+# CSS/SCSS
+[css]
+bears = CSSLintBear
+
+# Security/bug-pattern sweeps with simple regexes
+# Adapt patterns to your codebase paths/names.
+[security-regex]
+bears = RegexLintBear
+files = **/*.js, **/*.ts, **/*.tsx
+# Disallow eval/new Function
+regex = (?<![\w$])(eval|Function)\s*\(
+message = Avoid dynamic code execution (eval/new Function)
+severity = major
+
+[http-only-block]
+bears = RegexLintBear
+files = **/*.js, **/*.ts, **/*.tsx
+regex = (fetch|axios\.(get|post|put|delete|patch))\s*\(\s*['"]http://
+message = Use HTTPS for outbound requests
+severity = major
+
+[no-raw-console]
+bears = RegexLintBear
+files = **/*.js, **/*.ts, **/*.tsx
+regex = (?<!\.)\bconsole\.log\(
+message = Use project logger instead of console.log
+severity = minor
+
+# Require timeouts (very simple heuristic)
+[missing-timeout]
+bears = RegexLintBear
+files = **/*.ts, **/*.js
+regex = axios\.(get|post|put|delete|patch)\([^)]*\)(?![^;]*timeout)
+message = axios calls should set a timeout
+severity = minor
+
+# Disallow accidental non-BGG hosts in code (enforce allowlist)
+[bgg-host-allowlist]
+bears = RegexLintBear
+files = src/**/*.ts, src/**/*.js
+regex = (fetch|axios\.(get|post|put|delete|patch))\s*\(\s*['"]https?:\/\/(?!([w]{3}\.)?boardgamegeek\.com)
+message = Outbound requests must target BGG allowlisted hosts
+severity = major
+
+# Require User-Agent header for BGG calls:
+[require-user-agent]
+bears = RegexLintBear
+files = src/**/*.ts, src/**/*.js
+regex = (fetch\([^)]*boardgamegeek\.com[^)]*\)(?![^}]*['"]User-Agent['"]))|(axios\.[^(]+\([^)]*boardgamegeek\.com[^)]*\)(?![^}]*timeout))
+message = BGG calls must include User-Agent and timeout
+severity = major
+
+# Ban direct fs ops in web handlers (encourage worker pool usage):
+[no-fs-in-handlers]
+bears = RegexLintBear
+files = src/api/**/*.ts, src/server/**/*.ts
+regex = (?<!worker)[\s;]fs\.(read|write|unlink|mkd)ir
+message = Avoid direct fs in request handlers; use worker pool/temp utilities
+severity = minor
+
+# General
+[general]
+bears = FilenameBear, SpaceConsistencyBear, LineLengthBear, DuplicateFileBear

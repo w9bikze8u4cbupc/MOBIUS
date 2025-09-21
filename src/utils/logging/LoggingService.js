@@ -3,7 +3,7 @@ class LoggingService {
     ERROR: 'ERROR',
     WARN: 'WARN',
     INFO: 'INFO',
-    DEBUG: 'DEBUG'
+    DEBUG: 'DEBUG',
   };
 
   static log(level, service, message, data = null) {
@@ -13,7 +13,7 @@ class LoggingService {
       level,
       service,
       message,
-      data
+      data,
     };
 
     console.log(`[${timestamp}] ${level} - ${service}: ${message}`);

@@ -5,12 +5,11 @@
  */
 export function confidenceBand(c) {
   // Simple interpretable score
-  const s = (
-    0.30 * (c.providerWeight ?? 0) +
+  const s =
+    0.3 * (c.providerWeight ?? 0) +
     0.25 * (c.proximityScore ?? 0) +
     0.25 * (c.sizeScore ?? 0) +
-    0.20 * (c.qualityFocus ?? 0)
-  );
+    0.2 * (c.qualityFocus ?? 0);
   if (s >= 0.75) return 'High';
   if (s >= 0.5) return 'Medium';
   return 'Low';
@@ -26,20 +25,16 @@ export function detailedConfidence(c) {
   const proximityScore = c.proximityScore ?? 0;
   const sizeScore = c.sizeScore ?? 0;
   const qualityFocus = c.qualityFocus ?? 0;
-  
-  const score = (
-    0.30 * providerWeight +
-    0.25 * proximityScore +
-    0.25 * sizeScore +
-    0.20 * qualityFocus
-  );
-  
+
+  const score =
+    0.3 * providerWeight + 0.25 * proximityScore + 0.25 * sizeScore + 0.2 * qualityFocus;
+
   return {
     score: Math.round(score * 100) / 100,
     providerWeight: Math.round(providerWeight * 100) / 100,
     proximityScore: Math.round(proximityScore * 100) / 100,
     sizeScore: Math.round(sizeScore * 100) / 100,
     qualityFocus: Math.round(qualityFocus * 100) / 100,
-    band: confidenceBand(c)
+    band: confidenceBand(c),
   };
 }

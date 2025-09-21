@@ -1,5 +1,7 @@
-import sharp from 'sharp';
 import fs from 'fs';
+
+import sharp from 'sharp';
+
 import { pickClusterCenter } from './image-dedupe-choose.js';
 
 /**
@@ -18,11 +20,7 @@ export async function computeAHashHex(input) {
     }
 
     // 8x8 grayscale average hash
-    const img = await sharp(buffer)
-      .grayscale()
-      .resize(8, 8, { fit: 'fill' })
-      .raw()
-      .toBuffer();
+    const img = await sharp(buffer).grayscale().resize(8, 8, { fit: 'fill' }).raw().toBuffer();
 
     // Compute average luminance
     let sum = 0;
@@ -34,7 +32,9 @@ export async function computeAHashHex(input) {
     for (let i = 0; i < img.length; i++) bits += img[i] >= avg ? '1' : '0';
 
     // Convert to hex (16 hex chars for 64 bits)
-    const hex = BigInt('0b' + bits).toString(16).padStart(16, '0');
+    const hex = BigInt('0b' + bits)
+      .toString(16)
+      .padStart(16, '0');
     return hex;
   } catch (error) {
     console.warn('Failed to compute aHash:', error.message);
@@ -53,14 +53,14 @@ export function hammingDistance(hexA, hexB) {
   try {
     // Ensure both hex strings are valid
     if (!hexA || !hexB) return 64;
-    
+
     const a = BigInt('0x' + (hexA || '0000000000000000'));
     const b = BigInt('0x' + (hexB || '0000000000000000'));
     let x = a ^ b;
     let count = 0;
-    while (x) { 
-      count += Number(x & 1n); 
-      x >>= 1n; 
+    while (x) {
+      count += Number(x & 1n);
+      x >>= 1n;
     }
     return count;
   } catch (error) {
@@ -84,7 +84,7 @@ export async function dedupeByPerceptualHash(candidates, { threshold = 6 } = {})
       try {
         // Only compute hash if we have actual image data
         if (c.buffer || (c.path && fs.existsSync(c.path))) {
-          const bytes = c.buffer ?? await fs.promises.readFile(c.path);
+          const bytes = c.buffer ?? (await fs.promises.readFile(c.path));
           c._ahash = await computeAHashHex(bytes);
         } else {
           c._ahash = '0000000000000000'; // Default hash
@@ -99,7 +99,7 @@ export async function dedupeByPerceptualHash(candidates, { threshold = 6 } = {})
   // Cluster near-duplicates: greedy group by closest hash
   const clusters = [];
   const used = new Set();
-  
+
   for (let i = 0; i < candidates.length; i++) {
     if (used.has(i)) continue;
     const base = candidates[i];
@@ -117,13 +117,13 @@ export async function dedupeByPerceptualHash(candidates, { threshold = 6 } = {})
         }
       }
     }
-    
+
     // Pick the best representative from this cluster
     const center = pickClusterCenter(members);
     center.clusterMembers = members.length;
     center.uniquenessScore = 1.0 / members.length; // Inverse of cluster size
     clusters.push(center);
   }
-  
+
   return clusters;
 }

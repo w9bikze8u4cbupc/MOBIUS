@@ -1,7 +1,8 @@
-import BGGService from '../BGGService';
+import { XMLParser } from 'fast-xml-parser';
+
 import ApiError from '../../utils/errors/ApiError';
 import LoggingService from '../../utils/logging/LoggingService';
-import { XMLParser } from 'fast-xml-parser';
+import BGGService from '../BGGService';
 
 jest.mock('../../utils/logging/LoggingService');
 jest.mock('fast-xml-parser');
@@ -16,7 +17,7 @@ describe('BGGService', () => {
       baseUrl: 'https://boardgamegeek.com/xmlapi2',
       timeout: 5000,
       retryAttempts: 3,
-      retryDelay: 1000
+      retryDelay: 1000,
     };
     service = new BGGService(mockConfig);
   });
@@ -33,7 +34,7 @@ describe('BGGService', () => {
     it('should search games successfully', async () => {
       const mockResponse = {
         ok: true,
-        text: jest.fn().mockResolvedValue(mockXmlData)
+        text: jest.fn().mockResolvedValue(mockXmlData),
       };
 
       service.fetchWithRetry = jest.fn().mockResolvedValue(mockResponse);
@@ -42,22 +43,15 @@ describe('BGGService', () => {
 
       expect(result).toEqual(mockParsedData);
       expect(service.fetchWithRetry).toHaveBeenCalledWith(
-        expect.stringContaining(encodeURIComponent(mockQuery))
+        expect.stringContaining(encodeURIComponent(mockQuery)),
       );
-      expect(LoggingService.info).toHaveBeenCalledWith(
-        'BGGService',
-        'Game search successful'
-      );
+      expect(LoggingService.info).toHaveBeenCalledWith('BGGService', 'Game search successful');
     });
 
     it('should handle search errors', async () => {
-      service.fetchWithRetry = jest.fn().mockRejectedValue(
-        new Error('Search failed')
-      );
+      service.fetchWithRetry = jest.fn().mockRejectedValue(new Error('Search failed'));
 
-      await expect(service.searchGame(mockQuery))
-        .rejects
-        .toThrow(ApiError);
+      await expect(service.searchGame(mockQuery)).rejects.toThrow(ApiError);
 
       expect(LoggingService.error).toHaveBeenCalled();
     });
@@ -75,7 +69,7 @@ describe('BGGService', () => {
     it('should fetch game details successfully', async () => {
       const mockResponse = {
         ok: true,
-        text: jest.fn().mockResolvedValue(mockXmlData)
+        text: jest.fn().mockResolvedValue(mockXmlData),
       };
 
       service.fetchWithRetry = jest.fn().mockResolvedValue(mockResponse);
@@ -83,23 +77,17 @@ describe('BGGService', () => {
       const result = await service.getGameDetails(mockGameId);
 
       expect(result).toEqual(mockParsedData);
-      expect(service.fetchWithRetry).toHaveBeenCalledWith(
-        expect.stringContaining(mockGameId)
-      );
+      expect(service.fetchWithRetry).toHaveBeenCalledWith(expect.stringContaining(mockGameId));
       expect(LoggingService.info).toHaveBeenCalledWith(
         'BGGService',
-        'Game details fetched successfully'
+        'Game details fetched successfully',
       );
     });
 
     it('should handle fetch errors', async () => {
-      service.fetchWithRetry = jest.fn().mockRejectedValue(
-        new Error('Fetch failed')
-      );
+      service.fetchWithRetry = jest.fn().mockRejectedValue(new Error('Fetch failed'));
 
-      await expect(service.getGameDetails(mockGameId))
-        .rejects
-        .toThrow(ApiError);
+      await expect(service.getGameDetails(mockGameId)).rejects.toThrow(ApiError);
 
       expect(LoggingService.error).toHaveBeenCalled();
     });

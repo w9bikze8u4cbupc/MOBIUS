@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="7" failures="0" errors="0" time="3.608">
+  <testsuite name="URL Validation and SSRF Protection" errors="0" failures="0" skipped="0" timestamp="2025-09-20T20:26:51" time="1.041" tests="7">
+    <testcase classname="URL Validation and SSRF Protection should allow valid HTTPS URLs from allowlist" name="URL Validation and SSRF Protection should allow valid HTTPS URLs from allowlist" time="0.004">
+    </testcase>
+    <testcase classname="URL Validation and SSRF Protection should reject HTTP URLs when HTTPS is required" name="URL Validation and SSRF Protection should reject HTTP URLs when HTTPS is required" time="0.001">
+    </testcase>
+    <testcase classname="URL Validation and SSRF Protection should reject URLs not in allowlist" name="URL Validation and SSRF Protection should reject URLs not in allowlist" time="0.001">
+    </testcase>
+    <testcase classname="URL Validation and SSRF Protection should reject private IP addresses not in allowlist" name="URL Validation and SSRF Protection should reject private IP addresses not in allowlist" time="0.001">
+    </testcase>
+    <testcase classname="URL Validation and SSRF Protection should allow localhost when in allowlist" name="URL Validation and SSRF Protection should allow localhost when in allowlist" time="0.002">
+    </testcase>
+    <testcase classname="URL Validation and SSRF Protection should allow private IPs when explicitly allowed and in allowlist" name="URL Validation and SSRF Protection should allow private IPs when explicitly allowed and in allowlist" time="0.001">
+    </testcase>
+    <testcase classname="URL Validation and SSRF Protection isAllowedUrl should correctly identify allowed hosts" name="URL Validation and SSRF Protection isAllowedUrl should correctly identify allowed hosts" time="0.002">
+    </testcase>
+  </testsuite>
+</testsuites>

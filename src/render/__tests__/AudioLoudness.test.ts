@@ -14,7 +14,7 @@ describe('AudioLoudness', () => {
         frameSize: 200,
         gaussSize: 7,
         peakValue: 0.9,
-        maxGain: 5
+        maxGain: 5,
       });
       expect(result).toBe('dynaudnorm=f=200:g=7:p=0.9:m=5');
     });
@@ -30,7 +30,7 @@ describe('AudioLoudness', () => {
       const result = buildLoudnorm({
         i: -16,
         lra: 11,
-        tp: -1.0
+        tp: -1.0,
       });
       expect(result).toBe('loudnorm=i=-16:lra=11:tp=-1');
     });

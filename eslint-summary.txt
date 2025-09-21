@@ -1,0 +1,28 @@
+ESLint Summary for src/api/index.js
+==================================
+
+Total Issues: 46 errors, 0 warnings
+
+Top Issue Types:
+1. Formatting Issues (30+)
+   - Prettier/prettier errors (spacing, indentation)
+   - Strings must use single quotes
+   - Unnecessary escape characters
+
+2. Code Quality Issues (10+)
+   - Unexpected control characters in regex
+   - Empty block statements
+   - Undefined variables (gameId, audioBuffer)
+
+3. Style Issues (5+)
+   - Indentation problems
+   - Quote consistency
+
+Recommendations for CI Ratchet:
+1. Fix formatting issues with --fix option
+2. Address undefined variables
+3. Clean up empty block statements
+4. Enforce consistent quoting
+5. Fix regex control characters
+
+This summary can be used to gradually ratchet down issues in CI.

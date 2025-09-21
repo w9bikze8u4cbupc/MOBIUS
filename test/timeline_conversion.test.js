@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+import { describe, it, expect } from 'vitest';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,13 +14,15 @@ describe('Timeline Conversion', () => {
       fps: 30,
       width: 1920,
       height: 1080,
-      tracks: [{
-        type: 'video',
-        clips: [
-          { type: 'image', src: 'image1.jpg', start: 0, duration: 5, fit: 'cover' },
-          { type: 'image', src: 'image2.jpg', start: 5, duration: 5, fit: 'cover' }
-        ]
-      }]
+      tracks: [
+        {
+          type: 'video',
+          clips: [
+            { type: 'image', src: 'image1.jpg', start: 0, duration: 5, fit: 'cover' },
+            { type: 'image', src: 'image2.jpg', start: 5, duration: 5, fit: 'cover' },
+          ],
+        },
+      ],
     };
 
     // Convert to renderer schema
@@ -28,29 +31,29 @@ describe('Timeline Conversion', () => {
 
     for (let i = 0; i < sampleTimeline.tracks[0].clips.length; i++) {
       const clip = sampleTimeline.tracks[0].clips[i];
-      
+
       timeline.push({
         id: `shot:${i}`,
         type: 'components',
         start: time,
         end: time + clip.duration,
         data: {
-          template: 'generic'
-        }
+          template: 'generic',
+        },
       });
-      
+
       time += clip.duration;
     }
 
     const output = {
-      timeline: timeline
+      timeline: timeline,
     };
 
     // Validate schema
     expect(output.timeline).toBeDefined();
     expect(Array.isArray(output.timeline)).toBe(true);
     expect(output.timeline.length).toBe(2);
-    
+
     // Validate each shot
     output.timeline.forEach((shot, index) => {
       expect(shot.id).toBe(`shot:${index}`);
@@ -67,10 +70,12 @@ describe('Timeline Conversion', () => {
       fps: 30,
       width: 1920,
       height: 1080,
-      tracks: [{
-        type: 'video',
-        clips: []
-      }]
+      tracks: [
+        {
+          type: 'video',
+          clips: [],
+        },
+      ],
     };
 
     const timeline = [];
@@ -78,22 +83,22 @@ describe('Timeline Conversion', () => {
 
     for (let i = 0; i < sampleTimeline.tracks[0].clips.length; i++) {
       const clip = sampleTimeline.tracks[0].clips[i];
-      
+
       timeline.push({
         id: `shot:${i}`,
         type: 'components',
         start: time,
         end: time + clip.duration,
         data: {
-          template: 'generic'
-        }
+          template: 'generic',
+        },
       });
-      
+
       time += clip.duration;
     }
 
     const output = {
-      timeline: timeline
+      timeline: timeline,
     };
 
     expect(output.timeline).toBeDefined();
@@ -106,14 +111,16 @@ describe('Timeline Conversion', () => {
       fps: 30,
       width: 1920,
       height: 1080,
-      tracks: [{
-        type: 'video',
-        clips: [
-          { type: 'image', src: 'image1.jpg', start: 0, duration: 10, fit: 'cover' },
-          { type: 'image', src: 'image2.jpg', start: 10, duration: 15, fit: 'cover' },
-          { type: 'image', src: 'image3.jpg', start: 25, duration: 5, fit: 'cover' }
-        ]
-      }]
+      tracks: [
+        {
+          type: 'video',
+          clips: [
+            { type: 'image', src: 'image1.jpg', start: 0, duration: 10, fit: 'cover' },
+            { type: 'image', src: 'image2.jpg', start: 10, duration: 15, fit: 'cover' },
+            { type: 'image', src: 'image3.jpg', start: 25, duration: 5, fit: 'cover' },
+          ],
+        },
+      ],
     };
 
     const timeline = [];
@@ -121,17 +128,17 @@ describe('Timeline Conversion', () => {
 
     for (let i = 0; i < sampleTimeline.tracks[0].clips.length; i++) {
       const clip = sampleTimeline.tracks[0].clips[i];
-      
+
       timeline.push({
         id: `shot:${i}`,
         type: 'components',
         start: time,
         end: time + clip.duration,
         data: {
-          template: 'generic'
-        }
+          template: 'generic',
+        },
       });
-      
+
       time += clip.duration;
     }
 

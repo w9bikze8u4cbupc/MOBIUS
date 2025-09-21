@@ -5,7 +5,7 @@ export async function extractMetadata(bggUrl) {
   const res = await fetch(`${API_BASE}/start-extraction`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ bggUrl })
+    body: JSON.stringify({ bggUrl }),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');

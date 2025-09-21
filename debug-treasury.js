@@ -11,13 +11,13 @@ function debugTreasury() {
     // Treat these as non-inventory context when not part of a clear "Label -- quantity" line
     /\b(treasury|bank|reserve|supply pile)\b/i,
   ];
-  
-  const line = "Plastic cups (used for the Treasury; quantity not specified in the excerpt)";
+
+  const line = 'Plastic cups (used for the Treasury; quantity not specified in the excerpt)';
   console.log('Testing line:', line);
-  
-  const isExcluded = CAPTION_OR_REWARD_PATTERNS.some(pattern => pattern.test(line));
+
+  const isExcluded = CAPTION_OR_REWARD_PATTERNS.some((pattern) => pattern.test(line));
   console.log('Is excluded:', isExcluded);
-  
+
   if (isExcluded) {
     // Find which pattern is matching
     CAPTION_OR_REWARD_PATTERNS.forEach((pattern, index) => {

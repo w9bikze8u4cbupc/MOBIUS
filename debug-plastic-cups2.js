@@ -11,7 +11,7 @@ function debugPlasticCups() {
   
   Object of the Game
   `;
-  
+
   console.log('Testing with just Plastic cups line:');
   const components = extractComponentsFromText(text);
   console.log('Components found:', components);

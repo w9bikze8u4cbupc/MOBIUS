@@ -24,14 +24,10 @@ function getResourceUsage() {
 function getMemoryUsage() {
   const mem = process.memoryUsage();
   return {
-    rssMB: Math.round(mem.rss / 1024 / 1024 * 100) / 100,
-    heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024 * 100) / 100,
-    heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024 * 100) / 100,
+    rssMB: Math.round((mem.rss / 1024 / 1024) * 100) / 100,
+    heapUsedMB: Math.round((mem.heapUsed / 1024 / 1024) * 100) / 100,
+    heapTotalMB: Math.round((mem.heapTotal / 1024 / 1024) * 100) / 100,
   };
 }
 
-export {
-  getEventLoopDelayMs,
-  getResourceUsage,
-  getMemoryUsage
-};
+export { getEventLoopDelayMs, getResourceUsage, getMemoryUsage };

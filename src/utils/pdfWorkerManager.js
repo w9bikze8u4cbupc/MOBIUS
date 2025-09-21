@@ -1,8 +1,9 @@
-import { Worker } from 'worker_threads';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import WorkerPool from './workerPool.js';
+import { Worker } from 'worker_threads';
+
 import LoggingService from './logging/LoggingService.js';
+import WorkerPool from './workerPool.js';
 
 class PDFWorkerManager {
   constructor() {
@@ -11,7 +12,7 @@ class PDFWorkerManager {
       maxWorkers: parseInt(process.env.PDF_WORKER_MAX || '2'),
       workerPath: new URL('../workers/pdfWorker.js', import.meta.url).pathname,
       maxJobsPerWorker: parseInt(process.env.PDF_WORKER_MAX_JOBS || '100'),
-      maxHeapPerWorker: parseInt(process.env.PDF_WORKER_MAX_HEAP_MB || '500') * 1024 * 1024
+      maxHeapPerWorker: parseInt(process.env.PDF_WORKER_MAX_HEAP_MB || '500') * 1024 * 1024,
     });
   }
 
@@ -20,19 +21,19 @@ class PDFWorkerManager {
       const result = await this.workerPool.execute({
         action: 'extractImages',
         pdfPath: pdfPath,
-        outputDir: outputDir
+        outputDir: outputDir,
       });
-      
+
       if (result.success) {
         return result.images;
       } else {
         throw new Error(result.error);
       }
     } catch (error) {
-      LoggingService.error('PDFWorkerManager', 'PDF image extraction failed', { 
-        pdfPath, 
-        outputDir, 
-        error: error.message 
+      LoggingService.error('PDFWorkerManager', 'PDF image extraction failed', {
+        pdfPath,
+        outputDir,
+        error: error.message,
       });
       throw error;
     }

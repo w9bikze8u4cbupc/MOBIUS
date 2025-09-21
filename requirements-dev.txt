@@ -1,0 +1,6 @@
+pytest
+pytest-cov
+pytest-xdist
+flake8
+flake8-bugbear
+black

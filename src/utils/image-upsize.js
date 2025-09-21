@@ -24,18 +24,19 @@ export function pickBestImageUrl($, imgEl, baseUrl) {
 
   // Prefer anchor href if it looks like a higher-res image
   const candidates = [];
-  if (parentHref && /\.(jpe?g|png|webp|gif|avif)(\?|#|$)/i.test(parentHref)) candidates.push(parentHref);
+  if (parentHref && /\.(jpe?g|png|webp|gif|avif)(\?|#|$)/i.test(parentHref))
+    candidates.push(parentHref);
   if (src) candidates.push(src);
 
   // Normalize candidates and strip WP size suffixes
   const norm = candidates
     .map(preferOriginalWordPress)
-    .map(u => canonicalizeImageUrl(new URL(u, baseUrl).toString()));
+    .map((u) => canonicalizeImageUrl(new URL(u, baseUrl).toString()));
 
   // De-dupe while preserving order
   const seen = new Set();
-  for (const u of norm) { 
-    if (!seen.has(u)) seen.add(u); 
+  for (const u of norm) {
+    if (!seen.has(u)) seen.add(u);
   }
 
   // Return best guess (first normalized candidate)

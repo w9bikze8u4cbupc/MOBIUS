@@ -5,24 +5,28 @@ import { readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 
 // Use full path to FFprobe
-const FFPROBE_PATH = 'c:\\Users\\danie\\Documents\\mobius-games-tutorial-generator\\ffmpeg\\ffmpeg-master-latest-win64-gpl\\bin\\ffprobe.exe';
+const FFPROBE_PATH =
+  'c:\\Users\\danie\\Documents\\mobius-games-tutorial-generator\\ffmpeg\\ffmpeg-master-latest-win64-gpl\\bin\\ffprobe.exe';
 
 function hasFfprobe() {
-  const r = spawnSync(FFPROBE_PATH, ["-version"], { stdio: "ignore" });
+  const r = spawnSync(FFPROBE_PATH, ['-version'], { stdio: 'ignore' });
   return r.status === 0;
 }
 
 function getAudioDuration(audioPath) {
   if (!hasFfprobe()) {
-    console.error("FFprobe is not available.");
+    console.error('FFprobe is not available.');
     process.exit(1);
   }
 
   const args = [
-    '-v', 'error',
-    '-show_entries', 'format=duration',
-    '-of', 'default=nw=1',
-    audioPath
+    '-v',
+    'error',
+    '-show_entries',
+    'format=duration',
+    '-of',
+    'default=nw=1',
+    audioPath,
   ];
 
   try {
@@ -53,7 +57,7 @@ function scaleTimelineToAudio(timelinePath, audioPath) {
 
   // Read timeline
   const timelineData = JSON.parse(readFileSync(timelinePath, 'utf8'));
-  
+
   // Calculate current visual duration
   let visualDuration = 0;
   if (timelineData.timeline) {
@@ -64,23 +68,24 @@ function scaleTimelineToAudio(timelinePath, audioPath) {
     // Old format with tracks
     visualDuration = timelineData.tracks[0].clips.reduce((sum, clip) => sum + clip.duration, 0);
   } else {
-    console.error("Unknown timeline format");
+    console.error('Unknown timeline format');
     process.exit(1);
   }
-  
+
   console.log(`Visual duration: ${visualDuration} seconds`);
-  
+
   // If durations are within 5%, no adjustment needed
-  const diffPercent = Math.abs(audioDuration - visualDuration) / Math.min(audioDuration, visualDuration) * 100;
+  const diffPercent =
+    (Math.abs(audioDuration - visualDuration) / Math.min(audioDuration, visualDuration)) * 100;
   if (diffPercent <= 5) {
     console.log(`Durations are within 5% (${diffPercent.toFixed(2)}%), no adjustment needed.`);
     return;
   }
-  
+
   // Scale visual durations to match audio
   const scaleFactor = audioDuration / visualDuration;
   console.log(`Scaling factor: ${scaleFactor}`);
-  
+
   if (timelineData.timeline) {
     // New format: adjust end times proportionally
     let cumulativeTime = 0;
@@ -92,11 +97,11 @@ function scaleTimelineToAudio(timelinePath, audioPath) {
     });
   } else if (timelineData.tracks) {
     // Old format: adjust clip durations
-    timelineData.tracks[0].clips.forEach(clip => {
+    timelineData.tracks[0].clips.forEach((clip) => {
       clip.duration = Math.max(1, Math.round(clip.duration * scaleFactor));
     });
   }
-  
+
   // Write updated timeline
   writeFileSync(timelinePath, JSON.stringify(timelineData, null, 2));
   console.log(`Timeline scaled and saved to ${timelinePath}`);
@@ -109,10 +114,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.error('Usage: node scale-timeline-to-audio.js <timeline.json> <audio.mp3>');
     process.exit(1);
   }
-  
+
   const timelinePath = process.argv[2];
   const audioPath = process.argv[3];
-  
+
   scaleTimelineToAudio(timelinePath, audioPath);
 }
 

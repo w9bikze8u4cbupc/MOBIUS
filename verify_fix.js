@@ -12,17 +12,17 @@ app.get('/health', (req, res) => {
     // Verify that pdfjsLib is properly loaded
     const version = pdfjsLib.version;
     const domMatrixAvailable = typeof global.DOMMatrix !== 'undefined';
-    
+
     res.json({
       status: 'healthy',
       pdfjsVersion: version,
       domMatrixAvailable: domMatrixAvailable,
-      message: 'pdfjs-dist fix is working correctly'
+      message: 'pdfjs-dist fix is working correctly',
     });
   } catch (error) {
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: error.message,
     });
   }
 });

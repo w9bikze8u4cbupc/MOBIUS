@@ -1,0 +1,5 @@
+[33mcommit f0bed9a01a2ca3f3fda8ff878091ac5aa0dced43[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeat/space-invaders-golden-pass[m[33m, [m[1;31morigin/feat/space-invaders-golden-pass[m[33m)[m
+Author: w9bikze8u4cbupc <daniel.toulouse1982@gmail.com>
+Date:   Fri Sep 19 18:56:56 2025 -0400
+
+    Implement BGG Cloudflare bypass and enhanced PDF validation - Fixes #123

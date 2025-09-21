@@ -25,5 +25,7 @@ const components = extractComponentsFromText(abyssText, true);
 console.log('\n📊 FINAL RESULTS:');
 console.log(`Found ${components.length} components`);
 components.forEach((comp, i) => {
-  console.log(`${i + 1}. ${comp.name}${comp.count !== null ? ` — ${comp.count}` : ''}${comp.note ? ` [${comp.note}]` : ''}`);
+  console.log(
+    `${i + 1}. ${comp.name}${comp.count !== null ? ` — ${comp.count}` : ''}${comp.note ? ` [${comp.note}]` : ''}`,
+  );
 });

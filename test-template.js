@@ -1,7 +1,7 @@
 function shutdown(signal) {
   console.log(`[${signal}] shutting down...`);
   server.close(() => {
-    console.log(`HTTP server closed`);
+    console.log('HTTP server closed');
     process.exit(0);
   });
   // Force close lingering sockets after 10s
@@ -11,4 +11,4 @@ function shutdown(signal) {
   }, 10_000).unref();
 }
 
-["SIGINT","SIGTERM"].forEach(sig => process.on(sig, () => shutdown(sig)));
+['SIGINT', 'SIGTERM'].forEach((sig) => process.on(sig, () => shutdown(sig)));

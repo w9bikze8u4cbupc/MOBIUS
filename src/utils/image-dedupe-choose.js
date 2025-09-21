@@ -9,7 +9,8 @@ export function pickClusterCenter(members) {
     const areaA = (a.width || 0) * (a.height || 0);
     const areaB = (b.width || 0) * (b.height || 0);
     if (areaA !== areaB) return areaB - areaA;
-    if ((a.qualityFocus || 0) !== (b.qualityFocus || 0)) return (b.qualityFocus || 0) - (a.qualityFocus || 0);
+    if ((a.qualityFocus || 0) !== (b.qualityFocus || 0))
+      return (b.qualityFocus || 0) - (a.qualityFocus || 0);
     return (b.finalScore || 0) - (a.finalScore || 0);
   });
   return ranked[0];
@@ -27,10 +28,11 @@ export function pickClusterRepresentatives(members, count = 3) {
     const areaA = (a.width || 0) * (a.height || 0);
     const areaB = (b.width || 0) * (b.height || 0);
     if (areaA !== areaB) return areaB - areaA;
-    if ((a.qualityFocus || 0) !== (b.qualityFocus || 0)) return (b.qualityFocus || 0) - (a.qualityFocus || 0);
+    if ((a.qualityFocus || 0) !== (b.qualityFocus || 0))
+      return (b.qualityFocus || 0) - (a.qualityFocus || 0);
     return (b.finalScore || 0) - (a.finalScore || 0);
   });
-  
+
   // Return top N or all if fewer than N
   return ranked.slice(0, Math.min(count, ranked.length));
 }

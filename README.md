@@ -131,7 +131,11 @@ jobs:
 #### See also
 [VERIFICATION_SCRIPTS_OPERATIONAL_GUIDE.md](VERIFICATION_SCRIPTS_OPERATIONAL_GUIDE.md) for full details and troubleshooting.
 
-## Development Scripts
+## Mobius Games Tutorial Generator
+
+A pipeline for generating game tutorial videos from structured game rules.
+
+## Development
 
 This project includes several helper scripts to streamline development:
 
@@ -187,3 +191,39 @@ The development scripts now include several production-grade enhancements:
 .\dev-restart.ps1 -Smoke
 ```
 
+### Static Analysis with coala
+
+This project uses [coala](https://coala.io/) for unified static analysis across JavaScript/TypeScript and Python, with security linting, complexity analysis, and automatic fixes.
+
+For setup instructions and usage, see [COALA_INTEGRATION.md](COALA_INTEGRATION.md).
+
+**Quick setup:**
+
+```bash
+# Install coala (from project root)
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .\.venv\Scripts\Activate.ps1
+pip install coala-bears
+
+# Install JS/TS dependencies
+npm install
+```
+
+**Run analysis:**
+```bash
+coala --non-interactive
+```
+
+**Apply automatic fixes:**
+```bash
+coala -A
+```
+
+The configuration includes:
+- ESLint v9 with security and complexity plugins for JS/TS
+- BanditBear for Python security analysis
+- RadonBear for Python complexity analysis
+- SonarJS for JavaScript cognitive complexity
+- Pre-commit hooks to prevent issues from being committed
+
+Note: This project uses ESLint v9 with the new flat config format (`eslint.config.js`).

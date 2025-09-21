@@ -13,19 +13,20 @@ const scripts = [
   'scripts/scale-timeline-to-audio.js',
   'scripts/trim-audio-to-timeline.js',
   'scripts/generate-pipeline-summary.js',
-  'scripts/cleanup-old-files.js'
+  'scripts/cleanup-old-files.js',
 ];
 
 let allScriptsOk = true;
 for (const script of scripts) {
   try {
-    const result = spawnSync('node', [script, '--help'], { 
+    const result = spawnSync('node', [script, '--help'], {
       cwd: process.cwd(),
       stdio: 'pipe',
-      timeout: 5000
+      timeout: 5000,
     });
-    
-    if (result.status === 0 || result.status === 1) { // 1 is expected for --help
+
+    if (result.status === 0 || result.status === 1) {
+      // 1 is expected for --help
       console.log(`  ✓ ${script} is executable`);
     } else {
       console.log(`  ✗ ${script} failed to execute`);
@@ -44,7 +45,7 @@ const npmScripts = [
   'pipeline:summary',
   'audio:scale-timeline',
   'audio:trim-to-timeline',
-  'cleanup:old-files'
+  'cleanup:old-files',
 ];
 
 let allNpmScriptsOk = true;
@@ -53,9 +54,9 @@ for (const script of npmScripts) {
     const result = spawnSync('npm', ['run', script, '--silent'], {
       cwd: process.cwd(),
       stdio: 'pipe',
-      timeout: 5000
+      timeout: 5000,
     });
-    
+
     // We expect these to fail with usage info, not with "command not found"
     if (!result.stderr.toString().includes('command not found')) {
       console.log(`  ✓ npm run ${script} is available`);
@@ -76,7 +77,7 @@ console.log('\n3. Testing API enhancements...');
 try {
   const apiFile = './src/api/index.js';
   const apiContent = fs.readFileSync(apiFile, 'utf8');
-  
+
   const checks = [
     { name: 'Health details endpoint', pattern: /\/api\/health\/details/ },
     { name: 'Request ID middleware', pattern: /requestIdMiddleware/ },
@@ -85,9 +86,9 @@ try {
     { name: 'URL whitelisting', pattern: /isUrlWhitelistedSecure/ },
     { name: 'TTS chunking', pattern: /chunkText/ },
     { name: 'TTS caching', pattern: /ttsCache/ },
-    { name: 'OCR fallback', pattern: /extractTextWithOCRFallback/ }
+    { name: 'OCR fallback', pattern: /extractTextWithOCRFallback/ },
   ];
-  
+
   let allApiChecksOk = true;
   for (const check of checks) {
     if (check.pattern.test(apiContent)) {
@@ -107,11 +108,9 @@ console.log('\n4. Testing PDF utils enhancements...');
 try {
   const pdfUtilsFile = './src/api/pdfUtils.js';
   const pdfUtilsContent = fs.readFileSync(pdfUtilsFile, 'utf8');
-  
-  const pdfChecks = [
-    { name: 'OCR fallback function', pattern: /extractTextWithOCRFallback/ }
-  ];
-  
+
+  const pdfChecks = [{ name: 'OCR fallback function', pattern: /extractTextWithOCRFallback/ }];
+
   let allPdfChecksOk = true;
   for (const check of pdfChecks) {
     if (check.pattern.test(pdfUtilsContent)) {
@@ -131,11 +130,14 @@ console.log('\n5. Testing component extraction enhancements...');
 try {
   const utilsFile = './src/api/utils.js';
   const utilsContent = fs.readFileSync(utilsFile, 'utf8');
-  
+
   const utilsChecks = [
-    { name: 'Multilingual component sections', pattern: /Contenu de la boîte|What's in the box|ce qu'il y a dans la boîte/ }
+    {
+      name: 'Multilingual component sections',
+      pattern: /Contenu de la boîte|What's in the box|ce qu'il y a dans la boîte/,
+    },
   ];
-  
+
   let allUtilsChecksOk = true;
   for (const check of utilsChecks) {
     if (check.pattern.test(utilsContent)) {

@@ -27,17 +27,25 @@ export function parseSizeFromUrl(u) {
  */
 export function parseSizeFromSrcset(srcset) {
   if (!srcset) return null;
-  const candidates = srcset.split(',').map(s => s.trim()).filter(Boolean).map(entry => {
-    const [u, desc] = entry.split(/\s+/);
-    let w = 0, h = 0;
-    if (desc && desc.endsWith('w')) w = parseInt(desc, 10) || 0;
-    const fromUrl = parseSizeFromUrl(u);
-    if (fromUrl) { w = fromUrl.w || w; h = fromUrl.h || h; }
-    const area = w * (h || Math.round(w * 0.66)); // approximate if h missing
-    return { u, w, h, area };
-  });
+  const candidates = srcset
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [u, desc] = entry.split(/\s+/);
+      let w = 0,
+        h = 0;
+      if (desc && desc.endsWith('w')) w = parseInt(desc, 10) || 0;
+      const fromUrl = parseSizeFromUrl(u);
+      if (fromUrl) {
+        w = fromUrl.w || w;
+        h = fromUrl.h || h;
+      }
+      const area = w * (h || Math.round(w * 0.66)); // approximate if h missing
+      return { u, w, h, area };
+    });
   if (!candidates.length) return null;
-  candidates.sort((a,b) => b.area - a.area);
+  candidates.sort((a, b) => b.area - a.area);
   const top = candidates[0];
   return { w: top.w || 0, h: top.h || 0, url: top.u };
 }

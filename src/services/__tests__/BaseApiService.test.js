@@ -1,12 +1,12 @@
-import BaseApiService from '../BaseApiService';
 import ApiError from '../../utils/errors/ApiError';
 import LoggingService from '../../utils/logging/LoggingService';
+import BaseApiService from '../BaseApiService';
 
 jest.mock('../../utils/logging/LoggingService', () => ({
   error: jest.fn(),
   warn: jest.fn(),
   info: jest.fn(),
-  debug: jest.fn()
+  debug: jest.fn(),
 }));
 
 describe('BaseApiService', () => {
@@ -17,7 +17,7 @@ describe('BaseApiService', () => {
     jest.clearAllMocks();
     mockConfig = {
       baseUrl: 'https://api.example.com',
-      timeout: 5000
+      timeout: 5000,
     };
     service = new BaseApiService(mockConfig);
   });
@@ -40,9 +40,9 @@ describe('BaseApiService', () => {
       const response = {
         ok: true,
         headers: {
-          get: jest.fn().mockReturnValue('application/json')
+          get: jest.fn().mockReturnValue('application/json'),
         },
-        json: jest.fn().mockResolvedValue(mockData)
+        json: jest.fn().mockResolvedValue(mockData),
       };
 
       const result = await service.handleResponse(response);
@@ -53,8 +53,8 @@ describe('BaseApiService', () => {
       const response = {
         ok: true,
         headers: {
-          get: jest.fn().mockReturnValue('text/plain')
-        }
+          get: jest.fn().mockReturnValue('text/plain'),
+        },
       };
 
       const result = await service.handleResponse(response);
@@ -65,14 +65,14 @@ describe('BaseApiService', () => {
       const response = {
         ok: false,
         statusText: 'Not Found',
-        status: 404
+        status: 404,
       };
 
       await expect(service.handleResponse(response)).rejects.toThrow(ApiError);
       expect(LoggingService.error).toHaveBeenCalledWith(
         'BaseApiService',
         'Response handling failed',
-        expect.any(ApiError)
+        expect.any(ApiError),
       );
     });
   });
@@ -92,9 +92,12 @@ describe('BaseApiService', () => {
 
     it('should handle timeout', async () => {
       jest.useFakeTimers();
-      global.fetch.mockImplementation(() => new Promise(resolve => {
-        setTimeout(resolve, 6000);
-      }));
+      global.fetch.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(resolve, 6000);
+          }),
+      );
 
       const fetchPromise = service.fetchWithTimeout('https://api.example.com/test');
       jest.advanceTimersByTime(5001);
@@ -103,7 +106,7 @@ describe('BaseApiService', () => {
       expect(LoggingService.error).toHaveBeenCalledWith(
         'BaseApiService',
         'Request failed',
-        expect.any(Error)
+        expect.any(Error),
       );
       jest.useRealTimers();
     });
@@ -117,7 +120,7 @@ describe('BaseApiService', () => {
       expect(LoggingService.error).toHaveBeenCalledWith(
         'BaseApiService',
         'Missing required configuration: nonexistentField',
-        expect.any(ApiError)
+        expect.any(ApiError),
       );
     });
 

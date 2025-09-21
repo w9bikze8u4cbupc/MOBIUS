@@ -6,7 +6,7 @@ import { extractComponentsFromText } from './src/api/utils.js';
 function testAbyssComprehensive() {
   console.log('🧪 COMPREHENSIVE ABYSS COMPONENT EXTRACTION TEST');
   console.log('='.repeat(60));
-  
+
   // More realistic PDF content with various sections
   const abyssPdfText = `
   Abyss
@@ -46,19 +46,21 @@ function testAbyssComprehensive() {
 
   console.log('🔍 EXTRACTING COMPONENTS FROM REALISTIC PDF TEXT...');
   const components = extractComponentsFromText(abyssPdfText);
-  
+
   console.log('\n✅ EXTRACTION RESULTS:');
   console.log(`Found ${components.length} components`);
-  
+
   components.forEach((comp, i) => {
-    console.log(`${i + 1}. ${comp.name}${comp.count ? ` — ${comp.count}` : ' — null'}${comp.note ? ` (note: ${comp.note})` : ''}`);
+    console.log(
+      `${i + 1}. ${comp.name}${comp.count ? ` — ${comp.count}` : ' — null'}${comp.note ? ` (note: ${comp.note})` : ''}`,
+    );
   });
-  
+
   // Validate against expected results
   console.log('\n' + '='.repeat(60));
   console.log('🎯 VALIDATION AGAINST GROUND TRUTH');
   console.log('='.repeat(60));
-  
+
   const expected = [
     { name: 'Game Board', count: 1 },
     { name: 'Exploration Cards', count: 71, note: '65 Allies & 6 Monsters' },
@@ -68,17 +70,16 @@ function testAbyssComprehensive() {
     { name: 'Threat Token', count: 1 },
     { name: 'Key Tokens', count: 10 },
     { name: 'Pearls', count: null },
-    { name: 'Plastic Cups', count: null }
+    { name: 'Plastic Cups', count: null },
   ];
-  
+
   let correct = 0;
-  expected.forEach(exp => {
-    const found = components.find(c => 
-      c.name === exp.name && 
-      c.count === exp.count && 
-      (exp.note ? c.note === exp.note : true)
+  expected.forEach((exp) => {
+    const found = components.find(
+      (c) =>
+        c.name === exp.name && c.count === exp.count && (exp.note ? c.note === exp.note : true),
     );
-    
+
     if (found) {
       console.log(`✅ ${exp.name}`);
       correct++;
@@ -86,15 +87,15 @@ function testAbyssComprehensive() {
       console.log(`❌ ${exp.name}`);
     }
   });
-  
+
   console.log(`\n📊 SCORE: ${correct}/${expected.length} correct`);
-  
+
   if (correct === expected.length) {
     console.log('🎉 PERFECT! All components extracted correctly');
   } else {
     console.log('⚠️ Some components not extracted as expected');
   }
-  
+
   // Check that we're NOT extracting the problematic items
   console.log('\n' + '='.repeat(60));
   console.log('🚫 CHECKING FOR PROBLEMATIC EXTRACTIONS:');
@@ -107,12 +108,12 @@ function testAbyssComprehensive() {
     'The Traitor Card',
     'Master Of Magic',
     '3 Victory Points For Each Lord',
-    'Additional Cards As Rewards'
+    'Additional Cards As Rewards',
   ];
-  
+
   let falsePositives = 0;
-  problematic.forEach(item => {
-    const found = components.find(c => c.name.toLowerCase().includes(item.toLowerCase()));
+  problematic.forEach((item) => {
+    const found = components.find((c) => c.name.toLowerCase().includes(item.toLowerCase()));
     if (found) {
       console.log(`❌ FALSE POSITIVE: ${found.name}`);
       falsePositives++;
@@ -120,48 +121,50 @@ function testAbyssComprehensive() {
       console.log(`✅ Correctly excluded: ${item}`);
     }
   });
-  
+
   if (falsePositives === 0) {
     console.log('\n🎉 SUCCESS! No false positives detected');
   } else {
     console.log(`\n⚠️ ${falsePositives} false positives found`);
   }
-  
+
   // Test section boundary detection
   console.log('\n' + '='.repeat(60));
   console.log('🔍 TESTING SECTION BOUNDARY DETECTION:');
   console.log('='.repeat(60));
-  
+
   // Test with different section headers
   const testCases = [
     {
       name: 'Box Contents header',
       text: 'Box Contents\n1 Game board\n71 Exploration cards\nGame Overview\n...',
-      expectedCount: 2
+      expectedCount: 2,
     },
     {
       name: 'Components header',
       text: 'Components\n1 Game board\n71 Exploration cards\nSetup\n...',
-      expectedCount: 2
+      expectedCount: 2,
     },
     {
       name: 'Game Components header',
       text: 'Game Components\n1 Game board\n71 Exploration cards\nObject of the Game\n...',
-      expectedCount: 2
+      expectedCount: 2,
     },
     {
       name: 'No section header',
       text: '1 Game board\n71 Exploration cards\nSome other text\n...',
-      expectedCount: 0 // Should not extract anything without proper section
-    }
+      expectedCount: 0, // Should not extract anything without proper section
+    },
   ];
-  
-  testCases.forEach(testCase => {
+
+  testCases.forEach((testCase) => {
     const result = extractComponentsFromText(testCase.text);
     const passed = result.length === testCase.expectedCount;
-    console.log(`${passed ? '✅' : '❌'} ${testCase.name}: ${result.length} components (expected ${testCase.expectedCount})`);
+    console.log(
+      `${passed ? '✅' : '❌'} ${testCase.name}: ${result.length} components (expected ${testCase.expectedCount})`,
+    );
   });
-  
+
   return { components, correct, expected: expected.length, falsePositives };
 }
 
@@ -173,7 +176,9 @@ console.log('🏁 FINAL RESULTS SUMMARY');
 console.log('='.repeat(60));
 console.log(`✅ Components extracted correctly: ${result.correct}/${result.expected}`);
 console.log(`❌ False positives: ${result.falsePositives}`);
-console.log(`🎯 Overall success: ${result.correct === result.expected && result.falsePositives === 0 ? 'YES' : 'NO'}`);
+console.log(
+  `🎯 Overall success: ${result.correct === result.expected && result.falsePositives === 0 ? 'YES' : 'NO'}`,
+);
 
 if (result.correct === result.expected && result.falsePositives === 0) {
   console.log('\n🎉 ABYSS COMPONENT EXTRACTION FIX IS WORKING PERFECTLY!');

@@ -40,6 +40,53 @@ if [[ -n "$PROFILE" && ${#ONLY_KEYS[@]} -eq 0 ]]; then
 - Add tests to `test/powershell_dry_run_test.ps1` for PowerShell dry-run behavior
 - Ensure your check works in both smoke and full profiles
 
+## Code Quality and Static Analysis
+
+This project uses [coala](https://coala.io/) for unified static analysis across JavaScript/TypeScript and Python. Before submitting a pull request, please ensure your code passes all static analysis checks.
+
+### Running Static Analysis
+
+To run coala static analysis:
+
+```bash
+# If you have coala installed locally
+coala --non-interactive
+
+# Or use Docker (no local installation required)
+npm run lint:coala:unix  # Linux/macOS
+npm run lint:coala       # Windows
+```
+
+### Automatic Fixes
+
+To automatically fix issues that coala can resolve:
+
+```bash
+coala -A
+```
+
+### Pre-commit Hooks
+
+We recommend setting up the pre-commit hook to automatically run coala before each commit:
+
+```bash
+# Linux/macOS
+./scripts/setup-coala-precommit.sh
+
+# Windows
+.\scripts\setup-coala-precommit.ps1
+```
+
+### What coala Checks
+
+- **Code Style**: Consistent formatting and spacing
+- **Security**: Basic security linting for JS/TS and Python
+- **Complexity**: Cognitive complexity and code duplication detection
+- **Correctness**: Common bug patterns detection
+- **Repo Hygiene**: JSON/Markdown validity and line length limits
+
+For more details, see [COALA_INTEGRATION.md](COALA_INTEGRATION.md).
+
 ## Code Style Guidelines
 
 ### Bash Script

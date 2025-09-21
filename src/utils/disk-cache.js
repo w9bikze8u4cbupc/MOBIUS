@@ -1,6 +1,6 @@
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
 
 const ROOT = path.join(process.cwd(), '.cache', 'http');
 fs.mkdirSync(ROOT, { recursive: true });
@@ -27,8 +27,8 @@ export function readCache(key) {
     const obj = JSON.parse(s);
     // optional: check expiration here
     return obj;
-  } catch { 
-    return null; 
+  } catch {
+    return null;
   }
 }
 

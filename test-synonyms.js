@@ -6,7 +6,7 @@ import { extractComponentsFromText } from './src/api/utils.js';
 function testSynonyms() {
   console.log('🧪 SYNONYM COVERAGE TEST');
   console.log('='.repeat(40));
-  
+
   // Test text with synonyms
   const synonymText = `
   Contents & Setup
@@ -19,19 +19,19 @@ function testSynonyms() {
   
   Game Overview
   `;
-  
+
   console.log('🔍 TESTING SYNONYMS...');
   const components = extractComponentsFromText(synonymText, true);
-  
+
   console.log('\n📊 RESULTS:');
   console.log(`Found ${components.length} components`);
-  
+
   // Check that synonyms were properly normalized
-  const gameBoard = components.find(c => c.name === 'Game board');
+  const gameBoard = components.find((c) => c.name === 'Game board');
   if (gameBoard) {
     console.log('✅ "Main board" and "Gameboard" correctly normalized to "Game board"');
   }
-  
+
   console.log('\n🎉 SYNONYM COVERAGE TEST COMPLETE');
 }
 

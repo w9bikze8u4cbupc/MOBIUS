@@ -1,28 +1,27 @@
-import OpenAI from "openai";
+import OpenAI from 'openai';
+
 import { frenchChunkPrompt, englishChunkPrompt } from './prompts.js';
 
-export async function explainChunkWithAI(chunk, language = "en") {  
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });  
-  
-  // Choose the right prompt based on language  
-  const prompt = language === "fr"  
-    ? frenchChunkPrompt(chunk)  
-    : englishChunkPrompt(chunk);  
-  
-  try {  
-    const response = await openai.chat.completions.create({  
-      model: "gpt-4",  
-      messages: [{ role: "user", content: prompt }],  
-      temperature: 0.2,  
-      max_tokens: 1200,  
-    });  
-  
-    // Return the AI's explanation as plain text  
-    return response.choices[0].message.content.trim();  
-  } catch (err) {  
-    console.error("AI explanation failed:", err.message);  
-    return "AI explanation failed.";  
-  }  
+export async function explainChunkWithAI(chunk, language = 'en') {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  // Choose the right prompt based on language
+  const prompt = language === 'fr' ? frenchChunkPrompt(chunk) : englishChunkPrompt(chunk);
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.2,
+      max_tokens: 1200,
+    });
+
+    // Return the AI's explanation as plain text
+    return response.choices[0].message.content.trim();
+  } catch (err) {
+    console.error('AI explanation failed:', err.message);
+    return 'AI explanation failed.';
+  }
 }
 
 export async function extractComponentsWithAI(text) {
@@ -48,10 +47,14 @@ export async function extractComponentsWithAI(text) {
       ${text.slice(0, 8000)}
     `;
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: 'gpt-4',
       messages: [
-        { role: "system", content: "You are a board game expert specializing in component identification. Always return valid JSON arrays." },
-        { role: "user", content: prompt }
+        {
+          role: 'system',
+          content:
+            'You are a board game expert specializing in component identification. Always return valid JSON arrays.',
+        },
+        { role: 'user', content: prompt },
       ],
       temperature: 0.1,
       max_tokens: 2000,
@@ -68,18 +71,20 @@ export async function extractComponentsWithAI(text) {
       const jsonText = jsonMatch ? jsonMatch[1] : responseText;
       aiResult = JSON.parse(jsonText);
     } catch (parseErr) {
-      console.error("Error parsing AI response as JSON:", parseErr);
+      console.error('Error parsing AI response as JSON:', parseErr);
       // Fallback: return a single item with the raw response
-      aiResult = [{
-        name: "AI Extraction (needs review)",
-        quantity: null,
-        details: responseText.slice(0, 200) + "...",
-        selected: true
-      }];
+      aiResult = [
+        {
+          name: 'AI Extraction (needs review)',
+          quantity: null,
+          details: responseText.slice(0, 200) + '...',
+          selected: true,
+        },
+      ];
     }
     return aiResult;
   } catch (err) {
-    console.error("AI extraction failed:", err.message);
+    console.error('AI extraction failed:', err.message);
     return [];
   }
 }

@@ -1,7 +1,8 @@
 // alphaOps.js - Node.js transparency utilities for Sharp
-import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
+
+import sharp from 'sharp';
 
 export class AlphaOps {
   /**
@@ -11,12 +12,12 @@ export class AlphaOps {
   static async ensureAlpha(inputBuffer) {
     const image = sharp(inputBuffer);
     const metadata = await image.metadata();
-    
+
     // If image already has alpha, return as-is
     if (metadata.channels === 4) {
       return await image.png().toBuffer();
     }
-    
+
     // Add alpha channel with full opacity
     return await image
       .ensureAlpha(1.0) // Add full opacity alpha channel
@@ -34,11 +35,11 @@ export class AlphaOps {
         width: width,
         height: height,
         channels: 4, // RGBA
-        background: { r: 0, g: 0, b: 0, alpha: 0 } // Transparent
-      }
+        background: { r: 0, g: 0, b: 0, alpha: 0 }, // Transparent
+      },
     })
-    .png()
-    .toBuffer();
+      .png()
+      .toBuffer();
   }
 
   /**
@@ -60,7 +61,7 @@ export class AlphaOps {
   static async flattenOntoBackground(inputBuffer, backgroundColor = { r: 255, g: 255, b: 255 }) {
     const image = sharp(inputBuffer);
     const metadata = await image.metadata();
-    
+
     return await image
       .flatten({ background: backgroundColor })
       .jpeg({ quality: 90 }) // JPEG doesn't support transparency
@@ -78,7 +79,7 @@ export class AlphaOps {
         .png({
           compressionLevel: 6,
           adaptiveFiltering: false,
-          force: true // Force PNG format
+          force: true, // Force PNG format
         })
         .toFile(outputPath);
       return true;
@@ -96,10 +97,10 @@ export class AlphaOps {
       if (!fs.existsSync(filePath)) {
         throw new Error(`File not found: ${filePath}`);
       }
-      
+
       const image = sharp(filePath);
       const metadata = await image.metadata();
-      
+
       // Ensure alpha channel is preserved
       return await image
         .png() // Convert to PNG to ensure alpha support
@@ -114,23 +115,28 @@ export class AlphaOps {
    * Generate preview with proper alpha handling.
    * Improves the existing generatePreviewImage function.
    */
-  static async generatePreviewWithAlpha(filePath, outputPath = 'uploads/tmp', quality = 75, size = 300) {
+  static async generatePreviewWithAlpha(
+    filePath,
+    outputPath = 'uploads/tmp',
+    quality = 75,
+    size = 300,
+  ) {
     try {
       const previewDir = path.dirname(outputPath);
       await fs.promises.mkdir(previewDir, { recursive: true });
-      
+
       const image = sharp(filePath);
       const metadata = await image.metadata();
-      
+
       // Handle transparency properly in previews
       if (metadata.channels === 4 || metadata.hasAlpha) {
         // For transparent images, create PNG preview
         const previewPath = outputPath.replace(/\.(jpe?g|webp)$/i, '.png');
         await image
-          .resize(size, size, { 
-            fit: 'inside', 
+          .resize(size, size, {
+            fit: 'inside',
             withoutEnlargement: true,
-            background: { r: 0, g: 0, b: 0, alpha: 0 } // Preserve transparency
+            background: { r: 0, g: 0, b: 0, alpha: 0 }, // Preserve transparency
           })
           .png({ compressionLevel: 6 })
           .toFile(previewPath);
@@ -138,9 +144,9 @@ export class AlphaOps {
       } else {
         // For opaque images, use JPEG
         await image
-          .resize(size, size, { 
-            fit: 'inside', 
-            withoutEnlargement: true 
+          .resize(size, size, {
+            fit: 'inside',
+            withoutEnlargement: true,
           })
           .jpeg({ quality })
           .toFile(outputPath);
@@ -160,15 +166,15 @@ export class AlphaOps {
     try {
       const image = sharp(inputPath);
       const metadata = await image.metadata();
-      
+
       // Ensure coordinates are valid
       const cropOptions = {
         left: Math.max(0, Math.floor(x)),
         top: Math.max(0, Math.floor(y)),
         width: Math.min(width, metadata.width - Math.max(0, Math.floor(x))),
-        height: Math.min(height, metadata.height - Math.max(0, Math.floor(y)))
+        height: Math.min(height, metadata.height - Math.max(0, Math.floor(y))),
       };
-      
+
       // Handle alpha channel properly
       if (metadata.channels === 4 || metadata.hasAlpha) {
         await image
@@ -181,7 +187,7 @@ export class AlphaOps {
           .png() // Still use PNG for consistency
           .toFile(outputPath);
       }
-      
+
       return true;
     } catch (error) {
       console.error('Error cropping with alpha:', error);
@@ -191,7 +197,11 @@ export class AlphaOps {
 }
 
 // Example usage for the existing Sharp functions
-export async function generatePreviewImageAlphaSafe(filePath, outputPath = 'uploads/tmp', quality = 75) {
+export async function generatePreviewImageAlphaSafe(
+  filePath,
+  outputPath = 'uploads/tmp',
+  quality = 75,
+) {
   return await AlphaOps.generatePreviewWithAlpha(filePath, outputPath, quality);
 }
 
@@ -199,47 +209,55 @@ export async function generatePreviewImageAlphaSafe(filePath, outputPath = 'uplo
 export async function validateAlphaHandling(inputPath, outputPath) {
   try {
     console.log('Starting alpha validation...');
-    
+
     // Load image with alpha preservation
     const buffer = await AlphaOps.loadWithAlpha(inputPath);
     if (!buffer) {
       throw new Error(`Could not load ${inputPath}`);
     }
-    
+
     // Get metadata
     const metadata = await sharp(buffer).metadata();
-    console.log(`Input: ${metadata.width}x${metadata.height}, channels: ${metadata.channels}, hasAlpha: ${metadata.hasAlpha}`);
-    
+    console.log(
+      `Input: ${metadata.width}x${metadata.height}, channels: ${metadata.channels}, hasAlpha: ${metadata.hasAlpha}`,
+    );
+
     // Ensure alpha and make a test transparent area
     const image = sharp(buffer);
-    
+
     // Create a small transparent overlay for testing
     const transparentOverlay = await sharp({
       create: {
         width: 10,
         height: 10,
         channels: 4,
-        background: { r: 255, g: 0, b: 0, alpha: 0 } // Transparent red
-      }
-    }).png().toBuffer();
-    
-    // Composite the transparent overlay onto the image
-    const result = await image
-      .composite([{
-        input: transparentOverlay,
-        top: 5,
-        left: 5,
-        blend: 'over'
-      }])
+        background: { r: 255, g: 0, b: 0, alpha: 0 }, // Transparent red
+      },
+    })
       .png()
       .toBuffer();
-    
+
+    // Composite the transparent overlay onto the image
+    const result = await image
+      .composite([
+        {
+          input: transparentOverlay,
+          top: 5,
+          left: 5,
+          blend: 'over',
+        },
+      ])
+      .png()
+      .toBuffer();
+
     // Save with alpha preservation
     const success = await AlphaOps.writePngWithAlpha(result, outputPath);
-    
+
     if (success) {
       console.log(`Successfully wrote ${outputPath} with alpha preservation`);
-      console.log('Open the file in an image viewer with checkerboard background to verify transparency');
+      console.log(
+        'Open the file in an image viewer with checkerboard background to verify transparency',
+      );
       return true;
     } else {
       console.log(`Failed to write ${outputPath}`);
@@ -258,12 +276,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log('Usage: node alphaOps.js <input.png> <output.png>');
     process.exit(1);
   }
-  
+
   validateAlphaHandling(args[0], args[1])
-    .then(success => {
+    .then((success) => {
       process.exit(success ? 0 : 1);
     })
-    .catch(error => {
+    .catch((error) => {
       console.error('Validation error:', error);
       process.exit(1);
     });

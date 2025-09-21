@@ -18,7 +18,9 @@ const main = async () => {
   console.log('Components (raw):');
   for (const item of res.components.items) console.log('-', item);
   console.log('\nTop images:');
-  res.images.forEach((x, i) => console.log(`${i + 1}. ${x.url} (${x.w}x${x.h}) score=${x.score} alt="${x.alt}"`));
+  res.images.forEach((x, i) =>
+    console.log(`${i + 1}. ${x.url} (${x.w}x${x.h}) score=${x.score} alt="${x.alt}"`),
+  );
 };
 
 main().catch((e) => {

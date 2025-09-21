@@ -5,9 +5,9 @@
  * This script automates the entire flow from storyboard generation to video rendering
  */
 
+import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
 
 const GAME_NAME = 'CATAN';
 const BGG_URL = 'https://boardgamegeek.com/boardgame/13/catan';
@@ -17,7 +17,10 @@ console.log(`🚀 Starting happy path for ${GAME_NAME}...`);
 // Step 1: Extract BGG metadata
 console.log('1️⃣ Extracting BGG metadata...');
 try {
-  execSync(`curl -X POST http://localhost:5001/api/extract-bgg-html -H "Content-Type: application/json" -d "{\\"bggUrl\\": \\"${BGG_URL}\\"}" -o work/bgg.html.extract.json`, { stdio: 'inherit' });
+  execSync(
+    `curl -X POST http://localhost:5001/api/extract-bgg-html -H "Content-Type: application/json" -d "{\\"bggUrl\\": \\"${BGG_URL}\\"}" -o work/bgg.html.extract.json`,
+    { stdio: 'inherit' },
+  );
   console.log('   ✅ BGG metadata extracted');
 } catch (error) {
   console.error('   ❌ Failed to extract BGG metadata:', error.message);
@@ -28,18 +31,23 @@ try {
 console.log('2️⃣ Generating English storyboard...');
 try {
   const components = JSON.parse(fs.readFileSync('work/components.json', 'utf8')).components;
-  const actions = fs.existsSync('work/actions.json') ? JSON.parse(fs.readFileSync('work/actions.json', 'utf8')).actions : [];
-  
+  const actions = fs.existsSync('work/actions.json')
+    ? JSON.parse(fs.readFileSync('work/actions.json', 'utf8')).actions
+    : [];
+
   const enPayload = {
     lang: 'en',
     policy: { minWords: 250, maxWords: 900, extend: false },
     components: components,
-    actions: actions
+    actions: actions,
   };
-  
+
   fs.writeFileSync('work/en_payload.json', JSON.stringify(enPayload, null, 2));
-  
-  execSync(`curl -X POST http://localhost:5001/api/generate-storyboard -H "Content-Type: application/json" -d @work/en_payload.json -o work/script.en.json`, { stdio: 'inherit' });
+
+  execSync(
+    'curl -X POST http://localhost:5001/api/generate-storyboard -H "Content-Type: application/json" -d @work/en_payload.json -o work/script.en.json',
+    { stdio: 'inherit' },
+  );
   console.log('   ✅ English storyboard generated');
 } catch (error) {
   console.error('   ❌ Failed to generate English storyboard:', error.message);
@@ -50,18 +58,23 @@ try {
 console.log('3️⃣ Generating French storyboard...');
 try {
   const components = JSON.parse(fs.readFileSync('work/components.json', 'utf8')).components;
-  const actions = fs.existsSync('work/actions.json') ? JSON.parse(fs.readFileSync('work/actions.json', 'utf8')).actions : [];
-  
+  const actions = fs.existsSync('work/actions.json')
+    ? JSON.parse(fs.readFileSync('work/actions.json', 'utf8')).actions
+    : [];
+
   const frPayload = {
     lang: 'fr',
     policy: { minWords: 250, maxWords: 900, extend: false },
     components: components,
-    actions: actions
+    actions: actions,
   };
-  
+
   fs.writeFileSync('work/fr_payload.json', JSON.stringify(frPayload, null, 2));
-  
-  execSync(`curl -X POST http://localhost:5001/api/generate-storyboard -H "Content-Type: application/json" -d @work/fr_payload.json -o work/script.fr.json`, { stdio: 'inherit' });
+
+  execSync(
+    'curl -X POST http://localhost:5001/api/generate-storyboard -H "Content-Type: application/json" -d @work/fr_payload.json -o work/script.fr.json',
+    { stdio: 'inherit' },
+  );
   console.log('   ✅ French storyboard generated');
 } catch (error) {
   console.error('   ❌ Failed to generate French storyboard:', error.message);
@@ -71,7 +84,10 @@ try {
 // Step 4: Fetch images
 console.log('4️⃣ Fetching images...');
 try {
-  execSync(`curl -X POST http://localhost:5001/api/fetch-bgg-images -H "Content-Type: application/json" -d "{\\"bggUrl\\": \\"${BGG_URL}\\"}" -o work/images.search.json`, { stdio: 'inherit' });
+  execSync(
+    `curl -X POST http://localhost:5001/api/fetch-bgg-images -H "Content-Type: application/json" -d "{\\"bggUrl\\": \\"${BGG_URL}\\"}" -o work/images.search.json`,
+    { stdio: 'inherit' },
+  );
   console.log('   ✅ Images fetched');
 } catch (error) {
   console.error('   ❌ Failed to fetch images:', error.message);
@@ -113,9 +129,16 @@ console.log('timeline seconds:', t);
 console.log('6️⃣ Auditing and replacing remote assets...');
 try {
   // Get local images
-  const localImgs = execSync('Get-ChildItem -Path .\\src\\api\\uploads -Recurse -Include *.png,*.jpg | Select-Object -First 100 -ExpandProperty FullName', { shell: 'powershell.exe' }).toString().trim().split('\r\n').filter(Boolean);
+  const localImgs = execSync(
+    'Get-ChildItem -Path .\\src\\api\\uploads -Recurse -Include *.png,*.jpg | Select-Object -First 100 -ExpandProperty FullName',
+    { shell: 'powershell.exe' },
+  )
+    .toString()
+    .trim()
+    .split('\r\n')
+    .filter(Boolean);
   fs.writeFileSync('work/local-imgs.json', JSON.stringify(localImgs, null, 2));
-  
+
   const replaceCode = `
 import { readFileSync, writeFileSync } from 'fs';
 
@@ -145,18 +168,21 @@ console.log('local images assigned:', i);
 console.log('7️⃣ Synthesizing English TTS...');
 try {
   const en = JSON.parse(fs.readFileSync('work/script.en.json', 'utf8'));
-  const textEn = (en.storyboard.scenes.segments || []).map(seg => seg.textEn).join(" ");
-  
+  const textEn = (en.storyboard.scenes.segments || []).map((seg) => seg.textEn).join(' ');
+
   const ttsPayload = {
     text: textEn,
-    language: "en",
-    voice: "21m00Tcm4TlvDq8ikWAM",
-    gameName: GAME_NAME
+    language: 'en',
+    voice: '21m00Tcm4TlvDq8ikWAM',
+    gameName: GAME_NAME,
   };
-  
+
   fs.writeFileSync('work/tts_en_payload.json', JSON.stringify(ttsPayload, null, 2));
-  
-  execSync(`curl -X POST http://localhost:5001/tts -H "Content-Type: application/json" -d @work/tts_en_payload.json -o work/tts.en.mp3`, { stdio: 'inherit' });
+
+  execSync(
+    'curl -X POST http://localhost:5001/tts -H "Content-Type: application/json" -d @work/tts_en_payload.json -o work/tts.en.mp3',
+    { stdio: 'inherit' },
+  );
   console.log('   ✅ English TTS synthesized');
 } catch (error) {
   console.error('   ❌ Failed to synthesize English TTS:', error.message);
@@ -167,18 +193,21 @@ try {
 console.log('8️⃣ Synthesizing French TTS...');
 try {
   const fr = JSON.parse(fs.readFileSync('work/script.fr.json', 'utf8'));
-  const textFr = (fr.storyboard.scenes.segments || []).map(seg => seg.textFr).join(" ");
-  
+  const textFr = (fr.storyboard.scenes.segments || []).map((seg) => seg.textFr).join(' ');
+
   const ttsPayload = {
     text: textFr,
-    language: "fr",
-    voice: "21m00Tcm4TlvDq8ikWAM",
-    gameName: GAME_NAME
+    language: 'fr',
+    voice: '21m00Tcm4TlvDq8ikWAM',
+    gameName: GAME_NAME,
   };
-  
+
   fs.writeFileSync('work/tts_fr_payload.json', JSON.stringify(ttsPayload, null, 2));
-  
-  execSync(`curl -X POST http://localhost:5001/tts -H "Content-Type: application/json" -d @work/tts_fr_payload.json -o work/tts.fr.mp3`, { stdio: 'inherit' });
+
+  execSync(
+    'curl -X POST http://localhost:5001/tts -H "Content-Type: application/json" -d @work/tts_fr_payload.json -o work/tts.fr.mp3',
+    { stdio: 'inherit' },
+  );
   console.log('   ✅ French TTS synthesized');
 } catch (error) {
   console.error('   ❌ Failed to synthesize French TTS:', error.message);
@@ -234,13 +263,19 @@ try {
   if (!fs.existsSync('work/assets')) {
     fs.mkdirSync('work/assets', { recursive: true });
   }
-  
+
   // Copy placeholder images
   execSync('copy assets\\placeholder.png work\\assets\\', { stdio: 'inherit', shell: 'cmd.exe' });
-  execSync('copy assets\\placeholder.png work\\assets\\table_bg.png', { stdio: 'inherit', shell: 'cmd.exe' });
-  
+  execSync('copy assets\\placeholder.png work\\assets\\table_bg.png', {
+    stdio: 'inherit',
+    shell: 'cmd.exe',
+  });
+
   // Render
-  execSync('node scripts/render-ffmpeg.mjs work/converted_timeline.json work/assets dist/tutorial.en.mp4 --preview', { stdio: 'inherit' });
+  execSync(
+    'node scripts/render-ffmpeg.mjs work/converted_timeline.json work/assets dist/tutorial.en.mp4 --preview',
+    { stdio: 'inherit' },
+  );
   console.log('   ✅ MP4 rendered');
 } catch (error) {
   console.error('   ❌ Failed to render MP4:', error.message);

@@ -6,7 +6,7 @@ import { extractComponentsFromText } from './src/api/utils.js';
 function testEnhancedFeatures() {
   console.log('🧪 TESTING ENHANCED FEATURES');
   console.log('='.repeat(40));
-  
+
   // Test text with OCR issues and suspicious lines
   const testText = `
   Contents & Setup
@@ -38,39 +38,42 @@ function testEnhancedFeatures() {
 
   console.log('🔍 RUNNING VERBOSE EXTRACTION WITH ENHANCED FEATURES...');
   const components = extractComponentsFromText(testText, true);
-  
+
   console.log('\n' + '='.repeat(40));
   console.log('📊 RESULTS SUMMARY:');
   console.log('='.repeat(40));
   console.log(`✅ Components extracted: ${components.length}`);
-  
+
   components.forEach((comp, i) => {
-    console.log(`${i + 1}. ${comp.name}${comp.count !== null ? ` — ${comp.count}` : ''}${comp.note ? ` [${comp.note}]` : ''}`);
+    console.log(
+      `${i + 1}. ${comp.name}${comp.count !== null ? ` — ${comp.count}` : ''}${comp.note ? ` [${comp.note}]` : ''}`,
+    );
   });
-  
+
   // Verify OCR normalization worked
   console.log('\n' + '='.repeat(40));
   console.log('🔍 OCR NORMALIZATION VERIFICATION:');
   console.log('='.repeat(40));
-  
-  const gameBoard = components.find(c => c.name === 'Game board');
-  const explorationCards = components.find(c => c.name === 'Exploration cards');
-  const lords = components.find(c => c.name === 'Lord cards');
-  const monsterTokens = components.find(c => c.name === 'Monster tokens');
-  
+
+  const gameBoard = components.find((c) => c.name === 'Game board');
+  const explorationCards = components.find((c) => c.name === 'Exploration cards');
+  const lords = components.find((c) => c.name === 'Lord cards');
+  const monsterTokens = components.find((c) => c.name === 'Monster tokens');
+
   if (gameBoard) console.log('✅ "Game b0ard" correctly normalized to "Game board"');
-  if (explorationCards) console.log('✅ "Expl0ration cards" correctly normalized to "Exploration cards"');
+  if (explorationCards)
+    console.log('✅ "Expl0ration cards" correctly normalized to "Exploration cards"');
   if (lords) console.log('✅ "L0rds" correctly normalized to "Lord cards"');
   if (monsterTokens) console.log('✅ "M0nster tokens" correctly normalized to "Monster tokens"');
-  
+
   // Verify Threat token is still excluded
-  const threatToken = components.find(c => c.name === 'Threat token');
+  const threatToken = components.find((c) => c.name === 'Threat token');
   if (!threatToken) {
     console.log('✅ "Threat token" correctly excluded');
   } else {
     console.log('❌ "Threat token" should have been excluded');
   }
-  
+
   console.log('\n🎉 ENHANCED FEATURES TEST COMPLETE');
 }
 

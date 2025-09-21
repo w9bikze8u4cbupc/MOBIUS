@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'child_process';
-import { readFileSync, existsSync } from 'fs';
 import { execSync } from 'child_process';
+import { readFileSync, existsSync } from 'fs';
 
 function getGitInfo() {
   try {
@@ -49,10 +49,7 @@ function checkApiKeyPresent() {
 }
 
 function generatePipelineSummary(artifacts, options = {}) {
-  const {
-    outputDir = './out',
-    workDir = './work'
-  } = options;
+  const { outputDir = './out', workDir = './work' } = options;
 
   const summary = {
     timestamp: new Date().toISOString(),
@@ -62,17 +59,17 @@ function generatePipelineSummary(artifacts, options = {}) {
     popplerVersion: getPopplerVersion(),
     system: {
       platform: process.platform,
-      arch: process.arch
+      arch: process.arch,
     },
     paths: {
       outputDir,
-      workDir
+      workDir,
     },
     permissions: {
       outputDirWritable: checkOutputDirWritable(outputDir),
-      elevenLabsApiKeyPresent: checkApiKeyPresent()
+      elevenLabsApiKeyPresent: checkApiKeyPresent(),
     },
-    artifacts: artifacts || []
+    artifacts: artifacts || [],
   };
 
   console.log(JSON.stringify(summary, null, 2));

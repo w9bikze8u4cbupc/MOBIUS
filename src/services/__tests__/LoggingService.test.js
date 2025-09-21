@@ -1,6 +1,6 @@
-import ServiceName from '../ServiceName';
 import ApiError from '../../utils/errors/ApiError';
 import LoggingService from '../../utils/logging/LoggingService';
+import ServiceName from '../ServiceName';
 
 jest.mock('../../utils/logging/LoggingService');
 
@@ -12,7 +12,7 @@ describe('BaseApiService', () => {
     jest.clearAllMocks();
     mockConfig = {
       baseUrl: 'https://api.example.com',
-      timeout: 5000
+      timeout: 5000,
     };
     service = new BaseApiService(mockConfig);
   });
@@ -26,22 +26,25 @@ describe('BaseApiService', () => {
       const response = {
         ok: false,
         statusText: 'Server Error',
-        status: 500
+        status: 500,
       };
 
       await expect(service.handleResponse(response)).rejects.toThrow(ApiError);
       expect(LoggingService.error).toHaveBeenCalledWith(
         'BaseApiService',
         'Response handling failed',
-        expect.any(ApiError)
+        expect.any(ApiError),
       );
     });
 
     it('should log timeouts', async () => {
       jest.useFakeTimers();
-      global.fetch.mockImplementation(() => new Promise(resolve => {
-        setTimeout(resolve, 6000);
-      }));
+      global.fetch.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(resolve, 6000);
+          }),
+      );
 
       const fetchPromise = service.fetchWithTimeout('https://api.example.com/test');
       jest.advanceTimersByTime(5001);
@@ -50,7 +53,7 @@ describe('BaseApiService', () => {
       expect(LoggingService.error).toHaveBeenCalledWith(
         'BaseApiService',
         'Request failed',
-        expect.any(Error)
+        expect.any(Error),
       );
       jest.useRealTimers();
     });
@@ -59,11 +62,11 @@ describe('BaseApiService', () => {
       expect(() => {
         service.validateConfig(['nonexistentField']);
       }).toThrow(ApiError);
-      
+
       expect(LoggingService.error).toHaveBeenCalledWith(
         'BaseApiService',
         'Missing required configuration: nonexistentField',
-        expect.any(ApiError)
+        expect.any(ApiError),
       );
     });
   });

@@ -1,15 +1,16 @@
-import { fetchUbgAuto } from './src/sources/ultraBoardGames.js';
 import * as cheerio from 'cheerio';
+
+import { fetchUbgAuto } from './src/sources/ultraBoardGames.js';
 
 async function viewSampleHtml() {
   console.log('Fetching UBG page for Abyss...');
-  
-  const result = await fetchUbgAuto("Abyss");
+
+  const result = await fetchUbgAuto('Abyss');
   if (!result.ok) {
     console.log('Failed to fetch UBG data');
     return;
   }
-  
+
   console.log('Found images:');
   result.images.forEach((img, i) => {
     console.log(`\nImage ${i + 1}:`);
@@ -19,11 +20,11 @@ async function viewSampleHtml() {
     console.log(`  Context: ${img.context}`);
     console.log(`  Section Distance: ${img.sectionDistance}`);
   });
-  
+
   // Test size extraction on these URLs
   console.log('\n\nTesting size extraction on UBG URLs:');
   const { parseSizeFromUrl } = await import('./src/utils/sizeExtract.js');
-  
+
   result.images.forEach((img, i) => {
     const sizeInfo = parseSizeFromUrl(img.url);
     console.log(`  ${img.url} ->`, sizeInfo);

@@ -8,7 +8,7 @@
  */
 export function collectWithinSection($, headingEl, { maxImgs = 16 } = {}) {
   const startTag = headingEl?.name?.toLowerCase() || 'h2';
-  const level = ['h1','h2','h3','h4','h5','h6'].indexOf(startTag);
+  const level = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].indexOf(startTag);
   const imgs = [];
   let el = $(headingEl).next();
   let distance = 0;
@@ -16,7 +16,7 @@ export function collectWithinSection($, headingEl, { maxImgs = 16 } = {}) {
   const isHeading = (node) => {
     const t = node?.name?.toLowerCase();
     if (!t) return false;
-    const lvl = ['h1','h2','h3','h4','h5','h6'].indexOf(t);
+    const lvl = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].indexOf(t);
     return lvl >= 0 && lvl <= level; // equal or higher-level heading closes section
   };
 

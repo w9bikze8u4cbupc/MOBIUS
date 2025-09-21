@@ -24,13 +24,18 @@ smoke-local-ps:
 	@echo "Running local smoke test with PowerShell script..."
 	@pwsh -Command "./smoke-local.ps1"
 
-# Run all tests
-.PHONY: test
+lint:
+	flake8 .
+	black --check .
+
+format:
+	black .
+
 test:
-	@echo "Running all tests..."
-	@echo "Note: This requires bats and Pester to be installed"
-	@echo "Bash tests: bats test/bash_dry_run_test.bats"
-	@echo "PowerShell tests: pwsh -Command \"Invoke-Pester test/powershell_dry_run_test.ps1\""
+	pytest
+
+test-smoke:
+	pytest -q --maxfail=1
 
 # Clean artifacts directory
 .PHONY: clean

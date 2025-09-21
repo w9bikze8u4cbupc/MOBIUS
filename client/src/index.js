@@ -1,15 +1,15 @@
-// client/src/index.js
 import React from 'react';
-import { createRoot } from 'react-dom/client';
+import ReactDOM from 'react-dom/client';
 import App from './App';
+import { ToastProvider } from './contexts/ToastContext';
+import DevTestPage from './components/DevTestPage';
 
-const root = createRoot(document.getElementById('root'));
+const root = ReactDOM.createRoot(document.getElementById('root'));
+const SHOW_DEV_TEST =
+  String(process.env.REACT_APP_SHOW_DEV_TEST || '').toLowerCase() === 'true';
 
-const disableStrict = String(process.env.REACT_APP_DISABLE_STRICT_MODE || '').toLowerCase() === 'true';
-const app = <App />;
-
-if (disableStrict) {
-  root.render(app);
-} else {
-  root.render(<React.StrictMode>{app}</React.StrictMode>);
-}
+root.render(
+  <React.StrictMode>
+    <ToastProvider>{SHOW_DEV_TEST ? <DevTestPage /> : <App />}</ToastProvider>
+  </React.StrictMode>
+);

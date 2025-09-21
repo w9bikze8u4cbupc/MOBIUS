@@ -4,10 +4,11 @@ import { extractComponentsFromText } from './src/api/utils.js';
 const utilsModule = await import('./src/api/utils.js');
 
 // Test what "Threat token" normalizes to
-const normalizeToCanonical = utilsModule.normalizeToCanonical || 
+const normalizeToCanonical =
+  utilsModule.normalizeToCanonical ||
   (() => {
     // Fallback if we can't import the function directly
-    console.log("Couldn't import normalizeToCanonical directly");
+    console.log('Couldn\'t import normalizeToCanonical directly');
     return null;
   });
 
@@ -24,7 +25,7 @@ const testTokens = [
   'Lords',
   'Lord cards',
   'Pearls',
-  'Plastic cups'
+  'Plastic cups',
 ];
 
 // Since we can't easily import the normalizeToCanonical function,

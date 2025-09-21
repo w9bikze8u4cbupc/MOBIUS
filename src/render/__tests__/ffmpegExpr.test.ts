@@ -32,17 +32,19 @@ describe('FFmpeg Expression Helpers', () => {
     });
 
     it('should escape single quotes', () => {
-      expect(ffEscapeText("text'with'quotes")).toBe("text\\\\'with\\\\'quotes");
+      expect(ffEscapeText('text\'with\'quotes')).toBe('text\\\\\'with\\\\\'quotes');
     });
 
     it('should handle complex strings', () => {
-      expect(ffEscapeText("It's a test: path\\to\\file")).toBe("It\\\\'s a test\\: path\\\\to\\\\file");
+      expect(ffEscapeText('It\'s a test: path\\to\\file')).toBe(
+        "It\\\\'s a test\\: path\\\\to\\\\file",
+      );
     });
   });
 
   describe('enableBetween', () => {
     it('should create enable expression', () => {
-      expect(enableBetween(1.5, 3.7)).toBe("enable='between(t,1.5,3.7)'");
+      expect(enableBetween(1.5, 3.7)).toBe('enable=\'between(t,1.5,3.7)\'');
     });
   });
 

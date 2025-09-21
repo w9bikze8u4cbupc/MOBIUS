@@ -3,14 +3,16 @@ const app = express();
 const port = 3001;
 
 // Body parsing with limits
-app.use(express.json({ 
-  limit: '10mb',
-  // Custom verify function to handle pdfjs-dist interference
-  verify: (req, res, buf, encoding) => {
-    // Store the raw buffer for manual parsing if needed
-    req.rawBody = buf;
-  }
-}));
+app.use(
+  express.json({
+    limit: '10mb',
+    // Custom verify function to handle pdfjs-dist interference
+    verify: (req, res, buf, encoding) => {
+      // Store the raw buffer for manual parsing if needed
+      req.rawBody = buf;
+    },
+  }),
+);
 
 // Custom JSON parsing middleware to handle pdfjs-dist interference (fallback)
 function customJsonParser(req, res, next) {
@@ -18,23 +20,23 @@ function customJsonParser(req, res, next) {
   if (req.headers['content-type'] !== 'application/json') {
     return next();
   }
-  
+
   // If body is already parsed and valid, continue
   if (req.body && typeof req.body === 'object') {
     return next();
   }
-  
+
   // Only try custom parsing if we have rawBody from express.json verify function
   if (!req.rawBody) {
     return next();
   }
-  
+
   const data = req.rawBody.toString();
-  
+
   if (!data) {
     return next();
   }
-  
+
   try {
     req.body = JSON.parse(data);
     next();

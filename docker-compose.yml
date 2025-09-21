@@ -1,0 +1,13 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/workspace:cached
+    working_dir: /workspace
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - CI=true
+    tty: true

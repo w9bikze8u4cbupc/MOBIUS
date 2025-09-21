@@ -3,7 +3,7 @@ import http from 'http';
 
 // Test the backend API directly
 const postData = JSON.stringify({
-  bggUrl: 'https://boardgamegeek.com/boardgame/155987/abyss'
+  bggUrl: 'https://boardgamegeek.com/boardgame/155987/abyss',
 });
 
 const options = {
@@ -13,8 +13,8 @@ const options = {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Content-Length': Buffer.byteLength(postData)
-  }
+    'Content-Length': Buffer.byteLength(postData),
+  },
 };
 
 const req = http.request(options, (res) => {

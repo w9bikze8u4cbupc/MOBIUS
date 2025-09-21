@@ -6,7 +6,7 @@ import { extractComponentsFromText } from './src/api/utils.js';
 function testDeadLetterCapture() {
   console.log('🧪 TESTING DEAD LETTER CAPTURE');
   console.log('='.repeat(40));
-  
+
   // Test text with suspicious but excluded lines
   const testText = `
   Contents & Setup
@@ -33,16 +33,18 @@ function testDeadLetterCapture() {
 
   console.log('🔍 RUNNING VERBOSE EXTRACTION WITH DEAD LETTER CAPTURE...');
   const components = extractComponentsFromText(testText, true);
-  
+
   console.log('\n' + '='.repeat(40));
   console.log('📊 RESULTS SUMMARY:');
   console.log('='.repeat(40));
   console.log(`✅ Components extracted: ${components.length}`);
-  
+
   components.forEach((comp, i) => {
-    console.log(`${i + 1}. ${comp.name}${comp.count !== null ? ` — ${comp.count}` : ''}${comp.note ? ` [${comp.note}]` : ''}`);
+    console.log(
+      `${i + 1}. ${comp.name}${comp.count !== null ? ` — ${comp.count}` : ''}${comp.note ? ` [${comp.note}]` : ''}`,
+    );
   });
-  
+
   console.log('\n🎉 DEAD LETTER CAPTURE TEST COMPLETE');
 }
 

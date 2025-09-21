@@ -1,15 +1,17 @@
-import BaseApiService from './BaseApiService';
-import LoggingService from '../utils/logging/LoggingService';
 import ApiError from '../utils/errors/ApiError';
+import LoggingService from '../utils/logging/LoggingService';
 
+import BaseApiService from './BaseApiService';
 
-const { Configuration, OpenAIApi } = require('openai');
 const Cohere = require('cohere-ai');
+const { Configuration, OpenAIApi } = require('openai');
 require('dotenv').config();
 
-const openai = new OpenAIApi(new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
-}));
+const openai = new OpenAIApi(
+  new Configuration({
+    apiKey: process.env.OPENAI_API_KEY,
+  }),
+);
 
 Cohere.init(process.env.COHERE_API_KEY);
 
