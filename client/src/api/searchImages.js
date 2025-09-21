@@ -10,6 +10,6 @@ export async function searchImages({ apiBase, query, addToast }) {
     // tune as desired:
     retries: 2,
     retryBackoffMs: 300,
-    timeoutMs: 20000,
+    maxTimeout: 20000,
   });
 }

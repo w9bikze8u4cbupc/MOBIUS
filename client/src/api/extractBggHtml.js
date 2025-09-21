@@ -9,6 +9,6 @@ export async function extractBggHtml({ apiBase, bggUrl, addToast }) {
     // tune as desired:
     retries: 2,
     retryBackoffMs: 300,
-    timeoutMs: 20000,
+    maxTimeout: 20000,
   });
 }
