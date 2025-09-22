@@ -7,18 +7,21 @@ The `fetchJson` utility is our centralized API client that handles all HTTP requ
 ## Key Features
 
 ### 1. Robust Error Handling
+
 - Automatic retry with exponential backoff and jitter
 - Special handling for 429 (Rate Limiting) with Retry-After header support
 - Structured error mapping with user-friendly messages
 - Toast notifications with deduplication
 
 ### 2. Request Management
+
 - In-flight request deduplication to prevent duplicate calls
 - AbortSignal support for cancellable requests
 - Max timeout to prevent hanging requests
 - Telemetry-ready with timing and attempt count metadata
 
 ### 3. Developer Experience
+
 - Consistent API across all HTTP requests
 - Type-safe options and responses
 - Comprehensive documentation and examples
@@ -35,7 +38,7 @@ const userData = await fetchJson('/api/users/123');
 // POST request with body
 const newPost = await fetchJson('/api/posts', {
   method: 'POST',
-  body: { title: 'New Post', content: 'Post content' }
+  body: { title: 'New Post', content: 'Post content' },
 });
 ```
 
@@ -46,29 +49,29 @@ const result = await fetchJson('/api/data', {
   method: 'POST',
   body: { key: 'value' },
   headers: { 'Custom-Header': 'value' },
-  
+
   // Authentication
   authToken: 'Bearer token123',
-  
+
   // Retry configuration
   retries: 3,
   retryBackoffMs: 500,
   maxTimeout: 30000,
-  
+
   // Toast integration
-  toast: { 
-    addToast: useToast().addToast, 
-    dedupeKey: 'unique-operation-key' 
+  toast: {
+    addToast: useToast().addToast,
+    dedupeKey: 'unique-operation-key',
   },
-  
+
   // Error context for better messages
   errorContext: { area: 'user', action: 'create' },
-  
+
   // Expected status codes
   expectedStatuses: [200, 201],
-  
+
   // Abort signal
-  signal: abortController.signal
+  signal: abortController.signal,
 });
 ```
 
@@ -84,7 +87,7 @@ export async function getUser(userId, { addToast }) {
   return fetchJson(`/api/users/${userId}`, {
     method: 'GET',
     toast: { addToast, dedupeKey: `get-user-${userId}` },
-    errorContext: { area: 'user', action: 'get' }
+    errorContext: { area: 'user', action: 'get' },
   });
 }
 
@@ -94,7 +97,7 @@ export async function createUser(userData, { addToast }) {
     body: userData,
     toast: { addToast, dedupeKey: 'create-user' },
     errorContext: { area: 'user', action: 'create' },
-    expectedStatuses: [201]
+    expectedStatuses: [201],
   });
 }
 ```
@@ -128,12 +131,12 @@ import { fetchJson } from '../utils/fetchJson';
 jest.mock('../utils/fetchJson');
 
 it('should fetch user data', async () => {
-  fetchJson.mockResolvedValue({ 
+  fetchJson.mockResolvedValue({
     data: { id: 1, name: 'John' },
     status: 200,
-    attempts: 1
+    attempts: 1,
   });
-  
+
   const user = await getUser(1, { addToast: jest.fn() });
   expect(user).toEqual({ id: 1, name: 'John' });
 });
@@ -144,14 +147,14 @@ it('should fetch user data', async () => {
 ```javascript
 it('should retry on network failure', async () => {
   jest.useFakeTimers();
-  
+
   fetchJson
     .mockRejectedValueOnce(new Error('Network Error'))
     .mockResolvedValueOnce({ data: { success: true } });
-  
+
   const promise = fetchJson('/api/test');
   jest.advanceTimersByTime(1000); // Advance through backoff
-  
+
   const result = await promise;
   expect(result.data).toEqual({ success: true });
 });
@@ -179,7 +182,7 @@ function UserProfile({ userId }) {
   const { addToast } = useToast();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
-  
+
   const loadUser = async () => {
     setLoading(true);
     try {
@@ -189,11 +192,11 @@ function UserProfile({ userId }) {
       setLoading(false);
     }
   };
-  
+
   useEffect(() => {
     loadUser();
   }, [userId]);
-  
+
   // ... render user profile
 }
 ```

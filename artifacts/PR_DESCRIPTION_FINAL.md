@@ -7,6 +7,7 @@ This PR introduces a production-ready `fetchJson` utility that centralizes all A
 ### Key Improvements
 
 #### 1. Enhanced fetchJson Utility (`client/src/utils/fetchJson.js`)
+
 - **In-flight Deduplication**: Prevents duplicate concurrent requests using a module-level Map with proper cleanup to avoid memory leaks
 - **Abortable Backoff**: Retry delays now respect AbortSignal for immediate cancellation during backoff periods
 - **Retry-After Handling**: Properly parses both numeric and HTTP-date formats in Retry-After headers for 429 responses
@@ -16,17 +17,20 @@ This PR introduces a production-ready `fetchJson` utility that centralizes all A
 - **Max Timeout**: Caps total retry time to prevent indefinite hanging requests
 
 #### 2. API Helper Migration
+
 - Migrated `extractBggHtml` and `searchImages` helpers to use the new fetchJson utility
 - Updated all axios calls to fetchJson throughout the codebase
 - Removed axios dependency completely
 
 #### 3. DevTestPage Improvements
+
 - Enhanced with proper accessibility attributes (ARIA labels)
 - Added data-testid selectors for reliable E2E testing
 - Implemented explicit reset functionality
 - Added safety measures to prevent shipping enabled by default
 
 #### 4. Comprehensive Test Coverage
+
 - **Jest Unit Tests**: Cover retry behavior with fake timers, deduplication concurrency, and abort handling
 - **Playwright E2E Tests**: Use deterministic selectors, capture artifacts on failure, and include trace collection
 - **CI Configuration**: GitHub Actions workflow with proper browser installation and artifact uploads

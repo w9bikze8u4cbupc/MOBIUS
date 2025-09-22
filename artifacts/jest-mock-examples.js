@@ -1,12 +1,12 @@
 /**
  * Jest Mock Examples for fetchJson
- * 
+ *
  * This file contains examples of how to properly mock fetchJson in your Jest tests.
  */
 
 // Mock fetchJson directly
 jest.mock('../utils/fetchJson', () => ({
-  fetchJson: jest.fn()
+  fetchJson: jest.fn(),
 }));
 
 import { fetchJson } from '../utils/fetchJson';
@@ -21,14 +21,14 @@ describe('API Helper Tests', () => {
     // Arrange
     const mockResponse = { id: 1, name: 'Test' };
     fetchJson.mockResolvedValue(mockResponse);
-    
+
     // Act
     const result = await someApiHelperFunction();
-    
+
     // Assert
     expect(fetchJson).toHaveBeenCalledWith('/api/endpoint', {
       method: 'GET',
-      expectedStatuses: [200]
+      expectedStatuses: [200],
     });
     expect(result).toEqual(mockResponse);
   });
@@ -37,7 +37,7 @@ describe('API Helper Tests', () => {
     // Arrange
     const mockError = new Error('Network error');
     fetchJson.mockRejectedValue(mockError);
-    
+
     // Act & Assert
     await expect(someApiHelperFunction()).rejects.toThrow('Network error');
   });
@@ -52,16 +52,16 @@ describe('Deduplication Tests', () => {
   it('should deduplicate concurrent requests', async () => {
     // Arrange
     const mockResponse = { data: 'test' };
-    fetchJson.mockImplementation(() => 
-      new Promise(resolve => setTimeout(() => resolve(mockResponse), 100))
+    fetchJson.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(mockResponse), 100)),
     );
-    
+
     // Act - Call the same function twice rapidly
     const promise1 = someApiHelperFunction();
     const promise2 = someApiHelperFunction();
-    
+
     const [result1, result2] = await Promise.all([promise1, promise2]);
-    
+
     // Assert - fetchJson should only be called once
     expect(fetchJson).toHaveBeenCalledTimes(1);
     expect(result1).toEqual(mockResponse);
@@ -87,11 +87,11 @@ describe('Abort Signal Tests', () => {
         });
       });
     });
-    
+
     // Act
     const promise = someApiHelperFunction({ signal: abortController.signal });
     abortController.abort();
-    
+
     // Assert
     await expect(promise).rejects.toThrow('AbortError');
   });
@@ -114,15 +114,15 @@ describe('Retry Tests', () => {
     fetchJson
       .mockRejectedValueOnce(mockError) // First call fails
       .mockResolvedValue({ data: 'success' }); // Second call succeeds
-    
+
     // Act
     const promise = someApiHelperFunction();
-    
+
     // Fast-forward through retries
     await jest.advanceTimersByTimeAsync(1000);
-    
+
     const result = await promise;
-    
+
     // Assert
     expect(fetchJson).toHaveBeenCalledTimes(2);
     expect(result).toEqual({ data: 'success' });

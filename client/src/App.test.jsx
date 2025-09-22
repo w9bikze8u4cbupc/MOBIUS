@@ -9,7 +9,8 @@ function App() {
     const updated = [...components];
     updated[idx] = {
       ...updated[idx],
-      [field]: field === 'quantity' ? (value === '' ? '' : Number(value)) : value,
+      [field]:
+        field === 'quantity' ? (value === '' ? '' : Number(value)) : value,
     };
     setComponents(updated);
   };

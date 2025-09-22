@@ -30,6 +30,7 @@ Rollback if you observe any of the following in production:
 ### 2. Rollback Execution (30-60 minutes)
 
 1. **Revert the Deployment**
+
    ```bash
    # Revert to the previous stable commit
    git revert <commit-hash> --no-commit
@@ -38,6 +39,7 @@ Rollback if you observe any of the following in production:
    ```
 
 2. **Restore axios Dependency**
+
    ```bash
    # Add axios back to package.json
    npm install axios@1.9.0
@@ -119,6 +121,7 @@ Key metrics to monitor:
 ## Contact Information
 
 In case of rollback execution:
+
 - Primary: [Team Lead Name/Contact]
 - Secondary: [Senior Developer Name/Contact]
 - Infrastructure: [DevOps Contact]
