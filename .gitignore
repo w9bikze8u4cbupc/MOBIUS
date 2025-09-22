@@ -50,6 +50,7 @@ tmp/
 temp/
 tmp.*
 *.tmp
+*.backup
 
 # Coverage data
 coverage/
