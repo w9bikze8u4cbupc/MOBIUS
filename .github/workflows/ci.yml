@@ -20,6 +20,33 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Network connectivity probe
+        id: network-probe
+        run: |
+          # Run network probe and capture results
+          mkdir -p artifacts/network
+          if ./scripts/network-probe.sh artifacts/network; then
+            echo "probe_result=success" >> $GITHUB_OUTPUT
+            echo "✅ Network connectivity tests passed"
+          else
+            echo "probe_result=failed" >> $GITHUB_OUTPUT
+            echo "⚠️ Network connectivity issues detected!"
+            echo "See artifacts for details"
+            # Don't fail the job, just mark as warning
+          fi
+        shell: bash
+        continue-on-error: true
+
+      - name: Upload network diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-diagnostics-${{ matrix.os }}
+          path: |
+            artifacts/network/network-probe.log
+            artifacts/network/network-diagnostics.json
+          retention-days: 7
+
       - name: Install deps
         run: npm ci
 
@@ -92,3 +119,50 @@ jobs:
           path: |
             artifacts/**
             out/preview_with_audio.mp4
+            
+      - name: Comment on PR with network diagnostics
+        if: github.event_name == 'pull_request' && steps.network-probe.outputs.probe_result == 'failed'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'artifacts/network/network-diagnostics.json';
+            
+            let diagnosticsContent = '⚠️ Network connectivity issues detected';
+            
+            if (fs.existsSync(path)) {
+              try {
+                const diagnostics = JSON.parse(fs.readFileSync(path, 'utf8'));
+                const failed = diagnostics.summary.failed;
+                const warnings = diagnostics.summary.warnings;
+                
+                diagnosticsContent = `## ⚠️ Network Connectivity Issues Detected
+            
+            **Summary:**
+            - Failed endpoints: ${failed}
+            - Warning endpoints: ${warnings}
+            - Timestamp: ${diagnostics.timestamp}
+            
+            **Failed Endpoints:**
+            ${diagnostics.results.filter(r => r.overall_status === 'failed')
+              .map(r => `- **${r.name}** (${r.endpoint.host}): ${r.errors.join(', ')}`)
+              .join('\n')}
+            
+            **Recommended Actions:**
+            1. Check DNS resolution: \`dig +short ${diagnostics.results[0]?.endpoint.host}\`
+            2. Verify firewall/egress rules for external API access
+            3. Review network diagnostics in build artifacts
+            
+            For troubleshooting details, see the uploaded network-diagnostics artifacts.`;
+                
+              } catch (e) {
+                console.error('Failed to parse diagnostics:', e);
+              }
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: diagnosticsContent
+            });

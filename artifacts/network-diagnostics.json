@@ -1,0 +1,59 @@
+{
+  "timestamp": "2025-09-22T19:33:25Z",
+  "probe_config": {
+    "timeout": 10,
+    "total_endpoints": 3
+  },
+  "results": [
+    {
+      "name": "OpenAI API",
+      "endpoint": {
+        "host": "api.openai.com",
+        "port": 443,
+        "url": "https://api.openai.com/v1/models"
+      },
+      "overall_status": "failed",
+      "tests": {
+        "dns": {"status": "failed"},
+        "tcp": {"status": "skipped"},
+        "http": {"status": "failed"}
+      }
+    }
+,
+    {
+      "name": "ElevenLabs API",
+      "endpoint": {
+        "host": "api.elevenlabs.io",
+        "port": 443,
+        "url": "https://api.elevenlabs.io"
+      },
+      "overall_status": "failed",
+      "tests": {
+        "dns": {"status": "failed"},
+        "tcp": {"status": "skipped"},
+        "http": {"status": "failed"}
+      }
+    }
+,
+    {
+      "name": "BoardGameGeek API",
+      "endpoint": {
+        "host": "boardgamegeek.com",
+        "port": 443,
+        "url": "https://boardgamegeek.com/xmlapi2"
+      },
+      "overall_status": "failed",
+      "tests": {
+        "dns": {"status": "failed"},
+        "tcp": {"status": "skipped"},
+        "http": {"status": "failed"}
+      }
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 3,
+    "warnings": 0,
+    "total_tested": 3
+  }
+}
