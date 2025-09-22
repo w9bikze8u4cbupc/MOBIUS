@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import db from './db.js';
 import dotenv from 'dotenv';
-import axios from 'axios';
+import fetchJson from '../utils/fetchJson.js';
 import * as cheerio from 'cheerio';
 import OpenAI from 'openai';
 import * as pdfToImg from 'pdf-to-img';
