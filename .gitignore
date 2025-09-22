@@ -14,7 +14,9 @@ yarn-error.log*
 .env.development
 .env.production
 .env.test
-*.env*
+# Allow .env.example to be tracked
+!.env.example
+!**/.env.example
 
 # IDE and editor specific
 .idea/
