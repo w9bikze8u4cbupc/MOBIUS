@@ -50,9 +50,12 @@ describe('fetchJson', () => {
 
     const result = await fetchJson(mockUrl, mockOptions);
 
-    expect(global.fetch).toHaveBeenCalledWith(mockUrl, expect.objectContaining({
-      method: 'GET',
-    }));
+    expect(global.fetch).toHaveBeenCalledWith(
+      mockUrl,
+      expect.objectContaining({
+        method: 'GET',
+      })
+    );
     expect(result).toEqual(mockResponse);
   });
 
@@ -125,11 +128,13 @@ describe('fetchJson', () => {
     });
 
     const mockAddToast = jest.fn();
-    
-    await expect(fetchJson(mockUrl, {
-      ...mockOptions,
-      toast: { addToast: mockAddToast, dedupeKey: 'test-error' },
-    })).rejects.toThrow();
+
+    await expect(
+      fetchJson(mockUrl, {
+        ...mockOptions,
+        toast: { addToast: mockAddToast, dedupeKey: 'test-error' },
+      })
+    ).rejects.toThrow();
 
     expect(mockAddToast).toHaveBeenCalledWith({
       variant: 'error',
@@ -139,13 +144,18 @@ describe('fetchJson', () => {
   });
 
   it('should handle timeout', async () => {
-    global.fetch.mockImplementation(() => new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Timeout')), 100);
-    }));
+    global.fetch.mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Timeout')), 100);
+        })
+    );
 
-    await expect(fetchJson(mockUrl, {
-      ...mockOptions,
-      timeoutMs: 50,
-    })).rejects.toThrow('Request timed out. Please try again.');
+    await expect(
+      fetchJson(mockUrl, {
+        ...mockOptions,
+        timeoutMs: 50,
+      })
+    ).rejects.toThrow('Request timed out. Please try again.');
   });
 });

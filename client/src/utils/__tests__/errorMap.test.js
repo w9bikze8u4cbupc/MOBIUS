@@ -1,47 +1,70 @@
-import { getErrorMessageFor, httpStatusToCode, findHeuristicCode } from '../errorMap';
+import {
+  getErrorMessageFor,
+  httpStatusToCode,
+  findHeuristicCode,
+} from '../errorMap';
 
 describe('errorMap', () => {
   describe('getErrorMessageFor', () => {
     it('should return a user-friendly message for HTTP 413 errors', () => {
       const error = new Error('Payload Too Large');
       error.status = 413;
-      
-      const result = getErrorMessageFor(error, { area: 'extract', action: 'bgg-html' });
-      
+
+      const result = getErrorMessageFor(error, {
+        area: 'extract',
+        action: 'bgg-html',
+      });
+
       expect(result).toBe('File is too large. Please try a smaller file.');
     });
 
     it('should return a user-friendly message for network errors', () => {
       const error = new Error('Failed to fetch');
-      
-      const result = getErrorMessageFor(error, { area: 'extract', action: 'bgg-html' });
-      
-      expect(result).toBe('Network error. Please check your connection and try again.');
+
+      const result = getErrorMessageFor(error, {
+        area: 'extract',
+        action: 'bgg-html',
+      });
+
+      expect(result).toBe(
+        'Network error. Please check your connection and try again.'
+      );
     });
 
     it('should return a user-friendly message for timeout errors', () => {
       const error = new Error('AbortError');
-      
-      const result = getErrorMessageFor(error, { area: 'extract', action: 'bgg-html' });
-      
+
+      const result = getErrorMessageFor(error, {
+        area: 'extract',
+        action: 'bgg-html',
+      });
+
       expect(result).toBe('Request timed out. Please try again.');
     });
 
     it('should return a generic message for unknown errors', () => {
       const error = new Error('Unknown error');
       error.status = 500;
-      
-      const result = getErrorMessageFor(error, { area: 'extract', action: 'bgg-html' });
-      
+
+      const result = getErrorMessageFor(error, {
+        area: 'extract',
+        action: 'bgg-html',
+      });
+
       expect(result).toBe('An unexpected error occurred. Please try again.');
     });
 
     it('should use context to provide more specific messages', () => {
       const error = new Error('Failed to fetch');
-      
-      const result = getErrorMessageFor(error, { area: 'search', action: 'images' });
-      
-      expect(result).toBe('Network error. Please check your connection and try again.');
+
+      const result = getErrorMessageFor(error, {
+        area: 'search',
+        action: 'images',
+      });
+
+      expect(result).toBe(
+        'Network error. Please check your connection and try again.'
+      );
     });
   });
 

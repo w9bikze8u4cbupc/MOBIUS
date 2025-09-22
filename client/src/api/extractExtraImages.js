@@ -1,6 +1,10 @@
 import { fetchJson } from '../utils/fetchJson';
 
-export async function extractExtraImages({ apiBase, extraImageUrls, addToast }) {
+export async function extractExtraImages({
+  apiBase,
+  extraImageUrls,
+  addToast,
+}) {
   return fetchJson(`${apiBase}/api/extract-extra-images`, {
     method: 'POST',
     body: { extraImageUrls },

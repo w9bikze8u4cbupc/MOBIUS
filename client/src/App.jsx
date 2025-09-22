@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+﻿import React, { useState, useRef, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.entry';
@@ -660,18 +660,17 @@ function App() {
     }
     return out;
   }
-}
 
-function openImagePickerForComponent(idx) {
-  const current = compImageMulti[idx] || [];
-  setPickerTemp(current);
-  setPickerOpenIdx(idx);
-}
+  function openImagePickerForComponent(idx) {
+    const current = compImageMulti[idx] || [];
+    setPickerTemp(current);
+    setPickerOpenIdx(idx);
+  }
 
-function closeImagePicker() {
-  setPickerOpenIdx(null);
-  setPickerTemp([]);
-}
+  function closeImagePicker() {
+    setPickerOpenIdx(null);
+    setPickerTemp([]);
+  }
 
 function togglePickerImage(img) {
   const key = imgKey(img);
@@ -1774,6 +1773,7 @@ const handleRemoveComponent = idx => {
   saveComponentsToLocalStorage(updated);
   validateAllComponents();
 };
+
 
 return (
   <div
@@ -3685,5 +3685,6 @@ return (
     )}
   </div>
 );
+}
 
 export default App;
