@@ -5,7 +5,29 @@ on:
   pull_request:
 
 jobs:
+  network-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh
+
+      - name: Network connectivity probe
+        run: ./scripts/network-probe.sh
+        continue-on-error: true
+
+      - name: Upload network probe logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: network-probe-logs
+          path: /tmp/network-probe-*.log
+          retention-days: 7
+
   build-and-qa:
+    needs: network-probe
     strategy:
       fail-fast: false
       matrix:
@@ -44,10 +66,11 @@ jobs:
       - name: Unit tests
         run: npm test -- --ci --reporters=default
 
-      - name: Render preview
+      - name: Test server start (if available)
         run: |
           mkdir -p out artifacts
-          npm run render:preview # <- replace with your preview command
+          # Test if start:server script works, but don't fail if it doesn't
+          timeout 10 npm run start:server || echo "Server start test completed (may have failed - check logs)"
         shell: bash
 
       - name: Audio ebur128

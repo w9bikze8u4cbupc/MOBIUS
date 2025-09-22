@@ -10,6 +10,7 @@
     "verify": "node scripts/verify.mjs",
     "test-pipeline": "npm run compile-shotlist && npm run verify && npm run bind-alignment",
     "test": "jest",
+    "start:server": "node src/api/index.js",
     "gen:shotlists": "node scripts/compile-shotlist.mjs gigs/hanamikoji.json > tmp/shotlist.json",
     "gen:timelines": "echo 'Generating timelines...'",
     "render:proxy": "node scripts/render-ffmpeg.mjs tmp/timeline.json assets out/preview.mp4 --preview",
