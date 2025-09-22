@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import axios from "axios";
+import fetchJson from "./utils/fetchJson";
 import ReactMarkdown from "react-markdown";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.entry";
@@ -284,18 +284,24 @@ function App() {
         setAudioLoading(prev => ({ ...prev, [idx]: true })); // Set loading for this section
 
         try {
-          const res = await axios.post(
+          const arrayBuffer = await fetchJson(
             `${BACKEND_URL}/tts`,
-            { text: ttsText, voice, language, gameName }, // Send language and voice ID
-            { responseType: "arraybuffer" } // Receive audio data as array buffer
+            {
+              method: 'POST',
+              body: { text: ttsText, voice, language, gameName },
+              responseType: 'arrayBuffer',
+              timeout: 10000,
+              retries: 3,
+              context: { area: 'tts', action: 'generate' }
+            }
           );
-          const blob = new Blob([res.data], { type: "audio/mpeg" });
+          const blob = new Blob([arrayBuffer], { type: "audio/mpeg" });
           const url = URL.createObjectURL(blob); // Create a temporary URL for the audio blob
           // Update audio state for this specific section
           setAudio(prev => ({ ...prev, [idx]: url }));
           return url; // Return the URL
         } catch (err) {
-          console.error(`Failed to generate audio for section ${idx}:`, err.response?.data?.error || err.message);
+          console.error(`Failed to generate audio for section ${idx}:`, err.response || err.message);
           // Handle errors for individual sections, maybe set an error state for this section?
           // setSectionError(prev => ({ ...prev, [idx]: 'Error generating audio' }));
           return null; // Return null on error
@@ -310,7 +316,7 @@ function App() {
 
     } catch (err) {
       // Catch errors from Promise.all if any promise rejected
-      setError(err.response?.data?.error || "Failed to save and generate audio");
+      setError(err.response || "Failed to save and generate audio");
     } finally {
       setLoading(false);
     }
@@ -345,37 +351,43 @@ function App() {
     try {
       console.log(`Sending rulebookText length: ${rulebookText.length} to backend for summarization.`);
       // Make the POST request to the backend's summarize endpoint
-      const response = await axios.post(`${BACKEND_URL}/summarize`, {
-        rulebookText,
-        language, // Send the requested output language ('english' or 'french')
-        gameName,
-        metadata, // Send the current metadata state
-        detailPercentage // Send the detail percentage
-      });
+      const response = await fetchJson(`${BACKEND_URL}/summarize`, {
+        method: 'POST',
+        body: {
+          rulebookText,
+          language,
+          gameName,
+          metadata,
+          detailPercentage
+        },
+        timeout: 15000,
+        retries: 2,
+        context: { area: 'summarize', action: 'generate' }
+      });
 
       // Handle the backend response
       console.log('Received response from backend /summarize.');
-      console.log('Received summary length:', response.data?.summary?.length);
+      console.log('Received summary length:', response?.summary?.length);
 
 
-      if (response.data.needsTheme) {
+      if (response.needsTheme) {
         // If backend needs theme, update metadata and show the prompt
         console.log('Backend requested theme.');
-        setMetadata(response.data.metadata); // Update metadata (should include 'Not found' theme)
+        setMetadata(response.metadata); // Update metadata (should include 'Not found' theme)
         setShowThemePrompt(true); // Show the modal
-      } else if (response.data.summary) {
+      } else if (response.summary) {
         // If summary is received, update state
-        const generatedSummary = response.data.summary;
+        const generatedSummary = response.summary;
         setSummary(generatedSummary); // This will trigger the effect to set editedSummary and sections
-        setMetadata(response.data.metadata); // Update metadata based on backend response
+        setMetadata(response.metadata); // Update metadata based on backend response
 
         // Check for translation warnings/errors from the backend
-        if (response.data.warning) {
+        if (response.warning) {
           setTranslationStatus({
             isTranslating: false, // Not currently translating, this is a past warning
-            error: response.data.warning // Display the warning message
+            error: response.warning // Display the warning message
           });
-          console.warn('Backend translation warning:', response.data.warning);
+          console.warn('Backend translation warning:', response.warning);
         } else {
           // Clear any previous translation warnings if successful
           setTranslationStatus({ isTranslating: false, error: null });
@@ -384,25 +396,25 @@ function App() {
       } else {
         // Handle cases where no summary or needsTheme is in the response
         setError("Backend returned an unexpected response.");
-        console.error("Unexpected backend response:", response.data);
+        console.error("Unexpected backend response:", response);
         setTranslationStatus({ isTranslating: false, error: null }); // Clear translation status on unexpected response
 
       }
 
     } catch (err) {
-      // Handle errors from the axios request (e.g., network error, 500 status)
+      // Handle errors from the fetchJson request (e.g., network error, 500 status)
       console.error('Error during summarization request:', err);
-      setError(err.response?.data?.error || `Failed to generate summary: ${err.message}`);
+      setError(err.response || `Failed to generate summary: ${err.message}`);
 
       // Check for specific backend errors related to translation failure
-      if (err.response?.data?.fallbackLanguage) {
+      if (err.context?.fallbackLanguage) {
         setTranslationStatus({
           isTranslating: false, // Not currently translating
-          error: `Translation failed. Showing ${err.response.data.fallbackLanguage} version. Details: ${err.response.data.error}`
+          error: `Translation failed. Showing ${err.context.fallbackLanguage} version. Details: ${err.message}`
         });
         // Optionally set the received fallback summary if provided
-        if (err.response.data.summary) {
-          setSummary(err.response.data.summary); // This will trigger useEffect to update editedSummary/sections
+        if (err.context?.summary) {
+          setSummary(err.context?.summary); // This will trigger useEffect to update editedSummary/sections
         }
 
       } else {
@@ -488,14 +500,20 @@ function App() {
 
       console.log(`Generating audio for section ${idx} (text length: ${ttsText.length})`);
       // Make POST request to the backend's TTS endpoint
-      const res = await axios.post(
+      const arrayBuffer = await fetchJson(
         `${BACKEND_URL}/tts`,
-        { text: ttsText, voice, language, gameName }, // Send text, selected voice ID, language, and game name
-        { responseType: "arraybuffer" } // Expect audio data as array buffer
+        {
+          method: 'POST',
+          body: { text: ttsText, voice, language, gameName },
+          responseType: 'arrayBuffer',
+          timeout: 10000,
+          retries: 3,
+          context: { area: 'tts', action: 'generate' }
+        }
       );
 
       // Create a Blob from the audio data and a URL for the Blob
-      const blob = new Blob([res.data], { type: "audio/mpeg" });
+      const blob = new Blob([arrayBuffer], { type: "audio/mpeg" });
       const url = URL.createObjectURL(blob);
 
       // Revoke previous Blob URL for this section if it exists to free up memory
@@ -515,7 +533,7 @@ function App() {
 
     } catch (err) {
       console.error(`Error generating audio for section ${idx}:`, err);
-      setError(err.response?.data?.error || `Failed to generate audio for section ${idx}.`);
+      setError(err.response || `Failed to generate audio for section ${idx}.`);
     } finally {
       setAudioLoading(prev => ({ ...prev, [idx]: false })); // Turn off loading state for this section
     }
