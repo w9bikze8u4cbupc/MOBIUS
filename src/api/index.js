@@ -890,7 +890,7 @@ async function extractImagesFromUrl(url, apiKey, mode = 'basic') {
   const extractionId = startResult.data.id;
 
   // 2. Poll for completion
-  let status = startRes.data.data.status;
+  let status = pollResult.data.status;
   let images = [];
   let attempts = 0;
   while (status !== 'done' && status !== 'failed' && attempts < 20) {
@@ -902,7 +902,7 @@ async function extractImagesFromUrl(url, apiKey, mode = 'basic') {
       errorContext: { area: 'images', action: 'pollExtraction' }
     });
     status = pollResult.data.status;
-    images = pollRes.data.data.images || [];
+    images = pollResult.data.images || [];
     attempts++;
   }
 
@@ -1790,14 +1790,18 @@ app.post('/api/extract-bgg-html', async (req, res) => {
     // Fallback to your existing HTML scraping + OpenAI approach
     console.log('🔄 Trying HTML scraping + OpenAI...');
     
-    const { data: html } = await fetchJson(url, {
+    const html = await fetchJson(url, {
+      method: 'GET',
       headers: { 
         'User-Agent': 'BoardGameTutorialGenerator/1.0',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
         'Connection': 'keep-alive'
       },
-      timeout: 15000
+      timeout: 15000,
+      responseType: 'text',
+      expectedStatuses: [200],
+      errorContext: { area: 'bgg', action: 'fetchHTML' }
     });
 
     console.log("HTML length:", html.length);  
@@ -1998,24 +2002,26 @@ app.post('/tts', async (req, res) => {
   } catch (error) {
     console.error('TTS error:', error);
     
-    if (error.response) {
-      console.error('ElevenLabs Error Details:', {
-        status: error.response.status,
-        data: error.response.data.toString()
+    // Handle fetchJson errors which don't have response object like axios
+    console.error('ElevenLabs Error:', error.message);
+    
+    if (error.message.includes('HTTP 401')) {
+      return res.status(400).json({
+        error: 'ElevenLabs authentication failed. Please check your API key.',
       });
-      
-      if (error.response.status === 401 && error.response.data.toString().includes('quota_exceeded')) {
-        return res.status(400).json({
-          error: 'ElevenLabs quota exceeded. Please check your subscription or try again later.',
-        });
-      }
-      
-      if (error.response.status === 400) {
-        return res.status(400).json({
-          error: 'ElevenLabs processing error: ' + error.response.data.toString(),
-          details: error.message
-        });
-      }
+    }
+    
+    if (error.message.includes('quota_exceeded')) {
+      return res.status(400).json({
+        error: 'ElevenLabs quota exceeded. Please check your subscription or try again later.',
+      });
+    }
+    
+    if (error.message.includes('HTTP 400')) {
+      return res.status(400).json({
+        error: 'ElevenLabs processing error: ' + error.message,
+        details: error.message
+      });
     }
     
     res.status(500).json({ error: 'Failed to generate audio', details: error.message });
@@ -2212,8 +2218,12 @@ app.post('/fetch-bgg-images', async (req, res) => {
     
     // Search for the game on BGG
     const searchUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(gameName)}&type=boardgame`;
-    const searchResponse = await fetchJson(searchUrl);
-    const searchData = searchResponse.data;
+    const searchData = await fetchJson(searchUrl, {
+      method: 'GET',
+      responseType: 'xml',
+      expectedStatuses: [200],
+      errorContext: { area: 'bgg', action: 'searchGames' }
+    });
 
     // Parse XML to find game ID
     const gameMatch = searchData.match(/<item[^>]*id="(\d+)"[^>]*>/);
@@ -2226,8 +2236,12 @@ app.post('/fetch-bgg-images', async (req, res) => {
 
     // Get game details including images
     const gameUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}`;
-    const gameResponse = await fetchJson(gameUrl);
-    const gameData = gameResponse.data;
+    const gameData = await fetchJson(gameUrl, {
+      method: 'GET',
+      responseType: 'xml',
+      expectedStatuses: [200],
+      errorContext: { area: 'bgg', action: 'fetchGameDetails' }
+    });
 
     // Extract image URLs from the XML
     const imageUrls = [];
@@ -2268,13 +2282,18 @@ app.post('/fetch-bgg-images', async (req, res) => {
     for (let i = 0; i < imageUrls.length; i++) {
       try {
         const { url, type } = imageUrls[i];
-        const response = await fetchJson(url, { responseType: 'stream' });
+        const response = await fetchJson(url, { 
+          method: 'GET',
+          responseType: 'stream',
+          expectedStatuses: [200],
+          errorContext: { area: 'images', action: 'downloadImage' }
+        });
         
         const filename = `bgg_${gameName.replace(/[^a-zA-Z0-9]/g, '_')}_${type}_${i + 1}.jpg`;
         const filepath = path.join(OUTPUT_DIR, filename);
         
         const writer = fs.createWriteStream(filepath);
-        response.data.pipe(writer);
+        response.pipe(writer);
 
         await new Promise((resolve, reject) => {
           writer.on('finish', resolve);
@@ -2409,9 +2428,13 @@ app.post('/start-extraction', async (req, res) => {
       const detailUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}&type=boardgame&stats=1`;  
       console.log(`Fetching game details: ${detailUrl}`);  
     
-      const response = await fetchJson(detailUrl, {  
+      const xmlData = await fetchJson(detailUrl, {  
+        method: 'GET',
         timeout: 10000,  
-        headers: { 'User-Agent': 'BoardGameTutorialGenerator/1.0' }  
+        headers: { 'User-Agent': 'BoardGameTutorialGenerator/1.0' },
+        responseType: 'xml',
+        expectedStatuses: [200],
+        errorContext: { area: 'bgg', action: 'fetchMetadata' }
       });  
     
       const parser = new XMLParser({  
@@ -2419,7 +2442,7 @@ app.post('/start-extraction', async (req, res) => {
         attributeNamePrefix: "@_"  
       });  
     
-      const data = parser.parse(response.data);  
+      const data = parser.parse(xmlData);  
       const game = data.items?.item;  
     
       if (!game) {  
@@ -2499,8 +2522,12 @@ app.post('/start-extraction', async (req, res) => {
       // **NEW: Use robust BGG component extraction as source of truth**
       try {
         // Call your new BGG extraction endpoint
-        const bggExtractionResponse = await fetchJson(`http://localhost:${port}/api/bgg-components?url=${encodeURIComponent(bggUrl)}`);
-        const extractedComponents = bggExtractionResponse.data.components || [];
+        const bggExtractionResult = await fetchJson(`http://localhost:${port}/api/bgg-components?url=${encodeURIComponent(bggUrl)}`, {
+          method: 'GET',
+          expectedStatuses: [200],
+          errorContext: { area: 'bgg', action: 'extractComponents' }
+        });
+        const extractedComponents = bggExtractionResult.components || [];
 
         // Convert to the format expected by your frontend
         components = extractedComponents.map(componentName => ({
@@ -2643,8 +2670,12 @@ app.post('/api/extract-bgg-html', async (req, res) => {
     }
 
     // Fetch the HTML
-    const { data: html } = await fetchJson(url, {
-      headers: { 'User-Agent': 'BoardGameTutorialGenerator/1.0' }
+    const html = await fetchJson(url, {
+      method: 'GET',
+      headers: { 'User-Agent': 'BoardGameTutorialGenerator/1.0' },
+      responseType: 'text',
+      expectedStatuses: [200],
+      errorContext: { area: 'bgg', action: 'extractMetadata' }
     });
 
     const $ = cheerio.load(html);
