@@ -13,12 +13,11 @@
     "gen:shotlists": "node scripts/compile-shotlist.mjs gigs/hanamikoji.json > tmp/shotlist.json",
     "gen:timelines": "echo 'Generating timelines...'",
     "render:proxy": "node scripts/render-ffmpeg.mjs tmp/timeline.json assets out/preview.mp4 --preview",
-    "golden:check": "node scripts/golden-check.mjs",
+    "golden:check": "npm run golden:check:sushi && npm run golden:check:loveletter",
     "golden:update:sushi": "node scripts/generate_golden.js --game \"Sushi Go\" --in \"out/sushi-go/preview.mp4\" --out \"tests/golden/sushi-go\" --frames \"5,10,20\"",
     "golden:update:loveletter": "node scripts/generate_golden.js --game \"Love Letter\" --in \"out/love-letter/preview.mp4\" --out \"tests/golden/love-letter\" --frames \"5,10,20\"",
     "golden:check:sushi": "node scripts/check_golden.js --game \"Sushi Go\" --in \"out/sushi-go/preview.mp4\" --golden \"tests/golden/sushi-go\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\"",
     "golden:check:loveletter": "node scripts/check_golden.js --game \"Love Letter\" --in \"out/love-letter/preview.mp4\" --golden \"tests/golden/love-letter\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\"",
-    "golden:check": "npm run golden:check:sushi && npm run golden:check:loveletter",
     "golden:approve": "npm run golden:update:sushi && npm run golden:update:loveletter",
     "golden:check-with-junit": "node scripts/check_golden.js --game \"Hanamikoji\" --in \"out/preview.mp4\" --golden \"tests/golden/hanamikoji\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\" --junit tests/reports/hanamikoji.xml",
     "golden:update": "node scripts/generate_golden.js",
@@ -35,7 +34,19 @@
   "author": "Mobius Games",
   "license": "MIT",
   "dependencies": {
-    "typescript": "^5.0.0"
+    "cheerio": "^1.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "fast-xml-parser": "^5.2.5",
+    "fs-extra": "^11.3.2",
+    "multer": "^2.0.2",
+    "openai": "^5.22.0",
+    "pdf-parse": "^1.1.1",
+    "pdf-to-img": "^5.0.0",
+    "sharp": "^0.34.4",
+    "typescript": "^5.0.0",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
@@ -52,7 +63,9 @@
     ],
     "testMatch": [
       "**/__tests__/**/*.ts",
-      "**/?(*.)+(spec|test).ts"
+      "**/__tests__/**/*.js",
+      "**/?(*.)+(spec|test).ts",
+      "**/?(*.)+(spec|test).js"
     ],
     "transform": {
       "^.+\\.tsx?$": "ts-jest"

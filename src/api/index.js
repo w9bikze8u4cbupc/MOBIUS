@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import db from './db.js';
 import dotenv from 'dotenv';
-import axios from 'axios';
+import { fetchJson } from '../utils/fetchJson.js';
 import * as cheerio from 'cheerio';
 import OpenAI from 'openai';
 import * as pdfToImg from 'pdf-to-img';
@@ -193,9 +193,10 @@ async function extractBGGMetadataFromAPI(gameId) {
     console.log('🔗 Fetching from BGG API for game ID:', gameId);  
       
     const url = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}&stats=1`;  
-    const { data: xml } = await axios.get(url, {  
-      headers: { 'User-Agent': 'BoardGameTutorialGenerator/1.0' },  
-      timeout: 10000  
+    const xml = await fetchJson(url, {  
+      responseType: 'xml',
+      timeout: 10000,
+      context: { area: 'bgg', action: 'fetchGameXML', gameId }
     });  
   
     const parser = new xml2js.Parser({ explicitArray: false });  
@@ -335,8 +336,12 @@ app.get('/api/bgg-components', async (req, res) => {
     }
 
     const apiUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}`;
-    const response = await axios.get(apiUrl, { timeout: 8000 });
-    const parsed = await xml2js.parseStringPromise(response.data, { explicitArray: false });
+    const xml = await fetchJson(apiUrl, { 
+      responseType: 'xml',
+      timeout: 8000,
+      context: { area: 'bgg', action: 'fetchComponents', gameId }
+    });
+    const parsed = await xml2js.parseStringPromise(xml, { explicitArray: false });
     
     const item = parsed.items.item;
     const description = item.description || '';
@@ -870,34 +875,32 @@ app.post('/api/extract-components', async (req, res) => {
 async function extractImagesFromUrl(url, apiKey, mode = 'basic') {
   console.log('extractImagesFromUrl called for:', url);
   // 1. Start extraction
-  const startRes = await axios.post(
+  const startRes = await fetchJson(
     'https://api.extract.pics/v0/extractions',
-    { url, mode },
     {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      }
+      method: 'POST',
+      body: { url, mode },
+      authToken: apiKey,
+      context: { area: 'imageExtraction', action: 'start', url }
     }
   );
-  const extractionId = startRes.data.data.id;
+  const extractionId = startRes.data.id;
 
   // 2. Poll for completion
-  let status = startRes.data.data.status;
+  let status = startRes.data.status;
   let images = [];
   let attempts = 0;
   while (status !== 'done' && status !== 'failed' && attempts < 20) {
     await new Promise(res => setTimeout(res, 2000)); // wait 2 seconds
-    const pollRes = await axios.get(
+    const pollRes = await fetchJson(
       `https://api.extract.pics/v0/extractions/${extractionId}`,
       {
-        headers: {
-          Authorization: `Bearer ${apiKey}`
-        }
+        authToken: apiKey,
+        context: { area: 'imageExtraction', action: 'poll', extractionId }
       }
     );
-    status = pollRes.data.data.status;
-    images = pollRes.data.data.images || [];
+    status = pollRes.data.status;
+    images = pollRes.data.images || [];
     attempts++;
   }
 
@@ -1067,9 +1070,12 @@ async function fetchBGGData(bggUrl) {
     const bggId = bggIdMatch[1];
     const apiUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${bggId}&stats=1`;
     
-    const response = await axios.get(apiUrl);
+    const xml = await fetchJson(apiUrl, {
+      responseType: 'xml',
+      context: { area: 'bgg', action: 'fetchGameMeta', bggId }
+    });
     const parser = new xml2js.Parser();
-    const result = await parser.parseStringPromise(response.data);
+    const result = await parser.parseStringPromise(xml);
     
     const item = result.items.item[0];
     
@@ -1779,14 +1785,15 @@ app.post('/api/extract-bgg-html', async (req, res) => {
     // Fallback to your existing HTML scraping + OpenAI approach
     console.log('🔄 Trying HTML scraping + OpenAI...');
     
-    const { data: html } = await axios.get(url, {
+    const html = await fetchJson(url, {
+      responseType: 'text',
       headers: { 
-        'User-Agent': 'BoardGameTutorialGenerator/1.0',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
         'Connection': 'keep-alive'
       },
-      timeout: 15000
+      timeout: 15000,
+      context: { area: 'bgg', action: 'scrapeHTML', url }
     });
 
     console.log("HTML length:", html.length);  
@@ -1964,15 +1971,16 @@ app.post('/tts', async (req, res) => {
   
   try {
     console.log(`Generating TTS for text length ${text.length} in ${language} with voice ${voice}`);
-    const response = await axios.post(
+    const audioBuffer = await fetchJson(
       `https://api.elevenlabs.io/v1/text-to-speech/${voice}`,
-      { text, model_id: 'eleven_multilingual_v2' },
       {
+        method: 'POST',
+        body: { text, model_id: 'eleven_multilingual_v2' },
         headers: {
           'xi-api-key': process.env.ELEVENLABS_API_KEY,
-          'Content-Type': 'application/json'
         },
-        responseType: 'arraybuffer',
+        responseType: 'arrayBuffer',
+        context: { area: 'tts', action: 'generate', voice, textLength: text.length }
       }
     );
     
@@ -1980,7 +1988,7 @@ app.post('/tts', async (req, res) => {
     await ensureDir(gameDir);
     
     const audioPath = path.join(gameDir, `audio_section_${language}_${Date.now()}.mp3`);
-    await fsPromises.writeFile(audioPath, response.data); // ✅ Fixed
+    await fsPromises.writeFile(audioPath, Buffer.from(audioBuffer)); // ✅ Fixed
     
     console.log('Audio saved to:', audioPath);
     res.type('audio/mpeg').send(response.data);
@@ -2201,8 +2209,11 @@ app.post('/fetch-bgg-images', async (req, res) => {
     
     // Search for the game on BGG
     const searchUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(gameName)}&type=boardgame`;
-    const searchResponse = await axios.get(searchUrl);
-    const searchData = searchResponse.data;
+    const searchResponse = await fetchJson(searchUrl, {
+      responseType: 'xml',
+      context: { area: 'bgg', action: 'searchGame', gameName }
+    });
+    const searchData = searchResponse;
 
     // Parse XML to find game ID
     const gameMatch = searchData.match(/<item[^>]*id="(\d+)"[^>]*>/);
@@ -2215,8 +2226,11 @@ app.post('/fetch-bgg-images', async (req, res) => {
 
     // Get game details including images
     const gameUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}`;
-    const gameResponse = await axios.get(gameUrl);
-    const gameData = gameResponse.data;
+    const gameResponse = await fetchJson(gameUrl, {
+      responseType: 'xml', 
+      context: { area: 'bgg', action: 'fetchGameDetails', gameId }
+    });
+    const gameData = gameResponse;
 
     // Extract image URLs from the XML
     const imageUrls = [];
@@ -2257,13 +2271,16 @@ app.post('/fetch-bgg-images', async (req, res) => {
     for (let i = 0; i < imageUrls.length; i++) {
       try {
         const { url, type } = imageUrls[i];
-        const response = await axios.get(url, { responseType: 'stream' });
+        const response = await fetchJson(url, { 
+          responseType: 'stream',
+          context: { area: 'bgg', action: 'downloadImage', url, type }
+        });
         
         const filename = `bgg_${gameName.replace(/[^a-zA-Z0-9]/g, '_')}_${type}_${i + 1}.jpg`;
         const filepath = path.join(OUTPUT_DIR, filename);
         
         const writer = fs.createWriteStream(filepath);
-        response.data.pipe(writer);
+        response.pipe(writer);
 
         await new Promise((resolve, reject) => {
           writer.on('finish', resolve);
@@ -2398,9 +2415,10 @@ app.post('/start-extraction', async (req, res) => {
       const detailUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}&type=boardgame&stats=1`;  
       console.log(`Fetching game details: ${detailUrl}`);  
     
-      const response = await axios.get(detailUrl, {  
-        timeout: 10000,  
-        headers: { 'User-Agent': 'BoardGameTutorialGenerator/1.0' }  
+      const xml = await fetchJson(detailUrl, {  
+        responseType: 'xml',
+        timeout: 10000,
+        context: { area: 'bgg', action: 'extractGameInfo', gameId }
       });  
     
       const parser = new XMLParser({  
@@ -2408,7 +2426,7 @@ app.post('/start-extraction', async (req, res) => {
         attributeNamePrefix: "@_"  
       });  
     
-      const data = parser.parse(response.data);  
+      const data = parser.parse(xml);  
       const game = data.items?.item;  
     
       if (!game) {  
@@ -2488,8 +2506,10 @@ app.post('/start-extraction', async (req, res) => {
       // **NEW: Use robust BGG component extraction as source of truth**
       try {
         // Call your new BGG extraction endpoint
-        const bggExtractionResponse = await axios.get(`http://localhost:${port}/api/bgg-components?url=${encodeURIComponent(bggUrl)}`);
-        const extractedComponents = bggExtractionResponse.data.components || [];
+        const bggExtractionResponse = await fetchJson(`http://localhost:${port}/api/bgg-components?url=${encodeURIComponent(bggUrl)}`, {
+          context: { area: 'bgg', action: 'extractComponents', bggUrl }
+        });
+        const extractedComponents = bggExtractionResponse.components || [];
 
         // Convert to the format expected by your frontend
         components = extractedComponents.map(componentName => ({
@@ -2632,8 +2652,9 @@ app.post('/api/extract-bgg-html', async (req, res) => {
     }
 
     // Fetch the HTML
-    const { data: html } = await axios.get(url, {
-      headers: { 'User-Agent': 'BoardGameTutorialGenerator/1.0' }
+    const html = await fetchJson(url, {
+      responseType: 'text',
+      context: { area: 'bgg', action: 'fetchHTML', url }
     });
 
     const $ = cheerio.load(html);
