@@ -23,6 +23,10 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Network Probe
+        run: ./scripts/network-probe.sh
+        continue-on-error: true
+
       - name: Ensure FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2
 
