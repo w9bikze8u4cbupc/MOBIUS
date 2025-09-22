@@ -23,6 +23,13 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Network Probe
+        run: |
+          echo "Testing network connectivity to external APIs..."
+          chmod +x scripts/network-probe.sh
+          ./scripts/network-probe.sh || echo "::warning::Network connectivity issues detected. See troubleshooting guide in pr_body.md"
+        shell: bash
+
       - name: Ensure FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2
 
