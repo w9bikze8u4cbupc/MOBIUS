@@ -187,7 +187,11 @@ async function fetchJson(url, options = {}) {
         if (attempt <= retries) {
           const delay = calculateBackoffDelay(attempt);
           console.warn(`Request failed (attempt ${attempt}/${retries + 1}), retrying in ${delay}ms...`, lastError.message);
-          await sleep(delay);
+          
+          // In test environment, don't actually wait to speed up tests
+          if (typeof jest === 'undefined') {
+            await sleep(delay);
+          }
         }
       }
     }
