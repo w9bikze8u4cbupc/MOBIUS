@@ -1660,14 +1660,13 @@ app.post('/summarize', async (req, res) => {
           Reference the components list for accurate quantities: ${JSON.stringify(components)}
           Walk through setup step-by-step with detailed instructions (e.g., "Shuffle the 40 mission cards thoroughly, then place them face-down in the center")
           Add visual placeholders like "[Overhead shot: Initial board setup]" or "[Animation: Card placement]"
-          Highlight common setup mistakes and how to avoid them`
-          );
+          Highlight common setup mistakes and how to avoid them`;
 
       console.log('Final prompt (truncated):', finalPrompt.slice(0, 500));
       
-// Generate the summary
-console.log('Generating final English script using OpenAI...')
-    const englishSummaryResponse = await openai.chat.completions.create({  
+      // Generate the summary
+      console.log('Generating final English script using OpenAI...');
+      const englishSummaryResponse = await openai.chat.completions.create({  
       model: 'gpt-4',  
       messages: [  
         {  
