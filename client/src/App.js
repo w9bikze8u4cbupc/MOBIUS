@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import axios from "axios";
+import fetchJson from "./utils/fetchJson";
 import ReactMarkdown from "react-markdown";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.entry";
@@ -284,18 +284,24 @@ function App() {
         setAudioLoading(prev => ({ ...prev, [idx]: true })); // Set loading for this section
 
         try {
-          const res = await axios.post(
-            `${BACKEND_URL}/tts`,
-            { text: ttsText, voice, language, gameName }, // Send language and voice ID
-            { responseType: "arraybuffer" } // Receive audio data as array buffer
-          );
-          const blob = new Blob([res.data], { type: "audio/mpeg" });
+          const arrayBuffer = await fetchJson(
+            `${BACKEND_URL}/tts`,
+            {
+              method: "POST",
+              body: { text: ttsText, voice, language, gameName },
+              responseType: "arrayBuffer",
+              timeout: 30000,
+              retries: 2,
+              context: { area: "tts", action: "generate" }
+            }
+          );
+          const blob = new Blob([arrayBuffer], { type: "audio/mpeg" });
           const url = URL.createObjectURL(blob); // Create a temporary URL for the audio blob
           // Update audio state for this specific section
           setAudio(prev => ({ ...prev, [idx]: url }));
           return url; // Return the URL
         } catch (err) {
-          console.error(`Failed to generate audio for section ${idx}:`, err.response?.data?.error || err.message);
+          console.error(`Failed to generate audio for section ${idx}:`, err.context?.error || err.message);
           // Handle errors for individual sections, maybe set an error state for this section?
           // setSectionError(prev => ({ ...prev, [idx]: 'Error generating audio' }));
           return null; // Return null on error
@@ -345,13 +351,19 @@ function App() {
     try {
       console.log(`Sending rulebookText length: ${rulebookText.length} to backend for summarization.`);
       // Make the POST request to the backend's summarize endpoint
-      const response = await axios.post(`${BACKEND_URL}/summarize`, {
+      const response = await fetchJson(`${BACKEND_URL}/summarize`, {
+        method: "POST",
+        body: {
         rulebookText,
         language, // Send the requested output language ('english' or 'french')
         gameName,
         metadata, // Send the current metadata state
         detailPercentage // Send the detail percentage
-      });
+      },
+        timeout: 60000,
+        retries: 2,
+        context: { area: 'summarization', action: 'generate' }
+      });
 
       // Handle the backend response
       console.log('Received response from backend /summarize.');
@@ -390,7 +402,7 @@ function App() {
       }
 
     } catch (err) {
-      // Handle errors from the axios request (e.g., network error, 500 status)
+      // Handle errors from the fetchJson request (e.g., network error, 500 status)
       console.error('Error during summarization request:', err);
       setError(err.response?.data?.error || `Failed to generate summary: ${err.message}`);
 
@@ -488,14 +500,18 @@ function App() {
 
       console.log(`Generating audio for section ${idx} (text length: ${ttsText.length})`);
       // Make POST request to the backend's TTS endpoint
-      const res = await axios.post(
-        `${BACKEND_URL}/tts`,
-        { text: ttsText, voice, language, gameName }, // Send text, selected voice ID, language, and game name
-        { responseType: "arraybuffer" } // Expect audio data as array buffer
-      );
-
-      // Create a Blob from the audio data and a URL for the Blob
-      const blob = new Blob([res.data], { type: "audio/mpeg" });
+          const arrayBuffer = await fetchJson(
+            `${BACKEND_URL}/tts`,
+            {
+              method: "POST",
+              body: { text: ttsText, voice, language, gameName },
+              responseType: "arrayBuffer",
+              timeout: 30000,
+              retries: 2,
+              context: { area: "tts", action: "generate" }
+            }
+          );
+          const blob = new Blob([arrayBuffer], { type: "audio/mpeg" });
       const url = URL.createObjectURL(blob);
 
       // Revoke previous Blob URL for this section if it exists to free up memory
