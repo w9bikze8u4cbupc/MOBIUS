@@ -2417,9 +2417,10 @@ app.post('/start-extraction', async (req, res) => {
       const detailUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}&type=boardgame&stats=1`;  
       console.log(`Fetching game details: ${detailUrl}`);  
     
-      const response = await axios.get(detailUrl, {  
-        timeout: 10000,  
-        headers: { 'User-Agent': 'BoardGameTutorialGenerator/1.0' }  
+      const xmlData = await fetchJson(detailUrl, {  
+        responseType: 'xml',
+        timeout: 10000,
+        context: { area: 'bgg', action: 'fetch_game_details' }  
       });  
     
       const parser = new XMLParser({  
@@ -2427,7 +2428,7 @@ app.post('/start-extraction', async (req, res) => {
         attributeNamePrefix: "@_"  
       });  
     
-      const data = parser.parse(response.data);  
+      const data = parser.parse(xmlData);  
       const game = data.items?.item;  
     
       if (!game) {  
@@ -2507,8 +2508,11 @@ app.post('/start-extraction', async (req, res) => {
       // **NEW: Use robust BGG component extraction as source of truth**
       try {
         // Call your new BGG extraction endpoint
-        const bggExtractionResponse = await axios.get(`http://localhost:${port}/api/bgg-components?url=${encodeURIComponent(bggUrl)}`);
-        const extractedComponents = bggExtractionResponse.data.components || [];
+        const bggExtractionData = await fetchJson(`http://localhost:${port}/api/bgg-components?url=${encodeURIComponent(bggUrl)}`, {
+          timeout: 15000,
+          context: { area: 'bgg', action: 'extract_components' }
+        });
+        const extractedComponents = bggExtractionData.components || [];
 
         // Convert to the format expected by your frontend
         components = extractedComponents.map(componentName => ({
@@ -2651,8 +2655,9 @@ app.post('/api/extract-bgg-html', async (req, res) => {
     }
 
     // Fetch the HTML
-    const { data: html } = await axios.get(url, {
-      headers: { 'User-Agent': 'BoardGameTutorialGenerator/1.0' }
+    const html = await fetchJson(url, {
+      responseType: 'text',
+      context: { area: 'bgg', action: 'scrape_metadata' }
     });
 
     const $ = cheerio.load(html);

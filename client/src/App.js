@@ -284,12 +284,18 @@ function App() {
         setAudioLoading(prev => ({ ...prev, [idx]: true })); // Set loading for this section
 
         try {
-          const res = await axios.post(
-            `${BACKEND_URL}/tts`,
-            { text: ttsText, voice, language, gameName }, // Send language and voice ID
-            { responseType: "arraybuffer" } // Receive audio data as array buffer
-          );
-          const blob = new Blob([res.data], { type: "audio/mpeg" });
+          const arrayBuffer = await fetchJson(
+            `${BACKEND_URL}/tts`,
+            {
+              method: "POST",
+              body: { text: ttsText, voice, language, gameName },
+              responseType: "arrayBuffer",
+              timeout: 30000,
+              retries: 2,
+              context: { area: "tts", action: "generate" }
+            }
+          );
+          const blob = new Blob([arrayBuffer], { type: "audio/mpeg" });
           const url = URL.createObjectURL(blob); // Create a temporary URL for the audio blob
           // Update audio state for this specific section
           setAudio(prev => ({ ...prev, [idx]: url }));
@@ -396,7 +402,7 @@ function App() {
       }
 
     } catch (err) {
-      // Handle errors from the axios request (e.g., network error, 500 status)
+      // Handle errors from the fetchJson request (e.g., network error, 500 status)
       console.error('Error during summarization request:', err);
       setError(err.response?.data?.error || `Failed to generate summary: ${err.message}`);
 
@@ -494,14 +500,18 @@ function App() {
 
       console.log(`Generating audio for section ${idx} (text length: ${ttsText.length})`);
       // Make POST request to the backend's TTS endpoint
-      const res = await axios.post(
-        `${BACKEND_URL}/tts`,
-        { text: ttsText, voice, language, gameName }, // Send text, selected voice ID, language, and game name
-        { responseType: "arraybuffer" } // Expect audio data as array buffer
-      );
-
-      // Create a Blob from the audio data and a URL for the Blob
-      const blob = new Blob([res.data], { type: "audio/mpeg" });
+          const arrayBuffer = await fetchJson(
+            `${BACKEND_URL}/tts`,
+            {
+              method: "POST",
+              body: { text: ttsText, voice, language, gameName },
+              responseType: "arrayBuffer",
+              timeout: 30000,
+              retries: 2,
+              context: { area: "tts", action: "generate" }
+            }
+          );
+          const blob = new Blob([arrayBuffer], { type: "audio/mpeg" });
       const url = URL.createObjectURL(blob);
 
       // Revoke previous Blob URL for this section if it exists to free up memory
