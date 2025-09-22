@@ -127,12 +127,16 @@ async function makeRequest(url, config) {
   }
 
   try {
+    // Use node-fetch for Node.js environment
+    const fetch = (await import('node-fetch')).default;
+    
     const response = await fetch(url, {
       method,
       headers: requestHeaders,
       body: requestBody,
       signal: finalSignal,
-      credentials
+      // Node-fetch specific timeout handling
+      timeout: timeout || 0
     });
 
     if (timeoutId) {
@@ -148,13 +152,16 @@ async function makeRequest(url, config) {
     switch (responseType) {
       case 'text':
         return await response.text();
+      case 'xml':
+        return await response.text(); // Return as text for XML parsing
       case 'arrayBuffer':
         return await response.arrayBuffer();
       case 'stream':
         return response.body;
       case 'json':
       default:
-        return await response.json();
+        const text = await response.text();
+        return text ? JSON.parse(text) : null;
     }
   } catch (error) {
     if (timeoutId) {
