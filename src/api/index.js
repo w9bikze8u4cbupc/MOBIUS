@@ -1681,29 +1681,44 @@ app.post('/summarize', async (req, res) => {
       `;
 
       const finalPrompt =
-      (resummarize && previousSummary)
-      ? englishBasePrompt.replace(
-      'Here is the rulebook text:',
-      `Here is the rulebook text and additional context:
+        (resummarize && previousSummary)
+          ? englishBasePrompt.replace(
+              'Here is the rulebook text:',
+              `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
+      Components List: ${JSON.stringify(components)}
+      **Game Metadata:** ${JSON.stringify(metadata)}
       Previous Summary: ${previousSummary}
 
-      Rulebook Text:        )       : englishBasePrompt           .replace(             'Here is the rulebook text:',            Here is the rulebook text and additional context:
+      Rulebook Text:`
+            )
+          : englishBasePrompt
+              .replace(
+                'Here is the rulebook text:',
+                `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
+      Components List: ${JSON.stringify(components)}
+      **Game Metadata:** ${JSON.stringify(metadata)}
 
-      Rulebook Text:          )           .replace(             'Component Overview:',            Component Overview:
+      Rulebook Text:`
+              )
+              .replace(
+                'Component Overview:',
+                `Component Overview:
 
           Use the provided components list: ${JSON.stringify(components)}
           Provide exact quantities and clear descriptions for each component
           Add visual cues like "[Show close-up of resource tokens]" or "[Display all cards fanned out]"
-          Mention any unique or unusual pieces that distinguish this game        )         .replace(           'Setup:',          Setup:
+          Mention any unique or unusual pieces that distinguish this game`
+              )
+              .replace(
+                'Setup:',
+                `Setup:
           Reference the components list for accurate quantities: ${JSON.stringify(components)}
           Walk through setup step-by-step with detailed instructions (e.g., "Shuffle the 40 mission cards thoroughly, then place them face-down in the center")
           Add visual placeholders like "[Overhead shot: Initial board setup]" or "[Animation: Card placement]"
           Highlight common setup mistakes and how to avoid them`
-          );
+              );
 
       console.log('Final prompt (truncated):', finalPrompt.slice(0, 500));
       
@@ -1714,7 +1729,7 @@ console.log('Generating final English script using OpenAI...')
       messages: [  
         {  
           role: 'system',  
-          content: "YoYou are a master boardgame educator, scriptwriter, and video production consultant for a leading YouTube channel. Your role is to transform complex boardgame rulebooks into clear, engaging, and visually dynamic tutorial scripts. You always write in a friendly, enthusiastic, and conversational style, making the rules accessible for new and casual players while still respecting experienced gamers. You structure every script in logical, easy-to-follow sections, include visual cues and editing notes, and ensure the script is ready for high-quality video production. Your explanations are concise, step-by-step, and always highlight key rules, common mistakes, and tips for success. You never add information not found in the rulebook or provided data, and you always write for spoken delivery.",  
+          content: "You are a master boardgame educator, scriptwriter, and video production consultant for a leading YouTube channel. Your role is to transform complex boardgame rulebooks into clear, engaging, and visually dynamic tutorial scripts. You always write in a friendly, enthusiastic, and conversational style, making the rules accessible for new and casual players while still respecting experienced gamers. You structure every script in logical, easy-to-follow sections, include visual cues and editing notes, and ensure the script is ready for high-quality video production. Your explanations are concise, step-by-step, and always highlight key rules, common mistakes, and tips for success. You never add information not found in the rulebook or provided data, and you always write for spoken delivery.",  
         },  
         { role: 'user', content: finalPrompt }, // Use finalPrompt instead of englishFinalPrompt  
       ],  
