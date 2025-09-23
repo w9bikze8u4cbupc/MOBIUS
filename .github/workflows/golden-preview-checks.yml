@@ -17,6 +17,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Network Connectivity Probe
+        run: |
+          mkdir -p artifacts
+          bash scripts/network-probe.sh artifacts || echo "Network issues detected, continuing with limited functionality"
+        shell: bash
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -68,4 +74,17 @@ jobs:
           path: |
             tests/golden/**/debug/**
             tests/golden/reports/*.xml
+          if-no-files-found: ignore
+
+      - name: Upload Network Diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-diagnostics-golden-${{ matrix.os }}
+          path: |
+            artifacts/network-probe.log
+            artifacts/network-diagnostics.json
+            artifacts/traceroute.log
+            artifacts/dig.log  
+            artifacts/openssl.log
           if-no-files-found: ignore

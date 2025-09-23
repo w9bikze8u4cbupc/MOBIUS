@@ -23,6 +23,7 @@ import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
+import { resilientHttpCall, resilientOpenAICall } from './resilientClient.js';
 
 
 
@@ -193,13 +194,21 @@ async function extractBGGMetadataFromAPI(gameId) {
     console.log('🔗 Fetching from BGG API for game ID:', gameId);  
       
     const url = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}&stats=1`;  
-    const { data: xml } = await axios.get(url, {  
-      headers: { 'User-Agent': 'BoardGameTutorialGenerator/1.0' },  
-      timeout: 10000  
+    const response = await resilientHttpCall({
+      url,
+      method: 'GET',
+      headers: { 'User-Agent': 'BoardGameTutorialGenerator/1.0' },
+      serviceName: 'bgg',
+      action: 'fetch_game_metadata',
+      timeout: 10000,
+      mockResponse: { 
+        data: `<items><item id="${gameId}"><name value="Mock Game"/><description>Mock game description</description></item></items>`
+      }
     });  
+    const xml = response.data;
   
     const parser = new xml2js.Parser({ explicitArray: false });  
-    const result = await parser.parseStringPromise(xml);  
+    const result = await parser.parseStringPromise(xml);    
       
     if (!result.items || !result.items.item) {  
       throw new Error('Game not found in BGG API');  
@@ -990,15 +999,20 @@ async function extractMetadata(rulebookText) {
   
   try {
     console.log('Extracting metadata...');
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: 'You are a precise metadata extractor.' },
-        { role: 'user', content: prompt },
-      ],
-      max_tokens: 500,
-      temperature: 0.5,
-    });
+    const response = await resilientOpenAICall(
+      openai,
+      'chat.completions.create',
+      {
+        model: 'gpt-4',
+        messages: [
+          { role: 'system', content: 'You are a precise metadata extractor.' },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 500,
+        temperature: 0.5,
+      },
+      'extract_metadata'
+    );
     
     const metadata = JSON.parse(response.choices[0].message.content.trim());
     return metadata;

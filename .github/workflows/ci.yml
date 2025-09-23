@@ -20,6 +20,12 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Network Connectivity Probe
+        run: |
+          mkdir -p artifacts
+          bash scripts/network-probe.sh artifacts || echo "Network issues detected, continuing with limited functionality"
+        shell: bash
+
       - name: Install deps
         run: npm ci
 
@@ -92,3 +98,16 @@ jobs:
           path: |
             artifacts/**
             out/preview_with_audio.mp4
+
+      - name: Upload Network Diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-diagnostics-${{ matrix.os }}
+          path: |
+            artifacts/network-probe.log
+            artifacts/network-diagnostics.json
+            artifacts/traceroute.log
+            artifacts/dig.log
+            artifacts/openssl.log
+          if-no-files-found: ignore

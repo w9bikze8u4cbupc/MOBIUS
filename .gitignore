@@ -64,6 +64,14 @@ coverage/
 tests/golden/**/debug/
 tests/golden/reports/
 
+# Network diagnostics artifacts
+artifacts/
+network-probe.log
+network-diagnostics.json
+traceroute.log
+dig.log
+openssl.log
+
 # Node.js dependencies
 node_modules/
 
