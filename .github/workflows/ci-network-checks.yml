@@ -1,0 +1,231 @@
+name: Network Connectivity Monitoring
+
+on:
+  # Run on every push and PR to catch network issues early
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  
+  # Scheduled runs every 6 hours to monitor network health
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  
+  # Allow manual triggering for debugging
+  workflow_dispatch:
+    inputs:
+      mock_mode:
+        description: 'Run in mock mode (skip actual network tests)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  network-probe:
+    name: Network Connectivity Check
+    strategy:
+      fail-fast: false  # Continue with other platforms even if one fails
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    
+    runs-on: ${{ matrix.os }}
+    
+    # Continue pipeline even if network tests fail (non-blocking)
+    continue-on-error: true
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      # Network probe execution with platform-specific handling
+      - name: Run network probe (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          MOCK_OPENAI: ${{ github.event.inputs.mock_mode == 'true' && 'true' || 'false' }}
+          MOCK_ELEVENLABS: ${{ github.event.inputs.mock_mode == 'true' && 'true' || 'false' }}
+          MOCK_BGG: ${{ github.event.inputs.mock_mode == 'true' && 'true' || 'false' }}
+          MOCK_EXTRACT_PICS: ${{ github.event.inputs.mock_mode == 'true' && 'true' || 'false' }}
+        run: |
+          chmod +x scripts/network-probe.sh
+          ./scripts/network-probe.sh || echo "Network probe completed with issues (non-blocking)"
+      
+      - name: Run network probe (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          MOCK_OPENAI: ${{ github.event.inputs.mock_mode == 'true' && 'true' || 'false' }}
+          MOCK_ELEVENLABS: ${{ github.event.inputs.mock_mode == 'true' && 'true' || 'false' }}
+          MOCK_BGG: ${{ github.event.inputs.mock_mode == 'true' && 'true' || 'false' }}
+          MOCK_EXTRACT_PICS: ${{ github.event.inputs.mock_mode == 'true' && 'true' || 'false' }}
+        run: |
+          # Windows PowerShell execution
+          bash scripts/network-probe.sh
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Network probe completed with issues (non-blocking)"
+          }
+      
+      # Upload all network diagnostic artifacts
+      - name: Upload network diagnostic artifacts
+        uses: actions/upload-artifact@v4
+        if: always()  # Upload artifacts even if tests fail
+        with:
+          name: network-diagnostics-${{ matrix.os }}-${{ github.run_id }}
+          path: |
+            scripts/network-diagnostics.json
+            scripts/network-probe.log
+            scripts/traceroute.log
+            scripts/dig.log
+            scripts/openssl.log
+          retention-days: 7
+      
+      # Post PR comment if network issues detected
+      - name: Check network test results
+        id: network-check
+        if: always()
+        shell: bash
+        run: |
+          if [ -f scripts/network-diagnostics.json ]; then
+            # Check if there are any failures
+            FAILED_COUNT=$(grep -o '"failed":[0-9]*' scripts/network-diagnostics.json | cut -d':' -f2 || echo "0")
+            echo "failed_count=$FAILED_COUNT" >> $GITHUB_OUTPUT
+            
+            # Extract failed endpoints for detailed reporting
+            if [ "$FAILED_COUNT" -gt 0 ]; then
+              echo "network_issues=true" >> $GITHUB_OUTPUT
+              
+              # Create summary of failures
+              SUMMARY="Network connectivity issues detected on ${{ matrix.os }}:\n"
+              if command -v jq > /dev/null; then
+                SUMMARY="${SUMMARY}$(jq -r '.results[] | select(.overall_status=="failed") | "- " + .name + ": " + (.tests | to_entries[] | select(.value.status=="failed") | .key) | @sh' scripts/network-diagnostics.json 2>/dev/null || echo "- Check artifacts for details")"
+              else
+                SUMMARY="${SUMMARY}- Check uploaded artifacts for detailed diagnostics"
+              fi
+              echo "failure_summary<<EOF" >> $GITHUB_OUTPUT
+              echo -e "$SUMMARY" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            else
+              echo "network_issues=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "network_issues=false" >> $GITHUB_OUTPUT
+            echo "failed_count=0" >> $GITHUB_OUTPUT
+          fi
+      
+      # Comment on PR with network issues (only on PR events)
+      - name: Comment on PR with network issues
+        if: github.event_name == 'pull_request' && steps.network-check.outputs.network_issues == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            
+            const comment = `## 🚨 Network Connectivity Issues Detected
+            
+            **Platform:** ${{ matrix.os }}
+            **Failed Tests:** ${{ steps.network-check.outputs.failed_count }}
+            
+            ${{ steps.network-check.outputs.failure_summary }}
+            
+            ### Quick Diagnostics
+            From the failing runner, try these commands:
+            \`\`\`bash
+            # Check DNS resolution
+            dig +short api.openai.com
+            nslookup api.elevenlabs.io
+            
+            # Test TCP connectivity  
+            nc -vz api.openai.com 443
+            nc -vz boardgamegeek.com 443
+            
+            # Test HTTPS connectivity
+            curl -v --max-time 10 https://api.openai.com/v1/models
+            curl -v --max-time 10 https://extract.pics
+            
+            # Test TLS handshake
+            echo "Q" | openssl s_client -connect api.openai.com:443 -servername api.openai.com
+            
+            # Network tracing (if available)
+            traceroute api.openai.com  # Linux/macOS
+            tracert api.openai.com     # Windows
+            \`\`\`
+            
+            ### 📋 Troubleshooting Checklist
+            - [ ] Check VPC/NAT gateway egress rules
+            - [ ] Verify security group outbound rules (ports 80, 443)
+            - [ ] Check corporate firewall/proxy settings
+            - [ ] Verify DNS resolver configuration
+            - [ ] Check for TLS inspection/corporate CA issues
+            - [ ] Review IP allowlists with service providers
+            
+            **Artifacts:** Download network diagnostic artifacts from this workflow run for detailed analysis.
+            
+            > This is a non-blocking check. The main build will continue regardless of network connectivity issues.`;
+            
+            github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: comment
+            });
+
+  # Summary job to report overall network health
+  network-summary:
+    name: Network Health Summary
+    if: always()
+    needs: network-probe
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: network-artifacts
+      
+      - name: Generate network health summary
+        shell: bash
+        run: |
+          echo "# Network Connectivity Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Count platforms and issues
+          TOTAL_PLATFORMS=0
+          FAILED_PLATFORMS=0
+          
+          for artifact_dir in network-artifacts/network-diagnostics-*; do
+            if [ -d "$artifact_dir" ]; then
+              TOTAL_PLATFORMS=$((TOTAL_PLATFORMS + 1))
+              platform=$(basename "$artifact_dir" | sed 's/network-diagnostics-//' | sed 's/-[0-9]*$//')
+              
+              if [ -f "$artifact_dir/network-diagnostics.json" ]; then
+                failed_count=$(grep -o '"failed":[0-9]*' "$artifact_dir/network-diagnostics.json" | cut -d':' -f2 || echo "0")
+                if [ "$failed_count" -gt 0 ]; then
+                  FAILED_PLATFORMS=$((FAILED_PLATFORMS + 1))
+                  echo "- ❌ **$platform**: $failed_count endpoints failed" >> $GITHUB_STEP_SUMMARY
+                else
+                  echo "- ✅ **$platform**: All endpoints healthy" >> $GITHUB_STEP_SUMMARY
+                fi
+              else
+                echo "- ⚠️ **$platform**: No diagnostic data available" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          done
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Summary:** $FAILED_PLATFORMS/$TOTAL_PLATFORMS platforms with network issues" >> $GITHUB_STEP_SUMMARY
+          
+          if [ $FAILED_PLATFORMS -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Action Required:** Review network connectivity issues in the artifacts." >> $GITHUB_STEP_SUMMARY
+            echo "Check firewall rules, DNS configuration, and service provider connectivity." >> $GITHUB_STEP_SUMMARY
+          fi

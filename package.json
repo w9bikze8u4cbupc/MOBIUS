@@ -23,7 +23,9 @@
     "golden:check-with-junit": "node scripts/check_golden.js --game \"Hanamikoji\" --in \"out/preview.mp4\" --golden \"tests/golden/hanamikoji\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\" --junit tests/reports/hanamikoji.xml",
     "golden:update": "node scripts/generate_golden.js",
     "golden:check:junit": "node scripts/check_golden.js --junit tests/golden/reports/junit.xml",
-    "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\""
+    "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\"",
+    "network:probe": "bash scripts/network-probe.sh",
+    "network:test": "MOCK_OPENAI=true MOCK_ELEVENLABS=true MOCK_BGG=true MOCK_EXTRACT_PICS=true bash scripts/network-probe.sh"
   },
   "keywords": [
     "game",

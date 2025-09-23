@@ -70,6 +70,13 @@ node_modules/
 # Log files
 *.log
 
+# Network diagnostic artifacts
+scripts/network-*.log
+scripts/network-diagnostics.json
+scripts/traceroute.log
+scripts/dig.log
+scripts/openssl.log
+
 # OS generated files
 .DS_Store
 Thumbs.db
