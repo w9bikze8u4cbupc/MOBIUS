@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Network Diagnostics",
+  "type": "object",
+  "required": ["timestamp", "platform", "results", "summary"],
+  "properties": {
+    "timestamp": { "type": "string", "format": "date-time" },
+    "platform": { "type": "string" },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "endpoint", "overall_status", "tests"],
+        "properties": {
+          "name": { "type": "string" },
+          "endpoint": {
+            "type": "object",
+            "required": ["host", "port"],
+            "properties": {
+              "host": { "type": "string" },
+              "port": { "type": "integer" }
+            }
+          },
+          "overall_status": {
+            "type": "string",
+            "enum": ["passed", "failed", "mocked", "warning", "skipped"]
+          },
+          "tests": {
+            "type": "object",
+            "required": ["dns", "tcp", "http", "tls"],
+            "properties": {
+              "dns": { "type": "object", "properties": { "status": { "type": "string" } } },
+              "tcp": { "type": "object", "properties": { "status": { "type": "string" } } },
+              "http": { "type": "object", "properties": { "status": { "type": "string" } } },
+              "tls": { "type": "object", "properties": { "status": { "type": "string" } } }
+            }
+          },
+          "mock_mode": { "type": "boolean" }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["passed", "failed", "warnings"],
+      "properties": {
+        "passed": { "type": "integer" },
+        "failed": { "type": "integer" },
+        "warnings": { "type": "integer" }
+      }
+    }
+  }
+}
