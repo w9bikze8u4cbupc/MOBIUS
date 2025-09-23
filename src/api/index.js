@@ -30,6 +30,19 @@ import { resilientHttpCall, resilientOpenAICall } from './resilientClient.js';
 dotenv.config();
 console.log('Loaded OpenAI key:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
 
+// Log mock mode status
+const mockModes = {
+  OPENAI: process.env.MOCK_OPENAI === 'true',
+  ELEVENLABS: process.env.MOCK_ELEVENLABS === 'true',
+  BGG: process.env.MOCK_BGG === 'true',
+  EXTRACT_PICS: process.env.MOCK_EXTRACT_PICS === 'true'
+};
+
+console.log('Mock modes:', mockModes);
+if (Object.values(mockModes).some(Boolean)) {
+  console.warn('⚠️  Running with mock external APIs enabled. This may affect functionality.');
+}
+
 console.log('API file loaded!');
 
 const app = express();
