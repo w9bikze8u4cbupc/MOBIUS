@@ -1,0 +1,172 @@
+name: Network Connectivity Checks
+
+on:
+  push:
+  pull_request:
+  schedule:
+    # Run every 6 hours to detect intermittent issues
+    - cron: '0 */6 * * *'
+
+jobs:
+  network-probe:
+    name: Network Connectivity Probe
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          # Ensure required tools are available
+          if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y jq netcat-traditional traceroute dnsutils openssl curl wget
+          elif command -v brew >/dev/null 2>&1; then
+            brew install jq netcat traceroute
+          fi
+        shell: bash
+        
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          # Install jq via chocolatey
+          choco install jq -y
+          # Refresh PATH
+          $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+        shell: pwsh
+        
+      - name: Run network connectivity probe (Unix)
+        if: runner.os != 'Windows'
+        id: probe_unix
+        continue-on-error: true
+        run: |
+          chmod +x scripts/network-probe.sh
+          ./scripts/network-probe.sh
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+        shell: bash
+        
+      - name: Run network connectivity probe (Windows)
+        if: runner.os == 'Windows'
+        id: probe_windows
+        continue-on-error: true
+        run: |
+          # Windows version with PowerShell fallbacks
+          bash scripts/network-probe.sh
+          echo "exit_code=$LASTEXITCODE" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+        
+      - name: Upload network diagnostics artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-diagnostics-${{ matrix.os }}
+          path: |
+            network-probe.log
+            network-diagnostics.json
+            traceroute.log
+            dig.log
+            openssl.log
+          retention-days: 7
+          
+      - name: Parse probe results
+        if: always()
+        id: parse_results
+        run: |
+          if [ -f network-diagnostics.json ]; then
+            failed=$(jq -r '.summary.failed' network-diagnostics.json)
+            warnings=$(jq -r '.summary.warnings' network-diagnostics.json)
+            total_issues=$((failed + warnings))
+            echo "failed=$failed" >> $GITHUB_OUTPUT
+            echo "warnings=$warnings" >> $GITHUB_OUTPUT
+            echo "total_issues=$total_issues" >> $GITHUB_OUTPUT
+            echo "timestamp=$(jq -r '.timestamp' network-diagnostics.json)" >> $GITHUB_OUTPUT
+          else
+            echo "failed=0" >> $GITHUB_OUTPUT
+            echo "warnings=0" >> $GITHUB_OUTPUT
+            echo "total_issues=0" >> $GITHUB_OUTPUT
+            echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+        
+      - name: Comment on PR (failure detected)
+        if: github.event_name == 'pull_request' && steps.parse_results.outputs.total_issues > 0
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let diagnosticsContent = '';
+            let logContent = '';
+            
+            try {
+              if (fs.existsSync('network-diagnostics.json')) {
+                const diagnostics = JSON.parse(fs.readFileSync('network-diagnostics.json', 'utf8'));
+                diagnosticsContent = JSON.stringify(diagnostics, null, 2);
+              }
+              if (fs.existsSync('network-probe.log')) {
+                logContent = fs.readFileSync('network-probe.log', 'utf8').slice(-2000); // Last 2000 chars
+              }
+            } catch (error) {
+              console.error('Error reading diagnostic files:', error);
+            }
+            
+            const failed = '${{ steps.parse_results.outputs.failed }}';
+            const warnings = '${{ steps.parse_results.outputs.warnings }}';
+            const timestamp = '${{ steps.parse_results.outputs.timestamp }}';
+            const os = '${{ matrix.os }}';
+            
+            const comment = `## ⚠️ Network Connectivity Issues Detected
+            
+            **Platform:** \`${os}\`  
+            **Time:** \`${timestamp}\`  
+            **Failed:** ${failed} | **Warnings:** ${warnings}
+            
+            <details>
+            <summary>🔍 Diagnostic Details (click to expand)</summary>
+            
+            ### Machine-readable results:
+            \`\`\`json
+            ${diagnosticsContent}
+            \`\`\`
+            
+            ### Log excerpt:
+            \`\`\`
+            ${logContent}
+            \`\`\`
+            
+            </details>
+            
+            ### Quick Remediation Steps:
+            1. Check if the failing endpoints are accessible from your network
+            2. Verify DNS resolution: \`dig +short <endpoint>\`
+            3. Test TCP connectivity: \`nc -vz <endpoint> 443\`
+            4. Check corporate firewall/proxy settings
+            5. Review [network troubleshooting guide](docs/network-troubleshooting.md)
+            
+            📎 **Artifacts:** Download \`network-diagnostics-${os}\` from this workflow run for detailed logs.
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+            
+      - name: Set job status
+        if: always()
+        run: |
+          # Don't fail the job on network issues - this is for monitoring only
+          echo "Network probe completed. Issues detected: ${{ steps.parse_results.outputs.total_issues }}"
+          echo "This job is non-blocking to avoid disrupting the main CI pipeline."
+        shell: bash
