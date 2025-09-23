@@ -1,0 +1,72 @@
+name: CI — Network Probe
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  network-probe:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure scripts are executable
+        if: runner.os != 'Windows'
+        run: chmod +x ./scripts/*.sh
+
+      - name: Run network probe (capture exit code)
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts
+          # Run the probe but never allow the step to fail the job
+          PROBE_EXIT=0
+          ./scripts/network-probe.sh artifacts || PROBE_EXIT=$?
+          # Collect supplementary logs (dig/traceroute/openssl if generated)
+          ls -la artifacts || true
+          echo "probe_status=${PROBE_EXIT}" >> $GITHUB_OUTPUT
+
+      - name: Upload network artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: network-probe-artifacts-${{ matrix.os }}
+          path: artifacts/**
+
+      - name: Post PR comment if network probe failed
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const probeStatus = parseInt(process.env.PROBE_STATUS || "0", 10);
+            const os = process.env.OS_NAME || "unknown";
+            if (probeStatus !== 0) {
+              const body = [
+                "**⚠️ Network probe detected failures**",
+                `- Runner: ${os}`,
+                `- Probe exit code: ${probeStatus}`,
+                "",
+                "Diagnostic artifacts have been uploaded to the workflow run as `network-probe-artifacts-${os}`.",
+                "",
+                "Quick actions: run `dig`, `nc`, `curl` from the failing runner, and tag your infra/network team."
+              ].join("\n");
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            } else {
+              console.log('Probe passed on', os);
+            }
+        env:
+          PROBE_STATUS: ${{ steps.probe.outputs.probe_status }}
+          OS_NAME: ${{ matrix.os }}
