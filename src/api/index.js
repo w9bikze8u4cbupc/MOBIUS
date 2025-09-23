@@ -23,6 +23,10 @@ import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
+// Enhanced image extraction system
+import { extractImages } from '../utils/imageExtraction/extractor.js';
+import { processImage, batchProcessImages } from '../utils/imageProcessing/processor.js';
+import { findImageMatches, loadImageLibrary, batchMatchImages } from '../utils/imageMatching/matcher.js';
 
 
 
@@ -138,31 +142,80 @@ function extractGameIdFromBGGUrl(url) {
   return match ? match[1] : null;  
 }  
 
-// Helper function to extract and store images
-async function extractAndStoreImages(filePathOrUrl, outputDir = 'uploads/extracted-images') {
+// Enhanced helper function to extract and store images with full pipeline
+async function extractAndStoreImages(filePathOrUrl, outputDir = 'uploads/extracted-images', options = {}) {
   const tempDir = path.join(process.cwd(), outputDir);
   await ensureDir(tempDir);
 
-  let extractedImages = [];
+  console.log('🚀 Enhanced image extraction starting...');
 
-  if (
-    path.isAbsolute(filePathOrUrl) ||
-    (typeof filePathOrUrl === 'string' &&
-      (filePathOrUrl.startsWith('http') || filePathOrUrl.includes('/')))
-  ) {
-    // Handle URL extraction
-    extractedImages = await extractImagesFromUrl(filePathOrUrl, IMAGE_EXTRACTOR_API_KEY, 'basic');
-  } else {
-    // Handle PDF extraction
-    extractedImages = await extractImagesFromPDF(filePathOrUrl, tempDir);
+  const extractionOptions = {
+    preferPoppler: true,
+    dpi: 150,
+    format: 'png',
+    generateThumbnails: true,
+    apiKey: IMAGE_EXTRACTOR_API_KEY,
+    ...options
+  };
+
+  try {
+    // Use the enhanced extraction system
+    const extractionResult = await extractImages(filePathOrUrl, tempDir, extractionOptions);
+    
+    console.log(`✅ Successfully extracted ${extractionResult.images?.length || extractionResult.length} images`);
+    
+    // Handle both old and new return formats
+    const images = extractionResult.images || extractionResult;
+    
+    // Generate enhanced previews for all extracted images
+    const enhancedImages = [];
+    for (const img of images) {
+      try {
+        const imagePath = img.path || img.url || img;
+        if (typeof imagePath === 'string') {
+          const previewPath = await generatePreviewImage(imagePath, 'uploads/tmp');
+          enhancedImages.push({
+            ...img,
+            path: imagePath,
+            preview: previewPath
+          });
+        }
+      } catch (error) {
+        console.warn(`Failed to generate preview for image:`, error.message);
+        enhancedImages.push(img);
+      }
+    }
+
+    return {
+      ...extractionResult,
+      images: enhancedImages,
+      enhanced: true
+    };
+
+  } catch (error) {
+    console.error('❌ Enhanced extraction failed, falling back to legacy method:', error.message);
+    
+    // Fallback to legacy extraction
+    let extractedImages = [];
+    if (
+      path.isAbsolute(filePathOrUrl) ||
+      (typeof filePathOrUrl === 'string' &&
+        (filePathOrUrl.startsWith('http') || filePathOrUrl.includes('/')))
+    ) {
+      // Handle URL extraction
+      extractedImages = await extractImagesFromUrl(filePathOrUrl, IMAGE_EXTRACTOR_API_KEY, 'basic');
+    } else {
+      // Handle PDF extraction
+      extractedImages = await extractImagesFromPDF(filePathOrUrl, tempDir);
+    }
+
+    // Generate previews for all extracted images
+    for (const img of extractedImages) {
+      await generatePreviewImage(img.path, 'uploads/tmp');
+    }
+
+    return extractedImages;
   }
-
-  // Generate previews for all extracted images
-  for (const img of extractedImages) {
-    await generatePreviewImage(img.path, 'uploads/tmp');
-  }
-
-  return extractedImages;
 }
 
 // Preview Generation function
@@ -2818,6 +2871,301 @@ app.get('/load-project/:id', (req, res) => {
       }
     }
   );
+});
+
+// ==========================================
+// ENHANCED IMAGE EXTRACTION API ENDPOINTS
+// ==========================================
+
+// Enhanced image extraction endpoint
+app.post('/api/extract-images-enhanced', async (req, res) => {
+  console.log('🚀 Enhanced image extraction endpoint called');
+  
+  try {
+    const { source, options = {} } = req.body;
+    
+    if (!source) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Source (PDF path or URL) is required' 
+      });
+    }
+
+    const outputDir = `uploads/extracted-images/${Date.now()}`;
+    const extractionOptions = {
+      preferPoppler: true,
+      dpi: 150,
+      format: 'png',
+      generateThumbnails: true,
+      apiKey: IMAGE_EXTRACTOR_API_KEY,
+      ...options
+    };
+
+    console.log(`📦 Extracting images from: ${source}`);
+    const result = await extractAndStoreImages(source, outputDir, extractionOptions);
+
+    res.json({
+      success: true,
+      result,
+      message: `Successfully extracted ${result.images?.length || result.length} images`,
+      outputDir,
+      enhanced: result.enhanced || false
+    });
+
+  } catch (error) {
+    console.error('❌ Enhanced image extraction failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: 'Enhanced image extraction failed'
+    });
+  }
+});
+
+// Image processing endpoint
+app.post('/api/process-images', async (req, res) => {
+  console.log('🔧 Image processing endpoint called');
+  
+  try {
+    const { imagePaths, outputDir = `uploads/processed-images/${Date.now()}`, options = {} } = req.body;
+    
+    if (!imagePaths || !Array.isArray(imagePaths) || imagePaths.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Array of image paths is required' 
+      });
+    }
+
+    const processingOptions = {
+      autoCrop: true,
+      autoContrast: true,
+      deskew: true,
+      quality: 95,
+      ...options
+    };
+
+    console.log(`🔧 Processing ${imagePaths.length} images`);
+    const results = await batchProcessImages(imagePaths, outputDir, processingOptions);
+
+    const successful = results.filter(r => r.success).length;
+    
+    res.json({
+      success: true,
+      results,
+      summary: {
+        total: imagePaths.length,
+        successful,
+        failed: imagePaths.length - successful
+      },
+      outputDir,
+      message: `Successfully processed ${successful}/${imagePaths.length} images`
+    });
+
+  } catch (error) {
+    console.error('❌ Image processing failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: 'Image processing failed'
+    });
+  }
+});
+
+// Image matching endpoint
+app.post('/api/match-images', async (req, res) => {
+  console.log('🔍 Image matching endpoint called');
+  
+  try {
+    const { 
+      queryImages, 
+      libraryDir, 
+      options = {},
+      outputDir = `uploads/matching-results/${Date.now()}`
+    } = req.body;
+    
+    if (!queryImages || !Array.isArray(queryImages) || queryImages.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Array of query image paths is required' 
+      });
+    }
+
+    if (!libraryDir) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Library directory is required' 
+      });
+    }
+
+    console.log(`📚 Loading image library from: ${libraryDir}`);
+    const libraryImages = await loadImageLibrary(libraryDir, {
+      generateHashes: true,
+      includeSubdirs: true
+    });
+
+    if (libraryImages.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No images found in library directory' 
+      });
+    }
+
+    const matchingOptions = {
+      algorithm: 'phash',
+      maxDistance: 10,
+      minSimilarity: 0.75,
+      maxCandidates: 5,
+      saveReport: true,
+      outputDir,
+      ...options
+    };
+
+    console.log(`🔍 Matching ${queryImages.length} images against ${libraryImages.length} library images`);
+    const results = await batchMatchImages(queryImages, libraryImages, matchingOptions);
+
+    res.json({
+      success: true,
+      results,
+      librarySize: libraryImages.length,
+      message: `Successfully matched ${results.successful}/${queryImages.length} images`
+    });
+
+  } catch (error) {
+    console.error('❌ Image matching failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: 'Image matching failed'
+    });
+  }
+});
+
+// Full image pipeline endpoint (extract + process + match)
+app.post('/api/image-pipeline', async (req, res) => {
+  console.log('🚀 Full image pipeline endpoint called');
+  
+  try {
+    const { 
+      source, 
+      libraryDir = null,
+      extractionOptions = {},
+      processingOptions = {},
+      matchingOptions = {},
+      outputDir = `uploads/pipeline-results/${Date.now()}`
+    } = req.body;
+    
+    if (!source) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Source (PDF path or URL) is required' 
+      });
+    }
+
+    const pipelineResults = {
+      extraction: null,
+      processing: null,
+      matching: null,
+      summary: {}
+    };
+
+    // Phase 1: Extract images
+    console.log('📦 Phase 1: Image Extraction');
+    const extractionDir = path.join(outputDir, 'extracted');
+    const enhancedExtractionOptions = {
+      preferPoppler: true,
+      dpi: 150,
+      format: 'png',
+      generateThumbnails: true,
+      apiKey: IMAGE_EXTRACTOR_API_KEY,
+      ...extractionOptions
+    };
+
+    pipelineResults.extraction = await extractAndStoreImages(source, extractionDir, enhancedExtractionOptions);
+    
+    const extractedImages = pipelineResults.extraction.images || pipelineResults.extraction;
+    const imagePaths = extractedImages.map(img => img.path || img.url || img).filter(Boolean);
+    
+    console.log(`✅ Extracted ${imagePaths.length} images`);
+
+    // Phase 2: Process images (if requested)
+    if (processingOptions.enabled !== false && imagePaths.length > 0) {
+      console.log('🔧 Phase 2: Image Processing');
+      const processedDir = path.join(outputDir, 'processed');
+      const enhancedProcessingOptions = {
+        autoCrop: true,
+        autoContrast: true,
+        deskew: true,
+        quality: 95,
+        ...processingOptions
+      };
+
+      pipelineResults.processing = await batchProcessImages(imagePaths, processedDir, enhancedProcessingOptions);
+      console.log(`✅ Processed ${pipelineResults.processing.filter(r => r.success).length} images`);
+    }
+
+    // Phase 3: Match images (if library provided)
+    if (libraryDir && imagePaths.length > 0) {
+      console.log('🔍 Phase 3: Image Matching');
+      
+      const queryImages = pipelineResults.processing ? 
+        pipelineResults.processing.filter(r => r.success).map(r => r.outputPath) :
+        imagePaths;
+
+      const libraryImages = await loadImageLibrary(libraryDir, {
+        generateHashes: true,
+        includeSubdirs: true
+      });
+
+      if (libraryImages.length > 0) {
+        const enhancedMatchingOptions = {
+          algorithm: 'phash',
+          maxDistance: 10,
+          minSimilarity: 0.75,
+          maxCandidates: 5,
+          saveReport: true,
+          outputDir,
+          ...matchingOptions
+        };
+
+        pipelineResults.matching = await batchMatchImages(queryImages, libraryImages, enhancedMatchingOptions);
+        console.log(`✅ Matched ${pipelineResults.matching.successful} images`);
+      }
+    }
+
+    // Generate summary
+    pipelineResults.summary = {
+      extraction: {
+        total: imagePaths.length,
+        method: pipelineResults.extraction.method || 'legacy'
+      },
+      processing: pipelineResults.processing ? {
+        total: pipelineResults.processing.length,
+        successful: pipelineResults.processing.filter(r => r.success).length
+      } : null,
+      matching: pipelineResults.matching ? {
+        total: pipelineResults.matching.totalQueries,
+        successful: pipelineResults.matching.successful,
+        highConfidence: pipelineResults.matching.highConfidence,
+        mediumConfidence: pipelineResults.matching.mediumConfidence,
+        lowConfidence: pipelineResults.matching.lowConfidence
+      } : null
+    };
+
+    res.json({
+      success: true,
+      results: pipelineResults,
+      outputDir,
+      message: 'Image pipeline completed successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Image pipeline failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: 'Image pipeline failed'
+    });
+  }
 });
 
 const PORT = process.env.PORT || 5001;
