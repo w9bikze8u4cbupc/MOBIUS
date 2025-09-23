@@ -1,0 +1,40 @@
+name: Image Extraction CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install system deps (poppler)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+
+      - name: Install npm deps
+        run: npm ci || npm install
+
+      - name: Run synthetic image test
+        run: node tests/simple-extract-match.test.js
+
+      - name: Upload artifacts (if any)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-extraction-artifacts
+          path: |
+            tests/tmp/**
+            extracted_components/**
+          retention-days: 7

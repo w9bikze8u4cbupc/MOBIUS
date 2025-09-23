@@ -73,3 +73,10 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Image extraction artifacts
+tests/tmp/
+extracted_components/
+*.png
+*.jpg
+*.jpeg
