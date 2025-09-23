@@ -1,0 +1,18 @@
+{
+  "timestamp": "2025-09-23T11:03:13Z",
+  "platform": "linux",
+  "results": [
+    {"name":"extract.pics","endpoint":{"host":"extract.pics","port":443},"overall_status":"mocked","tests":{"dns":{"status":"mocked"},"tcp":{"status":"mocked"},"http":{"status":"mocked"},"tls":{"status":"mocked"}},"mock_mode":true}
+,
+    {"name":"api.elevenlabs.io","endpoint":{"host":"api.elevenlabs.io","port":443},"overall_status":"mocked","tests":{"dns":{"status":"mocked"},"tcp":{"status":"mocked"},"http":{"status":"mocked"},"tls":{"status":"mocked"}},"mock_mode":true}
+,
+    {"name":"boardgamegeek.com","endpoint":{"host":"boardgamegeek.com","port":443},"overall_status":"mocked","tests":{"dns":{"status":"mocked"},"tcp":{"status":"mocked"},"http":{"status":"mocked"},"tls":{"status":"mocked"}},"mock_mode":true}
+,
+    {"name":"api.openai.com","endpoint":{"host":"api.openai.com","port":443},"overall_status":"mocked","tests":{"dns":{"status":"mocked"},"tcp":{"status":"mocked"},"http":{"status":"mocked"},"tls":{"status":"mocked"}},"mock_mode":true}
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 0,
+    "warnings": 4
+  }
+}
