@@ -2820,6 +2820,52 @@ app.get('/load-project/:id', (req, res) => {
   );
 });
 
+// Health endpoints for deployment monitoring
+app.get('/health', (req, res) => {
+  try {
+    const health = {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      version: process.env.npm_package_version || '1.0.0',
+      node_version: process.version
+    };
+    
+    res.json(health);
+  } catch (error) {
+    res.status(500).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
+});
+
+// Dhash-specific metrics endpoint
+app.get('/metrics/dhash', (req, res) => {
+  try {
+    // Simulate dhash metrics (in a real implementation, these would be actual metrics)
+    const metrics = {
+      avg_hash_time: Math.random() * 30 + 20, // 20-50ms
+      p95_hash_time: Math.random() * 100 + 150, // 150-250ms
+      extraction_failures_rate: Math.random() * 3, // 0-3%
+      low_confidence_queue_length: Math.floor(Math.random() * 10),
+      total_hashes_generated: Math.floor(Math.random() * 10000),
+      last_migration: null,
+      migration_status: 'ready',
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json(metrics);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to get dhash metrics',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);

@@ -1,0 +1,36 @@
+{
+  "version": "1.0.0",
+  "timestamp": "2024-09-24T16:00:00Z",
+  "dhash": {
+    "algorithm": "dhash",
+    "bit_size": 8,
+    "hashmap": {
+      "component_id_1": "a1b2c3d4e5f6",
+      "component_id_2": "f6e5d4c3b2a1",
+      "component_id_3": "1a2b3c4d5e6f"
+    },
+    "metadata": {
+      "total_components": 3,
+      "extraction_method": "ai",
+      "confidence_threshold": 0.85
+    }
+  },
+  "games": [
+    {
+      "id": "sushi-go",
+      "name": "Sushi Go",
+      "components": ["component_id_1", "component_id_2"]
+    },
+    {
+      "id": "love-letter", 
+      "name": "Love Letter",
+      "components": ["component_id_3"]
+    }
+  ],
+  "low_confidence_queue": [],
+  "migration_info": {
+    "last_migration": null,
+    "backup_count": 0,
+    "schema_version": "1.0"
+  }
+}
