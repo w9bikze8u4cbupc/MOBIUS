@@ -1,0 +1,99 @@
+{
+  "systemInfo": {
+    "nodeVersion": "v20.19.5",
+    "platform": "linux",
+    "arch": "x64",
+    "cpus": 4,
+    "totalMemory": 16772575232,
+    "freeMemory": 15228153856,
+    "timestamp": "2025-09-24T12:27:12.755Z"
+  },
+  "benchmarkDuration": 506.84039599999994,
+  "hashing": {
+    "iterations": 10,
+    "imageCount": 50,
+    "times": [
+      51.40456500000002,
+      46.03203599999998,
+      44.676913999999954,
+      46.61641400000002,
+      45.26752600000003,
+      44.84134,
+      44.39990899999998,
+      44.13831099999999,
+      44.513417000000004,
+      44.447137
+    ],
+    "errors": 0,
+    "hashes": [
+      {
+        "imageIndex": 0,
+        "hash": "0000000000000000",
+        "processingTime": 8.339331000000016
+      },
+      {
+        "imageIndex": 1,
+        "hash": "484a4a4252400000",
+        "processingTime": 13.295276000000001
+      },
+      {
+        "imageIndex": 2,
+        "hash": "484a4a4252400000",
+        "processingTime": 17.861345999999998
+      },
+      {
+        "imageIndex": 3,
+        "hash": "9290949484800000",
+        "processingTime": 22.535877
+      },
+      {
+        "imageIndex": 4,
+        "hash": "2525212929000000",
+        "processingTime": 27.395543000000004
+      },
+      {
+        "imageIndex": 5,
+        "hash": "2525212929000000",
+        "processingTime": 32.075413999999995
+      },
+      {
+        "imageIndex": 6,
+        "hash": "dadaded6d6c00000",
+        "processingTime": 36.793036
+      },
+      {
+        "imageIndex": 7,
+        "hash": "6d6f6b6b7b400000",
+        "processingTime": 42.16766000000001
+      },
+      {
+        "imageIndex": 8,
+        "hash": "b7b5b5bdad800000",
+        "processingTime": 46.88662500000001
+      },
+      {
+        "imageIndex": 9,
+        "hash": "b7b5b5bdad800000",
+        "processingTime": 51.40207000000001
+      }
+    ],
+    "statistics": {
+      "count": 10,
+      "min": 44.13831099999999,
+      "max": 51.40456500000002,
+      "mean": 45.633756899999995,
+      "median": 44.84134,
+      "p95": 51.40456500000002,
+      "p99": 51.40456500000002,
+      "stdDev": 2.06218410076
+    }
+  },
+  "memoryUsage": {
+    "rss": 114597888,
+    "heapTotal": 19894272,
+    "heapUsed": 10839752,
+    "external": 2133629,
+    "arrayBuffers": 16787
+  },
+  "recommendations": []
+}
