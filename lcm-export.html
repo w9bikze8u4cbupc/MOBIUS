@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Low-Confidence Components Export</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .header { background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .stat-item { background-color: #e9ecef; padding: 10px; border-radius: 3px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .confidence { font-weight: bold; }
+        .confidence.low { color: #dc3545; }
+        .confidence.medium { color: #fd7e14; }
+        .image-link { max-width: 200px; word-break: break-all; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Low-Confidence Components Export</h1>
+        <p>Generated: 2025-09-24T16:12:15.102Z</p>
+        <p>Confidence Threshold: 0.7</p>
+    </div>
+    
+    <div class="stats">
+        <div class="stat-item">
+            <strong>Total Components:</strong> 3
+        </div>
+        <div class="stat-item">
+            <strong>Low-Confidence Components:</strong> 2
+        </div>
+        <div class="stat-item">
+            <strong>Percentage Low-Confidence:</strong> 66.67%
+        </div>
+        <div class="stat-item">
+            <strong>Average Confidence (All):</strong> 0.600
+        </div>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Confidence</th>
+                <th>Dhash</th>
+                <th>Quantity</th>
+                <th>Description</th>
+                
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Mystery Component</strong></td>
+                <td class="confidence low">0.300</td>
+                <td><code>abc123def456789a</code></td>
+                <td>1</td>
+                <td></td>
+                
+            </tr>
+            <tr>
+                <td><strong>Game Board</strong></td>
+                <td class="confidence medium">0.500</td>
+                <td><code>fed456cba9876543</code></td>
+                <td>1</td>
+                <td>Main game board with hexagonal grid layout</td>
+                
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>

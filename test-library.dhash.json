@@ -1,0 +1,49 @@
+{
+  "metadata": {
+    "name": "Board Game Components Library",
+    "version": "0.9.0",
+    "created_at": "2024-01-15T10:00:00Z",
+    "description": "Sample game components library for dhash migration testing",
+    "migration": {
+      "migrated_at": "2025-09-24T16:11:19.329Z",
+      "source_file": "library.json",
+      "migration_version": "1.0.0",
+      "total_components": 3,
+      "low_confidence_count": 1,
+      "average_confidence": 0.6
+    }
+  },
+  "components": [
+    {
+      "name": "Wooden Meeples",
+      "quantity": 50,
+      "description": "Small wooden game pieces in various colors for player representation",
+      "image": "/images/meeples.jpg",
+      "category": "pieces",
+      "material": "wood",
+      "dhash": "0eb39f154a588f48",
+      "migrated_at": "2025-09-24T16:11:19.329Z",
+      "migration_confidence": 1.0
+    },
+    {
+      "name": "Mystery Component",
+      "quantity": 1,
+      "description": "",
+      "category": "unknown",
+      "dhash": "abc123def456789a",
+      "migrated_at": "2025-09-24T16:11:19.329Z",
+      "migration_confidence": 0.3
+    },
+    {
+      "name": "Game Board",
+      "quantity": 1,
+      "description": "Main game board with hexagonal grid layout",
+      "image": "/images/game_board.jpg",
+      "category": "board",
+      "material": "cardboard",
+      "dhash": "fed456cba9876543",
+      "migrated_at": "2025-09-24T16:11:19.329Z",
+      "migration_confidence": 0.5
+    }
+  ]
+}

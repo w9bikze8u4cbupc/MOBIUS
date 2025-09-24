@@ -1,0 +1,34 @@
+{
+  "export_metadata": {
+    "generated_at": "2025-09-24T16:11:45.536Z",
+    "confidence_threshold": 0.7,
+    "include_images": true,
+    "total_components": 3,
+    "exported_components": 2
+  },
+  "statistics": {
+    "total_components": 3,
+    "low_confidence_components": 2,
+    "percentage_low_confidence": "66.67",
+    "confidence_threshold": 0.7,
+    "average_confidence_all": "0.600",
+    "average_confidence_low": "0.400"
+  },
+  "components": [
+    {
+      "name": "Mystery Component",
+      "confidence": 0.3,
+      "dhash": "abc123def456789a",
+      "quantity": 1,
+      "description": ""
+    },
+    {
+      "name": "Game Board",
+      "confidence": 0.5,
+      "dhash": "fed456cba9876543",
+      "quantity": 1,
+      "description": "Main game board with hexagonal grid layout",
+      "image": "/images/game_board.jpg"
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "metadata": {
+    "name": "Board Game Components Library",
+    "version": "0.9.0",
+    "created_at": "2024-01-15T10:00:00Z",
+    "description": "Sample game components library for dhash migration testing",
+    "migration": {
+      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "source_file": "library.json",
+      "migration_version": "1.0.0",
+      "total_components": 7,
+      "low_confidence_count": 0,
+      "average_confidence": 0.9571428571428572
+    }
+  },
+  "components": [
+    {
+      "name": "Wooden Meeples",
+      "quantity": 50,
+      "description": "Small wooden game pieces in various colors for player representation",
+      "image": "/images/meeples.jpg",
+      "category": "pieces",
+      "material": "wood",
+      "dhash": "abed512d34b12a9d",
+      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "migration_confidence": 1
+    },
+    {
+      "name": "Action Cards",
+      "quantity": 120,
+      "description": "Premium cardstock action cards with special abilities",
+      "image": "/images/action_cards.jpg",
+      "category": "cards",
+      "material": "cardstock",
+      "dhash": "58fffa60d8448273",
+      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "migration_confidence": 1
+    },
+    {
+      "name": "Game Board",
+      "quantity": 1,
+      "description": "Main game board with hexagonal grid layout",
+      "image": "/images/game_board.jpg",
+      "category": "board",
+      "material": "cardboard",
+      "dhash": "35e66c0bc7979ffb",
+      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "migration_confidence": 1,
+      "legacy_image_metadata": {
+        "size": "large",
+        "resolution": "300dpi",
+        "color_profile": "sRGB"
+      }
+    },
+    {
+      "name": "Dice Set",
+      "quantity": 6,
+      "description": "Six-sided dice in player colors",
+      "image": "/images/dice_set.jpg",
+      "category": "dice",
+      "material": "plastic",
+      "dhash": "b2f12b6eb3ad054f",
+      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "migration_confidence": 1
+    },
+    {
+      "name": "Resource Tokens",
+      "quantity": 75,
+      "description": "Cardboard tokens representing different resources",
+      "image": "/images/resource_tokens.jpg",
+      "category": "tokens",
+      "material": "cardboard",
+      "dhash": "7b39121173d3f662",
+      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "migration_confidence": 1
+    },
+    {
+      "name": "Player Mats",
+      "quantity": 4,
+      "description": "Individual player boards for tracking progress",
+      "category": "boards",
+      "material": "cardboard",
+      "dhash": "1e87f23461db387c",
+      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "migration_confidence": 0.7
+    },
+    {
+      "name": "Reference Cards",
+      "quantity": 8,
+      "description": "Quick reference cards for game rules",
+      "image": "/images/reference_cards.jpg",
+      "category": "cards",
+      "material": "cardstock",
+      "dhash": "1a1aa7968c657328",
+      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "migration_confidence": 1
+    }
+  ]
+}
