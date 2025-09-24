@@ -73,3 +73,14 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Dhash Migration System - temporary and backup files
+backups/
+*.backup.*
+migrate-dryrun.json
+migrate-dryrun.preview.json
+lcm-export.*
+deploy_dhash_*.log
+test-library.*
+library.dhash.json
+library.dhash.preview.json

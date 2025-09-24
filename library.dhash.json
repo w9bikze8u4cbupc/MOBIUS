@@ -5,7 +5,7 @@
     "created_at": "2024-01-15T10:00:00Z",
     "description": "Sample game components library for dhash migration testing",
     "migration": {
-      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "migrated_at": "2025-09-24T16:20:58.107Z",
       "source_file": "library.json",
       "migration_version": "1.0.0",
       "total_components": 7,
@@ -21,8 +21,8 @@
       "image": "/images/meeples.jpg",
       "category": "pieces",
       "material": "wood",
-      "dhash": "abed512d34b12a9d",
-      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "dhash": "117a30dd29900698",
+      "migrated_at": "2025-09-24T16:20:58.107Z",
       "migration_confidence": 1
     },
     {
@@ -32,8 +32,8 @@
       "image": "/images/action_cards.jpg",
       "category": "cards",
       "material": "cardstock",
-      "dhash": "58fffa60d8448273",
-      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "dhash": "6cd810f36f411dce",
+      "migrated_at": "2025-09-24T16:20:58.107Z",
       "migration_confidence": 1
     },
     {
@@ -43,8 +43,8 @@
       "image": "/images/game_board.jpg",
       "category": "board",
       "material": "cardboard",
-      "dhash": "35e66c0bc7979ffb",
-      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "dhash": "75d0b21aea9e5513",
+      "migrated_at": "2025-09-24T16:20:58.107Z",
       "migration_confidence": 1,
       "legacy_image_metadata": {
         "size": "large",
@@ -59,8 +59,8 @@
       "image": "/images/dice_set.jpg",
       "category": "dice",
       "material": "plastic",
-      "dhash": "b2f12b6eb3ad054f",
-      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "dhash": "52a6c0ab1205d2ea",
+      "migrated_at": "2025-09-24T16:20:58.107Z",
       "migration_confidence": 1
     },
     {
@@ -70,8 +70,8 @@
       "image": "/images/resource_tokens.jpg",
       "category": "tokens",
       "material": "cardboard",
-      "dhash": "7b39121173d3f662",
-      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "dhash": "27a5a29d98dd92b7",
+      "migrated_at": "2025-09-24T16:20:58.107Z",
       "migration_confidence": 1
     },
     {
@@ -80,8 +80,8 @@
       "description": "Individual player boards for tracking progress",
       "category": "boards",
       "material": "cardboard",
-      "dhash": "1e87f23461db387c",
-      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "dhash": "2696678a25ca3f09",
+      "migrated_at": "2025-09-24T16:20:58.107Z",
       "migration_confidence": 0.7
     },
     {
@@ -91,8 +91,8 @@
       "image": "/images/reference_cards.jpg",
       "category": "cards",
       "material": "cardstock",
-      "dhash": "1a1aa7968c657328",
-      "migrated_at": "2025-09-24T16:12:33.654Z",
+      "dhash": "4f9b61e1b462b52e",
+      "migrated_at": "2025-09-24T16:20:58.107Z",
       "migration_confidence": 1
     }
   ]
