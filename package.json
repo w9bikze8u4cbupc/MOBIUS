@@ -10,6 +10,7 @@
     "verify": "node scripts/verify.mjs",
     "test-pipeline": "npm run compile-shotlist && npm run verify && npm run bind-alignment",
     "test": "jest",
+    "start": "node src/api/index.js",
     "gen:shotlists": "node scripts/compile-shotlist.mjs gigs/hanamikoji.json > tmp/shotlist.json",
     "gen:timelines": "echo 'Generating timelines...'",
     "render:proxy": "node scripts/render-ffmpeg.mjs tmp/timeline.json assets out/preview.mp4 --preview",
@@ -23,7 +24,11 @@
     "golden:check-with-junit": "node scripts/check_golden.js --game \"Hanamikoji\" --in \"out/preview.mp4\" --golden \"tests/golden/hanamikoji\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\" --junit tests/reports/hanamikoji.xml",
     "golden:update": "node scripts/generate_golden.js",
     "golden:check:junit": "node scripts/check_golden.js --junit tests/golden/reports/junit.xml",
-    "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\""
+    "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\"",
+    "deploy:dhash": "bash scripts/deploy_dhash.sh",
+    "deploy:dhash:dry-run": "bash scripts/deploy_dhash.sh --dry-run",
+    "smoke:test": "bash scripts/simple_smoke_test.sh",
+    "lcm:export": "node -e \"console.log(JSON.stringify({queue:[], exported_at: new Date().toISOString(), low_confidence_items: 0, total_items: 0}, null, 2))\""
   },
   "keywords": [
     "game",
