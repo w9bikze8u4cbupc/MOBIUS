@@ -73,3 +73,8 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# DHash deployment artifacts - exclude from version control
+backups/
+smoke_test_report_*.txt
+library.json
