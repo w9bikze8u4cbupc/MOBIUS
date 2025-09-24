@@ -26,6 +26,21 @@ jobs:
       - name: Ensure FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2
 
+      - name: Install poppler-utils (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+
+      - name: Install poppler (macOS)  
+        if: runner.os == 'macOS'
+        run: brew install poppler
+
+      - name: Install poppler (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install poppler --yes
+          echo "C:\ProgramData\chocolatey\lib\poppler\tools\poppler-24.02.0\Library\bin" >> $GITHUB_PATH
+        shell: pwsh
+
       - name: Install Python (Unix)
         if: runner.os != 'Windows'
         uses: actions/setup-python@v4
