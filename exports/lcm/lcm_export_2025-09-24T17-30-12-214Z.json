@@ -1,0 +1,138 @@
+{
+  "metadata": {
+    "export_timestamp": "2025-09-24T17:30:12.215Z",
+    "format": "json",
+    "version": "1.0",
+    "item_count": 5
+  },
+  "analysis": {
+    "summary": {
+      "total_items": 5,
+      "avg_confidence": 0.4,
+      "status_distribution": {
+        "completed": 4,
+        "failed": 1
+      },
+      "type_distribution": {
+        "bgg_metadata_extraction": 1,
+        "component_extraction": 1,
+        "ai_summarization": 1,
+        "dhash_transformation": 1,
+        "video_generation": 1
+      },
+      "common_issues": {
+        "Ambiguous player count format": 1,
+        "Publisher name confidence low": 1,
+        "Dice quantity not specified clearly": 1,
+        "Token types ambiguous": 1,
+        "Some rule ambiguities detected": 1,
+        "Tutorial flow needs review": 1,
+        "Malformed input data": 1,
+        "Checksum verification failed": 1,
+        "Some scene transitions abrupt": 1,
+        "Audio sync minor issues": 1
+      }
+    },
+    "recommendations": [
+      {
+        "priority": "high",
+        "category": "reliability",
+        "message": "1 failed items require immediate attention",
+        "action": "Review error logs and fix underlying issues"
+      },
+      {
+        "priority": "medium",
+        "category": "quality",
+        "message": "3 items have very low confidence (<0.5)",
+        "action": "Consider tuning AI models or improving input data quality"
+      }
+    ],
+    "timestamp": "2025-09-24T17:30:12.214Z"
+  },
+  "items": [
+    {
+      "id": "item_001",
+      "type": "bgg_metadata_extraction",
+      "status": "completed",
+      "confidence_score": 0.45,
+      "created_at": "2024-01-15T10:30:00Z",
+      "processed_at": "2024-01-15T10:32:15Z",
+      "data": {
+        "game_title": "Uncertain Game Title?",
+        "publisher": "Unknown Publisher Co.",
+        "player_count": "2-4 players (?)",
+        "issues": [
+          "Ambiguous player count format",
+          "Publisher name confidence low"
+        ]
+      }
+    },
+    {
+      "id": "item_002",
+      "type": "component_extraction",
+      "status": "completed",
+      "confidence_score": 0.38,
+      "created_at": "2024-01-15T11:15:00Z",
+      "processed_at": "2024-01-15T11:18:45Z",
+      "data": {
+        "components": [
+          "45 cards",
+          "dice (unclear quantity)",
+          "tokens"
+        ],
+        "issues": [
+          "Dice quantity not specified clearly",
+          "Token types ambiguous"
+        ]
+      }
+    },
+    {
+      "id": "item_003",
+      "type": "ai_summarization",
+      "status": "completed",
+      "confidence_score": 0.61,
+      "created_at": "2024-01-15T12:00:00Z",
+      "processed_at": "2024-01-15T12:05:30Z",
+      "data": {
+        "summary_length": 1250,
+        "key_concepts_identified": 8,
+        "issues": [
+          "Some rule ambiguities detected",
+          "Tutorial flow needs review"
+        ]
+      }
+    },
+    {
+      "id": "item_004",
+      "type": "dhash_transformation",
+      "status": "failed",
+      "confidence_score": 0,
+      "created_at": "2024-01-15T13:20:00Z",
+      "processed_at": "2024-01-15T13:20:05Z",
+      "data": {
+        "error": "Invalid JSON structure in source data",
+        "issues": [
+          "Malformed input data",
+          "Checksum verification failed"
+        ]
+      }
+    },
+    {
+      "id": "item_005",
+      "type": "video_generation",
+      "status": "completed",
+      "confidence_score": 0.55,
+      "created_at": "2024-01-15T14:10:00Z",
+      "processed_at": "2024-01-15T14:25:18Z",
+      "data": {
+        "video_duration": 892,
+        "scene_count": 23,
+        "audio_quality_score": 0.72,
+        "issues": [
+          "Some scene transitions abrupt",
+          "Audio sync minor issues"
+        ]
+      }
+    }
+  ]
+}
