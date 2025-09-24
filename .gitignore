@@ -64,6 +64,12 @@ coverage/
 tests/golden/**/debug/
 tests/golden/reports/
 
+# Deployment artifacts and logs
+backups/
+logs/
+migrate-dryrun.json
+tmp/
+
 # Node.js dependencies
 node_modules/
 

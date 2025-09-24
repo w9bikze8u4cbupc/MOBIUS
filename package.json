@@ -29,7 +29,10 @@
     "lcm:export": "node -e \"console.log('Exporting low-confidence queue...'); console.log('Export completed successfully')\"",
     "deploy": "./scripts/deploy_dhash.sh",
     "deploy:dry-run": "./scripts/deploy_dhash.sh --dry-run",
-    "deploy:rollback": "./scripts/deploy_dhash.sh rollback"
+    "deploy:rollback": "./scripts/deploy_dhash.sh rollback",
+    "smoke-test": "./scripts/smoke_test.sh",
+    "smoke-test:quiet": "./scripts/smoke_test.sh --quiet",
+    "smoke-test:junit": "./scripts/smoke_test.sh --junit tmp/smoke-test-results.xml"
   },
   "keywords": [
     "game",

@@ -234,32 +234,48 @@ restore_backup() {
 run_smoke_test() {
     log_info "Running post-migration smoke tests"
     
-    # Test 1: Verify library.json is valid JSON
-    if ! jq . "$LIBRARY_FILE" >/dev/null 2>&1; then
-        if ! python3 -m json.tool "$LIBRARY_FILE" >/dev/null 2>&1; then
-            log_error "Library file is not valid JSON"
+    # Run the comprehensive smoke test suite
+    if [[ -f "${SCRIPT_DIR}/smoke_test.sh" ]]; then
+        local smoke_test_log="${LOGS_DIR}/smoke-test-$(get_timestamp).log"
+        
+        if "${SCRIPT_DIR}/smoke_test.sh" --quiet > "$smoke_test_log" 2>&1; then
+            log_success "Comprehensive smoke tests passed"
+            return 0
+        else
+            log_error "Comprehensive smoke tests failed. Check log: $smoke_test_log"
             return 1
         fi
-    fi
-    
-    # Test 2: Check health endpoint
-    if ! check_health; then
-        return 1
-    fi
-    
-    # Test 3: Check metrics endpoint
-    if ! check_metrics; then
-        return 1
-    fi
-    
-    # Test 4: Basic dhash functionality test (if available)
-    if command -v npm >/dev/null 2>&1 && npm run --silent test >/dev/null 2>&1; then
-        log_success "Smoke tests passed"
     else
-        log_warn "Extended smoke tests unavailable, basic checks passed"
+        log_warn "Comprehensive smoke test script not found, running basic checks"
+        
+        # Fallback to basic checks
+        # Test 1: Verify library.json is valid JSON
+        if ! jq . "$LIBRARY_FILE" >/dev/null 2>&1; then
+            if ! python3 -m json.tool "$LIBRARY_FILE" >/dev/null 2>&1; then
+                log_error "Library file is not valid JSON"
+                return 1
+            fi
+        fi
+        
+        # Test 2: Check health endpoint
+        if ! check_health; then
+            return 1
+        fi
+        
+        # Test 3: Check metrics endpoint
+        if ! check_metrics; then
+            return 1
+        fi
+        
+        # Test 4: Basic dhash functionality test (if available)
+        if command -v npm >/dev/null 2>&1 && npm run --silent test >/dev/null 2>&1; then
+            log_success "Basic smoke tests passed"
+        else
+            log_warn "Extended smoke tests unavailable, basic checks passed"
+        fi
+        
+        return 0
     fi
-    
-    return 0
 }
 
 # Find latest backup for rollback
