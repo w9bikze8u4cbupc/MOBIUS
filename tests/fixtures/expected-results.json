@@ -1,0 +1,63 @@
+{
+  "testSuite": "PDF Extraction Validation",
+  "fixtures": {
+    "pdf": {
+      "path": "/home/runner/work/mobius-games-tutorial-generator/mobius-games-tutorial-generator/tests/fixtures/test-components.pdf",
+      "name": "test-components.pdf",
+      "expectedMethod": "pdftoppm",
+      "description": "Minimal PDF for testing page rendering extraction"
+    },
+    "referenceImages": [
+      {
+        "path": "/home/runner/work/mobius-games-tutorial-generator/mobius-games-tutorial-generator/tests/fixtures/reference-images/red-card.png",
+        "name": "red-card.png",
+        "expectedColor": {
+          "r": 255,
+          "g": 0,
+          "b": 0
+        },
+        "description": "Solid red image for hash testing"
+      },
+      {
+        "path": "/home/runner/work/mobius-games-tutorial-generator/mobius-games-tutorial-generator/tests/fixtures/reference-images/blue-card.png",
+        "name": "blue-card.png",
+        "expectedColor": {
+          "r": 0,
+          "g": 0,
+          "b": 255
+        },
+        "description": "Solid blue image for hash testing"
+      },
+      {
+        "path": "/home/runner/work/mobius-games-tutorial-generator/mobius-games-tutorial-generator/tests/fixtures/reference-images/game-board.png",
+        "name": "game-board.png",
+        "expectedColor": {
+          "r": 139,
+          "g": 69,
+          "b": 19
+        },
+        "description": "Brown game board for component matching"
+      }
+    ]
+  },
+  "validationCriteria": {
+    "hashAlgorithm": "blockhash",
+    "hashBits": 64,
+    "confidenceThresholds": {
+      "high": 0.95,
+      "medium": 0.9,
+      "low": 0.8
+    },
+    "expectedHashes": {
+      "redCard": null,
+      "blueCard": null,
+      "gameBoard": null
+    }
+  },
+  "notes": [
+    "This fixture is designed to test the complete PDF extraction pipeline",
+    "The PDF has no embedded images, so should trigger pdftoppm rendering",
+    "Reference images are for testing hash consistency and similarity matching",
+    "Use this fixture to validate cross-platform extraction behavior"
+  ]
+}

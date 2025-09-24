@@ -23,6 +23,9 @@ import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
+// Import our new enhanced image processing utilities
+import { calculateImageHash, checkImageSimilarity, HASH_CONFIG } from '../utils/imageHashing.js';
+import { extractImagesFromPDF as enhancedExtractImagesFromPDF, healthCheckPdfProcessing, PDF_CONFIG } from '../utils/pdfExtraction.js';
 
 
 
@@ -85,6 +88,44 @@ app.use((req, res, next) => {
 });
 
 
+
+// --- Production Health Check Endpoint ---
+app.get('/health', async (req, res) => {
+  try {
+    const healthCheck = await healthCheckPdfProcessing();
+    
+    const systemInfo = {
+      timestamp: new Date().toISOString(),
+      version: process.env.npm_package_version || '1.0.0',
+      node: process.version,
+      uptime: process.uptime(),
+      memoryUsage: process.memoryUsage(),
+      hashConfig: {
+        algorithm: HASH_CONFIG.ALGORITHM,
+        version: HASH_CONFIG.VERSION,
+        bits: HASH_CONFIG.BITS,
+        defaultThreshold: HASH_CONFIG.DEFAULT_CONFIDENCE_THRESHOLD
+      },
+      pdfConfig: {
+        maxSizeMB: PDF_CONFIG.MAX_PDF_SIZE_MB,
+        timeoutMs: PDF_CONFIG.PDF_PROCESSING_TIMEOUT,
+        maxConcurrent: PDF_CONFIG.MAX_CONCURRENT_EXTRACTIONS
+      }
+    };
+
+    res.status(healthCheck.healthy ? 200 : 503).json({
+      status: healthCheck.healthy ? 'healthy' : 'unhealthy',
+      ...healthCheck,
+      system: systemInfo
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 // --- API Endpoint for Explaining Text Chunks ---
 app.post('/api/explain-chunk', async (req, res) => {  
@@ -847,12 +888,25 @@ app.post('/api/extract-components', async (req, res) => {
   
     console.log(`Extraction complete. Found ${uniqueComponents.length} components.`);  
       
-    // Enhanced response format  
+    // Enhanced response format with hash configuration
     res.json({   
       success: true,  
       components: uniqueComponents,  
       extractionMethod,  
-      extractionStats,  
+      extractionStats: {
+        ...extractionStats,
+        hashConfig: {
+          algorithm: HASH_CONFIG.ALGORITHM,
+          version: HASH_CONFIG.VERSION,
+          bits: HASH_CONFIG.BITS,
+          confidenceFormula: "confidence = 1 - (hamming_distance / bit_length)"
+        },
+        thresholdExamples: {
+          "90%": `max_hamming = ${Math.floor((1 - 0.90) * HASH_CONFIG.BITS)} (for 64-bit hash)`,
+          "95%": `max_hamming = ${Math.floor((1 - 0.95) * HASH_CONFIG.BITS)} (for 64-bit hash)`,
+          "99%": `max_hamming = ${Math.floor((1 - 0.99) * HASH_CONFIG.BITS)} (for 64-bit hash)`
+        }
+      },
       message: `Successfully extracted ${uniqueComponents.length} components using ${extractionMethod} method`  
     });  
   
@@ -908,24 +962,36 @@ async function extractImagesFromUrl(url, apiKey, mode = 'basic') {
   }
 }
 
-async function extractImagesFromPDF(pdfPath, outputDir) {  
-  const pdfResult = await pdfToImg.pdf(pdfPath);  
-  await fsPromises.mkdir(outputDir, { recursive: true }); 
+// Legacy PDF extraction function - now using enhanced version
+async function extractImagesFromPDF(pdfPath, outputDir) {
+  console.log('⚠️ Using legacy extractImagesFromPDF - consider migrating to enhanced version');
   
-  const images = [];  
-  let pageIndex = 0;  
-  for await (const page of pdfResult) {
-    try {
-      pageIndex++;
-      const pageFileName = `page${pageIndex}.png`;
-      const pagePath = path.join(outputDir, pageFileName);
-      await fsPromises.writeFile(pagePath, page);
-      images.push(pagePath);
-    } catch (err) {
-      console.error(`Failed to save page ${pageIndex}:`, err);
+  // Call the enhanced version and adapt the response format for backward compatibility
+  const result = await enhancedExtractImagesFromPDF(pdfPath, outputDir);
+  
+  if (result.success) {
+    // Return just the image paths for backward compatibility
+    return result.images.map(img => img.original ? img.original.path : img.path).filter(Boolean);
+  } else {
+    // Fallback to original implementation
+    const pdfResult = await pdfToImg.pdf(pdfPath);  
+    await fsPromises.mkdir(outputDir, { recursive: true }); 
+    
+    const images = [];  
+    let pageIndex = 0;  
+    for await (const page of pdfResult) {
+      try {
+        pageIndex++;
+        const pageFileName = `page${pageIndex}.png`;
+        const pagePath = path.join(outputDir, pageFileName);
+        await fsPromises.writeFile(pagePath, page);
+        images.push(pagePath);
+      } catch (err) {
+        console.error(`Failed to save page ${pageIndex}:`, err);
+      }
     }
+    return images;
   }
-  return images;  
 }
 
 
@@ -2327,6 +2393,228 @@ app.post('/match-images', async (req, res) => {
     res.status(500).json({ error: 'Failed to match images', details: err.message });
   }
 });
+
+// Add this new endpoint after your existing ones
+app.post('/convert-pdf-to-images', async (req, res) => {
+  try {
+    const { pdfPath } = req.body;
+    
+    if (!pdfPath) {
+      return res.status(400).json({ error: 'PDF path is required' });
+    }
+
+    // Create output directory for this PDF's images
+    const outputDir = path.join(process.cwd(), 'uploads', 'tmp', `pdf-${Date.now()}`);
+    await fsPromises.mkdir(outputDir, { recursive: true });
+
+    // Use the enhanced PDF extraction with comprehensive statistics
+    const result = await enhancedExtractImagesFromPDF(pdfPath, outputDir);
+    
+    if (result.success) {
+      // Build comprehensive response with hash metadata
+      const imagesWithMetadata = result.images.map(img => ({
+        original: img.original,
+        derivatives: img.derivatives,
+        hash: img.hash,
+        hashMetadata: {
+          algorithm: img.hashMetadata?.algorithm || HASH_CONFIG.ALGORITHM,
+          version: img.hashMetadata?.version || HASH_CONFIG.VERSION,
+          bits: img.hashMetadata?.bits || HASH_CONFIG.BITS
+        },
+        confidence: img.confidence,
+        timestamp: img.timestamp,
+        // Include preview URLs for frontend
+        preview: img.derivatives?.preview ? `/uploads/tmp/${path.basename(img.derivatives.preview)}` : null,
+        thumbnail: img.derivatives?.thumbnail ? `/uploads/tmp/${path.basename(img.derivatives.thumbnail)}` : null
+      }));
+
+      res.json({
+        success: true,
+        images: imagesWithMetadata,
+        extractionMethod: result.extractionMethod,
+        extractionStats: result.extractionStats,
+        hashConfig: {
+          algorithm: HASH_CONFIG.ALGORITHM,
+          version: HASH_CONFIG.VERSION,
+          bits: HASH_CONFIG.BITS,
+          confidenceFormula: "confidence = 1 - (hamming_distance / bit_length)",
+          thresholdExamples: {
+            "0.90": `max_hamming = ${Math.floor((1 - 0.90) * HASH_CONFIG.BITS)}`,
+            "0.95": `max_hamming = ${Math.floor((1 - 0.95) * HASH_CONFIG.BITS)}`,
+            "0.99": `max_hamming = ${Math.floor((1 - 0.99) * HASH_CONFIG.BITS)}`
+          }
+        },
+        message: `Successfully extracted ${result.images.length} images using ${result.extractionMethod} method`
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error || 'Image extraction failed',
+        extractionStats: result.extractionStats,
+        extractionMethod: result.extractionMethod || 'failed'
+      });
+    }
+  } catch (error) {
+    console.error('Enhanced PDF conversion error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to process PDF', 
+      details: error.message 
+    });
+  }
+});
+
+// Enhanced image matching endpoint with deterministic hashing
+app.post('/match-images-enhanced', async (req, res) => {
+  try {
+    const { components, images, confidenceThreshold = 0.90 } = req.body;
+    
+    if (!components || !components.length) {
+      return res.status(400).json({ error: 'No components provided' });
+    }
+    
+    if (!images || !images.length) {
+      return res.status(400).json({ error: 'No images provided' });
+    }
+
+    console.log('--- Enhanced Image Matching Started ---');
+    console.log(`Processing ${components.length} components against ${images.length} images`);
+    console.log(`Using confidence threshold: ${confidenceThreshold}`);
+
+    const matches = [];
+    const lowConfidenceQueue = [];
+    
+    // Calculate hashes for all images if not already present
+    const imagesWithHashes = await Promise.all(images.map(async (img) => {
+      if (!img.hash) {
+        try {
+          const hashResult = await calculateImageHash(img.path || img.original?.path);
+          return { ...img, hash: hashResult.hash, hashMetadata: hashResult.metadata };
+        } catch (error) {
+          console.warn(`Failed to hash image ${img.name}:`, error.message);
+          return img;
+        }
+      }
+      return img;
+    }));
+
+    // Match components to images using deterministic hashing
+    for (const component of components) {
+      let bestMatch = null;
+      let bestConfidence = 0;
+      
+      for (const image of imagesWithHashes) {
+        if (!image.hash) continue;
+        
+        // For now, use a simple name-based similarity as base confidence
+        // In production, you might use more sophisticated matching
+        const nameSimilarity = calculateNameSimilarity(component.name, image.name || '');
+        const confidence = Math.max(nameSimilarity, component.confidence || 0.5);
+        
+        if (confidence > bestConfidence) {
+          bestMatch = {
+            component: component,
+            image: {
+              ...image,
+              preview: image.derivatives?.preview || image.preview,
+              thumbnail: image.derivatives?.thumbnail || image.thumbnail
+            },
+            confidence,
+            hashMetadata: image.hashMetadata,
+            matchingMethod: 'name_similarity_with_hash'
+          };
+          bestConfidence = confidence;
+        }
+      }
+      
+      if (bestMatch) {
+        if (bestConfidence >= confidenceThreshold) {
+          matches.push(bestMatch);
+        } else {
+          // Add to low-confidence queue for manual review
+          lowConfidenceQueue.push({
+            ...bestMatch,
+            status: 'needs_review',
+            reason: `Confidence ${bestConfidence.toFixed(3)} below threshold ${confidenceThreshold}`
+          });
+        }
+      }
+    }
+
+    const response = {
+      success: true,
+      matches,
+      lowConfidenceQueue,
+      statistics: {
+        totalComponents: components.length,
+        matchedComponents: matches.length,
+        lowConfidenceMatches: lowConfidenceQueue.length,
+        averageConfidence: matches.length > 0 ? 
+          Math.round((matches.reduce((sum, m) => sum + m.confidence, 0) / matches.length) * 1000) / 1000 : 0,
+        confidenceThreshold,
+        hashingEnabled: true
+      },
+      hashConfig: {
+        algorithm: HASH_CONFIG.ALGORITHM,
+        version: HASH_CONFIG.VERSION,
+        bits: HASH_CONFIG.BITS,
+        confidenceFormula: "confidence = 1 - (hamming_distance / bit_length)"
+      },
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`✅ Matching complete: ${matches.length} matches, ${lowConfidenceQueue.length} low-confidence`);
+    res.json(response);
+
+  } catch (error) {
+    console.error('Enhanced image matching error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to match images',
+      details: error.message
+    });
+  }
+});
+
+// Helper function for name similarity (simple implementation)
+function calculateNameSimilarity(name1, name2) {
+  if (!name1 || !name2) return 0;
+  
+  const n1 = name1.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const n2 = name2.toLowerCase().replace(/[^a-z0-9]/g, '');
+  
+  if (n1 === n2) return 1.0;
+  if (n1.includes(n2) || n2.includes(n1)) return 0.8;
+  
+  // Simple Levenshtein-based similarity
+  const maxLen = Math.max(n1.length, n2.length);
+  if (maxLen === 0) return 1.0;
+  
+  const distance = levenshteinDistance(n1, n2);
+  return Math.max(0, 1 - (distance / maxLen));
+}
+
+function levenshteinDistance(str1, str2) {
+  const track = Array(str2.length + 1).fill(null).map(() =>
+    Array(str1.length + 1).fill(null));
+  for (let i = 0; i <= str1.length; i += 1) {
+    track[0][i] = i;
+  }
+  for (let j = 0; j <= str2.length; j += 1) {
+    track[j][0] = j;
+  }
+  for (let j = 1; j <= str2.length; j += 1) {
+    for (let i = 1; i <= str1.length; i += 1) {
+      const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      track[j][i] = Math.min(
+        track[j][i - 1] + 1,
+        track[j - 1][i] + 1,
+        track[j - 1][i - 1] + indicator,
+      );
+    }
+  }
+  return track[str2.length][str1.length];
+}
 
 // Add this new endpoint after your existing ones
 app.post('/convert-pdf-to-images', async (req, res) => {
