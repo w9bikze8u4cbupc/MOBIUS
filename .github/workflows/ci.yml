@@ -23,6 +23,29 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Install Poppler (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils libvips-dev
+
+      - name: Install Poppler (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install poppler vips
+
+      - name: Install Poppler (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install poppler
+        shell: powershell
+
+      - name: Verify Poppler Installation
+        run: |
+          pdfimages -v
+          pdftoppm -v
+        shell: bash
+
       - name: Ensure FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2
 
