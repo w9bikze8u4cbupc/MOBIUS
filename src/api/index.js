@@ -23,6 +23,15 @@ import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
+import { 
+  extractImagesFromPDF, 
+  processImagePipeline, 
+  findImageMatches,
+  comparePHashes,
+  calculatePHash,
+  formatPHashForStorage,
+  IMAGE_CONFIG 
+} from '../utils/imageProcessing.js';
 
 
 
@@ -2818,6 +2827,229 @@ app.get('/load-project/:id', (req, res) => {
       }
     }
   );
+});
+
+// --- New Image Processing & pHash Matching Endpoints ---
+
+/**
+ * Extract and process images from PDF using the full pipeline
+ * POST /api/extract-and-process-images
+ */
+app.post('/api/extract-and-process-images', async (req, res) => {
+  console.log('--- PDF image extraction and processing started ---');
+  
+  try {
+    const { pdfPath, projectId } = req.body;
+    
+    if (!pdfPath) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'PDF path is required' 
+      });
+    }
+
+    // Create project-specific output directory
+    const projectOutputDir = path.join(process.cwd(), 'uploads', 'processed', projectId || 'default');
+    
+    console.log(`Extracting images from PDF: ${pdfPath}`);
+    
+    // Step 1: Extract images from PDF 
+    const extractionResult = await extractImagesFromPDF(pdfPath, path.join(projectOutputDir, 'extracted'));
+    
+    if (extractionResult.images.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No images found in PDF',
+        extraction: extractionResult,
+        processed: { processed: [], errors: [] }
+      });
+    }
+    
+    console.log(`Extracted ${extractionResult.images.length} images using ${extractionResult.method}`);
+    
+    // Step 2: Process through Sharp pipeline
+    const processingResult = await processImagePipeline(extractionResult.images, projectOutputDir);
+    
+    console.log(`Processed ${processingResult.processed.length} images, ${processingResult.errors.length} errors`);
+    
+    // Step 3: Calculate metadata and stats
+    const processedImages = processingResult.processed.map(img => ({
+      ...img,
+      phash: formatPHashForStorage(img.phash),
+      metadata: {
+        originalSize: img.original.size,
+        extractionMethod: img.original.extractionMethod,
+        pageNumber: img.original.pageNumber,
+        processingTimestamp: new Date().toISOString()
+      }
+    }));
+
+    res.json({
+      success: true,
+      message: `Successfully processed ${processedImages.length} images`,
+      extraction: {
+        method: extractionResult.method,
+        stats: extractionResult.stats
+      },
+      processing: {
+        processed: processedImages,
+        errors: processingResult.errors,
+        config: {
+          webWidth: IMAGE_CONFIG.WEB_WIDTH,
+          thumbSize: IMAGE_CONFIG.THUMB_SIZE,
+          phashBits: IMAGE_CONFIG.PHASH_BITS
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Image extraction and processing error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: 'Failed to extract and process images from PDF'
+    });
+  }
+});
+
+/**
+ * Match component images against library using pHash
+ * POST /api/match-images-phash
+ */
+app.post('/api/match-images-phash', async (req, res) => {
+  console.log('--- pHash-based image matching started ---');
+  
+  try {
+    const { componentImages, libraryImages, threshold, projectId } = req.body;
+    
+    if (!componentImages || !Array.isArray(componentImages)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Component images array is required'
+      });
+    }
+    
+    if (!libraryImages || !Array.isArray(libraryImages)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Library images array is required'
+      });
+    }
+    
+    const matchingThreshold = threshold || IMAGE_CONFIG.DEFAULT_AUTO_ASSIGN_THRESHOLD;
+    
+    console.log(`Matching ${componentImages.length} components against ${libraryImages.length} library images`);
+    console.log(`Using threshold: ${matchingThreshold}`);
+    
+    // Perform pHash matching
+    const matchingResult = findImageMatches(componentImages, libraryImages, matchingThreshold);
+    
+    // Log low-confidence candidates for manual review
+    if (matchingResult.lowConfidenceCandidates.length > 0) {
+      const reviewLogPath = path.join(process.cwd(), 'uploads', 'review', `${projectId || 'default'}_review.json`);
+      await fs.mkdir(path.dirname(reviewLogPath), { recursive: true });
+      await fs.writeFile(reviewLogPath, JSON.stringify({
+        timestamp: new Date().toISOString(),
+        projectId,
+        threshold: matchingThreshold,
+        lowConfidenceCandidates: matchingResult.lowConfidenceCandidates
+      }, null, 2));
+      
+      console.log(`Logged ${matchingResult.lowConfidenceCandidates.length} low-confidence candidates to: ${reviewLogPath}`);
+    }
+    
+    res.json({
+      success: true,
+      message: `Found ${matchingResult.matches.length} matches above threshold ${matchingThreshold}`,
+      matching: matchingResult,
+      config: {
+        threshold: matchingThreshold,
+        phashBits: IMAGE_CONFIG.PHASH_BITS,
+        algorithm: 'blockhash'
+      }
+    });
+    
+  } catch (error) {
+    console.error('pHash matching error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: 'Failed to perform pHash-based image matching'
+    });
+  }
+});
+
+/**
+ * Compare two specific images using pHash
+ * POST /api/compare-images
+ */
+app.post('/api/compare-images', async (req, res) => {
+  try {
+    const { image1Path, image2Path } = req.body;
+    
+    if (!image1Path || !image2Path) {
+      return res.status(400).json({
+        success: false,
+        error: 'Both image paths are required'
+      });
+    }
+    
+    // Calculate pHashes for both images
+    const [hash1, hash2] = await Promise.all([
+      calculatePHash(image1Path),
+      calculatePHash(image2Path)
+    ]);
+    
+    // Compare hashes
+    const comparison = comparePHashes(hash1, hash2);
+    
+    res.json({
+      success: true,
+      comparison: {
+        ...comparison,
+        image1: {
+          path: image1Path,
+          phash: formatPHashForStorage(hash1)
+        },
+        image2: {
+          path: image2Path,
+          phash: formatPHashForStorage(hash2)
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('Image comparison error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: 'Failed to compare images'
+    });
+  }
+});
+
+/**
+ * Get processing configuration and status
+ * GET /api/processing-config
+ */
+app.get('/api/processing-config', (req, res) => {
+  res.json({
+    success: true,
+    config: IMAGE_CONFIG,
+    environment: {
+      nodeVersion: process.version,
+      platform: process.platform,
+      availableCommands: {
+        pdfimages: 'Check with: which pdfimages',
+        pdftoppm: 'Check with: which pdftoppm'
+      }
+    },
+    supportedFormats: {
+      input: ['PDF'],
+      output: ['PNG', 'JPEG'],
+      processing: ['Sharp pipeline enabled']
+    }
+  });
 });
 
 const PORT = process.env.PORT || 5001;
