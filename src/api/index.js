@@ -2820,9 +2820,7 @@ app.get('/load-project/:id', (req, res) => {
   );
 });
 
-// --- DHash Deployment Health & Metrics Endpoints ---
-
-// Health endpoint for monitoring
+// --- DHash Health & Metrics Endpoints ---
 app.get('/health', (req, res) => {
   try {
     const libraryPath = path.join(process.cwd(), 'library.json');
@@ -2855,7 +2853,6 @@ app.get('/health', (req, res) => {
       environment: process.env.NODE_ENV || 'development'
     };
     
-    // Determine overall health status
     if (libraryStatus === 'missing' || libraryStatus === 'invalid') {
       health.status = 'degraded';
     }
@@ -2872,7 +2869,6 @@ app.get('/health', (req, res) => {
   }
 });
 
-// DHash-specific metrics endpoint
 app.get('/metrics/dhash', (req, res) => {
   try {
     const libraryPath = path.join(process.cwd(), 'library.json');
@@ -2886,7 +2882,6 @@ app.get('/metrics/dhash', (req, res) => {
     
     const library = JSON.parse(fs.readFileSync(libraryPath, 'utf8'));
     
-    // Extract DHash metrics
     const dhashMetrics = {
       timestamp: new Date().toISOString(),
       dhash_system: {
@@ -2902,27 +2897,24 @@ app.get('/metrics/dhash', (req, res) => {
       },
       performance: {
         avg_hash_time: library.metrics?.avgHashTime || null,
-        p95_hash_time: library.metrics?.avgHashTime ? library.metrics.avgHashTime * 1.8 : null, // Estimate
+        p95_hash_time: library.metrics?.avgHashTime ? library.metrics.avgHashTime * 1.8 : null,
         extraction_failures_rate: library.metrics?.extractionFailureRate || 0,
         low_confidence_queue_length: library.metrics?.lowConfidenceQueueLength || 0
       },
-      last_migration: library.lastMigration || null
+      last_migration: library.lastMigration || null,
+      alert_thresholds: {
+        avg_hash_time_ms: 200,
+        p95_hash_time_ms: 500,
+        extraction_failures_rate_percent: 5,
+        low_confidence_queue_spike_percent: 50
+      }
     };
     
-    // Add alerting thresholds for monitoring
-    dhashMetrics.alert_thresholds = {
-      avg_hash_time_ms: 200,
-      p95_hash_time_ms: 500,
-      extraction_failures_rate_percent: 5,
-      low_confidence_queue_spike_percent: 50
-    };
-    
-    // Calculate health indicators
     const alerts = [];
-    if (dhashMetrics.performance.avg_hash_time > 200) {
+    if (dhashMetrics.performance.avg_hash_time && dhashMetrics.performance.avg_hash_time > 200) {
       alerts.push('avg_hash_time_high');
     }
-    if (dhashMetrics.performance.p95_hash_time > 500) {
+    if (dhashMetrics.performance.p95_hash_time && dhashMetrics.performance.p95_hash_time > 500) {
       alerts.push('p95_hash_time_high');
     }
     if (dhashMetrics.performance.extraction_failures_rate > 0.05) {
@@ -2942,8 +2934,6 @@ app.get('/metrics/dhash', (req, res) => {
     });
   }
 });
-
-// --- End DHash Endpoints ---
 
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {

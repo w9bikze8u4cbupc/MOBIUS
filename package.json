@@ -29,7 +29,7 @@
     "backup:create": "cd ./scripts && ./deploy_dhash.sh --dry-run | head -1 && echo 'Creating backup...' && mkdir -p ../backups && cp ../library.json ../backups/library.json.bak.$(date +%Y%m%d_%H%M%S) && echo 'Backup created'",
     "backup:verify": "cd ./backups && ls -la library.json.bak.* | tail -1 | awk '{print $9}' | xargs -I {} sh -c 'sha256sum {} > {}.sha256 && sha256sum -c {}.sha256'",
     "smoke:test": "./scripts/simple_smoke_test.sh",
-    "lcm:export": "echo 'Exporting low-confidence queue sample...' && jq '.games | map(select(.dhash | startswith(\"hash_\"))) | length' library.json"
+    "lcm:export": "echo 'Exporting low-confidence queue sample...' && jq '.games | map(select(.dhash != null and (.dhash | type == \"string\" and startswith(\"hash_\")))) | length' library.json"
   },
   "keywords": [
     "game",
