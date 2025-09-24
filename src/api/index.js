@@ -1633,24 +1633,35 @@ app.post('/summarize', async (req, res) => {
       'Here is the rulebook text:',
       `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
+      Components List: ${JSON.stringify(components)}
+      Game Metadata: ${JSON.stringify(metadata)}
       Previous Summary: ${previousSummary}
 
-      Rulebook Text:        )       : englishBasePrompt           .replace(             'Here is the rulebook text:',            Here is the rulebook text and additional context:
+      Rulebook Text:`)
+       : englishBasePrompt
+           .replace(
+             'Here is the rulebook text:',
+             `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
+      Components List: ${JSON.stringify(components)}
+      Game Metadata: ${JSON.stringify(metadata)}
 
-      Rulebook Text:          )           .replace(             'Component Overview:',            Component Overview:
+      Rulebook Text:`)
+           .replace(
+             'Component Overview:',
+             `Component Overview:
 
           Use the provided components list: ${JSON.stringify(components)}
           Provide exact quantities and clear descriptions for each component
           Add visual cues like "[Show close-up of resource tokens]" or "[Display all cards fanned out]"
-          Mention any unique or unusual pieces that distinguish this game        )         .replace(           'Setup:',          Setup:
+          Mention any unique or unusual pieces that distinguish this game`)
+         .replace(
+           'Setup:',
+           `Setup:
           Reference the components list for accurate quantities: ${JSON.stringify(components)}
           Walk through setup step-by-step with detailed instructions (e.g., "Shuffle the 40 mission cards thoroughly, then place them face-down in the center")
           Add visual placeholders like "[Overhead shot: Initial board setup]" or "[Animation: Card placement]"
-          Highlight common setup mistakes and how to avoid them`
-          );
+          Highlight common setup mistakes and how to avoid them`);
 
       console.log('Final prompt (truncated):', finalPrompt.slice(0, 500));
       
@@ -2820,8 +2831,147 @@ app.get('/load-project/:id', (req, res) => {
   );
 });
 
+// Health check endpoint for deployment monitoring
+app.get('/health', (req, res) => {
+  const startTime = process.hrtime();
+  
+  try {
+    // Basic health checks
+    const healthCheck = {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+      environment: process.env.NODE_ENV || 'development',
+      version: process.env.npm_package_version || '1.0.0',
+      memory: {
+        used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+        external: Math.round(process.memoryUsage().external / 1024 / 1024)
+      },
+      services: {}
+    };
+
+    // Test database connection if available
+    if (db) {
+      try {
+        db.get("SELECT 1", (err) => {
+          const [seconds, nanoseconds] = process.hrtime(startTime);
+          const responseTimeMs = (seconds * 1000) + (nanoseconds / 1000000);
+          
+          if (err) {
+            healthCheck.services.database = { status: 'unhealthy', error: err.message };
+            healthCheck.status = 'degraded';
+            res.status(503).json({ ...healthCheck, response_time_ms: responseTimeMs.toFixed(2) });
+          } else {
+            healthCheck.services.database = { status: 'healthy' };
+            res.json({ ...healthCheck, response_time_ms: responseTimeMs.toFixed(2) });
+          }
+        });
+        return;
+      } catch (dbError) {
+        healthCheck.services.database = { status: 'unhealthy', error: dbError.message };
+        healthCheck.status = 'degraded';
+      }
+    }
+
+    const [seconds, nanoseconds] = process.hrtime(startTime);
+    const responseTimeMs = (seconds * 1000) + (nanoseconds / 1000000);
+    
+    res.json({ ...healthCheck, response_time_ms: responseTimeMs.toFixed(2) });
+    
+  } catch (error) {
+    const [seconds, nanoseconds] = process.hrtime(startTime);
+    const responseTimeMs = (seconds * 1000) + (nanoseconds / 1000000);
+    
+    res.status(500).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: error.message,
+      response_time_ms: responseTimeMs.toFixed(2)
+    });
+  }
+});
+
+// DHash metrics endpoint for monitoring
+app.get('/metrics/dhash', (req, res) => {
+  try {
+    const metrics = {
+      timestamp: new Date().toISOString(),
+      system: {
+        uptime_seconds: Math.floor(process.uptime()),
+        memory_usage_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        memory_total_mb: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+        cpu_usage_percent: process.cpuUsage ? Math.round(process.cpuUsage().user / 1000000 * 100) / 100 : null
+      },
+      dhash: {
+        version: '1.0.0',
+        format_support: ['json', 'dhash'],
+        last_deployment: process.env.DEPLOYMENT_TIMESTAMP || null,
+        transformation_engine: 'node',
+        checksum_algorithm: 'sha256'
+      },
+      performance: {
+        avg_transformation_time_ms: null, // Would be populated from actual metrics
+        total_transformations: 0,          // Would be tracked in production
+        successful_transformations: 0,     // Would be tracked in production
+        failed_transformations: 0          // Would be tracked in production
+      },
+      cache: {
+        bgg_metadata_entries: bggMetadataCache.size,
+        cache_hit_rate: null // Would be calculated from actual usage
+      }
+    };
+
+    // Check if DHash files exist and get stats
+    const dhashFiles = [];
+    const possibleFiles = ['library.dhash.json', 'data/library.dhash.json'];
+    
+    for (const filepath of possibleFiles) {
+      try {
+        if (existsSync(filepath)) {
+          const stats = fs.statSync(filepath);
+          const content = JSON.parse(fs.readFileSync(filepath, 'utf8'));
+          
+          dhashFiles.push({
+            path: filepath,
+            size_bytes: stats.size,
+            modified: stats.mtime.toISOString(),
+            version: content.metadata?.version || 'unknown',
+            entries: content.library ? Object.keys(content.library).length : 0,
+            checksum: content.checksums?.content_sha256?.substring(0, 8) + '...' || null
+          });
+        }
+      } catch (err) {
+        // File exists but can't read - note this
+        dhashFiles.push({
+          path: filepath,
+          error: 'Cannot read file: ' + err.message
+        });
+      }
+    }
+    
+    metrics.dhash.files = dhashFiles;
+    
+    // Add request metrics if available
+    if (req.app.locals.requestMetrics) {
+      metrics.requests = req.app.locals.requestMetrics;
+    }
+
+    res.json(metrics);
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to generate metrics',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
+    console.log(`🏥 Health check available at: http://localhost:${PORT}/health`);
+    console.log(`📊 DHash metrics available at: http://localhost:${PORT}/metrics/dhash`);
 });

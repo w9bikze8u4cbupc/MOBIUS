@@ -1,0 +1,104 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "format": "dhash",
+    "generated_at": "2025-09-24T17:17:11.154Z",
+    "source_file": "test-library.json",
+    "transformation_id": "1758734231"
+  },
+  "hash_algorithm": "dhash",
+  "library": {
+    "name": "Sample Game Library",
+    "version": "1.0.0",
+    "games": [
+      {
+        "id": "game_001",
+        "title": "Cosmic Encounter",
+        "designer": "Bill Eberle, Jack Kittredge, Bill Norton, Peter Olotka",
+        "publisher": "Fantasy Flight Games",
+        "year": 2008,
+        "players": {
+          "min": 3,
+          "max": 5,
+          "recommended": 4
+        },
+        "playtime": {
+          "min": 60,
+          "max": 120,
+          "average": 90
+        },
+        "age": 12,
+        "weight": 2.57,
+        "categories": [
+          "Science Fiction",
+          "Space Exploration"
+        ],
+        "mechanics": [
+          "Variable Player Powers",
+          "Hand Management",
+          "Alliance"
+        ],
+        "description": "In Cosmic Encounter, each player becomes the leader of one of dozens of alien races, each with its own unique power to break one of the rules of the game.",
+        "components": [
+          "50 Alien Power cards",
+          "100 Cosmic cards",
+          "95 plastic ships",
+          "25 Technology tokens",
+          "7 Danger tokens",
+          "1 Hyperspace Gate",
+          "1 Lunar disc",
+          "5 Player colonies",
+          "Rules"
+        ]
+      },
+      {
+        "id": "game_002",
+        "title": "Splendor",
+        "designer": "Marc André",
+        "publisher": "Space Cowboys",
+        "year": 2014,
+        "players": {
+          "min": 2,
+          "max": 4,
+          "recommended": 3
+        },
+        "playtime": {
+          "min": 30,
+          "max": 30,
+          "average": 30
+        },
+        "age": 10,
+        "weight": 2.37,
+        "categories": [
+          "Economic",
+          "Renaissance"
+        ],
+        "mechanics": [
+          "Set Collection",
+          "Engine Building"
+        ],
+        "description": "Splendor is a game of chip-collecting and card development. Players are merchants of the Renaissance trying to buy gem mines, means of transportation, shops—all in order to acquire the most prestige points.",
+        "components": [
+          "90 Development cards",
+          "10 Noble tiles",
+          "40 Gem tokens",
+          "Rules"
+        ]
+      }
+    ],
+    "metadata": {
+      "created_at": "2024-01-15T10:00:00Z",
+      "updated_at": "2024-01-15T10:00:00Z",
+      "total_games": 2,
+      "format_version": "1.0"
+    }
+  },
+  "checksums": {
+    "input_sha256": "0eaba5d8e207cbc2edae1badd22a808283ed8e04d5962cd26adcf2749d7af587",
+    "content_sha256": "0eaba5d8e207cbc2edae1badd22a808283ed8e04d5962cd26adcf2749d7af587"
+  },
+  "deployment": {
+    "timestamp": "20250924_171711",
+    "environment": "production"
+  }
+}

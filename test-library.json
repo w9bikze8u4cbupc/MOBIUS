@@ -1,0 +1,104 @@
+{
+  "name": "Sample Game Library",
+  "version": "1.0.0",
+  "games": [
+    {
+      "id": "game_001",
+      "title": "Cosmic Encounter",
+      "designer": "Bill Eberle, Jack Kittredge, Bill Norton, Peter Olotka",
+      "publisher": "Fantasy Flight Games",
+      "year": 2008,
+      "players": {
+        "min": 3,
+        "max": 5,
+        "recommended": 4
+      },
+      "playtime": {
+        "min": 60,
+        "max": 120,
+        "average": 90
+      },
+      "age": 12,
+      "weight": 2.57,
+      "categories": ["Science Fiction", "Space Exploration"],
+      "mechanics": ["Variable Player Powers", "Hand Management", "Alliance"],
+      "description": "In Cosmic Encounter, each player becomes the leader of one of dozens of alien races, each with its own unique power to break one of the rules of the game.",
+      "components": [
+        "50 Alien Power cards",
+        "100 Cosmic cards",
+        "95 plastic ships",
+        "25 Technology tokens",
+        "7 Danger tokens",
+        "1 Hyperspace Gate",
+        "1 Lunar disc",
+        "5 Player colonies",
+        "Rules"
+      ]
+    },
+    {
+      "id": "game_002", 
+      "title": "Splendor",
+      "designer": "Marc André",
+      "publisher": "Space Cowboys",
+      "year": 2014,
+      "players": {
+        "min": 2,
+        "max": 4,
+        "recommended": 3
+      },
+      "playtime": {
+        "min": 30,
+        "max": 30,
+        "average": 30
+      },
+      "age": 10,
+      "weight": 2.37,
+      "categories": ["Economic", "Renaissance"],
+      "mechanics": ["Set Collection", "Engine Building"],
+      "description": "Splendor is a game of chip-collecting and card development. Players are merchants of the Renaissance trying to buy gem mines, means of transportation, shops—all in order to acquire the most prestige points.",
+      "components": [
+        "90 Development cards",
+        "10 Noble tiles", 
+        "40 Gem tokens",
+        "Rules"
+      ]
+    },
+    {
+      "id": "game_003",
+      "title": "Azul",
+      "designer": "Michael Kiesling",
+      "publisher": "Next Move Games",
+      "year": 2017,
+      "players": {
+        "min": 2,
+        "max": 4,
+        "recommended": 2
+      },
+      "playtime": {
+        "min": 30,
+        "max": 45,
+        "average": 35
+      },
+      "age": 8,
+      "weight": 2.35,
+      "categories": ["Abstract Strategy", "Tile Placement"],
+      "mechanics": ["Tile Placement", "Pattern Building", "Drafting"],
+      "description": "Azul is a tile placement game where players compete to build the most beautiful wall by collecting and placing colored tiles.",
+      "components": [
+        "100 Resin tiles",
+        "9 Factory displays",
+        "4 Player boards",
+        "4 Scoring markers",
+        "1 Starting player marker",
+        "1 Linen bag",
+        "Rules"
+      ]
+    }
+  ],
+  "metadata": {
+    "created_at": "2024-01-15T10:00:00Z",
+    "updated_at": "2024-01-15T11:00:00Z",
+    "total_games": 3,
+    "format_version": "1.1"
+  }
+}
