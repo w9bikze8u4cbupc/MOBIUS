@@ -1,0 +1,40 @@
+{
+  "version": "1.0.0",
+  "lastMigration": null,
+  "dhash": {
+    "enabled": false,
+    "version": "1.0.0",
+    "migrationStatus": "pending",
+    "lastUpdateTimestamp": null
+  },
+  "games": [
+    {
+      "id": "sushi-go",
+      "name": "Sushi Go",
+      "status": "active",
+      "components": [],
+      "dhash": null
+    },
+    {
+      "id": "love-letter", 
+      "name": "Love Letter",
+      "status": "active",
+      "components": [],
+      "dhash": null
+    },
+    {
+      "id": "hanamikoji",
+      "name": "Hanamikoji", 
+      "status": "active",
+      "components": [],
+      "dhash": null
+    }
+  ],
+  "metrics": {
+    "totalGames": 3,
+    "migratedGames": 0,
+    "avgHashTime": null,
+    "extractionFailureRate": 0,
+    "lowConfidenceQueueLength": 0
+  }
+}

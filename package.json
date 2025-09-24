@@ -23,7 +23,13 @@
     "golden:check-with-junit": "node scripts/check_golden.js --game \"Hanamikoji\" --in \"out/preview.mp4\" --golden \"tests/golden/hanamikoji\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\" --junit tests/reports/hanamikoji.xml",
     "golden:update": "node scripts/generate_golden.js",
     "golden:check:junit": "node scripts/check_golden.js --junit tests/golden/reports/junit.xml",
-    "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\""
+    "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\"",
+    "deploy:dhash": "./scripts/deploy_dhash.sh",
+    "deploy:dhash:dry-run": "./scripts/deploy_dhash.sh --dry-run --verbose",
+    "backup:create": "cd ./scripts && ./deploy_dhash.sh --dry-run | head -1 && echo 'Creating backup...' && mkdir -p ../backups && cp ../library.json ../backups/library.json.bak.$(date +%Y%m%d_%H%M%S) && echo 'Backup created'",
+    "backup:verify": "cd ./backups && ls -la library.json.bak.* | tail -1 | awk '{print $9}' | xargs -I {} sh -c 'sha256sum {} > {}.sha256 && sha256sum -c {}.sha256'",
+    "smoke:test": "./scripts/simple_smoke_test.sh",
+    "lcm:export": "echo 'Exporting low-confidence queue sample...' && jq '.games | map(select(.dhash | startswith(\"hash_\"))) | length' library.json"
   },
   "keywords": [
     "game",

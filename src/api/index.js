@@ -2820,8 +2820,135 @@ app.get('/load-project/:id', (req, res) => {
   );
 });
 
+// --- DHash Deployment Health & Metrics Endpoints ---
+
+// Health endpoint for monitoring
+app.get('/health', (req, res) => {
+  try {
+    const libraryPath = path.join(process.cwd(), 'library.json');
+    let libraryStatus = 'unknown';
+    let dhashEnabled = false;
+    
+    if (fs.existsSync(libraryPath)) {
+      try {
+        const library = JSON.parse(fs.readFileSync(libraryPath, 'utf8'));
+        libraryStatus = 'loaded';
+        dhashEnabled = library.dhash && library.dhash.enabled === true;
+      } catch (parseErr) {
+        libraryStatus = 'invalid';
+      }
+    } else {
+      libraryStatus = 'missing';
+    }
+    
+    const health = {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      services: {
+        api: 'running',
+        library: libraryStatus,
+        dhash: dhashEnabled ? 'enabled' : 'disabled'
+      },
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      environment: process.env.NODE_ENV || 'development'
+    };
+    
+    // Determine overall health status
+    if (libraryStatus === 'missing' || libraryStatus === 'invalid') {
+      health.status = 'degraded';
+    }
+    
+    const statusCode = health.status === 'healthy' ? 200 : 503;
+    res.status(statusCode).json(health);
+    
+  } catch (error) {
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
+});
+
+// DHash-specific metrics endpoint
+app.get('/metrics/dhash', (req, res) => {
+  try {
+    const libraryPath = path.join(process.cwd(), 'library.json');
+    
+    if (!fs.existsSync(libraryPath)) {
+      return res.status(404).json({
+        error: 'Library file not found',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const library = JSON.parse(fs.readFileSync(libraryPath, 'utf8'));
+    
+    // Extract DHash metrics
+    const dhashMetrics = {
+      timestamp: new Date().toISOString(),
+      dhash_system: {
+        enabled: library.dhash?.enabled || false,
+        version: library.dhash?.version || 'unknown',
+        migration_status: library.dhash?.migrationStatus || 'unknown',
+        last_update: library.dhash?.lastUpdateTimestamp || null
+      },
+      games: {
+        total_games: library.games?.length || 0,
+        games_with_dhash: library.games?.filter(g => g.dhash != null).length || 0,
+        games_without_dhash: library.games?.filter(g => g.dhash == null).length || 0
+      },
+      performance: {
+        avg_hash_time: library.metrics?.avgHashTime || null,
+        p95_hash_time: library.metrics?.avgHashTime ? library.metrics.avgHashTime * 1.8 : null, // Estimate
+        extraction_failures_rate: library.metrics?.extractionFailureRate || 0,
+        low_confidence_queue_length: library.metrics?.lowConfidenceQueueLength || 0
+      },
+      last_migration: library.lastMigration || null
+    };
+    
+    // Add alerting thresholds for monitoring
+    dhashMetrics.alert_thresholds = {
+      avg_hash_time_ms: 200,
+      p95_hash_time_ms: 500,
+      extraction_failures_rate_percent: 5,
+      low_confidence_queue_spike_percent: 50
+    };
+    
+    // Calculate health indicators
+    const alerts = [];
+    if (dhashMetrics.performance.avg_hash_time > 200) {
+      alerts.push('avg_hash_time_high');
+    }
+    if (dhashMetrics.performance.p95_hash_time > 500) {
+      alerts.push('p95_hash_time_high');
+    }
+    if (dhashMetrics.performance.extraction_failures_rate > 0.05) {
+      alerts.push('extraction_failures_high');
+    }
+    
+    dhashMetrics.alerts = alerts;
+    dhashMetrics.alert_count = alerts.length;
+    
+    res.json(dhashMetrics);
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to retrieve DHash metrics',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// --- End DHash Endpoints ---
+
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
+    console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+    console.log(`📊 DHash metrics: http://localhost:${PORT}/metrics/dhash`);
 });
