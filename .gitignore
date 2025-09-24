@@ -73,3 +73,12 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# DHash System - production data (comment out for demos)
+# backups/
+# logs/
+# library/
+
+# Test artifacts
+test-samples/
+*.junit.xml
