@@ -22,6 +22,10 @@ import { extractComponentsWithAI } from './aiUtils.js';
 import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
+import { runCompleteWorkflow, runBasicWorkflow } from '../utils/matchRunner.js';
+import { extractImagesFromPDF } from '../utils/imageExtraction.js';
+import { processImageDerivatives } from '../utils/imageProcessing.js';
+import { generatePHash, findSimilarImages, buildHashDatabase } from '../utils/perceptualHashing.js';
 import { promisify } from 'node:util';
 
 
@@ -2818,6 +2822,279 @@ app.get('/load-project/:id', (req, res) => {
       }
     }
   );
+});
+
+// Enhanced image extraction and matching endpoint
+app.post('/extract-and-match', async (req, res) => {
+  try {
+    const { pdfPath, components, threshold = 0.90, strategy = 'auto' } = req.body;
+    
+    if (!pdfPath) {
+      return res.status(400).json({ error: 'PDF path is required' });
+    }
+    
+    console.log(`Starting enhanced extraction and matching for: ${pdfPath}`);
+    console.log(`Threshold: ${threshold}, Strategy: ${strategy}`);
+    
+    // Run complete workflow
+    const workflow = await runCompleteWorkflow({
+      pdfPath,
+      outputDir: path.join(OUTPUT_DIR, 'enhanced-processing'),
+      components: components || [],
+      threshold,
+      extractionStrategy: strategy,
+      reportsDir: path.join(OUTPUT_DIR, 'reports'),
+      concurrency: 2 // Moderate concurrency for API usage
+    });
+    
+    if (!workflow.success) {
+      return res.status(500).json({ 
+        error: 'Workflow failed', 
+        details: workflow.error,
+        partialResults: workflow.results 
+      });
+    }
+    
+    // Prepare response data
+    const response = {
+      success: true,
+      workflow: {
+        duration: Math.round(workflow.duration / 1000), // seconds
+        stepsCompleted: workflow.steps.length
+      },
+      extraction: {
+        strategy: workflow.results.extraction?.strategy,
+        imageCount: workflow.results.extraction?.imageCount || workflow.results.extraction?.totalImages || 0,
+        images: workflow.results.extraction?.images || []
+      },
+      processing: {
+        inputImages: workflow.results.processing?.inputImages || 0,
+        successful: workflow.results.processing?.successful || 0,
+        failed: workflow.results.processing?.failed || 0,
+        outputTypes: workflow.results.processing?.outputTypes || {}
+      },
+      hashing: {
+        totalImages: workflow.results.hashing?.totalImages || 0,
+        successCount: workflow.results.hashing?.successCount || 0,
+        errorCount: workflow.results.hashing?.errorCount || 0,
+        databasePath: workflow.results.hashing?.databasePath
+      },
+      matching: {
+        totalComponents: workflow.results.matching?.totalComponents || 0,
+        successfulAssignments: workflow.results.matching?.successfulAssignments || 0,
+        assignments: workflow.results.matching?.assignments || []
+      },
+      reports: workflow.results.reporting
+    };
+    
+    console.log('Enhanced extraction and matching completed successfully');
+    res.json(response);
+    
+  } catch (error) {
+    console.error('Enhanced extraction and matching error:', error);
+    res.status(500).json({ 
+      error: error.message,
+      type: 'enhanced_extraction_error'
+    });
+  }
+});
+
+// Generate perceptual hash for uploaded image
+app.post('/generate-phash', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+    
+    console.log(`Generating pHash for: ${req.file.filename}`);
+    
+    const hashResult = await generatePHash(req.file.path);
+    
+    res.json({
+      success: true,
+      image: {
+        filename: req.file.filename,
+        path: req.file.path,
+        size: req.file.size
+      },
+      hash: hashResult.hash,
+      algorithm: hashResult.algorithm,
+      generatedAt: hashResult.generatedAt
+    });
+    
+  } catch (error) {
+    console.error('pHash generation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Find similar images to uploaded image
+app.post('/find-similar', upload.single('target'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No target image file provided' });
+    }
+    
+    const { threshold = 0.90, candidateDir = 'uploads/processed/web' } = req.body;
+    const targetPath = req.file.path;
+    
+    console.log(`Finding similar images to: ${req.file.filename}`);
+    console.log(`Threshold: ${threshold}, Searching in: ${candidateDir}`);
+    
+    // Find candidate images
+    const candidateImages = [];
+    const fullCandidateDir = path.join(process.cwd(), candidateDir);
+    
+    if (fs.existsSync(fullCandidateDir)) {
+      const files = await fsPromises.readdir(fullCandidateDir);
+      
+      for (const file of files) {
+        if (/\.(jpg|jpeg|png|tiff|bmp|webp)$/i.test(file)) {
+          candidateImages.push(path.join(fullCandidateDir, file));
+        }
+      }
+    }
+    
+    if (candidateImages.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No candidate images found',
+        matches: [],
+        targetImage: targetPath,
+        totalCandidates: 0
+      });
+    }
+    
+    // Find similar images
+    const results = await findSimilarImages(targetPath, candidateImages, parseFloat(threshold));
+    
+    // Format response
+    const formattedMatches = results.matches.map(match => ({
+      candidatePath: path.basename(match.candidatePath),
+      similarity: match.similarity,
+      percentage: match.percentage,
+      distance: match.distance,
+      isMatch: match.isMatch
+    }));
+    
+    res.json({
+      success: true,
+      targetImage: req.file.filename,
+      targetHash: results.targetHash,
+      threshold: parseFloat(threshold),
+      totalCandidates: results.totalCandidates,
+      matchCount: results.matches.length,
+      matches: formattedMatches.slice(0, 10), // Limit to top 10 matches
+      processedAt: results.processedAt
+    });
+    
+  } catch (error) {
+    console.error('Similar images search error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Build hash database for existing images
+app.post('/build-hash-database', async (req, res) => {
+  try {
+    const { imageDir = 'uploads/processed/web', outputPath } = req.body;
+    const fullImageDir = path.join(process.cwd(), imageDir);
+    
+    console.log(`Building hash database for images in: ${imageDir}`);
+    
+    if (!fs.existsSync(fullImageDir)) {
+      return res.status(400).json({ error: `Image directory not found: ${imageDir}` });
+    }
+    
+    // Find all images
+    const imagePaths = [];
+    const files = await fsPromises.readdir(fullImageDir);
+    
+    for (const file of files) {
+      if (/\.(jpg|jpeg|png|tiff|bmp|webp)$/i.test(file)) {
+        imagePaths.push(path.join(fullImageDir, file));
+      }
+    }
+    
+    if (imagePaths.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No images found to hash',
+        database: null
+      });
+    }
+    
+    // Build database
+    const databasePath = outputPath || path.join(OUTPUT_DIR, 'phash-database.json');
+    const database = await buildHashDatabase(imagePaths, databasePath);
+    
+    res.json({
+      success: true,
+      database: {
+        path: databasePath,
+        totalImages: database.totalImages,
+        successCount: database.successCount,
+        errorCount: database.errorCount,
+        createdAt: database.createdAt
+      },
+      sourceDirectory: imageDir,
+      processedImages: imagePaths.length
+    });
+    
+  } catch (error) {
+    console.error('Database building error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Quick image processing endpoint
+app.post('/process-image', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+    
+    console.log(`Processing image: ${req.file.filename}`);
+    
+    const outputDir = path.join(OUTPUT_DIR, 'quick-processing');
+    const result = await processImageDerivatives(req.file.path, outputDir);
+    
+    if (result.errors.length > 0) {
+      return res.status(500).json({
+        error: 'Processing failed',
+        details: result.errors,
+        partialResults: result.outputs
+      });
+    }
+    
+    // Format output paths for frontend
+    const outputs = result.outputs.map(output => ({
+      type: output.type,
+      filename: path.basename(output.path),
+      path: path.relative(process.cwd(), output.path),
+      width: output.width,
+      height: output.height,
+      format: output.format,
+      size: output.size
+    }));
+    
+    res.json({
+      success: true,
+      input: {
+        filename: req.file.filename,
+        size: req.file.size
+      },
+      outputs,
+      processing: {
+        outputCount: result.outputs.length,
+        errorCount: result.errors.length
+      }
+    });
+    
+  } catch (error) {
+    console.error('Image processing error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 const PORT = process.env.PORT || 5001;
