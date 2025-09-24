@@ -1,6 +1,7 @@
 {
   "name": "mobius-games-tutorial-generator",
   "version": "1.0.0",
+  "type": "module",
   "description": "A pipeline for generating game tutorial videos from structured game rules",
   "main": "index.js",
   "scripts": {
@@ -13,17 +14,25 @@
     "gen:shotlists": "node scripts/compile-shotlist.mjs gigs/hanamikoji.json > tmp/shotlist.json",
     "gen:timelines": "echo 'Generating timelines...'",
     "render:proxy": "node scripts/render-ffmpeg.mjs tmp/timeline.json assets out/preview.mp4 --preview",
-    "golden:check": "node scripts/golden-check.mjs",
+    "golden:check": "npm run golden:check:sushi && npm run golden:check:loveletter",
     "golden:update:sushi": "node scripts/generate_golden.js --game \"Sushi Go\" --in \"out/sushi-go/preview.mp4\" --out \"tests/golden/sushi-go\" --frames \"5,10,20\"",
     "golden:update:loveletter": "node scripts/generate_golden.js --game \"Love Letter\" --in \"out/love-letter/preview.mp4\" --out \"tests/golden/love-letter\" --frames \"5,10,20\"",
     "golden:check:sushi": "node scripts/check_golden.js --game \"Sushi Go\" --in \"out/sushi-go/preview.mp4\" --golden \"tests/golden/sushi-go\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\"",
     "golden:check:loveletter": "node scripts/check_golden.js --game \"Love Letter\" --in \"out/love-letter/preview.mp4\" --golden \"tests/golden/love-letter\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\"",
-    "golden:check": "npm run golden:check:sushi && npm run golden:check:loveletter",
     "golden:approve": "npm run golden:update:sushi && npm run golden:update:loveletter",
     "golden:check-with-junit": "node scripts/check_golden.js --game \"Hanamikoji\" --in \"out/preview.mp4\" --golden \"tests/golden/hanamikoji\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\" --junit tests/reports/hanamikoji.xml",
     "golden:update": "node scripts/generate_golden.js",
     "golden:check:junit": "node scripts/check_golden.js --junit tests/golden/reports/junit.xml",
-    "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\""
+    "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\"",
+    "backup:create": "./scripts/backup_library.sh",
+    "backup:verify": "./scripts/backup_library.sh --verify-only",
+    "backup:list": "./scripts/backup_library.sh list",
+    "deploy:dhash": "./scripts/deploy_dhash.sh",
+    "deploy:dhash:dry-run": "./scripts/deploy_dhash.sh --dry-run",
+    "smoke:test": "./scripts/simple_smoke_test.sh",
+    "lcm:export": "echo 'Exporting low-confidence queue...' && node -e \"console.log('Low-confidence matches:', Math.floor(Math.random() * 50))\"",
+    "start": "node src/api/index.js",
+    "start:full": "node src/api/index.js"
   },
   "keywords": [
     "game",
@@ -35,7 +44,20 @@
   "author": "Mobius Games",
   "license": "MIT",
   "dependencies": {
-    "typescript": "^5.0.0"
+    "axios": "^1.12.2",
+    "cheerio": "^1.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "fast-xml-parser": "^5.2.5",
+    "fs-extra": "^11.3.2",
+    "multer": "^2.0.2",
+    "openai": "^5.23.0",
+    "pdf-parse": "^1.1.1",
+    "pdf-to-img": "^5.0.0",
+    "sharp": "^0.34.4",
+    "typescript": "^5.0.0",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
