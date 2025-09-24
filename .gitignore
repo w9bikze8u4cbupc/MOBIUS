@@ -64,6 +64,13 @@ coverage/
 tests/golden/**/debug/
 tests/golden/reports/
 
+# DHash deployment artifacts (exclude from repo in production)
+backups/
+exports/lcm/
+*.dhash.json
+test-library.json
+mock-server.js
+
 # Node.js dependencies
 node_modules/
 
