@@ -1,0 +1,61 @@
+{
+  "timestamp": "2025-09-24T23-52-16-800Z",
+  "sourceDirectory": "/home/runner/work/MOBIUS/MOBIUS/library",
+  "batchSize": 50,
+  "startTime": "2025-09-24T23:52:16.800Z",
+  "processedFiles": [
+    {
+      "path": "game1/cards/card1.jpg",
+      "hash": "cb4709c7b030471f",
+      "method": "simple",
+      "confidence": 0.6,
+      "size": 23,
+      "processed_at": "2025-09-24T23:52:16.803Z"
+    },
+    {
+      "path": "game1/tokens/token1.png",
+      "hash": "6a22cc37af6871f6",
+      "method": "simple",
+      "confidence": 0.6,
+      "size": 23,
+      "processed_at": "2025-09-24T23:52:16.805Z"
+    },
+    {
+      "path": "game2/board/board1.jpg",
+      "hash": "c6fa27a45d1b0aca",
+      "method": "simple",
+      "confidence": 0.6,
+      "size": 23,
+      "processed_at": "2025-09-24T23:52:16.807Z"
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "totalFiles": 3,
+    "processedCount": 3,
+    "errorCount": 0,
+    "duplicateHashes": 0,
+    "lowConfidenceCount": 3
+  },
+  "endTime": "2025-09-24T23:52:16.807Z",
+  "lowConfidenceItems": [
+    {
+      "file": "game1/cards/card1.jpg",
+      "hash": "cb4709c7b030471f",
+      "confidence": 0.6,
+      "reason": "fallback_hash_method"
+    },
+    {
+      "file": "game1/tokens/token1.png",
+      "hash": "6a22cc37af6871f6",
+      "confidence": 0.6,
+      "reason": "fallback_hash_method"
+    },
+    {
+      "file": "game2/board/board1.jpg",
+      "hash": "c6fa27a45d1b0aca",
+      "confidence": 0.6,
+      "reason": "fallback_hash_method"
+    }
+  ]
+}

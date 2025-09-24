@@ -1,0 +1,23 @@
+{
+  "backup_name": "pre-deploy",
+  "timestamp": "2025-09-24T23-52-16-784Z",
+  "source_directory": "/home/runner/work/MOBIUS/MOBIUS/library",
+  "backup_directory": "/home/runner/work/MOBIUS/MOBIUS/backups/pre-deploy-2025-09-24T23-52-16-784Z",
+  "sha256_hash": "643b97005b8568bc40a84933f44bebee971fbf9b7cda6571c5b9bbe7acec91fc",
+  "file_count": 3,
+  "created_at": "2025-09-24T23:52:16.798Z",
+  "manifest": [
+    {
+      "path": "game1/cards/card1.jpg",
+      "hash": "4e8d0265cf18743254521db110935fab247919b05c62b9a7f64af996ea7a2689"
+    },
+    {
+      "path": "game1/tokens/token1.png",
+      "hash": "4e8d0265cf18743254521db110935fab247919b05c62b9a7f64af996ea7a2689"
+    },
+    {
+      "path": "game2/board/board1.jpg",
+      "hash": "4e8d0265cf18743254521db110935fab247919b05c62b9a7f64af996ea7a2689"
+    }
+  ]
+}
