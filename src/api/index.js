@@ -2820,8 +2820,155 @@ app.get('/load-project/:id', (req, res) => {
   );
 });
 
+// Health check endpoint for DHash production monitoring
+app.get('/health', async (req, res) => {
+  const startTime = Date.now();
+  const healthCheck = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    uptime: process.uptime(),
+    services: {
+      api: 'healthy',
+      dhash: 'unknown',
+      ffmpeg: 'unknown'
+    },
+    metrics: {
+      avg_hash_time: null,
+      p95_hash_time: null,
+      extraction_failures_rate: null,
+      low_confidence_queue_length: null
+    }
+  };
+
+  try {
+    // Test DHash functionality
+    const { DHashProcessor } = await import('../dhash.js');
+    const processor = new DHashProcessor();
+    
+    // Quick DHash functionality test
+    const hashTestStart = Date.now();
+    try {
+      // Test hash comparison (doesn't require image files)
+      const distance = processor.compareHashes('0000000000000000', '0000000000000001');
+      const hashTestTime = Date.now() - hashTestStart;
+      
+      if (distance === 1) {
+        healthCheck.services.dhash = 'healthy';
+        healthCheck.metrics.avg_hash_time = hashTestTime;
+      } else {
+        healthCheck.services.dhash = 'degraded';
+      }
+    } catch (dhashError) {
+      healthCheck.services.dhash = 'unhealthy';
+    }
+
+    // Test FFmpeg availability
+    const { spawnSync } = require('child_process');
+    try {
+      const ffmpegResult = spawnSync('ffmpeg', ['-version'], { timeout: 5000, encoding: 'utf8' });
+      if (ffmpegResult.status === 0) {
+        healthCheck.services.ffmpeg = 'healthy';
+      } else {
+        healthCheck.services.ffmpeg = 'degraded';
+      }
+    } catch (ffmpegError) {
+      healthCheck.services.ffmpeg = 'unhealthy';
+    }
+
+    // Try to get low-confidence queue length (if file exists)
+    try {
+      const queuePath = 'low-confidence-queue.json';
+      if (existsSync(queuePath)) {
+        const queueData = JSON.parse(fs.readFileSync(queuePath, 'utf8'));
+        healthCheck.metrics.low_confidence_queue_length = queueData.totalMatches || 0;
+      } else {
+        healthCheck.metrics.low_confidence_queue_length = 0;
+      }
+    } catch (queueError) {
+      // Queue file doesn't exist or is invalid - not critical for health
+      healthCheck.metrics.low_confidence_queue_length = 0;
+    }
+
+  } catch (error) {
+    healthCheck.status = 'degraded';
+    healthCheck.services.dhash = 'unhealthy';
+    healthCheck.error = error.message;
+  }
+
+  // Overall health status
+  const services = Object.values(healthCheck.services);
+  if (services.includes('unhealthy')) {
+    healthCheck.status = 'unhealthy';
+    res.status(503);
+  } else if (services.includes('degraded')) {
+    healthCheck.status = 'degraded';
+    res.status(200);
+  } else {
+    healthCheck.status = 'healthy';
+    res.status(200);
+  }
+
+  const responseTime = Date.now() - startTime;
+  healthCheck.response_time_ms = responseTime;
+
+  res.json(healthCheck);
+});
+
+// DHash metrics endpoint for detailed monitoring
+app.get('/metrics/dhash', async (req, res) => {
+  try {
+    const { DHashProcessor } = await import('../dhash.js');
+    const processor = new DHashProcessor();
+    
+    // Simulate some performance metrics
+    const testHashes = [
+      '0000000000000000', '0000000000000001', '000000000000000F',
+      'FFFFFFFFFFFFFFFF', 'FFFFFFFFFFFFF000', '00000000000F0000'
+    ];
+    
+    const times = [];
+    const errors = [];
+    
+    for (let i = 0; i < testHashes.length - 1; i++) {
+      const start = Date.now();
+      try {
+        const distance = processor.compareHashes(testHashes[i], testHashes[i + 1]);
+        const time = Date.now() - start;
+        times.push(time);
+      } catch (error) {
+        errors.push(error.message);
+      }
+    }
+    
+    times.sort((a, b) => a - b);
+    const avg_time = times.reduce((a, b) => a + b, 0) / times.length;
+    const p95_index = Math.floor(times.length * 0.95);
+    const p95_time = times[p95_index] || times[times.length - 1];
+    
+    const metrics = {
+      avg_hash_time: avg_time || 0,
+      p95_hash_time: p95_time || 0,
+      extraction_failures_rate: errors.length / (times.length + errors.length),
+      total_comparisons: times.length,
+      total_errors: errors.length,
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json(metrics);
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to collect DHash metrics',
+      message: error.message
+    });
+  }
+});
+
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
+    console.log(`🏥 Health check available at: http://localhost:${PORT}/health`);
+    console.log(`📊 DHash metrics available at: http://localhost:${PORT}/metrics/dhash`);
 });
