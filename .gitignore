@@ -69,6 +69,19 @@ node_modules/
 
 # Log files
 *.log
+logs/
+
+# Dhash backup files  
+backups/
+
+# Migration artifacts
+migrations/
+
+# Deploy artifacts
+deploy*.log
+migrate-dryrun.log
+postdeploy-smoketests.log
+rollback.log
 
 # OS generated files
 .DS_Store

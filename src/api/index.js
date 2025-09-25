@@ -2820,8 +2820,86 @@ app.get('/load-project/:id', (req, res) => {
   );
 });
 
+// --- DHASH PRODUCTION READINESS ENDPOINTS ---
+const { createRequire } = require('module');
+const require = createRequire(import.meta.url);
+const logger = require('../utils/logger.js');
+const dhashService = require('../services/dhash.js');
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  try {
+    const health = dhashService.getHealthStatus();
+    const statusCode = health.status === 'OK' ? 200 : health.status === 'WARNING' ? 200 : 503;
+    
+    logger.info('Health check requested', { 
+      health: health.status,
+      timestamp: health.timestamp 
+    });
+    
+    res.status(statusCode).json(health);
+  } catch (error) {
+    logger.error('Health check failed', { error: error.message });
+    res.status(503).json({
+      status: 'ERROR',
+      timestamp: new Date().toISOString(),
+      service: 'dhash',
+      error: 'Health check failed'
+    });
+  }
+});
+
+// Dhash metrics endpoint
+app.get('/metrics/dhash', (req, res) => {
+  try {
+    const metrics = dhashService.getMetrics();
+    
+    logger.info('Dhash metrics requested', { 
+      total_extractions: metrics.total_extractions,
+      failures_rate: metrics.extraction_failures_rate 
+    });
+    
+    res.json({
+      timestamp: new Date().toISOString(),
+      service: 'dhash',
+      metrics: metrics
+    });
+  } catch (error) {
+    logger.error('Metrics collection failed', { error: error.message });
+    res.status(500).json({
+      error: 'Failed to collect metrics',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Test dhash extraction endpoint for validation
+app.post('/api/dhash/extract', async (req, res) => {
+  try {
+    const { imagePath } = req.body;
+    
+    if (!imagePath) {
+      return res.status(400).json({ error: 'imagePath is required' });
+    }
+    
+    const result = dhashService.calculateDHash(imagePath);
+    res.json(result);
+  } catch (error) {
+    logger.error('Dhash extraction failed', { error: error.message });
+    res.status(500).json({
+      error: 'Dhash extraction failed',
+      details: error.message
+    });
+  }
+});
+
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
+    logger.info('MOBIUS server started', { 
+      port: PORT, 
+      version: process.env.npm_package_version || '1.0.0',
+      environment: process.env.NODE_ENV || 'development'
+    });
 });
