@@ -207,7 +207,7 @@ while [[ $(date +%s) -lt $END_TIME ]]; do
     fi
     
     # Wait for next check
-    local remaining=$((END_TIME - $(date +%s)))
+    remaining=$((END_TIME - $(date +%s)))
     if [[ $remaining -gt 0 ]]; then
         if [[ $remaining -lt $INTERVAL ]]; then
             sleep $remaining

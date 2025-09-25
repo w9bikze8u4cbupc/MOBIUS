@@ -73,3 +73,24 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Deployment-specific ignores
+logs/
+monitor_logs/
+deploy-*.log
+rollback-*.log
+migrate-*.log
+*-dryrun.log
+sessions/
+premerge_artifacts/
+test_results/
+
+# Backup files (keep structure but ignore contents in some cases)
+backups/*.zip
+backups/*.sha256
+!backups/.gitkeep
+
+# Temporary deployment files  
+/tmp/backup-metadata-*
+/tmp/emergency-backup-metadata-*
+/tmp/restore-*
