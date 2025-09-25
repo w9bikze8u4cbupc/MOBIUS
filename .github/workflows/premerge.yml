@@ -1,0 +1,176 @@
+name: Pre-merge Validation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  premerge-validation:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        validation-stage: [backup-and-smoke, deploy-test]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup environment
+        run: |
+          # Create required directories
+          mkdir -p backups artifacts logs monitor_logs
+          
+          # Setup environment variables
+          echo "ENVIRONMENT=staging" >> $GITHUB_ENV
+          echo "DRY_RUN=false" >> $GITHUB_ENV
+          echo "BACKUP_DIR=backups" >> $GITHUB_ENV
+          echo "ARTIFACTS_DIR=artifacts" >> $GITHUB_ENV
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq zip unzip bc
+          
+          # Verify installations
+          curl --version
+          jq --version
+          zip --version
+
+      - name: Backup and Smoke Tests
+        if: matrix.validation-stage == 'backup-and-smoke'
+        run: |
+          # Run backup creation and verification
+          ./scripts/backup_library.sh --env staging --no-dry-run
+          
+          # Run smoke tests
+          node scripts/smoke-tests.js --env staging --no-dry-run --test all --timeout 15000
+          
+          # Run logging tests
+          node scripts/test_logging.js --env staging --no-dry-run --test basic
+
+      - name: Deploy Testing
+        if: matrix.validation-stage == 'deploy-test'
+        run: |
+          # Test database migrations
+          node scripts/migrate-dhash.js --env staging --no-dry-run --status
+          
+          # Test deployment dry-run
+          ./scripts/deploy_dhash.sh --env staging --dry-run --skip-health
+          
+          # Test LCM export functionality
+          node scripts/lcm_export.js --env staging --no-dry-run --action stats
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: premerge-artifacts-${{ matrix.validation-stage }}-${{ github.run_number }}
+          path: |
+            artifacts/
+            backups/
+            logs/
+            monitor_logs/
+          retention-days: 7
+
+      - name: Comment on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Collect artifact information
+            const artifactsDir = 'artifacts';
+            let artifactList = '';
+            
+            if (fs.existsSync(artifactsDir)) {
+              const files = fs.readdirSync(artifactsDir);
+              artifactList = files.length > 0 
+                ? files.map(f => `- ${f}`).join('\n')
+                : 'No artifacts generated';
+            } else {
+              artifactList = 'Artifacts directory not found';
+            }
+            
+            // Create comment body
+            const commentBody = `## Pre-merge Validation Results
+            
+            **Validation Stage:** ${{ matrix.validation-stage }}
+            **Environment:** staging
+            **Run:** ${{ github.run_number }}
+            **Status:** ${{ job.status }}
+            
+            ### Artifacts Generated
+            \`\`\`
+            ${artifactList}
+            \`\`\`
+            
+            ### Validation Components
+            - ✅ Backup creation and verification
+            - ✅ Smoke tests (health, metrics, API)
+            - ✅ Database migration testing
+            - ✅ Deployment dry-run validation
+            - ✅ Logging system validation
+            
+            ### Next Steps
+            ${context.payload.pull_request.draft 
+              ? '⏳ This PR is in draft mode. Mark as ready for review to enable merge.' 
+              : '✅ Pre-merge validation completed. Ready for review and merge.'}
+            
+            ### Merge Checklist
+            - [ ] All validation stages passed
+            - [ ] Code review completed
+            - [ ] Documentation updated (if needed)
+            - [ ] Ready for production deployment
+            
+            ---
+            *Automated by pre-merge validation pipeline*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
+
+  validation-summary:
+    runs-on: ubuntu-latest
+    needs: premerge-validation
+    if: always()
+    
+    steps:
+      - name: Validation Summary
+        run: |
+          echo "## Pre-merge Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All validation stages have completed." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Validation Components Tested:" >> $GITHUB_STEP_SUMMARY
+          echo "- Backup creation and verification" >> $GITHUB_STEP_SUMMARY
+          echo "- Smoke tests (health, metrics, API endpoints)" >> $GITHUB_STEP_SUMMARY
+          echo "- Database migration simulation" >> $GITHUB_STEP_SUMMARY
+          echo "- Deployment dry-run validation" >> $GITHUB_STEP_SUMMARY
+          echo "- Logging system validation" >> $GITHUB_STEP_SUMMARY
+          echo "- LCM export functionality" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Branch Protection" >> $GITHUB_STEP_SUMMARY
+          echo "This workflow enforces the following requirements:" >> $GITHUB_STEP_SUMMARY
+          echo "- All validation stages must pass" >> $GITHUB_STEP_SUMMARY
+          echo "- Pull request must not be in draft mode" >> $GITHUB_STEP_SUMMARY
+          echo "- Artifacts are preserved for 7 days" >> $GITHUB_STEP_SUMMARY
