@@ -1,0 +1,90 @@
+{
+  "environment": "production",
+  "version": "1.0.0",
+  "quality_gates": {
+    "health_checks": {
+      "endpoint": "/health",
+      "expected_status": "OK",
+      "max_consecutive_failures": 2,
+      "timeout_seconds": 10,
+      "description": "Health endpoint status check"
+    },
+    "error_rates": {
+      "extraction_failures_rate": {
+        "threshold": 10.0,
+        "unit": "percent",
+        "baseline_multiplier": 3,
+        "description": "Maximum acceptable extraction failure rate"
+      }
+    },
+    "performance_metrics": {
+      "p95_hash_time": {
+        "threshold": 30.0,
+        "unit": "seconds",
+        "baseline_multiplier": 3,
+        "check_count": 3,
+        "description": "95th percentile hash processing time"
+      }
+    },
+    "queue_metrics": {
+      "low_confidence_queue_length": {
+        "threshold": 100,
+        "unit": "items",
+        "baseline_multiplier": 5,
+        "description": "Low confidence queue backlog size"
+      }
+    },
+    "system_resources": {
+      "cpu_utilization": {
+        "threshold": 85.0,
+        "unit": "percent",
+        "sustained_duration": "300s",
+        "description": "Sustained CPU usage threshold"
+      },
+      "memory_oom": {
+        "threshold": 0,
+        "unit": "count",
+        "description": "Out of memory events"
+      },
+      "disk_io_anomalies": {
+        "threshold": "sustained",
+        "description": "Sustained disk I/O anomalies"
+      }
+    }
+  },
+  "monitoring": {
+    "default_duration": 3600,
+    "alert_channels": [
+      "slack",
+      "email",
+      "pagerduty"
+    ],
+    "dashboard_urls": {
+      "health": "https://monitoring.example.com/dashboards/health",
+      "error_rate": "https://monitoring.example.com/dashboards/error-rate", 
+      "performance": "https://monitoring.example.com/dashboards/performance",
+      "queues": "https://monitoring.example.com/dashboards/queues"
+    }
+  },
+  "backup": {
+    "retention_days": 30,
+    "location": "backups/",
+    "compression": true,
+    "checksum": "sha256"
+  },
+  "deployment": {
+    "environments": ["staging", "production"],
+    "rollback_timeout": 600,
+    "health_check_retries": 3,
+    "pre_deploy_checks": [
+      "backup_creation",
+      "health_check",
+      "smoke_tests"
+    ],
+    "post_deploy_checks": [
+      "health_check",
+      "smoke_tests",
+      "queue_drain_check"
+    ]
+  }
+}
