@@ -30,7 +30,8 @@
     "dhash:smoke-tests": "node scripts/smoke-tests.js",
     "dhash:test-logging": "node scripts/test_logging.js",
     "dhash:deploy-dry-run": "./scripts/deploy_dhash.sh --dry-run --env staging",
-    "dhash:migrate-dry-run": "node scripts/migrate-dhash.js --dry-run"
+    "dhash:migrate-dry-run": "node scripts/migrate-dhash.js --dry-run",
+    "dhash:monitor": "./scripts/monitor_dhash.sh"
   },
   "keywords": [
     "game",
