@@ -70,6 +70,20 @@ node_modules/
 # Log files
 *.log
 
+# Deployment and backup artifacts  
+backups/
+rollback_backups/
+monitor_logs/
+deploy.log
+deploy-dryrun.log
+rollback.log
+*-dryrun.log
+deploy_production_*.log
+postdeploy-smoketests.log
+test_logging.log
+smoke_quick.log
+rollback-artifacts_*.tgz
+
 # OS generated files
 .DS_Store
 Thumbs.db

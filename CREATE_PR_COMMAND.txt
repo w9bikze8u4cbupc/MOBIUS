@@ -1,0 +1,21 @@
+# Save as CREATE_PR_COMMAND.txt and edit OWNER/REPO and HEAD_BRANCH before running
+gh pr create \
+  --repo OWNER/REPO \
+  --head feature/dhash-production-ready \
+  --base main \
+  --title "chore(dhash): production readiness — logging, metrics, backups, deploy tooling" \
+  --body $'Summary:
+- Structured logging + rotation and PII redaction
+- /health and /metrics/dhash endpoints
+- Backup + SHA256 verification and retention
+- deploy_dhash.sh and rollback_dhash.sh with dry-run
+- migrate-dhash.js with dry-run and versioning
+
+Pre-merge checks: CI green on all matrix runners, backup created & verified, deploy+migration dry-runs attached.
+Approvers required: 2 (incl. Ops/SRE)
+Artifacts: deploy-dryrun.log, migrate-dryrun.log, backups/*.zip.sha256
+' \
+  --reviewer media-eng,ops \
+  --label media/pipeline,migration,release-ready \
+  --assignee ${USER:-$(git config user.name)} \
+  --web
