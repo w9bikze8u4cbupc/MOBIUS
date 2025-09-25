@@ -67,8 +67,13 @@ tests/golden/reports/
 # Node.js dependencies
 node_modules/
 
-# Log files
+# Log files and logging infrastructure
 *.log
+logs/
+backups/
+
+# Migration artifacts  
+mobius.db
 
 # OS generated files
 .DS_Store

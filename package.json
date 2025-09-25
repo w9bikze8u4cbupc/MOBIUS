@@ -46,10 +46,23 @@
   "author": "Mobius Games",
   "license": "MIT",
   "dependencies": {
+    "axios": "^1.12.2",
+    "cheerio": "^1.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "fast-xml-parser": "^5.2.5",
+    "fs-extra": "^11.3.2",
+    "multer": "^2.0.2",
+    "openai": "^5.23.0",
+    "pdf-parse": "^1.1.1",
+    "pdf-to-img": "^5.0.0",
+    "sharp": "^0.34.4",
     "sqlite3": "^5.1.7",
     "typescript": "^5.0.0",
     "winston": "^3.17.0",
-    "winston-daily-rotate-file": "^5.0.0"
+    "winston-daily-rotate-file": "^5.0.0",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
