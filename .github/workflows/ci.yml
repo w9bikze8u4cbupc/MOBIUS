@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+env:
+  NODE_ENV: production
+
 jobs:
   build-and-qa:
     strategy:
@@ -11,6 +14,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,6 +23,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Install deps
         run: npm ci
@@ -38,57 +51,100 @@ jobs:
           python -m pip install --upgrade pip
         shell: pwsh
 
+      - name: ESLint Check
+        run: |
+          mkdir -p artifacts
+          npm run lint:report
+        continue-on-error: true
+
       - name: Build
         run: npm run build --if-present
+        timeout-minutes: 10
 
       - name: Unit tests
         run: npm test -- --ci --reporters=default
+        timeout-minutes: 15
 
       - name: Render preview
         run: |
           mkdir -p out artifacts
           npm run render:preview # <- replace with your preview command
         shell: bash
+        timeout-minutes: 10
 
       - name: Audio ebur128
         run: |
           ffmpeg -hide_banner -nostats -i out/preview_with_audio.mp4 -filter_complex ebur128 -f null - 2> artifacts/preview_with_audio_ebur128.txt
         shell: bash
+        timeout-minutes: 5
 
       - name: Capture provenance (Unix)
         if: runner.os != 'Windows'
         run: bash scripts/capture_provenance.sh artifacts out/preview_with_audio.mp4
         shell: bash
+        timeout-minutes: 5
 
       - name: Capture provenance (Windows)
         if: runner.os == 'Windows'
         run: powershell -ExecutionPolicy Bypass -File scripts/capture_provenance.ps1 artifacts out/preview_with_audio.mp4
         shell: cmd
+        timeout-minutes: 5
 
       - name: Audio gates (Unix)
         if: runner.os != 'Windows'
         run: python3 scripts/check_audio_compliance.py artifacts/preview_with_audio_ebur128.txt
         shell: bash
+        timeout-minutes: 3
 
       - name: Audio gates (Windows)
         if: runner.os == 'Windows'
         run: powershell -ExecutionPolicy Bypass -File scripts/check_audio_compliance.ps1 artifacts/preview_with_audio_ebur128.txt
         shell: cmd
+        timeout-minutes: 3
 
       - name: Container gates (Unix)
         if: runner.os != 'Windows'
         run: bash scripts/check_container.sh artifacts/preview_ffprobe.json
         shell: bash
+        timeout-minutes: 3
 
       - name: Container gates (Windows)
         if: runner.os == 'Windows'
         run: powershell -ExecutionPolicy Bypass -File scripts/check_container.ps1 artifacts/preview_ffprobe.json
         shell: cmd
+        timeout-minutes: 3
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: qa-${{ matrix.os }}
           path: |
             artifacts/**
             out/preview_with_audio.mp4
+          retention-days: 7
+
+  eslint-annotations:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run ESLint with annotations
+        run: |
+          npm run lint -- --format @microsoft/eslint-formatter-sarif --output-file eslint-results.sarif
+        continue-on-error: true
+      
+      - name: Upload ESLint results to GitHub
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: eslint-results.sarif
+          wait-for-processing: true
