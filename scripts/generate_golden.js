@@ -137,16 +137,17 @@ function safeVersion(cmd) {
 }
 
 (async function main() {
-  const opts = parseArgs();
-  const game = opts.game || 'game';
-  const input = opts.in;
-  const outDir = opts.out || resolveGoldenDir(game, opts);
-  const framesArg = (opts.frames || '5,10,20').split(',').map(s => parseFloat(s.trim())).filter(n => !Number.isNaN(n));
+  try {
+    const opts = parseArgs();
+    const game = opts.game || 'game';
+    const input = opts.in;
+    const outDir = opts.out || resolveGoldenDir(game, opts);
+    const framesArg = (opts.frames || '5,10,20').split(',').map(s => parseFloat(s.trim())).filter(n => !Number.isNaN(n));
 
-  if (!input || !fs.existsSync(input)) {
-    console.error(`Input not found: ${input}`);
-    process.exit(1);
-  }
+    if (!input || !fs.existsSync(input)) {
+      console.error(`Input not found: ${input}`);
+      process.exit(1);
+    }
 
   // Use platform-specific directory if requested
   const resolvedOutDir = outDir;
@@ -191,4 +192,9 @@ function safeVersion(cmd) {
   }
 
   console.log(`Golden artifacts written to: ${resolvedOutDir}`);
+  } catch (error) {
+    console.error('Unexpected error generating golden artifacts:', error.message);
+    console.error('Stack trace:', error.stack);
+    process.exit(1);
+  }
 })();

@@ -217,19 +217,20 @@ function escapeXml(s) {
 }
 
 (async function main() {
-  const opts = parseArgs();
-  const input = opts.in || opts.input;
-  const game = opts.game || 'game';
-  const frames = (opts.frames || '5,10,20').split(',').map(s => parseFloat(s.trim()));
-  const ssimThresh = parseFloat(opts.ssim || '0.995');
-  const lufsTol = parseFloat(opts.lufs_tol || '1.0');
-  const tpTol = parseFloat(opts.tp_tol || '1.0');
-  const junitOut = opts.junit; // Optional JUnit output path
+  try {
+    const opts = parseArgs();
+    const input = opts.in || opts.input;
+    const game = opts.game || 'game';
+    const frames = (opts.frames || '5,10,20').split(',').map(s => parseFloat(s.trim()));
+    const ssimThresh = parseFloat(opts.ssim || '0.995');
+    const lufsTol = parseFloat(opts.lufs_tol || '1.0');
+    const tpTol = parseFloat(opts.tp_tol || '1.0');
+    const junitOut = opts.junit; // Optional JUnit output path
 
-  if (!input || !fs.existsSync(input)) {
-    console.error(`Input not found: ${input}`);
-    process.exit(1);
-  }
+    if (!input || !fs.existsSync(input)) {
+      console.error(`Input not found: ${input}`);
+      process.exit(1);
+    }
 
   // Resolve platform-specific golden directory
   const resolvedGoldenDir = resolveGoldenDir(game, opts);
@@ -351,5 +352,10 @@ function escapeXml(s) {
     process.exit(2);
   } else {
     console.log('Golden check PASSED.');
+  }
+  } catch (error) {
+    console.error('Unexpected error in golden check:', error.message);
+    console.error('Stack trace:', error.stack);
+    process.exit(3);
   }
 })();

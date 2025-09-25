@@ -23,13 +23,14 @@ import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
+import logger from './utils/logger.js';
 
 
 
 dotenv.config();
-console.log('Loaded OpenAI key:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
+logger.info('Loaded OpenAI key:', { hasKey: !!process.env.OPENAI_API_KEY });
 
-console.log('API file loaded!');
+logger.info('API file loaded!');
 
 const app = express();
 const port = process.env.PORT || 5001;
@@ -58,11 +59,11 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // Validate OUTPUT_DIR at startup  
 const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(__dirname, 'uploads', 'MobiusGames');
 if (!OUTPUT_DIR || typeof OUTPUT_DIR !== 'string') {
-  console.error('Invalid OUTPUT_DIR configuration');
+  logger.error('Invalid OUTPUT_DIR configuration');
   process.exit(1);  
 }
 
-console.log('Starting server...');
+logger.info('Starting server...');
 
 // Optional: Suppress specific warnings
 const originalWarn = console.warn;
@@ -78,9 +79,9 @@ console.warn = function (...args) {
 
 // --- Simple API Key Middleware (Development Mode) ---  
 app.use((req, res, next) => {  
-  // TODO: Implement proper session-based authentication  
+  // TRACKED: Implement proper session-based authentication (see TECH_DEBT.md #1)
   // For now, skip API key validation in development  
-  console.log(`${req.method} ${req.path} - API key validation skipped`);  
+  logger.debug(`${req.method} ${req.path} - API key validation skipped`);  
   next();  
 });
 
@@ -98,7 +99,7 @@ app.post('/api/explain-chunk', async (req, res) => {
     const explanation = await explainChunkWithAI(chunk, lang);  
     res.json({ explanation });  
   } catch (err) {  
-    console.error('Error in /api/explain-chunk:', err);  
+    logger.error('Error in /api/explain-chunk:', { error: err.message, stack: err.stack });  
     res.status(500).json({ error: 'Failed to generate explanation.' });  
   }  
 });
@@ -190,7 +191,7 @@ async function generatePreviewImage(filePath, outputPath = 'uploads/tmp', qualit
 // BGG XML API extraction function  
 async function extractBGGMetadataFromAPI(gameId) {  
   try {  
-    console.log('🔗 Fetching from BGG API for game ID:', gameId);  
+    logger.info('🔗 Fetching from BGG API for game ID:', { gameId });  
       
     const url = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}&stats=1`;  
     const { data: xml } = await axios.get(url, {  
@@ -254,7 +255,7 @@ async function extractBGGMetadataFromAPI(gameId) {
     };  
   
   } catch (error) {  
-    console.error('❌ Error extracting from BGG API:', error.message);  
+    logger.error('❌ Error extracting from BGG API:', { error: error.message });  
     throw error;  
   }  
 }
@@ -857,7 +858,7 @@ app.post('/api/extract-components', async (req, res) => {
     });  
   
   } catch (err) {    
-    console.error('Component extraction error:', err);    
+    logger.error('Component extraction error:', { error: err.message, stack: err.stack });    
     res.status(500).json({   
       success: false,  
       error: err.message,  
