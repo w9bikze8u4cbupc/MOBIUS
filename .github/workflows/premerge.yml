@@ -1,0 +1,126 @@
+name: Pre-merge Validation
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: premerge-${{ github.ref }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  premerge:
+    name: Pre-merge checks (matrix)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [20.x]
+
+    env:
+      ARTIFACT_DIR: premerge_artifacts
+      BACKUP_DIR: backups
+      DRY_RUN_ENV: staging
+      AUTO_CREATE_PR: "false"
+      CI_UPLOAD_CMD: "" # optional CI uploader command
+      CREATE_PR_CMD_FILE: CREATE_PR_COMMAND.txt
+      LOG_DIR: logs
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'npm'
+
+      - name: Restore npm cache (explicit)
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ matrix.node }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-${{ matrix.node }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install poppler-utils (Linux/Mac) / best-effort on Windows
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y poppler-utils
+      - if: runner.os == 'macOS'
+        run: |
+          brew update || true
+          brew install poppler || true
+      - if: runner.os == 'Windows'
+        run: |
+          choco install poppler -y || echo "choco install poppler failed; ensure poppler is available in PATH on Windows runners"
+
+      - name: Ensure scripts are executable
+        run: |
+          chmod +x ./scripts/*.sh || true
+          chmod +x ./scripts/*.js || true
+
+      - name: Run pre-merge runner
+        id: premerge
+        run: |
+          mkdir -p "${ARTIFACT_DIR}"
+          ./scripts/premerge_run.sh
+        env:
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          BACKUP_DIR: ${{ env.BACKUP_DIR }}
+          DRY_RUN_ENV: ${{ env.DRY_RUN_ENV }}
+          AUTO_CREATE_PR: ${{ env.AUTO_CREATE_PR }}
+          CREATE_PR_CMD_FILE: ${{ env.CREATE_PR_CMD_FILE }}
+          LOG_DIR: ${{ env.LOG_DIR }}
+
+      - name: Upload premerge artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: premerge-artifacts-${{ matrix.os }}
+          path: |
+            ${{ env.ARTIFACT_DIR }}
+            ${{ env.LOG_DIR }}
+            ${{ env.BACKUP_DIR }}
+        retention-days: 7
+
+      - name: Post success comment on PR
+        if: success() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const runUrl = process.env.GITHUB_RUN_URL || `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = `✅ Pre-merge checks passed on \`${process.env.RUNNER_OS}\`.\n\n- Workflow run: ${runUrl}\n- Artifacts: attached to this workflow (premerge-artifacts)\n\nIf any reviewers require additional logs, download the artifacts from the Actions run.`;
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body
+            });
+
+      - name: Post failure comment on PR
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const runUrl = process.env.GITHUB_RUN_URL || `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = `⛔ Pre-merge checks failed on \`${process.env.RUNNER_OS}\`.\n\n- Workflow run: ${runUrl}\n- Artifacts: attached to this workflow (premerge-artifacts)\n\nPlease inspect logs/artifacts and fix the issues.`;
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body
+            });

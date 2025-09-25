@@ -64,6 +64,12 @@ coverage/
 tests/golden/**/debug/
 tests/golden/reports/
 
+# Premerge script generated directories (exclude from version control)
+premerge_artifacts/
+logs/
+backups/
+CREATE_PR_COMMAND.txt
+
 # Node.js dependencies
 node_modules/
 
