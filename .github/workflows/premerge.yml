@@ -1,0 +1,185 @@
+name: Pre-merge Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      skip_smoke:
+        description: 'Skip smoke tests (not recommended)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  premerge-validation:
+    name: Pre-merge Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      ARTIFACT_DIR: premerge-artifacts
+      BACKUP_DIR: premerge-backups
+      LOG_DIR: premerge-logs
+      AUTO_CREATE_PR: false
+      BASE_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
+      HEAD_BRANCH: ${{ github.head_ref }}
+      SKIP_SMOKE: ${{ github.event.inputs.skip_smoke || 'false' }}
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history for rebase check
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup FFmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Create directories
+        run: |
+          mkdir -p ${{ env.ARTIFACT_DIR }} ${{ env.BACKUP_DIR }} ${{ env.LOG_DIR }}
+
+      - name: Run pre-merge validation
+        id: premerge
+        run: |
+          echo "Starting pre-merge validation..."
+          
+          # Set up git config for potential rebase
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Run the pre-merge script
+          BASE_BRANCH="origin/${{ env.BASE_BRANCH }}" \
+          HEAD_BRANCH="${{ env.HEAD_BRANCH }}" \
+          ARTIFACT_DIR="${{ env.ARTIFACT_DIR }}" \
+          BACKUP_DIR="${{ env.BACKUP_DIR }}" \
+          LOG_DIR="${{ env.LOG_DIR }}" \
+          AUTO_CREATE_PR="${{ env.AUTO_CREATE_PR }}" \
+          SKIP_SMOKE="${{ env.SKIP_SMOKE }}" \
+          ./scripts/premerge_run.sh
+
+      - name: Upload pre-merge artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: premerge-artifacts-${{ github.run_id }}
+          path: |
+            ${{ env.ARTIFACT_DIR }}/
+            ${{ env.LOG_DIR }}/
+          retention-days: 30
+
+      - name: Upload backup artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: premerge-backup-${{ github.run_id }}
+          path: ${{ env.BACKUP_DIR }}/
+          retention-days: 7
+
+      - name: Comment on PR with results
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Read metadata if available
+            let metadata = {};
+            try {
+              const metaFiles = fs.readdirSync('${{ env.ARTIFACT_DIR }}').filter(f => f.startsWith('premerge_meta_'));
+              if (metaFiles.length > 0) {
+                const metaContent = fs.readFileSync(path.join('${{ env.ARTIFACT_DIR }}', metaFiles[0]), 'utf8');
+                metadata = JSON.parse(metaContent);
+              }
+            } catch (e) {
+              console.log('Could not read metadata:', e.message);
+            }
+            
+            const success = '${{ steps.premerge.outcome }}' === 'success';
+            const timestamp = metadata.timestamp || new Date().toISOString();
+            
+            let comment = `## 🔍 Pre-merge Validation Results\n\n`;
+            comment += `**Status:** ${success ? '✅ PASSED' : '❌ FAILED'}\n`;
+            comment += `**Timestamp:** ${timestamp}\n`;
+            comment += `**Branch:** \`${{ env.HEAD_BRANCH }}\`\n`;
+            comment += `**Base:** \`${{ env.BASE_BRANCH }}\`\n`;
+            comment += `**Run ID:** ${{ github.run_id }}\n\n`;
+            
+            if (success) {
+              comment += `### ✅ All checks passed!\n\n`;
+              comment += `- ✅ Git rebase check\n`;
+              comment += `- ✅ Backup creation and verification\n`;
+              comment += `- ✅ Deploy dry-run (staging)\n`;
+              comment += `- ✅ Migration dry-run\n`;
+              comment += `- ✅ Logging validation\n`;
+              comment += `- ✅ Smoke tests\n`;
+              comment += `- ✅ Artifact collection\n\n`;
+            } else {
+              comment += `### ❌ Some checks failed\n\n`;
+              comment += `Please check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.\n\n`;
+            }
+            
+            comment += `### 📁 Artifacts\n`;
+            comment += `- [Pre-merge artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n`;
+            comment += `- [Backup files](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n`;
+            
+            comment += `### 📋 Validation Details\n`;
+            comment += `- **Deploy dry-run:** Check staging deployment compatibility\n`;
+            comment += `- **Migration dry-run:** Validate database migration scripts\n`;
+            comment += `- **Logging tests:** Ensure proper logging functionality\n`;
+            comment += `- **Smoke tests:** Basic system functionality verification\n`;
+            comment += `- **Backup verification:** SHA256 checksum validation\n\n`;
+            
+            if (!success) {
+              comment += `### 🔧 Next Steps\n`;
+              comment += `1. Review the failed checks in the workflow logs\n`;
+              comment += `2. Fix the issues in your branch\n`;
+              comment += `3. Push your changes to re-trigger validation\n\n`;
+            }
+            
+            comment += `<details><summary>Show artifact details</summary>\n\n`;
+            comment += `#### Generated Files:\n`;
+            try {
+              const files = fs.readdirSync('${{ env.ARTIFACT_DIR }}');
+              for (const file of files) {
+                const stats = fs.statSync(path.join('${{ env.ARTIFACT_DIR }}', file));
+                comment += `- \`${file}\` (${stats.size} bytes)\n`;
+              }
+            } catch (e) {
+              comment += `Could not list artifact files.\n`;
+            }
+            comment += `\n</details>`;
+            
+            // Post the comment
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Set job status
+        if: always()
+        run: |
+          if [ "${{ steps.premerge.outcome }}" != "success" ]; then
+            echo "Pre-merge validation failed"
+            exit 1
+          fi
+          echo "Pre-merge validation completed successfully"

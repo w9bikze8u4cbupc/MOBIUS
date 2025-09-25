@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# CREATE_PR_COMMAND.txt
+# Template for automated PR creation commands
+# 
+# This file is sourced by premerge_run.sh when AUTO_CREATE_PR=true
+# Customize the commands below for your repository and workflow
+#
+# SECURITY WARNING: Only enable AUTO_CREATE_PR after thorough testing
+# and when you trust the automation completely.
+
+set -euo pipefail
+
+echo "Creating pull request automatically..."
+
+# Example using GitHub CLI (gh) - requires authentication
+# gh pr create --title "Automated PR from pre-merge validation" \
+#              --body "This PR was created automatically after successful pre-merge validation." \
+#              --base main \
+#              --head "$HEAD_BRANCH"
+
+# Example using curl with GitHub API - requires GITHUB_TOKEN
+# curl -X POST \
+#   -H "Authorization: token $GITHUB_TOKEN" \
+#   -H "Accept: application/vnd.github.v3+json" \
+#   https://api.github.com/repos/OWNER/REPO/pulls \
+#   -d "{
+#     \"title\": \"Automated PR from pre-merge validation\",
+#     \"body\": \"This PR was created automatically after successful pre-merge validation at $(date -u).\",
+#     \"head\": \"$HEAD_BRANCH\",
+#     \"base\": \"main\"
+#   }"
+
+# For now, just log what would be done (safe default)
+echo "AUTO_CREATE_PR is enabled but CREATE_PR_COMMAND.txt contains only template commands."
+echo "To enable actual PR creation, customize this file with your repository-specific commands."
+echo "Current branch: $HEAD_BRANCH"
+echo "Target base: ${BASE_BRANCH:-main}"
+echo "Artifacts available in: ${ARTIFACT_DIR:-premerge_artifacts}"
+
+# Exit successfully - don't fail the pre-merge run just because PR creation is not configured
+exit 0
