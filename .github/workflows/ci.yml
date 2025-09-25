@@ -92,3 +92,32 @@ jobs:
           path: |
             artifacts/**
             out/preview_with_audio.mp4
+
+      - name: Validate deployment readiness
+        run: |
+          echo "Validating deployment infrastructure..."
+          # Check that all required deployment files exist
+          required_files=(
+            "scripts/deploy_dhash.sh"
+            "scripts/monitor_dhash.sh" 
+            "scripts/rollback_dhash.sh"
+            "scripts/backup_dhash.sh"
+            "scripts/health_check.sh"
+            "scripts/smoke_tests.sh"
+            "quality-gates-config.json"
+          )
+          
+          for file in "${required_files[@]}"; do
+            if [[ -f "$file" ]]; then
+              echo "✓ $file exists"
+            else
+              echo "✗ $file missing"
+              exit 1
+            fi
+          done
+          
+          # Test script help functionality
+          ./scripts/deploy_dhash.sh --help >/dev/null
+          ./scripts/health_check.sh --help >/dev/null  
+          echo "✓ Deployment infrastructure validated"
+        shell: bash
