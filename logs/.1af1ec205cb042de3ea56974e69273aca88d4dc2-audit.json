@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/home/runner/work/MOBIUS/MOBIUS/logs/.1af1ec205cb042de3ea56974e69273aca88d4dc2-audit.json",
+    "files": [
+        {
+            "date": 1758805440844,
+            "name": "/home/runner/work/MOBIUS/MOBIUS/logs/app-2025-09-25.log",
+            "hash": "808900dabeae0220baeb53db55d356240bcaaed05c35291db0faa8d02d2c8055"
+        }
+    ],
+    "hashType": "sha256"
+}

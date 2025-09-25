@@ -1,0 +1,41 @@
+{
+  "env": {
+    "es2022": true,
+    "node": true
+  },
+  "extends": [
+    "eslint:recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module"
+  },
+  "rules": {
+    "no-console": "off",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "prefer-const": "warn",
+    "no-var": "warn",
+    "eqeqeq": "warn",
+    "curly": "off",
+    "semi": "off",
+    "quotes": "off",
+    "indent": "off",
+    "no-trailing-spaces": "off",
+    "eol-last": "off"
+  },
+  "ignorePatterns": [
+    "node_modules/",
+    "dist/",
+    "build/",
+    "coverage/",
+    "logs/",
+    "backups/",
+    "*.min.js",
+    "src/api/index.js",
+    "src/api/prompts.js",  
+    "src/services/multilangSummarizer.js",
+    "src/utils/translation.js",
+    "scripts/check_golden.js",
+    "scripts/generate_golden.js"
+  ]
+}
