@@ -125,11 +125,6 @@ async function saveJson(file, data) {
   await fsp.writeFile(file, JSON.stringify(data, null, 2));
 }
 
-// Utility to read safely
-async function readExistingJson(p) {
-  try { return JSON.parse(await fsp.readFile(p, 'utf8')); } catch { return {}; }
-}
-
 // Include FFmpeg/FFprobe versions for drift tracking
 function safeVersion(cmd) {
   try { return spawnSync(cmd, ['-version'], { encoding: 'utf8' }).stdout.split('\n')[0].trim(); }

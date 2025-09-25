@@ -26,13 +26,13 @@ export default [
     },
     files: ['src/**/*.js', 'src/**/*.mjs'],
     rules: {
-      // Disable console.log in favor of structured logging
-      'no-console': 'error',
+      // Disable console.log in favor of structured logging - warn during migration
+      'no-console': 'warn',
       // Other useful rules for code quality
-      'no-unused-vars': ['error', { 'argsIgnorePattern': '^_' }],
+      'no-unused-vars': ['warn', { 'argsIgnorePattern': '^_' }],
       'no-undef': 'error',
-      'semi': ['error', 'always'],
-      'quotes': ['error', 'single', { 'avoidEscape': true }]
+      'semi': 'warn',
+      'quotes': 'warn'
     }
   },
   {

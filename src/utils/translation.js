@@ -1,4 +1,5 @@
 const fetch = require('node-fetch');
+const logger = require('./logger.cjs');
 
 const libreTranslateURL = 'http://localhost:5002/translate';
 
@@ -33,7 +34,7 @@ async function translateText(text, targetLanguage) {
             
         return translation;
     } catch (error) {
-        console.error("Translation error:", error);
+        logger.error('Translation error:', { error: error.message, stack: error.stack });
         throw error;
     }
 }
