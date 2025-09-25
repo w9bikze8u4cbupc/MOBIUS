@@ -1,0 +1,215 @@
+# Microsoft Teams Notification Templates
+
+## T-30: Pre-Release Preparation
+```json
+{
+  "@type": "MessageCard",
+  "@context": "https://schema.org/extensions",
+  "summary": "MOBIUS Release {{RELEASE_TAG}} - T-30 Minutes",
+  "themeColor": "FF8C00",
+  "sections": [
+    {
+      "activityTitle": "🚀 MOBIUS Release Preparation",
+      "activitySubtitle": "Release {{RELEASE_TAG}} - T-30 Minutes",
+      "facts": [
+        {
+          "name": "Release Version",
+          "value": "{{RELEASE_TAG}}"
+        },
+        {
+          "name": "Target Time",
+          "value": "{{RELEASE_TIME}}"
+        },
+        {
+          "name": "Status", 
+          "value": "Pre-flight checks in progress"
+        }
+      ],
+      "text": "**Pre-release Checklist:**\n- ✅ All CI checks passed\n- ✅ Golden tests validated\n- ✅ Audio compliance verified\n- 🔄 Final artifact preparation\n- ⏳ Production environment ready"
+    }
+  ],
+  "potentialAction": [
+    {
+      "@type": "OpenUri",
+      "name": "View Release Notes",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{RELEASE_NOTES_URL}}"
+        }
+      ]
+    },
+    {
+      "@type": "OpenUri", 
+      "name": "Monitor Pipeline",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{PIPELINE_URL}}"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## T-5: Final Countdown
+```json
+{
+  "@type": "MessageCard",
+  "@context": "https://schema.org/extensions",
+  "summary": "MOBIUS Release {{RELEASE_TAG}} - T-5 Minutes",
+  "themeColor": "FFA500",
+  "sections": [
+    {
+      "activityTitle": "⏰ Release Starting Soon",
+      "activitySubtitle": "Final countdown initiated",
+      "facts": [
+        {
+          "name": "Release",
+          "value": "{{RELEASE_TAG}}"
+        },
+        {
+          "name": "Deploying in",
+          "value": "5 minutes"
+        },
+        {
+          "name": "Status",
+          "value": "Final checks complete ✅"
+        }
+      ],
+      "text": "🎯 All systems green | 📊 Quality gates passed | 🔒 Security scans clean"
+    }
+  ]
+}
+```
+
+## T-0: Release Deployed
+```json
+{
+  "@type": "MessageCard",
+  "@context": "https://schema.org/extensions",
+  "summary": "MOBIUS {{RELEASE_TAG}} Successfully Deployed!",
+  "themeColor": "00FF00",
+  "sections": [
+    {
+      "activityTitle": "🎉 Release Deployed Successfully!",
+      "activitySubtitle": "{{RELEASE_TAG}} is now live",
+      "facts": [
+        {
+          "name": "Release",
+          "value": "{{RELEASE_TAG}}"
+        },
+        {
+          "name": "Deployed at",
+          "value": "{{DEPLOY_TIME}}"
+        },
+        {
+          "name": "Status",
+          "value": "✅ Live and healthy"
+        }
+      ],
+      "text": "**Key Features:**\n- Multi-platform golden testing\n- Enhanced audio compliance\n- Improved CI/CD pipeline\n- Cross-platform compatibility"
+    }
+  ],
+  "potentialAction": [
+    {
+      "@type": "OpenUri",
+      "name": "🔍 View Metrics",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{METRICS_URL}}"
+        }
+      ]
+    },
+    {
+      "@type": "OpenUri",
+      "name": "📋 Release Notes", 
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{RELEASE_NOTES_URL}}"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## T+15: Post-Deploy Health Check
+```json
+{
+  "@type": "MessageCard",
+  "@context": "https://schema.org/extensions",
+  "summary": "MOBIUS {{RELEASE_TAG}} - 15min Health Check",
+  "themeColor": "0078D7",
+  "sections": [
+    {
+      "activityTitle": "📊 Post-Deploy Health Check",
+      "activitySubtitle": "15-minute stability assessment",
+      "facts": [
+        {
+          "name": "Release",
+          "value": "{{RELEASE_TAG}}"
+        },
+        {
+          "name": "Health Status",
+          "value": "{{HEALTH_STATUS}}"
+        },
+        {
+          "name": "Uptime",
+          "value": "15 minutes"
+        },
+        {
+          "name": "API Response",
+          "value": "{{API_RESPONSE_TIME}}ms avg"
+        },
+        {
+          "name": "Error Rate",
+          "value": "{{ERROR_RATE}}%"
+        },
+        {
+          "name": "Active Users",
+          "value": "{{ACTIVE_USERS}}"
+        },
+        {
+          "name": "Processing Jobs",
+          "value": "{{PROCESSING_JOBS}} queued"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## T+60: One Hour Stability Report
+```json
+{
+  "@type": "MessageCard",
+  "@context": "https://schema.org/extensions", 
+  "summary": "MOBIUS {{RELEASE_TAG}} - 1 Hour Stability Report",
+  "themeColor": "228B22",
+  "sections": [
+    {
+      "activityTitle": "✅ 1-Hour Stability Report",
+      "activitySubtitle": "Release performing as expected",
+      "facts": [
+        {
+          "name": "Release",
+          "value": "{{RELEASE_TAG}}"
+        },
+        {
+          "name": "Overall Status",
+          "value": "{{OVERALL_STATUS}}"
+        },
+        {
+          "name": "Running for",
+          "value": "1 hour"
+        }
+      ],
+      "text": "**Performance Metrics (1h):**\n- Average response time: {{AVG_RESPONSE_TIME}}ms\n- Error rate: {{ERROR_RATE}}%\n- Successful video generations: {{SUCCESS_COUNT}}\n- Peak concurrent users: {{PEAK_USERS}}\n- Memory usage: {{MEMORY_USAGE}}%\n- CPU utilization: {{CPU_USAGE}}%\n\n🎯 Release performing as expected | Next check: T+4h"
+    }
+  ]
+}
+```

@@ -1,0 +1,218 @@
+# Slack Notification Templates
+
+## T-30: Pre-Release Preparation
+```json
+{
+  "text": "🚀 MOBIUS Release {{RELEASE_TAG}} - T-30 Minutes",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🚀 MOBIUS Release Preparation"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Release*: `{{RELEASE_TAG}}`\n*Target Time*: {{RELEASE_TIME}}\n*Status*: Pre-flight checks in progress"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Pre-release Checklist:*\n✅ All CI checks passed\n✅ Golden tests validated\n✅ Audio compliance verified\n🔄 Final artifact preparation\n⏳ Production environment ready"
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View Release Notes"
+          },
+          "url": "{{RELEASE_NOTES_URL}}"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text", 
+            "text": "Monitor Pipeline"
+          },
+          "url": "{{PIPELINE_URL}}"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## T-5: Final Countdown
+```json
+{
+  "text": "⏰ MOBIUS Release {{RELEASE_TAG}} - T-5 Minutes",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "⏰ Release Starting Soon"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Release*: `{{RELEASE_TAG}}`\n*Deploying in*: 5 minutes\n*Status*: Final checks complete ✅"
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "🎯 All systems green | 📊 Quality gates passed | 🔒 Security scans clean"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## T-0: Release Deployed
+```json
+{
+  "text": "🎉 MOBIUS {{RELEASE_TAG}} Successfully Deployed!",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🎉 Release Deployed Successfully!"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Release*: `{{RELEASE_TAG}}`\n*Deployed at*: {{DEPLOY_TIME}}\n*Status*: ✅ Live and healthy"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Key Features:*\n• Multi-platform golden testing\n• Enhanced audio compliance\n• Improved CI/CD pipeline\n• Cross-platform compatibility"
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "🔍 View Metrics"
+          },
+          "url": "{{METRICS_URL}}"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "📋 Release Notes"
+          },
+          "url": "{{RELEASE_NOTES_URL}}"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## T+15: Post-Deploy Health Check
+```json
+{
+  "text": "📊 MOBIUS {{RELEASE_TAG}} - 15min Health Check",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "📊 Post-Deploy Health Check"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Release*: `{{RELEASE_TAG}}`\n*Health Status*: {{HEALTH_STATUS}}\n*Uptime*: 15 minutes"
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*API Response*\n{{API_RESPONSE_TIME}}ms avg"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Error Rate*\n{{ERROR_RATE}}%"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Active Users*\n{{ACTIVE_USERS}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Processing Jobs*\n{{PROCESSING_JOBS}} queued"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## T+60: One Hour Stability Report
+```json
+{
+  "text": "✅ MOBIUS {{RELEASE_TAG}} - 1 Hour Stability Report",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "✅ 1-Hour Stability Report"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Release*: `{{RELEASE_TAG}}`\n*Overall Status*: {{OVERALL_STATUS}}\n*Running for*: 1 hour"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Performance Metrics (1h):*\n• Average response time: {{AVG_RESPONSE_TIME}}ms\n• Error rate: {{ERROR_RATE}}%\n• Successful video generations: {{SUCCESS_COUNT}}\n• Peak concurrent users: {{PEAK_USERS}}\n• Memory usage: {{MEMORY_USAGE}}%\n• CPU utilization: {{CPU_USAGE}}%"
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "🎯 Release performing as expected | Next check: T+4h"
+        }
+      ]
+    }
+  ]
+}
+```
