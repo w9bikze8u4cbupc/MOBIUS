@@ -73,3 +73,24 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Pre-merge validation and deployment artifacts
+backups/
+premerge_artifacts/
+logs/
+exports/
+artifacts/
+deploy_production_*.log
+postdeploy-smoketests.log
+rollback-artifacts_*.tgz
+*.zip
+*.zip.sha256
+*.zip.meta
+
+# Low-confidence queue data
+data/low_confidence_queue.json
+
+# Test and validation reports
+*_test_results.json
+*_report_*.json
+deploy_*_info.json
