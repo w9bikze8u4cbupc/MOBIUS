@@ -1,0 +1,5 @@
+gh pr create \
+  --repo "w9bikze8u4cbupc/MOBIUS" \
+  --head "copilot/fix-d92b69b9-d2f7-409e-b2b0-ecb9e4b1c4d9" \
+  --base "main" \
+  --title "Implement focused PR review and merge decision tools"
