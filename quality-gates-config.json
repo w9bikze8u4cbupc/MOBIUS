@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/w9bikze8u4cbupc/MOBIUS/blob/main/quality-gates-config.json",
+  "title": "MOBIUS dhash Quality Gates Configuration",
+  "description": "Quality gates and thresholds for MOBIUS dhash production deployment",
+  "type": "object",
+  "version": "1.0.0",
+  "environment": "production",
+  "updated": "2024-01-01T00:00:00Z",
+  
+  "deployment": {
+    "description": "Deployment-time quality gates",
+    "required_ci_checks": [
+      "CI / build-and-qa",
+      "premerge-validation", 
+      "premerge-artifacts-upload"
+    ],
+    "required_approvals": 2,
+    "required_ops_approval": true,
+    "max_deployment_time_minutes": 30,
+    "rollback_threshold_minutes": 5
+  },
+  
+  "performance": {
+    "description": "Performance and reliability thresholds",
+    "response_time_p95_ms": 2000,
+    "response_time_p99_ms": 5000,
+    "error_rate_threshold": 0.05,
+    "availability_threshold": 0.999,
+    "throughput_min_rps": 10
+  },
+  
+  "infrastructure": {
+    "description": "Infrastructure resource thresholds",
+    "cpu_usage_threshold": 0.80,
+    "memory_usage_threshold": 0.90,
+    "disk_usage_threshold": 0.85,
+    "network_latency_ms": 100
+  },
+  
+  "quality": {
+    "description": "Code quality and testing thresholds",
+    "test_coverage_minimum": 0.80,
+    "build_success_rate": 0.95,
+    "security_scan_pass": true,
+    "lint_errors_max": 0,
+    "complexity_score_max": 10
+  },
+  
+  "monitoring": {
+    "description": "Post-deployment monitoring configuration",
+    "health_check_interval_seconds": 30,
+    "monitoring_duration_minutes": 60,
+    "alert_cooldown_minutes": 5,
+    "critical_alert_threshold": 3,
+    "warning_alert_threshold": 10
+  },
+  
+  "golden_tests": {
+    "description": "Golden test validation thresholds",
+    "ssim_threshold": 0.995,
+    "lufs_tolerance": 1.0,
+    "true_peak_tolerance": 1.0,
+    "frame_comparison_platforms": ["ubuntu-latest", "macos-latest", "windows-latest"]
+  },
+  
+  "backup_retention": {
+    "description": "Backup and rollback policies",
+    "backup_retention_days": 30,
+    "backup_verification_required": true,
+    "rollback_window_hours": 24,
+    "backup_compression": "zip",
+    "checksum_algorithm": "sha256"
+  },
+  
+  "notifications": {
+    "description": "Notification and alerting configuration",
+    "slack_channels": ["#deployments", "#alerts"],
+    "email_recipients": ["ops@example.com", "deploy-lead@example.com"],
+    "pagerduty_integration": true,
+    "notification_templates": {
+      "deployment_start": "DEPLOYMENT_TEMPLATES.md#deployment-start",
+      "deployment_complete": "DEPLOYMENT_TEMPLATES.md#deployment-complete", 
+      "deployment_failed": "DEPLOYMENT_TEMPLATES.md#deployment-failed",
+      "rollback_initiated": "DEPLOYMENT_TEMPLATES.md#rollback-initiated"
+    }
+  },
+  
+  "compliance": {
+    "description": "Regulatory and compliance requirements",
+    "audit_logging_required": true,
+    "change_approval_required": true,
+    "security_scan_required": true,
+    "data_privacy_validation": true
+  },
+  
+  "placeholders": {
+    "description": "Configuration placeholders that need to be replaced",
+    "RELEASE_TAG": "vX.Y.Z - Replace with actual semantic version tag",
+    "@DEPLOY_LEAD": "@ops - Replace with actual deploy operator GitHub handle",
+    "deploy_lead_email": "deploy-lead@example.com - Replace with actual email",
+    "slack_webhook_url": "https://hooks.slack.com/... - Replace with actual webhook URL"
+  }
+}
