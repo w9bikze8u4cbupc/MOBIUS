@@ -24,22 +24,52 @@ import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
 
-
+// Import logging and metrics
+import logger, { requestLogger } from '../utils/logger.js';
+import metricsRegister, { 
+  metricsMiddleware, 
+  getSystemHealth,
+  recordExtractionFailure,
+  recordHashProcessingTime,
+  recordFileProcessed,
+  incrementActiveConnections,
+  decrementActiveConnections
+} from '../utils/metrics.js';
 
 dotenv.config();
-console.log('Loaded OpenAI key:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
-
-console.log('API file loaded!');
+logger.info('Application starting', { 
+  environment: process.env.NODE_ENV || 'development',
+  openAiConfigured: !!process.env.OPENAI_API_KEY
+});
 
 const app = express();
 const port = process.env.PORT || 5001;
 const bggMetadataCache = new Map();
 
+// Connection tracking for metrics
+let connectionCount = 0;
 
 // Fix for __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const execFilePromise = promisify(execFile);
+
+// Add request logging and metrics middleware early
+app.use(requestLogger);
+app.use(metricsMiddleware);
+
+// Track connections for metrics
+app.use((req, res, next) => {
+  incrementActiveConnections();
+  connectionCount++;
+  
+  res.on('close', () => {
+    decrementActiveConnections();
+    connectionCount--;
+  });
+  
+  next();
+});
 
 // CORS configuration - MUST be before other middleware/routes
 app.use(cors({
@@ -2813,15 +2843,87 @@ app.get('/load-project/:id', (req, res) => {
           created_at: row.created_at
         });
       } catch (parseErr) {
-        console.error('Failed to parse project data:', parseErr);
+        logger.error('Failed to parse project data', { 
+          error: parseErr.message, 
+          stack: parseErr.stack 
+        });
         return res.status(500).json({ error: 'Failed to parse project data' });
       }
     }
   );
 });
 
+// Health and Metrics endpoints
+app.get('/health', (req, res) => {
+  try {
+    const health = getSystemHealth();
+    
+    // Check critical dependencies
+    const checks = {
+      database: true, // Add actual DB health check if needed
+      openai: !!process.env.OPENAI_API_KEY,
+      filesystem: fs.existsSync(__dirname),
+      uploads: fs.existsSync(path.join(__dirname, 'uploads'))
+    };
+    
+    const allHealthy = Object.values(checks).every(check => check);
+    
+    res.status(allHealthy ? 200 : 503).json({
+      ...health,
+      status: allHealthy ? 'healthy' : 'unhealthy',
+      checks,
+      connections: connectionCount
+    });
+    
+    logger.info('Health check requested', { 
+      status: allHealthy ? 'healthy' : 'unhealthy',
+      connections: connectionCount 
+    });
+  } catch (error) {
+    logger.error('Health check failed', { error: error.message });
+    res.status(503).json({
+      status: 'unhealthy',
+      error: 'Health check failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', metricsRegister.contentType);
+    const metrics = await metricsRegister.metrics();
+    res.send(metrics);
+  } catch (error) {
+    logger.error('Metrics collection failed', { error: error.message });
+    res.status(500).json({ error: 'Failed to collect metrics' });
+  }
+});
+
+// Add graceful shutdown handling
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received, shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  logger.info('SIGINT received, shutting down gracefully');
+  process.exit(0);
+});
+
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
+    logger.info('Server started', { 
+      port: PORT, 
+      environment: process.env.NODE_ENV || 'development',
+      endpoints: {
+        health: `http://localhost:${PORT}/health`,
+        metrics: `http://localhost:${PORT}/metrics`,
+        frontend: 'http://localhost:3000'
+      }
+    });
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
+    console.log(`❤️  Health endpoint: http://localhost:${PORT}/health`);
+    console.log(`📊 Metrics endpoint: http://localhost:${PORT}/metrics`);
 });
