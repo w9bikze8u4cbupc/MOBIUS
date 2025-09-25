@@ -51,6 +51,13 @@ temp/
 tmp.*
 *.tmp
 
+# Pre-merge automation artifacts
+backups/
+logs/
+premerge_artifacts/
+ci_artifacts/
+*_artifacts/
+
 # Coverage data
 coverage/
 *.lcov
