@@ -1,0 +1,76 @@
+gh pr create \
+--repo w9bikze8u4cbupc/MOBIUS \
+--head copilot/fix-65ca043a-0d4b-4de8-ac4a-57b0c43b1278 \
+--base main \
+--title "chore(dhash): production-readiness — logging, CI, backup, deploy tooling" \
+--body "## Summary
+
+This PR implements production-readiness features for the MOBIUS dhash service:
+
+### 🔧 **Structured Logging & Rotation**
+- Winston-based JSON logging with daily rotation
+- Configurable log levels and retention policies  
+- Request/response logging middleware
+- Hash operation and metrics logging
+- Exception and rejection handlers
+
+### 🏥 **Health & Metrics Endpoints**
+- \`GET /health\` - Service health with system checks
+- \`GET /metrics/dhash\` - Performance metrics (avg_hash_time, p95_hash_time, extraction_failures_rate, low_confidence_queue_length)
+- Configurable health check thresholds
+
+### 💾 **Backup & SHA256 Verification**
+- \`./scripts/backup_library.sh\` with timestamped archives
+- SHA256 checksum generation and verification
+- Configurable retention policies
+- Dry-run support
+
+### 🚀 **Deploy & Rollback Scripts**  
+- \`./scripts/deploy_dhash.sh\` with staging/production support
+- \`./scripts/rollback_dhash.sh\` for emergency recovery
+- \`node scripts/migrate-dhash.js\` for database migrations
+- Health checks and timeout handling
+
+### 🧪 **Testing & Monitoring**
+- \`node scripts/test_logging.js\` - Logging system validation
+- \`node scripts/smoke-tests.js --quick\` - API endpoint verification
+- Performance and error handling tests
+
+### 🔍 **ESLint Integration**
+- Code quality enforcement for CI pipeline
+- Configured for Node.js and ES6 modules
+
+## Pre-merge Checklist
+
+- [ ] ✅ CI: full matrix (Ubuntu / macOS / Windows) green (include ESLint job)
+- [ ] 📦 Create timestamped backup: \`./scripts/backup_library.sh --out backups/dhash_\$(date -u +%Y%m%dT%H%M%SZ).zip\`
+- [ ] 🔐 Verify: \`sha256sum backups/dhash_YYYYMMDDT*.zip\`  
+- [ ] 🧪 Run deploy dry-run: \`./scripts/deploy_dhash.sh --dry-run --env staging\`
+- [ ] 📊 Run migration dry-run: \`node scripts/migrate-dhash.js --dry-run > migrate-dryrun.log\`
+- [ ] 👥 Approvals: 2 approvers including Ops/SRE
+- [ ] 🔥 Smoke tests pass: \`node scripts/test_logging.js && node scripts/smoke-tests.js --quick\`
+- [ ] 🎯 Confirm artifact retention & CI cache behavior
+
+## Deploy Plan (60-min window)
+
+**Window:** 23:00–00:00 UTC (off-peak)  
+**Owners:** PR author (release), Ops on-call (deploy), media-eng, triage lead
+
+**Steps:**
+1. Rebase: \`git fetch origin && git rebase origin/main\` 
+2. Create backup + verify SHA256
+3. Merge (rebase-and-merge)
+4. Deploy: \`./scripts/deploy_dhash.sh --env production\`
+5. Post-deploy: \`node scripts/smoke-tests.js --quick\`
+6. Monitor 30-60min: \`/health\`, \`/metrics/dhash\`, logs, disk usage
+
+**Rollback Triggers:**
+- /health non-OK > 2 minutes  
+- extraction_failures_rate spikes > 3× baseline
+- p95_hash_time regression causing timeouts
+- smoke-tests fail
+- unexpected disk growth" \
+--reviewer alice,bob \
+--label media/pipeline,migration \
+--assignee alice \
+--web

@@ -27,9 +27,15 @@ import { promisify } from 'node:util';
 
 
 dotenv.config();
-console.log('Loaded OpenAI key:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
 
-console.log('API file loaded!');
+// Import structured logging and metrics (CommonJS modules)
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const logger = require('../utils/logger.js');
+const metricsCollector = require('../utils/metrics.js');
+
+logger.info('API server starting', { openai_key_loaded: !!process.env.OPENAI_API_KEY });
+logger.info('API file loaded');
 
 const app = express();
 const port = process.env.PORT || 5001;
@@ -76,15 +82,81 @@ console.warn = function (...args) {
   originalWarn.apply(console, args);
 };
 
+// --- Request logging middleware ---
+app.use((req, res, next) => {
+  const startTime = Date.now();
+  
+  // Log request start
+  logger.info('Request started', {
+    method: req.method,
+    url: req.url,
+    ip: req.ip || req.connection?.remoteAddress,
+    userAgent: req.get('User-Agent')
+  });
+
+  // Override res.end to log response
+  const originalEnd = res.end;
+  res.end = function(...args) {
+    const responseTime = Date.now() - startTime;
+    logger.logRequest(req, res, responseTime);
+    originalEnd.apply(this, args);
+  };
+
+  next();
+});
+
 // --- Simple API Key Middleware (Development Mode) ---  
 app.use((req, res, next) => {  
   // TODO: Implement proper session-based authentication  
   // For now, skip API key validation in development  
-  console.log(`${req.method} ${req.path} - API key validation skipped`);  
+  logger.debug('API key validation skipped for development', { 
+    method: req.method, 
+    path: req.path 
+  });  
   next();  
 });
 
 
+
+// --- Health and Metrics Endpoints ---
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  try {
+    const health = metricsCollector.getHealthStatus();
+    logger.debug('Health check requested', { status: health.status });
+    
+    if (health.status === 'OK') {
+      res.status(200).json(health);
+    } else if (health.status === 'WARN') {
+      res.status(200).json(health);
+    } else {
+      res.status(503).json(health);
+    }
+  } catch (err) {
+    logger.error('Health check failed', { error: err.message });
+    res.status(503).json({
+      status: 'ERROR',
+      timestamp: new Date().toISOString(),
+      error: 'Health check service unavailable'
+    });
+  }
+});
+
+// Metrics endpoint for dhash operations
+app.get('/metrics/dhash', (req, res) => {
+  try {
+    const metrics = metricsCollector.getMetrics();
+    logger.debug('Metrics requested', { total_operations: metrics.total });
+    res.json(metrics);
+  } catch (err) {
+    logger.error('Metrics collection failed', { error: err.message });
+    res.status(500).json({
+      error: 'Metrics collection failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 // --- API Endpoint for Explaining Text Chunks ---
 app.post('/api/explain-chunk', async (req, res) => {  
@@ -98,7 +170,7 @@ app.post('/api/explain-chunk', async (req, res) => {
     const explanation = await explainChunkWithAI(chunk, lang);  
     res.json({ explanation });  
   } catch (err) {  
-    console.error('Error in /api/explain-chunk:', err);  
+    logger.error('Error in /api/explain-chunk', { error: err.message, stack: err.stack });
     res.status(500).json({ error: 'Failed to generate explanation.' });  
   }  
 });
@@ -120,9 +192,10 @@ app.post('/save-project', (req, res) => {
     ],
     function (err) {
       if (err) {
-        console.error(err); // Log full error for debugging
+        logger.error('Failed to save project', { error: err.message, projectName: name });
         return res.status(500).json({ error: 'Failed to save project. Please try again later.' });
       }
+      logger.info('Project saved successfully', { projectId: this.lastID, projectName: name });
       res.json({ status: 'success', projectId: this.lastID });
     }
   );
@@ -1628,34 +1701,49 @@ app.post('/summarize', async (req, res) => {
       `;
 
       const finalPrompt =
-      (resummarize && previousSummary)
-      ? englishBasePrompt.replace(
-      'Here is the rulebook text:',
-      `Here is the rulebook text and additional context:
+        (resummarize && previousSummary)
+          ? englishBasePrompt.replace(
+              'Here is the rulebook text:',
+              `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
+      Components List: ${JSON.stringify(components)}
+      Game Metadata: ${JSON.stringify(metadata)}
       Previous Summary: ${previousSummary}
 
-      Rulebook Text:        )       : englishBasePrompt           .replace(             'Here is the rulebook text:',            Here is the rulebook text and additional context:
+      Rulebook Text:`
+            )
+          : englishBasePrompt
+              .replace(
+                'Here is the rulebook text:',
+                `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
+      Components List: ${JSON.stringify(components)}
+      Game Metadata: ${JSON.stringify(metadata)}
 
-      Rulebook Text:          )           .replace(             'Component Overview:',            Component Overview:
+      Rulebook Text:`
+              )
+              .replace(
+                'Component Overview:',
+                `Component Overview:
 
           Use the provided components list: ${JSON.stringify(components)}
           Provide exact quantities and clear descriptions for each component
           Add visual cues like "[Show close-up of resource tokens]" or "[Display all cards fanned out]"
-          Mention any unique or unusual pieces that distinguish this game        )         .replace(           'Setup:',          Setup:
+          Mention any unique or unusual pieces that distinguish this game`
+              )
+              .replace(
+                'Setup:',
+                `Setup:
           Reference the components list for accurate quantities: ${JSON.stringify(components)}
           Walk through setup step-by-step with detailed instructions (e.g., "Shuffle the 40 mission cards thoroughly, then place them face-down in the center")
           Add visual placeholders like "[Overhead shot: Initial board setup]" or "[Animation: Card placement]"
           Highlight common setup mistakes and how to avoid them`
-          );
+              );
 
-      console.log('Final prompt (truncated):', finalPrompt.slice(0, 500));
+      logger.info('Final prompt generated', { length: finalPrompt.length });
       
-// Generate the summary
-console.log('Generating final English script using OpenAI...')
+      // Generate the summary
+      logger.info('Generating final English script using OpenAI');
     const englishSummaryResponse = await openai.chat.completions.create({  
       model: 'gpt-4',  
       messages: [  
@@ -2814,6 +2902,7 @@ app.get('/load-project/:id', (req, res) => {
         });
       } catch (parseErr) {
         console.error('Failed to parse project data:', parseErr);
+        logger.error('Failed to parse project data', { error: parseErr.message, projectId: row.id });
         return res.status(500).json({ error: 'Failed to parse project data' });
       }
     }
@@ -2822,6 +2911,11 @@ app.get('/load-project/:id', (req, res) => {
 
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
+    logger.info('Server started successfully', { 
+      port: PORT, 
+      frontend_url: `http://localhost:${PORT}`,
+      environment: process.env.NODE_ENV || 'development'
+    });
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
 });
