@@ -91,19 +91,22 @@ echo "📝 Output file: $OUTPUT_FILE"
 # Process template with variable substitution
 cp "$TEMPLATE_FILE" "$OUTPUT_FILE"
 
-# Simple variable substitution (handles most common cases)
-for var in $(env | grep -E '^[A-Z_]+=' | cut -d= -f1); do
-    if [ -n "${!var}" ]; then
-        # Use sed for substitution, handling special characters
-        value="${!var}"
-        # Escape special sed characters in the value
-        escaped_value=$(printf '%s\n' "$value" | sed 's/[[\.*^$()+?{|]/\\&/g')
-        sed -i.bak "s/{{${var}}}/${escaped_value}/g" "$OUTPUT_FILE"
-    fi
-done
+# Simple variable substitution using envsubst (more reliable)
+# First convert {{VAR}} format to $VAR format that envsubst expects
+sed 's/{{/$/g' "$TEMPLATE_FILE" | sed 's/}}//g' > "$OUTPUT_FILE.tmp"
 
-# Clean up backup file
-rm -f "${OUTPUT_FILE}.bak"
+# Build list of variables to substitute
+VARS_TO_SUBSTITUTE=$(grep -o '\$[A-Z_][A-Z0-9_]*' "$OUTPUT_FILE.tmp" | sort -u | tr '\n' ' ')
+
+# Apply variable substitution
+if [ -n "$VARS_TO_SUBSTITUTE" ]; then
+    envsubst "$VARS_TO_SUBSTITUTE" < "$OUTPUT_FILE.tmp" > "$OUTPUT_FILE"
+else
+    cp "$OUTPUT_FILE.tmp" "$OUTPUT_FILE"
+fi
+
+# Clean up temporary file
+rm -f "$OUTPUT_FILE.tmp"
 
 # Additional processing for specific file types
 if [[ "$OUTPUT_FILE" == *.sh ]]; then
