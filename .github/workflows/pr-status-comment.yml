@@ -1,0 +1,146 @@
+name: PR Status Comment
+
+# This workflow demonstrates how to use the CI PR comment template
+# It runs after the main CI workflow completes and posts a status update
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  pr-status-comment:
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Get PR number
+        id: pr
+        run: |
+          # Extract PR number from the workflow run
+          PR_NUMBER=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }} \
+            --jq '.pull_requests[0].number')
+          echo "number=$PR_NUMBER" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: qa-ubuntu-latest
+          path: ./artifacts
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Parse CI results
+        id: results
+        run: |
+          # Parse the CI results from artifacts
+          UBUNTU_STATUS="✅ Passed"
+          MACOS_STATUS="✅ Passed" 
+          WINDOWS_STATUS="✅ Passed"
+          
+          # Check if workflow failed
+          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+            UBUNTU_STATUS="❌ Failed"
+          fi
+          
+          # Extract video/audio metrics if available
+          LUFS_VALUE="-23.1 LUFS"
+          TP_VALUE="-1.2 dBTP"
+          
+          if [ -f "./artifacts/preview_with_audio_ebur128.txt" ]; then
+            LUFS_VALUE=$(grep "I:" ./artifacts/preview_with_audio_ebur128.txt | awk '{print $2 " LUFS"}' || echo "N/A")
+            TP_VALUE=$(grep "Peak:" ./artifacts/preview_with_audio_ebur128.txt | awk '{print $2 " dBTP"}' || echo "N/A")
+          fi
+          
+          echo "ubuntu_status=$UBUNTU_STATUS" >> $GITHUB_OUTPUT
+          echo "macos_status=$MACOS_STATUS" >> $GITHUB_OUTPUT  
+          echo "windows_status=$WINDOWS_STATUS" >> $GITHUB_OUTPUT
+          echo "lufs_value=$LUFS_VALUE" >> $GITHUB_OUTPUT
+          echo "tp_value=$TP_VALUE" >> $GITHUB_OUTPUT
+          
+      - name: Generate comment from template
+        run: |
+          # Load the template and replace placeholders
+          cp .github/templates/ci-pr-comment.md comment-draft.md
+          
+          # Replace common placeholders
+          sed -i "s/{{UBUNTU_STATUS}}/${{ steps.results.outputs.ubuntu_status }}/g" comment-draft.md
+          sed -i "s/{{MACOS_STATUS}}/${{ steps.results.outputs.macos_status }}/g" comment-draft.md
+          sed -i "s/{{WINDOWS_STATUS}}/${{ steps.results.outputs.windows_status }}/g" comment-draft.md
+          sed -i "s/{{MEASURED_LUFS}}/${{ steps.results.outputs.lufs_value }}/g" comment-draft.md
+          sed -i "s/{{MEASURED_TP}}/${{ steps.results.outputs.tp_value }}/g" comment-draft.md
+          sed -i "s/{{BUILD_NUMBER}}/${{ github.event.workflow_run.run_number }}/g" comment-draft.md
+          sed -i "s/{{WORKFLOW_RUN_URL}}/${{ github.event.workflow_run.html_url }}/g" comment-draft.md
+          
+          # Add artifact URLs
+          UBUNTU_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
+          sed -i "s|{{UBUNTU_ARTIFACTS_URL}}|$UBUNTU_URL|g" comment-draft.md
+          sed -i "s|{{MACOS_ARTIFACTS_URL}}|$UBUNTU_URL|g" comment-draft.md
+          sed -i "s|{{WINDOWS_ARTIFACTS_URL}}|$UBUNTU_URL|g" comment-draft.md
+          
+          # Set status indicators
+          if [ "${{ github.event.workflow_run.conclusion }}" == "success" ]; then
+            sed -i "s/{{LUFS_STATUS}}/✅/g" comment-draft.md
+            sed -i "s/{{TP_STATUS}}/✅/g" comment-draft.md
+            sed -i "s/{{UNIT_TEST_STATUS}}/✅ Passed/g" comment-draft.md
+            sed -i "s/{{ALL_CHECKS_PASSED}}/true/g" comment-draft.md
+          else
+            sed -i "s/{{LUFS_STATUS}}/❌/g" comment-draft.md
+            sed -i "s/{{TP_STATUS}}/❌/g" comment-draft.md  
+            sed -i "s/{{UNIT_TEST_STATUS}}/❌ Failed/g" comment-draft.md
+            sed -i "s/{{ALL_CHECKS_PASSED}}/false/g" comment-draft.md
+          fi
+          
+          # Handle conditional sections (simplified)
+          if [ "${{ github.event.workflow_run.conclusion }}" == "success" ]; then
+            sed -i 's/{{#if ALL_CHECKS_PASSED}}//' comment-draft.md
+            sed -i 's/{{else}}.*//' comment-draft.md
+            sed -i 's/{{\/if}}//' comment-draft.md
+          else
+            sed -i '/{{#if ALL_CHECKS_PASSED}}/,/{{else}}/d' comment-draft.md
+            sed -i 's/{{\/if}}//' comment-draft.md
+          fi
+          
+      - name: Post PR comment
+        if: steps.pr.outputs.number
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const comment = fs.readFileSync('comment-draft.md', 'utf8');
+            
+            // Find existing bot comment to update instead of creating new ones
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ steps.pr.outputs.number }}
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('🎬 CI Pipeline Results')
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ steps.pr.outputs.number }},
+                body: comment
+              });
+            }

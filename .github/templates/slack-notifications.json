@@ -1,0 +1,272 @@
+# Slack Notification Templates for MOBIUS
+
+## 🚀 Deployment Start (T-30)
+
+```json
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🎬 MOBIUS Deployment Started"
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Release:* {{RELEASE_TAG}}"
+        },
+        {
+          "type": "mrkdwn",  
+          "text": "*Branch:* {{BRANCH_NAME}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Deploy Lead:* {{DEPLOY_LEAD}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*PR:* <{{PR_URL}}|#{{PR_NUMBER}}>"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "📊 *Pipeline Status:* Cross-platform builds in progress...\n🎥 Video generation: Queued\n🔊 Audio compliance: Pending"
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View Workflow"
+          },
+          "url": "{{WORKFLOW_URL}}",
+          "action_id": "view_workflow"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View PR"
+          },
+          "url": "{{PR_URL}}",
+          "action_id": "view_pr"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## ⚠️ Deployment Issues (T+0)
+
+```json
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "⚠️ MOBIUS Deployment Issue"
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Release:* {{RELEASE_TAG}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Status:* {{FAILURE_STATUS}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Deploy Lead:* {{DEPLOY_LEAD}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Failed Step:* {{FAILED_STEP}}"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "❌ *Error Details:*\n```{{ERROR_MESSAGE}}```"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "🔍 *Common Fixes:*\n• Check FFmpeg/audio compliance thresholds\n• Verify golden test artifacts are up to date\n• Review cross-platform compatibility issues"
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View Logs"
+          },
+          "url": "{{WORKFLOW_URL}}",
+          "style": "danger",
+          "action_id": "view_logs"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Retry Deploy"
+          },
+          "url": "{{RETRY_URL}}",
+          "action_id": "retry_deploy"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## ✅ Deployment Success (T+60)
+
+```json
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "✅ MOBIUS Deployment Complete"
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Release:* {{RELEASE_TAG}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Duration:* {{DEPLOY_DURATION}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Deploy Lead:* {{DEPLOY_LEAD}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Artifacts:* {{ARTIFACT_COUNT}} files"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "🎥 *Video Generation:* {{VIDEO_COUNT}} previews created\n🔊 *Audio Compliance:* LUFS {{LUFS_VALUE}}, Peak {{PEAK_VALUE}} ✅\n📦 *Platforms Tested:* Ubuntu, macOS, Windows ✅"
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "📈 *Performance Metrics:*\n• Peak Memory: {{MEMORY_PEAK}} MB\n• Render Speed: {{RENDER_SPEED}}x realtime\n• Test Coverage: {{TEST_COVERAGE}}%"
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Download Artifacts"
+          },
+          "url": "{{ARTIFACTS_URL}}",
+          "style": "primary",
+          "action_id": "download_artifacts"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View Release"
+          },
+          "url": "{{RELEASE_URL}}",
+          "action_id": "view_release"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## 📊 Weekly Summary
+
+```json
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "📊 MOBIUS Weekly Report"
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Deployments:* {{DEPLOY_COUNT}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Success Rate:* {{SUCCESS_RATE}}%"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Avg Duration:* {{AVG_DURATION}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Videos Generated:* {{VIDEO_COUNT}}"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "🏆 *Top Contributors:*\n{{CONTRIBUTOR_LIST}}"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "🔍 *Common Issues:*\n• Audio compliance failures: {{AUDIO_FAIL_COUNT}}\n• Golden test mismatches: {{GOLDEN_FAIL_COUNT}}\n• Platform-specific issues: {{PLATFORM_FAIL_COUNT}}"
+      }
+    }
+  ]
+}
+```

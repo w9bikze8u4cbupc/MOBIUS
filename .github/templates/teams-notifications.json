@@ -1,0 +1,312 @@
+# Microsoft Teams Notification Templates for MOBIUS
+
+## 🚀 Deployment Start (T-30)
+
+```json
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions",
+  "themeColor": "0076D7",
+  "summary": "MOBIUS Deployment Started",
+  "sections": [
+    {
+      "activityTitle": "🎬 MOBIUS Deployment Started",
+      "activitySubtitle": "Video Generation Pipeline",
+      "activityImage": "https://github.com/w9bikze8u4cbupc/MOBIUS/raw/main/assets/mobius-logo.png",
+      "facts": [
+        {
+          "name": "Release:",
+          "value": "{{RELEASE_TAG}}"
+        },
+        {
+          "name": "Branch:",
+          "value": "{{BRANCH_NAME}}"
+        },
+        {
+          "name": "Deploy Lead:",
+          "value": "{{DEPLOY_LEAD}}"
+        },
+        {
+          "name": "PR:",
+          "value": "[#{{PR_NUMBER}}]({{PR_URL}})"
+        }
+      ],
+      "markdown": true
+    },
+    {
+      "activityTitle": "Pipeline Status",
+      "text": "📊 Cross-platform builds in progress...<br/>🎥 Video generation: Queued<br/>🔊 Audio compliance: Pending"
+    }
+  ],
+  "potentialAction": [
+    {
+      "@type": "OpenUri",
+      "name": "View Workflow",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{WORKFLOW_URL}}"
+        }
+      ]
+    },
+    {
+      "@type": "OpenUri", 
+      "name": "View PR",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{PR_URL}}"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## ⚠️ Deployment Issues (T+0)
+
+```json
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions",
+  "themeColor": "FF0000",
+  "summary": "MOBIUS Deployment Failed",
+  "sections": [
+    {
+      "activityTitle": "⚠️ MOBIUS Deployment Issue",
+      "activitySubtitle": "Immediate attention required",
+      "facts": [
+        {
+          "name": "Release:",
+          "value": "{{RELEASE_TAG}}"
+        },
+        {
+          "name": "Status:",
+          "value": "{{FAILURE_STATUS}}"
+        },
+        {
+          "name": "Deploy Lead:",
+          "value": "{{DEPLOY_LEAD}}"
+        },
+        {
+          "name": "Failed Step:",
+          "value": "{{FAILED_STEP}}"
+        }
+      ],
+      "markdown": true
+    },
+    {
+      "activityTitle": "Error Details",
+      "text": "```\n{{ERROR_MESSAGE}}\n```"
+    },
+    {
+      "activityTitle": "Common Fixes",
+      "text": "🔍 **Troubleshooting Steps:**<br/>• Check FFmpeg/audio compliance thresholds<br/>• Verify golden test artifacts are up to date<br/>• Review cross-platform compatibility issues<br/>• Ensure all environment variables are set"
+    }
+  ],
+  "potentialAction": [
+    {
+      "@type": "OpenUri",
+      "name": "View Logs",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{WORKFLOW_URL}}"
+        }
+      ]
+    },
+    {
+      "@type": "OpenUri",
+      "name": "Retry Deploy", 
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{RETRY_URL}}"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## ✅ Deployment Success (T+60)
+
+```json
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions", 
+  "themeColor": "00FF00",
+  "summary": "MOBIUS Deployment Complete",
+  "sections": [
+    {
+      "activityTitle": "✅ MOBIUS Deployment Complete",
+      "activitySubtitle": "All systems operational",
+      "facts": [
+        {
+          "name": "Release:",
+          "value": "{{RELEASE_TAG}}"
+        },
+        {
+          "name": "Duration:",
+          "value": "{{DEPLOY_DURATION}}"
+        },
+        {
+          "name": "Deploy Lead:",
+          "value": "{{DEPLOY_LEAD}}"
+        },
+        {
+          "name": "Artifacts:",
+          "value": "{{ARTIFACT_COUNT}} files"
+        }
+      ],
+      "markdown": true
+    },
+    {
+      "activityTitle": "Generation Results",
+      "text": "🎥 **Video Generation:** {{VIDEO_COUNT}} previews created<br/>🔊 **Audio Compliance:** LUFS {{LUFS_VALUE}}, Peak {{PEAK_VALUE}} ✅<br/>📦 **Platforms Tested:** Ubuntu, macOS, Windows ✅"
+    },
+    {
+      "activityTitle": "Performance Metrics", 
+      "text": "📈 **System Performance:**<br/>• Peak Memory: {{MEMORY_PEAK}} MB<br/>• Render Speed: {{RENDER_SPEED}}x realtime<br/>• Test Coverage: {{TEST_COVERAGE}}%<br/>• Golden Tests: {{GOLDEN_TEST_STATUS}}"
+    }
+  ],
+  "potentialAction": [
+    {
+      "@type": "OpenUri",
+      "name": "Download Artifacts",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{ARTIFACTS_URL}}"
+        }
+      ]
+    },
+    {
+      "@type": "OpenUri",
+      "name": "View Release",
+      "targets": [
+        {
+          "os": "default", 
+          "uri": "{{RELEASE_URL}}"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## 📊 Weekly Summary
+
+```json
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions",
+  "themeColor": "0076D7", 
+  "summary": "MOBIUS Weekly Report",
+  "sections": [
+    {
+      "activityTitle": "📊 MOBIUS Weekly Report",
+      "activitySubtitle": "Pipeline performance summary",
+      "facts": [
+        {
+          "name": "Total Deployments:",
+          "value": "{{DEPLOY_COUNT}}"
+        },
+        {
+          "name": "Success Rate:",
+          "value": "{{SUCCESS_RATE}}%"
+        },
+        {
+          "name": "Average Duration:",
+          "value": "{{AVG_DURATION}}"
+        },
+        {
+          "name": "Videos Generated:",
+          "value": "{{VIDEO_COUNT}}"
+        }
+      ],
+      "markdown": true
+    },
+    {
+      "activityTitle": "Top Contributors",
+      "text": "🏆 {{CONTRIBUTOR_LIST}}"
+    },
+    {
+      "activityTitle": "Common Issues This Week",
+      "text": "🔍 **Issues Tracked:**<br/>• Audio compliance failures: {{AUDIO_FAIL_COUNT}}<br/>• Golden test mismatches: {{GOLDEN_FAIL_COUNT}}<br/>• Platform-specific issues: {{PLATFORM_FAIL_COUNT}}<br/>• Memory/performance issues: {{PERF_FAIL_COUNT}}"
+    },
+    {
+      "activityTitle": "Recommendations",
+      "text": "💡 **Next Week Focus:**<br/>• Update golden test thresholds if needed<br/>• Review cross-platform FFmpeg compatibility<br/>• Monitor memory usage trends<br/>• Consider render optimization opportunities"
+    }
+  ],
+  "potentialAction": [
+    {
+      "@type": "OpenUri",
+      "name": "View Dashboard",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{DASHBOARD_URL}}"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## 🛠️ Maintenance Alert
+
+```json
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions",
+  "themeColor": "FFA500",
+  "summary": "MOBIUS Maintenance Scheduled",
+  "sections": [
+    {
+      "activityTitle": "🛠️ MOBIUS Maintenance Window",
+      "activitySubtitle": "Planned system maintenance",
+      "facts": [
+        {
+          "name": "Start Time:",
+          "value": "{{MAINTENANCE_START}}"
+        },
+        {
+          "name": "Duration:",
+          "value": "{{MAINTENANCE_DURATION}}"
+        },
+        {
+          "name": "Impact:",
+          "value": "{{IMPACT_LEVEL}}"
+        },
+        {
+          "name": "Point of Contact:",
+          "value": "{{MAINTENANCE_LEAD}}"
+        }
+      ],
+      "markdown": true
+    },
+    {
+      "activityTitle": "Planned Changes",
+      "text": "🔧 **Maintenance Items:**<br/>{{MAINTENANCE_ITEMS}}"
+    },
+    {
+      "activityTitle": "Expected Downtime",
+      "text": "⏱️ Services will be unavailable during maintenance window.<br/>🔄 Automatic recovery expected within {{RECOVERY_TIME}} minutes.<br/>📞 Emergency contact: {{EMERGENCY_CONTACT}}"
+    }
+  ],
+  "potentialAction": [
+    {
+      "@type": "OpenUri",
+      "name": "Maintenance Details",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{MAINTENANCE_URL}}"
+        }
+      ]
+    }
+  ]
+}
+```
