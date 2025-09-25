@@ -1,0 +1,94 @@
+{
+  "quality_gates": {
+    "version": "1.0.0",
+    "last_updated": "2024-01-15",
+    "environments": {
+      "production": {
+        "audio": {
+          "lufs_tolerance": 1.0,
+          "true_peak_tolerance": 1.0,
+          "units": "dB",
+          "measurement_method": "ebur128"
+        },
+        "video": {
+          "ssim_threshold": 0.995,
+          "frame_rate_tolerance": 0.1,
+          "resolution_exact": "1920x1080",
+          "duration_tolerance_ms": 100
+        },
+        "performance": {
+          "response_time_max_ms": 200,
+          "error_rate_max_percent": 0.1,
+          "cpu_usage_max_percent": 70,
+          "memory_usage_max_percent": 80
+        }
+      },
+      "staging": {
+        "audio": {
+          "lufs_tolerance": 2.0,
+          "true_peak_tolerance": 2.0,
+          "units": "dB",
+          "measurement_method": "ebur128"
+        },
+        "video": {
+          "ssim_threshold": 0.990,
+          "frame_rate_tolerance": 0.2,
+          "resolution_exact": "1920x1080",
+          "duration_tolerance_ms": 200
+        },
+        "performance": {
+          "response_time_max_ms": 500,
+          "error_rate_max_percent": 1.0,
+          "cpu_usage_max_percent": 85,
+          "memory_usage_max_percent": 90
+        }
+      }
+    },
+    "monitoring": {
+      "check_interval_seconds": 30,
+      "failure_threshold": 3,
+      "recovery_threshold": 5,
+      "alert_cooldown_seconds": 300
+    },
+    "deployment": {
+      "backup_retention_days": 30,
+      "rollback_timeout_minutes": 10,
+      "monitoring_duration_seconds": 3600,
+      "smoke_test_timeout_seconds": 300
+    },
+    "validation": {
+      "required_platforms": ["ubuntu-latest", "macos-latest", "windows-latest"],
+      "required_approvers_min": 2,
+      "ops_sre_approval_required": true,
+      "branch_protection_required": true
+    }
+  },
+  "scripts": {
+    "premerge_validation": "scripts/premerge_run.sh",
+    "deployment": "scripts/deploy_dhash.sh",
+    "monitoring": "scripts/monitor_dhash.sh", 
+    "rollback": "scripts/rollback_dhash.sh",
+    "quality_check": "scripts/check_golden.js",
+    "golden_generation": "scripts/generate_golden.js"
+  },
+  "notifications": {
+    "channels": {
+      "slack": {
+        "general": "#deployments",
+        "alerts": "#ops-alerts",
+        "critical": "#ops-critical"
+      },
+      "email": {
+        "stakeholders": ["ops-team@mobius.com", "media-eng@mobius.com"],
+        "emergency": ["on-call@mobius.com"]
+      }
+    },
+    "templates_file": "NOTIFICATION_TEMPLATES.md"
+  },
+  "documentation": {
+    "deployment_cheat_sheet": "DEPLOYMENT_CHEAT_SHEET.md",
+    "operations_guide": "DEPLOYMENT_OPERATIONS_GUIDE.md",
+    "notification_templates": "NOTIFICATION_TEMPLATES.md",
+    "pr_checklist": "PR_CHECKLIST_TEMPLATE.md"
+  }
+}
