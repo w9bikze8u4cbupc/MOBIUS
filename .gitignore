@@ -68,8 +68,18 @@ tests/golden/reports/
 node_modules/
 
 # Log files
+logs/
 *.log
 
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Backup files (keep only production backups)
+backups/test_*
+backups/*_test_*
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3

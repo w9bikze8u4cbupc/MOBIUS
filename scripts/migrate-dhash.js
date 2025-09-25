@@ -51,6 +51,7 @@ function parseArgs() {
         console.log('  node scripts/migrate-dhash.js --dry-run');
         console.log('  node scripts/migrate-dhash.js --env production');
         process.exit(0);
+        break;
       default:
         console.error(`Unknown option: ${args[i]}`);
         process.exit(1);
@@ -129,7 +130,7 @@ const migrations = [
   {
     id: '003_create_backups_structure',
     description: 'Create backups directory structure',
-    execute: async (config, dbConfig) => {
+    execute: async (config, _dbConfig) => {
       const backupsDir = path.join(projectRoot, 'backups');
       
       if (config.dryRun) {
@@ -145,8 +146,8 @@ const migrations = [
   {
     id: '004_initialize_database',
     description: 'Initialize SQLite database if it doesn\'t exist',
-    execute: async (config, dbConfig) => {
-      const dbPath = path.join(projectRoot, dbConfig.database);
+    execute: async (config, _dbConfig) => {
+      const dbPath = path.join(projectRoot, _dbConfig.database);
       
       if (config.dryRun) {
         console.log(`  Would check/create database: ${dbPath}`);
@@ -165,7 +166,10 @@ const migrations = [
 
       // Import db module to trigger database creation
       try {
-        const { default: db } = await import('../src/api/db.js');
+        // Import db to trigger initialization, unused but necessary
+        // eslint-disable-next-line no-unused-vars
+        const { default: _db } = await import('../src/api/db.js');
+        // db is imported to trigger initialization, value not used
         logger.info('Database initialized', { path: dbPath });
       } catch (error) {
         logger.error('Database initialization failed', { error: error.message });

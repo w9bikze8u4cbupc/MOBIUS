@@ -1660,27 +1660,42 @@ app.post('/summarize', async (req, res) => {
       const finalPrompt =
       (resummarize && previousSummary)
       ? englishBasePrompt.replace(
-      'Here is the rulebook text:',
-      `Here is the rulebook text and additional context:
+          'Here is the rulebook text:',
+          `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
+      Components List: ${JSON.stringify(components)}
+      Game Metadata: ${JSON.stringify(metadata)}
       Previous Summary: ${previousSummary}
 
-      Rulebook Text:        )       : englishBasePrompt           .replace(             'Here is the rulebook text:',            Here is the rulebook text and additional context:
+      Rulebook Text:`
+        )
+      : englishBasePrompt
+          .replace(
+            'Here is the rulebook text:',
+            `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
+      Components List: ${JSON.stringify(components)}
+      Game Metadata: ${JSON.stringify(metadata)}
 
-      Rulebook Text:          )           .replace(             'Component Overview:',            Component Overview:
+      Rulebook Text:`
+          )
+          .replace(
+            'Component Overview:',
+            `Component Overview:
 
           Use the provided components list: ${JSON.stringify(components)}
           Provide exact quantities and clear descriptions for each component
           Add visual cues like "[Show close-up of resource tokens]" or "[Display all cards fanned out]"
-          Mention any unique or unusual pieces that distinguish this game        )         .replace(           'Setup:',          Setup:
+          Mention any unique or unusual pieces that distinguish this game`
+        )
+        .replace(
+          'Setup:',
+          `Setup:
           Reference the components list for accurate quantities: ${JSON.stringify(components)}
           Walk through setup step-by-step with detailed instructions (e.g., "Shuffle the 40 mission cards thoroughly, then place them face-down in the center")
           Add visual placeholders like "[Overhead shot: Initial board setup]" or "[Animation: Card placement]"
           Highlight common setup mistakes and how to avoid them`
-          );
+        );
 
       console.log('Final prompt (truncated):', finalPrompt.slice(0, 500));
       

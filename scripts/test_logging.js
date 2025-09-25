@@ -27,7 +27,7 @@ const TEST_CONFIG = {
   ]
 };
 
-let testResults = {
+const testResults = {
   passed: 0,
   failed: 0,
   total: 0,
@@ -243,10 +243,10 @@ async function runLoggingTests() {
   const logger = await testLoggerImport();
 
   // Test 2: Logs directory
-  const logsOk = testLogsDirectory();
+  testLogsDirectory();
 
   // Test 3: Basic logging
-  const basicLoggingOk = testBasicLogging(logger);
+  testBasicLogging(logger);
 
   // Test 4: Log level filtering
   await testLogLevels(logger);

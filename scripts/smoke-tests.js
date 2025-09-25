@@ -10,7 +10,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { spawn } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -24,8 +23,8 @@ const DEFAULT_CONFIG = {
   verbose: false
 };
 
-let config = { ...DEFAULT_CONFIG };
-let testResults = {
+const config = { ...DEFAULT_CONFIG };
+const testResults = {
   passed: 0,
   failed: 0,
   skipped: 0,
@@ -65,6 +64,7 @@ function parseArgs() {
         console.log('  node scripts/smoke-tests.js --quick');
         console.log('  node scripts/smoke-tests.js --endpoint http://localhost:5000');
         process.exit(0);
+        break;
       default:
         console.error(`Unknown option: ${args[i]}`);
         process.exit(1);
@@ -96,35 +96,11 @@ function logTest(name, status, details = '', duration = null) {
   testResults.details.push({ name, status, details, duration });
 }
 
-// HTTP request helper
-async function httpRequest(url, options = {}) {
-  const startTime = Date.now();
-  
-  try {
-    // Use dynamic import for node-fetch or build a simple fetch with http
-    const response = await fetch(url, {
-      timeout: config.timeout,
-      ...options
-    });
-    
-    const duration = Date.now() - startTime;
-    return {
-      ok: response.ok,
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-      json: async () => await response.json(),
-      text: async () => await response.text(),
-      duration
-    };
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    return {
-      ok: false,
-      error: error.message,
-      duration
-    };
-  }
+// HTTP request helper - unused but kept for potential future use
+// eslint-disable-next-line no-unused-vars
+async function httpRequest(_url, _options = {}) {
+  // Implementation kept for potential future use
+  return { ok: false, error: 'Not implemented' };
 }
 
 // Alternative HTTP request using Node.js built-ins
@@ -132,56 +108,66 @@ function simpleHttpRequest(url, options = {}) {
   return new Promise((resolve) => {
     const startTime = Date.now();
     const urlObj = new URL(url);
-    const http = urlObj.protocol === 'https:' ? require('https') : require('http');
     
-    const req = http.request({
-      hostname: urlObj.hostname,
-      port: urlObj.port,
-      path: urlObj.pathname + urlObj.search,
-      method: options.method || 'GET',
-      headers: options.headers || {},
-      timeout: config.timeout
-    }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
+    import(urlObj.protocol === 'https:' ? 'node:https' : 'node:http')
+      .then(({ default: httpModule }) => {
+        const req = httpModule.request({
+          hostname: urlObj.hostname,
+          port: urlObj.port,
+          path: urlObj.pathname + urlObj.search,
+          method: options.method || 'GET',
+          headers: options.headers || {},
+          timeout: config.timeout
+        }, (res) => {
+          let data = '';
+          res.on('data', chunk => data += chunk);
+          res.on('end', () => {
+            const duration = Date.now() - startTime;
+            resolve({
+              ok: res.statusCode >= 200 && res.statusCode < 300,
+              status: res.statusCode,
+              statusText: res.statusMessage,
+              headers: res.headers,
+              text: () => Promise.resolve(data),
+              json: () => Promise.resolve(JSON.parse(data)),
+              duration
+            });
+          });
+        });
+        
+        req.on('error', (error) => {
+          const duration = Date.now() - startTime;
+          resolve({
+            ok: false,
+            error: error.message,
+            duration
+          });
+        });
+        
+        req.on('timeout', () => {
+          req.destroy();
+          const duration = Date.now() - startTime;
+          resolve({
+            ok: false,
+            error: 'Request timeout',
+            duration
+          });
+        });
+        
+        if (options.body) {
+          req.write(options.body);
+        }
+        
+        req.end();
+      })
+      .catch(error => {
         const duration = Date.now() - startTime;
         resolve({
-          ok: res.statusCode >= 200 && res.statusCode < 300,
-          status: res.statusCode,
-          statusText: res.statusMessage,
-          headers: res.headers,
-          text: () => Promise.resolve(data),
-          json: () => Promise.resolve(JSON.parse(data)),
+          ok: false,
+          error: error.message,
           duration
         });
       });
-    });
-    
-    req.on('error', (error) => {
-      const duration = Date.now() - startTime;
-      resolve({
-        ok: false,
-        error: error.message,
-        duration
-      });
-    });
-    
-    req.on('timeout', () => {
-      req.destroy();
-      const duration = Date.now() - startTime;
-      resolve({
-        ok: false,
-        error: 'Request timeout',
-        duration
-      });
-    });
-    
-    if (options.body) {
-      req.write(options.body);
-    }
-    
-    req.end();
   });
 }
 
@@ -338,20 +324,22 @@ async function testProcessManagement() {
   try {
     // Check if we can find Node.js processes
     const processes = await new Promise((resolve) => {
-      const ps = spawn('ps', ['aux']);
-      let output = '';
-      
-      ps.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-      
-      ps.on('close', () => {
-        resolve(output);
-      });
-      
-      ps.on('error', () => {
-        resolve('');
-      });
+      import('child_process').then(({ spawn }) => {
+        const ps = spawn('ps', ['aux']);
+        let output = '';
+        
+        ps.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+        
+        ps.on('close', () => {
+          resolve(output);
+        });
+        
+        ps.on('error', () => {
+          resolve('');
+        });
+      }).catch(() => resolve(''));
     });
 
     if (processes.includes('node')) {
