@@ -1,0 +1,173 @@
+{
+  "environments": {
+    "staging": {
+      "description": "Staging environment quality gates",
+      "checks": {
+        "build": {
+          "enabled": true,
+          "timeout_seconds": 300,
+          "required": true
+        },
+        "tests": {
+          "enabled": true,
+          "timeout_seconds": 600,
+          "coverage_threshold": 70,
+          "required": true
+        },
+        "linting": {
+          "enabled": true,
+          "timeout_seconds": 120,
+          "required": true
+        },
+        "security_scan": {
+          "enabled": true,
+          "timeout_seconds": 300,
+          "required": true
+        },
+        "golden_checks": {
+          "enabled": true,
+          "platforms": ["ubuntu-latest", "macos-latest", "windows-latest"],
+          "ssim_threshold": 0.995,
+          "lufs_tolerance": 1.0,
+          "tp_tolerance": 1.0,
+          "required": true
+        }
+      }
+    },
+    "production": {
+      "description": "Production environment quality gates",
+      "checks": {
+        "build": {
+          "enabled": true,
+          "timeout_seconds": 600,
+          "required": true
+        },
+        "tests": {
+          "enabled": true,
+          "timeout_seconds": 900,
+          "coverage_threshold": 80,
+          "required": true
+        },
+        "linting": {
+          "enabled": true,
+          "timeout_seconds": 180,
+          "required": true
+        },
+        "security_scan": {
+          "enabled": true,
+          "timeout_seconds": 600,
+          "required": true
+        },
+        "golden_checks": {
+          "enabled": true,
+          "platforms": ["ubuntu-latest", "macos-latest", "windows-latest"],
+          "ssim_threshold": 0.999,
+          "lufs_tolerance": 0.5,
+          "tp_tolerance": 0.5,
+          "required": true
+        },
+        "performance_tests": {
+          "enabled": true,
+          "timeout_seconds": 1200,
+          "memory_threshold_mb": 512,
+          "cpu_threshold_percent": 80,
+          "required": true
+        },
+        "dependency_audit": {
+          "enabled": true,
+          "timeout_seconds": 300,
+          "block_high_vulnerabilities": true,
+          "block_critical_vulnerabilities": true,
+          "required": true
+        }
+      }
+    }
+  },
+  "placeholders": {
+    "RELEASE_TAG": {
+      "pattern": "^v\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9]+)?$",
+      "description": "Semantic version tag (e.g., v1.2.3 or v1.2.3-beta)",
+      "required": true
+    },
+    "@DEPLOY_LEAD": {
+      "pattern": "^@[a-zA-Z0-9_-]+$",
+      "description": "GitHub username with @ prefix (e.g., @deployuser)",
+      "required": true
+    },
+    "@ops": {
+      "pattern": "^@[a-zA-Z0-9_-]+$",
+      "description": "Operations team username with @ prefix",
+      "required": true
+    }
+  },
+  "branch_protection": {
+    "main": {
+      "required_status_checks": {
+        "strict": true,
+        "contexts": [
+          "CI / build-and-qa",
+          "premerge-validation",
+          "premerge-artifacts-upload"
+        ]
+      },
+      "required_pull_request_reviews": {
+        "required_approving_review_count": 2,
+        "dismiss_stale_reviews": true,
+        "require_code_owner_reviews": true
+      },
+      "restrictions": null,
+      "enforce_admins": false,
+      "allow_force_pushes": false,
+      "allow_deletions": false
+    }
+  },
+  "notifications": {
+    "slack": {
+      "enabled": true,
+      "webhook_env": "SLACK_WEBHOOK_URL",
+      "channels": {
+        "releases": "#releases",
+        "deployments": "#deployments",
+        "alerts": "#alerts"
+      }
+    },
+    "teams": {
+      "enabled": true,
+      "webhook_env": "TEAMS_WEBHOOK_URL"
+    }
+  },
+  "artifacts": {
+    "retention_days": {
+      "staging": 30,
+      "production": 90
+    },
+    "required_files": [
+      "premerge_artifacts/deploy-dryrun.log",
+      "premerge_artifacts/migrate-dryrun.log",
+      "premerge_artifacts/postdeploy-smoketests.log",
+      "premerge_artifacts/test_logging.log",
+      "backups/*.tar.gz",
+      "backups/*.sha256",
+      "monitor_logs/"
+    ]
+  },
+  "smoke_tests": {
+    "staging": {
+      "enabled": true,
+      "endpoints": [
+        "/health",
+        "/api/status"
+      ],
+      "timeout_seconds": 30
+    },
+    "production": {
+      "enabled": true,
+      "endpoints": [
+        "/health",
+        "/api/status",
+        "/api/version"
+      ],
+      "timeout_seconds": 60
+    }
+  }
+}
