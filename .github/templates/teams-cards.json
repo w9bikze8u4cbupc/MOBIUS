@@ -1,0 +1,135 @@
+{
+  "deploymentStart": {
+    "@type": "MessageCard",
+    "@context": "http://schema.org/extensions",
+    "themeColor": "0076D7",
+    "summary": "MOBIUS Deployment Started",
+    "sections": [
+      {
+        "activityTitle": "🎬 MOBIUS Deployment Started",
+        "activitySubtitle": "Video Generation Pipeline",
+        "facts": [
+          {
+            "name": "Release:",
+            "value": "{{RELEASE_TAG}}"
+          },
+          {
+            "name": "Branch:",
+            "value": "{{BRANCH_NAME}}"
+          },
+          {
+            "name": "Deploy Lead:",
+            "value": "{{DEPLOY_LEAD}}"
+          },
+          {
+            "name": "PR:",
+            "value": "[#{{PR_NUMBER}}]({{PR_URL}})"
+          }
+        ],
+        "markdown": true
+      }
+    ],
+    "potentialAction": [
+      {
+        "@type": "OpenUri",
+        "name": "View Workflow",
+        "targets": [
+          {
+            "os": "default",
+            "uri": "{{WORKFLOW_URL}}"
+          }
+        ]
+      }
+    ]
+  },
+  "deploymentSuccess": {
+    "@type": "MessageCard",
+    "@context": "http://schema.org/extensions", 
+    "themeColor": "00FF00",
+    "summary": "MOBIUS Deployment Complete",
+    "sections": [
+      {
+        "activityTitle": "✅ MOBIUS Deployment Complete",
+        "activitySubtitle": "All systems operational",
+        "facts": [
+          {
+            "name": "Release:",
+            "value": "{{RELEASE_TAG}}"
+          },
+          {
+            "name": "Duration:",
+            "value": "{{DEPLOY_DURATION}}"
+          },
+          {
+            "name": "Deploy Lead:",
+            "value": "{{DEPLOY_LEAD}}"
+          },
+          {
+            "name": "Artifacts:",
+            "value": "{{ARTIFACT_COUNT}} files"
+          }
+        ],
+        "markdown": true
+      },
+      {
+        "activityTitle": "Performance Metrics", 
+        "text": "📈 **System Performance:**<br/>• Peak Memory: {{MEMORY_PEAK}} MB<br/>• Render Speed: {{RENDER_SPEED}}x realtime<br/>• Test Coverage: {{TEST_COVERAGE}}%"
+      }
+    ],
+    "potentialAction": [
+      {
+        "@type": "OpenUri",
+        "name": "Download Artifacts",
+        "targets": [
+          {
+            "os": "default",
+            "uri": "{{ARTIFACTS_URL}}"
+          }
+        ]
+      }
+    ]
+  },
+  "deploymentIssue": {
+    "@type": "MessageCard",
+    "@context": "http://schema.org/extensions",
+    "themeColor": "FF0000",
+    "summary": "MOBIUS Deployment Failed",
+    "sections": [
+      {
+        "activityTitle": "⚠️ MOBIUS Deployment Issue",
+        "activitySubtitle": "Immediate attention required",
+        "facts": [
+          {
+            "name": "Release:",
+            "value": "{{RELEASE_TAG}}"
+          },
+          {
+            "name": "Status:",
+            "value": "{{FAILURE_STATUS}}"
+          },
+          {
+            "name": "Failed Step:",
+            "value": "{{FAILED_STEP}}"
+          }
+        ],
+        "markdown": true
+      },
+      {
+        "activityTitle": "Error Details",
+        "text": "```{{ERROR_MESSAGE}}```"
+      }
+    ],
+    "potentialAction": [
+      {
+        "@type": "OpenUri",
+        "name": "View Logs",
+        "targets": [
+          {
+            "os": "default",
+            "uri": "{{WORKFLOW_URL}}"
+          }
+        ]
+      }
+    ]
+  }
+}
