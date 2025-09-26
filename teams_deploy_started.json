@@ -1,0 +1,20 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.4",
+  "body": [
+    { "type": "TextBlock", "size": "Large", "weight": "Bolder", "text": "🚀 MOBIUS Deploy Started — v1.2.3" },
+    { "type": "FactSet", "facts": [
+        { "title": "Release", "value": "v1.2.3" },
+        { "title": "Env", "value": "production" },
+        { "title": "PR", "value": "https://github.com/w9bikze8u4cbupc/MOBIUS/pull/123" },
+        { "title": "Lead", "value": "@ops" }
+      ]
+    },
+    { "type": "TextBlock", "text": "[View Dashboard](https://monitoring.example/dashboard) • [Logs](https://ci.example/artifacts/deploy-dryrun.log)", "wrap": true }
+  ],
+  "actions": [
+    { "type": "Action.OpenUrl", "title": "Open Dashboard", "url": "https://monitoring.example/dashboard" },
+    { "type": "Action.OpenUrl", "title": "Open Runbook", "url": "https://github.com/w9bikze8u4cbupc/MOBIUS/blob/main/DEPLOYMENT_OPERATIONS_GUIDE.md" }
+  ]
+}

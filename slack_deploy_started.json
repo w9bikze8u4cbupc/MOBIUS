@@ -1,0 +1,16 @@
+{
+  "blocks": [
+    { "type": "header", "text": { "type": "plain_text", "text": "🚀 MOBIUS Deploy Started — v1.2.3" } },
+    { "type": "section", "fields": [
+        { "type": "mrkdwn", "text": "*Release:*\nv1.2.3" },
+        { "type": "mrkdwn", "text": "*Env:*\nproduction" }
+      ]
+    },
+    { "type": "section", "text": { "type": "mrkdwn", "text": "*PR:* <https://github.com/w9bikze8u4cbupc/MOBIUS/pull/123|#123>  •  *Lead:* @ops\n*Logs:* <https://ci.example/artifacts/deploy-dryrun.log|deploy-dryrun.log>" } },
+    { "type": "actions", "elements": [
+        { "type": "button", "text": { "type": "plain_text", "text": "View Dashboard" }, "url": "https://monitoring.example/dashboard" },
+        { "type": "button", "text": { "type": "plain_text", "text": "Open Runbook" }, "url": "https://github.com/w9bikze8u4cbupc/MOBIUS/blob/main/DEPLOYMENT_OPERATIONS_GUIDE.md" }
+      ]
+    }
+  ]
+}

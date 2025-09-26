@@ -92,3 +92,46 @@ jobs:
           path: |
             artifacts/**
             out/preview_with_audio.mp4
+
+      - name: Post CI PR comment
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = '${{ github.event.pull_request.number }}';
+            const prTitle = '${{ github.event.pull_request.title }}';
+            const headRef = '${{ github.head_ref }}';
+            const jobStatus = '${{ job.status }}';
+            const runnerOS = '${{ runner.os }}';
+            
+            const body = `**PR Status — Automated CI summary**
+            PR: #${prNumber} — ${prTitle}
+            Branch: \`${headRef}\` • Target: \`main\` • Status: **${jobStatus.toUpperCase()}**
+            
+            **Platform Status (${runnerOS}):**
+            - ${runnerOS}: ${jobStatus === 'success' ? 'PASS' : 'FAIL'}
+            
+            **Artifacts:**
+            - QA artifacts: [qa-${runnerOS}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - Preview with audio: Available in artifacts
+            
+            **Next steps:**
+            1. Ensure 2 approvals including Ops/SRE
+            2. Merge with rebase-and-merge if all checks pass
+            
+            \`\`\`bash
+            gh pr merge --repo ${{ github.repository }} --head ${headRef} --merge-method rebase --delete-branch
+            \`\`\`
+            
+            **Helpful links:**
+            - Runbook: DEPLOYMENT_OPERATIONS_GUIDE.md
+            - Cheat sheet: .github/deploy-cheatsheet.md
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body
+            });
