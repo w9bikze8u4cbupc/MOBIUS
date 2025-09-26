@@ -64,6 +64,22 @@ coverage/
 tests/golden/**/debug/
 tests/golden/reports/
 
+# Deployment framework artifacts (don't commit these)
+backups/
+premerge_artifacts/
+lcm_exports/
+monitor_logs/
+emergency_backups/
+deployment_reports/
+
+# Deployment logs (these should be uploaded as CI artifacts instead)
+deploy-dryrun.log
+migration-dryrun.log
+postdeploy-smoketests.log
+test_logging.log
+*.tar.gz
+*.zip.sha256
+
 # Node.js dependencies
 node_modules/
 
