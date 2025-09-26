@@ -1,0 +1,7 @@
+{
+  "text": "Deployment started for {{release}}",
+  "blocks": [
+    { "type": "section", "text": { "type": "mrkdwn", "text": "*Deployment started* for {{release}} (PR #{{pr}})" } },
+    { "type": "context", "elements": [ { "type": "mrkdwn", "text": "Operator: {{lead}} | Env: {{env}}" } ] }
+  ]
+}
