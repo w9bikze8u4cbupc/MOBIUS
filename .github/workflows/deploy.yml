@@ -1,0 +1,65 @@
+name: Deploy with notifications
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install (optional)
+        run: npm ci || true
+
+      - name: Notify: deployment started
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: |
+          node scripts/deploy/deploy-notify.js start --services slack,teams
+
+      - name: Deploy (perform deployment)
+        id: do_deploy
+        run: |
+          # Replace with your real deployment commands
+          # e.g. kubectl apply -f k8s/
+          echo "Running deployment..."
+          # Simulate success/failure by exit code
+          # exit 1  # uncomment to test failure behavior
+
+      - name: Notify: deployment completed
+        if: ${{ success() }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: |
+          node scripts/deploy/deploy-notify.js success --duration "${{ github.run_attempt }}s" --services slack,teams,email
+
+      - name: Notify: deployment failed
+        if: ${{ failure() }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: |
+          node scripts/deploy/deploy-notify.js failure --services slack,teams
+
+      - name: Comment PR with artifacts (optional)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            Deployment job finished.
+            - Workflow: ${{ github.workflow }}
+            - Run: ${{ github.run_number }}
+            - Artifacts: (attach links to artifacts if available)

@@ -1,0 +1,40 @@
+name: Deploy (simple)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Start notification
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: node scripts/deploy/deploy-notify.js start
+
+      - name: Deploy
+        id: deploy
+        run: |
+          # actual deploy commands here
+          echo "deploying..."
+
+      - name: Success notification
+        if: ${{ success() }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: node scripts/deploy/deploy-notify.js success --services slack,teams,email
+
+      - name: Failure notification
+        if: ${{ failure() }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: node scripts/deploy/deploy-notify.js failure --services slack,teams

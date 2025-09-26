@@ -51,6 +51,9 @@ temp/
 tmp.*
 *.tmp
 
+# Deployment notification temp files
+deploy_*.json
+
 # Coverage data
 coverage/
 *.lcov

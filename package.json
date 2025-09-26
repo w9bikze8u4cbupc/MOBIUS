@@ -1,6 +1,7 @@
 {
   "name": "mobius-games-tutorial-generator",
   "version": "1.0.0",
+  "type": "module",
   "description": "A pipeline for generating game tutorial videos from structured game rules",
   "main": "index.js",
   "scripts": {
