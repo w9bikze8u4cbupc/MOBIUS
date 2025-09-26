@@ -44,9 +44,9 @@ Release target: {{RELEASE_TAG}}
 
 ## Merge & deploy readiness
 - [ ] Branch protection contexts present:
-  - CI / build-and-qa
-  - premerge-validation
-  - premerge-artifacts-upload
+  - build-and-qa
+  - Golden Preview Checks / check
+  - Golden Approve / approve
 - [ ] Final sign-off from Deploy operator: @{{DEPLOY_LEAD}}
 - [ ] Post-merge rollback plan attached (rollback steps + latest backup link)
 

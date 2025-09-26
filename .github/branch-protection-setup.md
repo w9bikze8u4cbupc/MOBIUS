@@ -8,7 +8,7 @@
 ## One-line GH API example (copy/paste, replace OWNER/REPO/BRANCH):
 ```bash
 gh api -X PUT /repos/OWNER/REPO/branches/BRANCH/protection \
-  -f required_status_checks='{"strict":true,"contexts":["CI / build-and-qa","premerge-validation","premerge-artifacts-upload"]}' \
+  -f required_status_checks='{"strict":true,"contexts":["build-and-qa","Golden Preview Checks / check","Golden Approve / approve"]}' \
   -f required_pull_request_reviews='{"required_approving_review_count":2}'
 ```
 

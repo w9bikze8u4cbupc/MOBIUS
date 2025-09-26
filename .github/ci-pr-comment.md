@@ -23,7 +23,7 @@ Branch: `{{BRANCH}}`  • Target: `{{TARGET_BRANCH}}`  • Release: {{RELEASE_TA
 - Error rate: {{ERROR_RATE}}% (threshold: {{ERROR_RATE_THRESHOLD}}%)
 
 ## Checks & next steps
-- premerge-validation: {{PREMERGE_VALIDATION_STATUS}}
+- Golden Preview Checks: {{GOLDEN_CHECK_STATUS}}
 - If all checks pass and you have 2 approvals (incl. Ops/SRE): proceed with rebase-and-merge
 
 ```bash
