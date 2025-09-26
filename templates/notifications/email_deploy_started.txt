@@ -1,0 +1,9 @@
+Deployment Started: {{release}}
+
+PR: #{{pr}}
+Environment: {{env}}
+Operator: {{lead}}
+
+Deployment initiated at {{timestamp}}.
+
+This is an automated notification from the deployment pipeline.

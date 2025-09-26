@@ -1,0 +1,10 @@
+Deployment Completed: {{release}}
+
+PR: #{{pr}}
+Environment: {{env}}
+Duration: {{duration}}
+Operator: {{lead}}
+
+Deployment completed successfully at {{timestamp}}.
+
+This is an automated notification from the deployment pipeline.

@@ -1,0 +1,21 @@
+{
+  "text": "Deployment completed: {{release}} (PR #{{pr}})",
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": ":white_check_mark: *Deployment completed* for `{{release}}` (PR #{{pr}})"
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Environment: `{{env}}` | Duration: {{duration}} | Operator: {{lead}}"
+        }
+      ]
+    }
+  ]
+}
