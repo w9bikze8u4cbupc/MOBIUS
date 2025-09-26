@@ -1,0 +1,49 @@
+{
+  "text": "✅ Deployment Completed",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "✅ Deployment Completed"
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Environment:*\n{{env}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Release:*\n{{release}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Deploy Lead:*\n{{lead}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Duration:*\n{{duration}}"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "🎉 Deployment completed successfully!"
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "plain_text",
+          "text": "PR: #{{pr}} | Environment: {{env}} | Completed: {{timestamp}}"
+        }
+      ]
+    }
+  ]
+}

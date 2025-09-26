@@ -1,0 +1,36 @@
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions",
+  "themeColor": "00FF00",
+  "summary": "Deployment Completed",
+  "sections": [
+    {
+      "activityTitle": "✅ Deployment Completed",
+      "activitySubtitle": "Environment: {{env}}",
+      "text": "🎉 Deployment completed successfully!",
+      "facts": [
+        {
+          "name": "Release",
+          "value": "{{release}}"
+        },
+        {
+          "name": "Deploy Lead",
+          "value": "{{lead}}"
+        },
+        {
+          "name": "PR Number",
+          "value": "#{{pr}}"
+        },
+        {
+          "name": "Duration",
+          "value": "{{duration}}"
+        },
+        {
+          "name": "Completed At",
+          "value": "{{timestamp}}"
+        }
+      ],
+      "markdown": true
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "text": "🚀 Deployment Started",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🚀 Deployment Started"
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Environment:*\n{{env}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Release:*\n{{release}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Deploy Lead:*\n{{lead}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Started:*\n{{timestamp}}"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "plain_text",
+          "text": "PR: #{{pr}} | Environment: {{env}}"
+        }
+      ]
+    }
+  ]
+}

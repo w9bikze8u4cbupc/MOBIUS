@@ -1,0 +1,4 @@
+{
+  "subject": "✅ Deployment Completed - {{env}} Environment",
+  "body": "🎉 Deployment completed successfully for the {{env}} environment!\n\nDetails:\n- Release: {{release}}\n- Deploy Lead: {{lead}}\n- PR: #{{pr}}\n- Duration: {{duration}}\n- Completed: {{timestamp}}\n\nThis is an automated notification from the MOBIUS deployment system."
+}

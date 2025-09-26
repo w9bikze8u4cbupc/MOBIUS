@@ -1,0 +1,49 @@
+{
+  "text": "❌ Deployment Failed",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "❌ Deployment Failed"
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Environment:*\n{{env}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Release:*\n{{release}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Deploy Lead:*\n{{lead}}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Failed At:*\n{{timestamp}}"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "🚨 Deployment failed! Please check the logs and take appropriate action."
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "plain_text",
+          "text": "PR: #{{pr}} | Environment: {{env}} | Failed: {{timestamp}}"
+        }
+      ]
+    }
+  ]
+}

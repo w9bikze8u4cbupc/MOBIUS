@@ -1,0 +1,32 @@
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions",
+  "themeColor": "FF0000",
+  "summary": "Deployment Failed",
+  "sections": [
+    {
+      "activityTitle": "❌ Deployment Failed",
+      "activitySubtitle": "Environment: {{env}}",
+      "text": "🚨 Deployment failed! Please check the logs and take appropriate action.",
+      "facts": [
+        {
+          "name": "Release",
+          "value": "{{release}}"
+        },
+        {
+          "name": "Deploy Lead",
+          "value": "{{lead}}"
+        },
+        {
+          "name": "PR Number",
+          "value": "#{{pr}}"
+        },
+        {
+          "name": "Failed At",
+          "value": "{{timestamp}}"
+        }
+      ],
+      "markdown": true
+    }
+  ]
+}

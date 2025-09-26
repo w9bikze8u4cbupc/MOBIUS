@@ -1,0 +1,31 @@
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions",
+  "themeColor": "0076D7",
+  "summary": "Deployment Started",
+  "sections": [
+    {
+      "activityTitle": "🚀 Deployment Started",
+      "activitySubtitle": "Environment: {{env}}",
+      "facts": [
+        {
+          "name": "Release",
+          "value": "{{release}}"
+        },
+        {
+          "name": "Deploy Lead",
+          "value": "{{lead}}"
+        },
+        {
+          "name": "PR Number",
+          "value": "#{{pr}}"
+        },
+        {
+          "name": "Started At",
+          "value": "{{timestamp}}"
+        }
+      ],
+      "markdown": true
+    }
+  ]
+}

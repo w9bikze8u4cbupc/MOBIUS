@@ -1,0 +1,4 @@
+{
+  "subject": "❌ Deployment Failed - {{env}} Environment",
+  "body": "🚨 Deployment failed for the {{env}} environment!\n\nPlease check the logs and take appropriate action.\n\nDetails:\n- Release: {{release}}\n- Deploy Lead: {{lead}}\n- PR: #{{pr}}\n- Failed: {{timestamp}}\n\nThis is an automated notification from the MOBIUS deployment system."
+}
