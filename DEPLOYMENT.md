@@ -46,6 +46,31 @@ The workflow automatically triggers on:
 - Tag pushes (e.g., `v1.0.0`)
 - Manual workflow dispatch
 
+## Workflow Options
+
+Two deployment workflow files are provided:
+
+### Option 1: Full Control (deploy.yml)
+The main workflow provides complete control over the deployment data and notification process. Use this if you need custom data manipulation or complex deployment logic.
+
+### Option 2: Simplified (deploy-simple.yml)
+Uses the `deploy-notify.js` wrapper script for cleaner, more maintainable workflows. This is recommended for most use cases as it reduces boilerplate and keeps workflows DRY.
+
+## Wrapper Script Usage
+
+The `scripts/deploy/deploy-notify.js` wrapper script provides a simplified interface:
+
+```bash
+node scripts/deploy/deploy-notify.js start    # Notify deployment started
+node scripts/deploy/deploy-notify.js success  # Notify deployment completed
+node scripts/deploy/deploy-notify.js failure  # Notify deployment failed
+```
+
+The wrapper automatically handles:
+- Creating deployment data from environment variables
+- Selecting appropriate templates and services
+- Cleanup of temporary files
+
 ## Email Notifications
 
 Email content is generated in the `notifications_out/` directory. Integrate these files with your SMTP/alerting pipeline for automatic email delivery.
@@ -64,8 +89,9 @@ The following variables are available in templates:
 
 ## Manual Usage
 
-You can use the notification system manually:
+You can use the notification system manually in two ways:
 
+### Direct Script Usage
 ```bash
 # Create deployment data
 cat > deploy.json << EOF
@@ -80,6 +106,19 @@ EOF
 
 # Send notifications
 node scripts/deploy/notify.js --service slack,teams,email --template deploy_started --data-file ./deploy.json
+```
+
+### Wrapper Script Usage (Recommended)
+```bash
+# Set environment variables
+export GITHUB_REF_NAME="v1.2.3"
+export GITHUB_ACTOR="username"
+export DEPLOY_ENV="production"
+
+# Send notifications using wrapper
+node scripts/deploy/deploy-notify.js start
+node scripts/deploy/deploy-notify.js success
+node scripts/deploy/deploy-notify.js failure
 ```
 
 ## Troubleshooting

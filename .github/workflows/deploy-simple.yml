@@ -1,0 +1,64 @@
+name: Deploy (Simplified)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci || true
+
+      - name: Notify: deployment started
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+          DEPLOY_ENV: production
+        run: node scripts/deploy/deploy-notify.js start
+
+      - name: Deploy (placeholder)
+        id: do_deploy
+        run: |
+          # Replace with your real deploy command(s)
+          # e.g. kubectl apply -f k8s/ || exit 1
+          echo "Performing deployment..."
+        shell: bash
+
+      - name: Notify: deployment completed
+        if: ${{ success() }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+          DEPLOY_ENV: production
+        run: node scripts/deploy/deploy-notify.js success
+
+      - name: Notify: deployment failed
+        if: ${{ failure() }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+          DEPLOY_ENV: production
+        run: node scripts/deploy/deploy-notify.js failure
+
+      - name: Add PR comment with artifacts (optional)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            Deployment job completed.
+            - Workflow: ${{ github.workflow }}
+            - Run: ${{ github.run_number }}
+            - Artifacts: [premerge artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
