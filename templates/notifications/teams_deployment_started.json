@@ -1,0 +1,86 @@
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions",
+  "themeColor": "0076D7",
+  "summary": "MOBIUS Deployment Started",
+  "sections": [
+    {
+      "activityTitle": "🚀 MOBIUS Deployment Started",
+      "activitySubtitle": "Environment: {{ENVIRONMENT}}",
+      "facts": [
+        {
+          "name": "Version",
+          "value": "{{VERSION}}"
+        },
+        {
+          "name": "Branch",
+          "value": "{{BRANCH}}"
+        },
+        {
+          "name": "Commit",
+          "value": "{{COMMIT_SHA}}"
+        },
+        {
+          "name": "Deploy Operator",
+          "value": "{{DEPLOY_OPERATOR}}"
+        },
+        {
+          "name": "Start Time",
+          "value": "{{DEPLOYMENT_START_TIME}}"
+        },
+        {
+          "name": "Expected Duration",
+          "value": "{{EXPECTED_DURATION}}"
+        }
+      ],
+      "markdown": true
+    },
+    {
+      "activityTitle": "Pre-Deployment Checks",
+      "facts": [
+        {
+          "name": "Backup Created",
+          "value": "{{#BACKUP_CREATED}}✅ Yes{{/BACKUP_CREATED}}{{^BACKUP_CREATED}}❌ No{{/BACKUP_CREATED}}"
+        },
+        {
+          "name": "Deploy Dry-Run",
+          "value": "{{#DRY_RUN_PASSED}}✅ Passed{{/DRY_RUN_PASSED}}{{^DRY_RUN_PASSED}}❌ Failed{{/DRY_RUN_PASSED}}"
+        },
+        {
+          "name": "Migration Validated",
+          "value": "{{#MIGRATION_VALIDATED}}✅ Yes{{/MIGRATION_VALIDATED}}{{^MIGRATION_VALIDATED}}❌ No{{/MIGRATION_VALIDATED}}"
+        },
+        {
+          "name": "Smoke Tests Ready",
+          "value": "{{#SMOKE_TESTS_READY}}✅ Ready{{/SMOKE_TESTS_READY}}{{^SMOKE_TESTS_READY}}❌ Not Ready{{/SMOKE_TESTS_READY}}"
+        }
+      ]
+    },
+    {
+      "activityTitle": "Monitoring Configuration",
+      "text": "Auto-rollback enabled with 3 consecutive failure threshold, 70% success rate minimum, and 5000ms P95 latency limit."
+    }
+  ],
+  "potentialAction": [
+    {
+      "@type": "OpenUri",
+      "name": "View Deployment Logs",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{DEPLOYMENT_LOGS_URL}}"
+        }
+      ]
+    },
+    {
+      "@type": "OpenUri",
+      "name": "Monitor Dashboard",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{MONITORING_DASHBOARD_URL}}"
+        }
+      ]
+    }
+  ]
+}

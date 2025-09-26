@@ -1,0 +1,92 @@
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions",
+  "themeColor": "FF0000",
+  "summary": "MOBIUS Auto-Rollback Triggered",
+  "sections": [
+    {
+      "activityTitle": "🚨 MOBIUS Auto-Rollback Triggered",
+      "activitySubtitle": "URGENT: Automatic rollback initiated",
+      "facts": [
+        {
+          "name": "Environment",
+          "value": "{{ENVIRONMENT}}"
+        },
+        {
+          "name": "Trigger Reason",
+          "value": "{{ROLLBACK_REASON}}"
+        },
+        {
+          "name": "Rollback Started",
+          "value": "{{ROLLBACK_START_TIME}}"
+        },
+        {
+          "name": "Backup Used",
+          "value": "{{BACKUP_FILE}}"
+        },
+        {
+          "name": "Consecutive Failures",
+          "value": "{{CONSECUTIVE_FAILURES}}"
+        },
+        {
+          "name": "Success Rate",
+          "value": "{{SUCCESS_RATE}}%"
+        }
+      ],
+      "markdown": true
+    },
+    {
+      "activityTitle": "Rollback Status",
+      "facts": [
+        {
+          "name": "Rollback Progress",
+          "value": "{{#ROLLBACK_COMPLETED}}✅ Completed{{/ROLLBACK_COMPLETED}}{{^ROLLBACK_COMPLETED}}🔄 In Progress{{/ROLLBACK_COMPLETED}}"
+        },
+        {
+          "name": "Health Checks",
+          "value": "{{#POST_ROLLBACK_HEALTH_OK}}✅ OK{{/POST_ROLLBACK_HEALTH_OK}}{{^POST_ROLLBACK_HEALTH_OK}}❌ Failed{{/POST_ROLLBACK_HEALTH_OK}}"
+        },
+        {
+          "name": "Services",
+          "value": "{{#SERVICES_RESTORED}}✅ Restored{{/SERVICES_RESTORED}}{{^SERVICES_RESTORED}}❌ Issues{{/SERVICES_RESTORED}}"
+        }
+      ]
+    },
+    {
+      "activityTitle": "Immediate Actions Required",
+      "text": "1. Verify rollback completion\n2. Investigate root cause\n3. Plan remediation\n4. Update stakeholders\n\nOn-call engineer: {{ONCALL_ENGINEER}}"
+    }
+  ],
+  "potentialAction": [
+    {
+      "@type": "OpenUri",
+      "name": "View Rollback Logs",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{ROLLBACK_LOGS_URL}}"
+        }
+      ]
+    },
+    {
+      "@type": "OpenUri",
+      "name": "Incident Response",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{INCIDENT_RESPONSE_URL}}"
+        }
+      ]
+    },
+    {
+      "@type": "OpenUri",
+      "name": "Monitor Dashboard",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{{MONITORING_DASHBOARD_URL}}"
+        }
+      ]
+    }
+  ]
+}

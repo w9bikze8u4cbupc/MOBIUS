@@ -1,0 +1,89 @@
+{
+  "text": "🚨 MOBIUS Auto-Rollback Triggered",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🚨 MOBIUS Auto-Rollback Triggered"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*URGENT: Automatic rollback has been initiated*"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Rollback Details:*\n• Environment: `{{ENVIRONMENT}}`\n• Trigger Reason: {{ROLLBACK_REASON}}\n• Rollback Started: {{ROLLBACK_START_TIME}}\n• Backup Used: `{{BACKUP_FILE}}`"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Failure Metrics:*\n• Consecutive Failures: {{CONSECUTIVE_FAILURES}}\n• Success Rate: {{SUCCESS_RATE}}%\n• Last Error: {{LAST_ERROR}}\n• Failed Checks: {{FAILED_CHECKS}}"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Rollback Status:*\n{{#ROLLBACK_COMPLETED}}✅{{/ROLLBACK_COMPLETED}}{{^ROLLBACK_COMPLETED}}🔄{{/ROLLBACK_COMPLETED}} Rollback {{#ROLLBACK_COMPLETED}}Completed{{/ROLLBACK_COMPLETED}}{{^ROLLBACK_COMPLETED}}In Progress{{/ROLLBACK_COMPLETED}}\n{{#POST_ROLLBACK_HEALTH_OK}}✅{{/POST_ROLLBACK_HEALTH_OK}}{{^POST_ROLLBACK_HEALTH_OK}}❌{{/POST_ROLLBACK_HEALTH_OK}} Post-Rollback Health Checks\n{{#SERVICES_RESTORED}}✅{{/SERVICES_RESTORED}}{{^SERVICES_RESTORED}}❌{{/SERVICES_RESTORED}} Services Restored"
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Immediate Actions Required:*\n1. Verify rollback completion\n2. Investigate root cause\n3. Plan remediation\n4. Update stakeholders"
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View Rollback Logs"
+          },
+          "url": "{{ROLLBACK_LOGS_URL}}",
+          "style": "danger"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Incident Response"
+          },
+          "url": "{{INCIDENT_RESPONSE_URL}}"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Monitor Dashboard"
+          },
+          "url": "{{MONITORING_DASHBOARD_URL}}"
+        }
+      ]
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Auto-rollback triggered at {{ROLLBACK_TRIGGER_TIME}} | On-call engineer: {{ONCALL_ENGINEER}}"
+        }
+      ]
+    }
+  ]
+}

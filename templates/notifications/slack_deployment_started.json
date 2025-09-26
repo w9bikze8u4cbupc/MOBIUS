@@ -1,0 +1,65 @@
+{
+  "text": "🚀 MOBIUS Deployment Started",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🚀 MOBIUS Deployment Started"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Deployment Information:*\n• Environment: `{{ENVIRONMENT}}`\n• Version: `{{VERSION}}`\n• Branch: `{{BRANCH}}`\n• Commit: `{{COMMIT_SHA}}`\n• Deploy Operator: {{DEPLOY_OPERATOR}}"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Pre-Deployment Checks:*\n{{#BACKUP_CREATED}}✅{{/BACKUP_CREATED}}{{^BACKUP_CREATED}}❌{{/BACKUP_CREATED}} Backup Created & Verified\n{{#DRY_RUN_PASSED}}✅{{/DRY_RUN_PASSED}}{{^DRY_RUN_PASSED}}❌{{/DRY_RUN_PASSED}} Deploy Dry-Run Completed\n{{#MIGRATION_VALIDATED}}✅{{/MIGRATION_VALIDATED}}{{^MIGRATION_VALIDATED}}❌{{/MIGRATION_VALIDATED}} Migration Dry-Run Validated\n{{#SMOKE_TESTS_READY}}✅{{/SMOKE_TESTS_READY}}{{^SMOKE_TESTS_READY}}❌{{/SMOKE_TESTS_READY}} Smoke Tests Ready"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Timeline:*\n• Deployment Start: {{DEPLOYMENT_START_TIME}}\n• Expected Duration: {{EXPECTED_DURATION}}\n• Monitoring Window: T+60 minutes"
+      }
+    },
+    {
+      "type": "divider"
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Monitoring & Rollback:*\nAuto-rollback is enabled with the following thresholds:\n• Consecutive failures: 3\n• Success rate threshold: 70%\n• P95 latency threshold: 5000ms"
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View Deployment Logs"
+          },
+          "url": "{{DEPLOYMENT_LOGS_URL}}",
+          "style": "primary"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Monitor Dashboard"
+          },
+          "url": "{{MONITORING_DASHBOARD_URL}}"
+        }
+      ]
+    }
+  ]
+}
