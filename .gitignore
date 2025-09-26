@@ -73,3 +73,8 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Deployment framework artifacts
+backups/
+exports/
+artifacts/
