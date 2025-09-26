@@ -73,3 +73,13 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Deployment framework artifacts
+backups/
+monitor_logs/
+premerge_artifacts/
+lcm_exports/
+deploy-dryrun.log
+migration-dryrun.log
+postdeploy-smoketests*.log
+test_logging*.log
