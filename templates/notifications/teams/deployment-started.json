@@ -1,0 +1,53 @@
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions",
+  "summary": "MOBIUS Deployment Started",
+  "themeColor": "0078D4",
+  "sections": [
+    {
+      "activityTitle": "🚀 MOBIUS Deployment Started",
+      "activitySubtitle": "Environment: {environment}",
+      "facts": [
+        {
+          "name": "Version",
+          "value": "{git_commit}"
+        },
+        {
+          "name": "Deployer",
+          "value": "{deployer}"
+        },
+        {
+          "name": "Started",
+          "value": "{timestamp}"
+        },
+        {
+          "name": "Monitoring",
+          "value": "60-minute period with auto-rollback"
+        }
+      ],
+      "text": "**Deployment Steps:**\n\n• Backup created: ✅\n• Deployment dry-run: ✅\n• Migration dry-run: ✅\n• Services deploying: 🔄"
+    }
+  ],
+  "potentialAction": [
+    {
+      "@type": "OpenUri",
+      "name": "View Logs",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{logs_url}"
+        }
+      ]
+    },
+    {
+      "@type": "OpenUri",
+      "name": "Emergency Rollback",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{rollback_url}"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "text": "✅ MOBIUS Deployment Successful",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "✅ MOBIUS Deployment Successful"
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Environment:*\n{environment}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version:*\n{git_commit}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Deployer:*\n{deployer}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Completed:*\n{timestamp}"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Deployment Results:*\n• Services deployed: ✅\n• Smoke tests: ✅ {smoke_tests_passed}/{smoke_tests_total}\n• Health checks: ✅ 60-minute monitoring passed\n• Performance: ✅ All metrics within limits"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "📈 *Monitoring Summary:*\n• Success Rate: {success_rate}%\n• Average Response Time: {avg_response_time}ms\n• Error Rate: {error_rate}%"
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View Deployment Report"
+          },
+          "url": "{report_url}"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Health Dashboard"
+          },
+          "url": "{dashboard_url}"
+        }
+      ]
+    }
+  ]
+}

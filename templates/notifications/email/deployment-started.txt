@@ -1,0 +1,40 @@
+Subject: MOBIUS Deployment Started - {environment}
+
+Dear Team,
+
+A deployment to the {environment} environment has been initiated.
+
+Deployment Details:
+- Environment: {environment}
+- Version: {git_commit}
+- Deployer: {deployer}
+- Started: {timestamp}
+
+Deployment Progress:
+✅ Backup created and verified
+✅ Deployment dry-run validation completed
+✅ Migration dry-run validation completed
+🔄 Services deployment in progress
+🔄 60-minute monitoring period started
+
+Monitoring and Safety:
+- Auto-rollback is enabled with the following triggers:
+  • 3 consecutive health check failures
+  • Success rate <70% after ≥5 checks
+  • P95 latency >5000ms consistently
+  • Error rate >5% for 5+ consecutive checks
+
+Expected completion: ~{estimated_completion}
+
+You can monitor the deployment progress at:
+- Logs: {logs_url}
+- Dashboard: {dashboard_url}
+
+For emergency rollback, contact the deploy operator or use: {rollback_url}
+
+Best regards,
+MOBIUS Deployment System
+
+---
+This is an automated message from the MOBIUS deployment system.
+For questions, contact the DevOps team.

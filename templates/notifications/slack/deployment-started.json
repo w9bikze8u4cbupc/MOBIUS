@@ -1,0 +1,69 @@
+{
+  "text": "🚀 MOBIUS Deployment Started",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🚀 MOBIUS Deployment Started"
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Environment:*\n{environment}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Version:*\n{git_commit}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Deployer:*\n{deployer}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Started:*\n{timestamp}"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Deployment Steps:*\n• Backup created: ✅\n• Deployment dry-run: ✅\n• Migration dry-run: ✅\n• Services deploying: 🔄"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "📊 *Monitoring*: 60-minute monitoring period started with auto-rollback enabled."
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View Logs"
+          },
+          "url": "{logs_url}"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Emergency Rollback"
+          },
+          "style": "danger",
+          "url": "{rollback_url}"
+        }
+      ]
+    }
+  ]
+}

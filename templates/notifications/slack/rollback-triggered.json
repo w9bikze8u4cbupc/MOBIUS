@@ -1,0 +1,70 @@
+{
+  "text": "🚨 MOBIUS Rollback Triggered",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🚨 MOBIUS Rollback Triggered"
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Environment:*\n{environment}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Reason:*\n{rollback_reason}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Triggered:*\n{timestamp}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Type:*\n{rollback_type}"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "⚠️ *Alert Details:*\n{alert_details}"
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Rollback Status:*\n• Backup verified: ✅\n• Services stopping: 🔄\n• Rollback in progress: 🔄\n• ETA: ~10-15 minutes"
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "View Rollback Logs"
+          },
+          "url": "{logs_url}",
+          "style": "primary"
+        },
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Incident Channel"
+          },
+          "url": "{incident_channel_url}",
+          "style": "danger"
+        }
+      ]
+    }
+  ]
+}

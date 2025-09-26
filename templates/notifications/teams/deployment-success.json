@@ -1,0 +1,57 @@
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions",
+  "summary": "MOBIUS Deployment Successful",
+  "themeColor": "00FF00",
+  "sections": [
+    {
+      "activityTitle": "✅ MOBIUS Deployment Successful",
+      "activitySubtitle": "Environment: {environment}",
+      "facts": [
+        {
+          "name": "Version",
+          "value": "{git_commit}"
+        },
+        {
+          "name": "Deployer", 
+          "value": "{deployer}"
+        },
+        {
+          "name": "Completed",
+          "value": "{timestamp}"
+        },
+        {
+          "name": "Success Rate",
+          "value": "{success_rate}%"
+        },
+        {
+          "name": "Response Time",
+          "value": "{avg_response_time}ms"
+        }
+      ],
+      "text": "**Deployment Results:**\n\n• Services deployed: ✅\n• Smoke tests: ✅ {smoke_tests_passed}/{smoke_tests_total}\n• Health checks: ✅ 60-minute monitoring passed\n• Performance: ✅ All metrics within limits"
+    }
+  ],
+  "potentialAction": [
+    {
+      "@type": "OpenUri",
+      "name": "View Report",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{report_url}"
+        }
+      ]
+    },
+    {
+      "@type": "OpenUri", 
+      "name": "Health Dashboard",
+      "targets": [
+        {
+          "os": "default",
+          "uri": "{dashboard_url}"
+        }
+      ]
+    }
+  ]
+}
