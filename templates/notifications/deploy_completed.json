@@ -1,0 +1,3 @@
+{
+  "text": "✅ Deployment Completed!\n\nRelease: {{release}}\nPR: #{{pr}}\nEnvironment: {{env}}\nLead: {{lead}}\n\nThe deployment has completed successfully!"
+}

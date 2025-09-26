@@ -70,6 +70,9 @@ node_modules/
 # Log files
 *.log
 
+# Notification output directory
+notifications_out/
+
 # OS generated files
 .DS_Store
 Thumbs.db

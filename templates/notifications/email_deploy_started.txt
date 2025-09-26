@@ -1,0 +1,15 @@
+Subject: Deployment Started - {{release}}
+
+Hello,
+
+This is to notify you that a deployment has been started:
+
+Release: {{release}}
+PR: #{{pr}}
+Environment: {{env}}
+Lead: {{lead}}
+
+The deployment is now in progress. You will receive another notification when it completes.
+
+Best regards,
+MOBIUS Deployment System

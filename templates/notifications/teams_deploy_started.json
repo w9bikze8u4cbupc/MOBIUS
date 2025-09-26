@@ -1,0 +1,8 @@
+{
+  "@type": "MessageCard",
+  "@context": "https://schema.org/extensions",
+  "summary": "Deployment Started",
+  "themeColor": "0078D4",
+  "title": "🚀 Deployment Started!",
+  "text": "**Release:** {{release}}\n**PR:** #{{pr}}\n**Environment:** {{env}}\n**Lead:** {{lead}}\n\nThe deployment is now in progress..."
+}
