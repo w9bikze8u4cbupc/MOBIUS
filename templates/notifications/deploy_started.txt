@@ -1,0 +1,17 @@
+Subject: 🚀 Deployment Started - MOBIUS {{release}}
+
+Hello,
+
+A new deployment has started for the MOBIUS project.
+
+Deployment Details:
+- Release: {{release}}
+- Environment: {{env}}
+- Lead: {{lead}}
+- PR: {{pr}}
+- Started At: {{timestamp}}
+
+This is an automated notification from the MOBIUS deployment system.
+
+Best regards,
+MOBIUS Deployment System

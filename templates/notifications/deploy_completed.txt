@@ -1,0 +1,20 @@
+Subject: ✅ Deployment Completed Successfully - MOBIUS {{release}}
+
+Hello,
+
+The deployment for MOBIUS has completed successfully!
+
+Deployment Details:
+- Release: {{release}}
+- Environment: {{env}}
+- Lead: {{lead}}
+- PR: {{pr}}
+- Duration: {{duration}} attempts
+- Completed At: {{timestamp}}
+
+The deployment is now live and ready for use.
+
+This is an automated notification from the MOBIUS deployment system.
+
+Best regards,
+MOBIUS Deployment System

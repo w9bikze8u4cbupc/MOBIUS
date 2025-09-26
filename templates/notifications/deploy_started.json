@@ -1,0 +1,37 @@
+{
+  "text": "🚀 Deployment Started",
+  "attachments": [
+    {
+      "color": "#36a64f",
+      "fields": [
+        {
+          "title": "Release",
+          "value": "{{release}}",
+          "short": true
+        },
+        {
+          "title": "Environment", 
+          "value": "{{env}}",
+          "short": true
+        },
+        {
+          "title": "Lead",
+          "value": "{{lead}}",
+          "short": true
+        },
+        {
+          "title": "PR",
+          "value": "{{pr}}",
+          "short": true
+        },
+        {
+          "title": "Started At",
+          "value": "{{timestamp}}",
+          "short": false
+        }
+      ],
+      "footer": "MOBIUS Deployment System",
+      "ts": "{{timestamp}}"
+    }
+  ]
+}

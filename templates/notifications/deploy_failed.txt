@@ -1,0 +1,19 @@
+Subject: ❌ Deployment Failed - MOBIUS {{release}}
+
+Hello,
+
+The deployment for MOBIUS has failed and requires immediate attention.
+
+Deployment Details:
+- Release: {{release}}
+- Environment: {{env}}
+- Lead: {{lead}}
+- PR: {{pr}}
+- Failed At: {{timestamp}}
+
+Please check the deployment logs and take appropriate action to resolve the issue.
+
+This is an automated notification from the MOBIUS deployment system.
+
+Best regards,
+MOBIUS Deployment System

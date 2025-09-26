@@ -1,0 +1,102 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install (optional)
+        run: npm ci || true
+
+      - name: Build deploy data.json (used by notify.js)
+        id: build_deploy_json
+        run: |
+          cat > deploy.json <<'JSON'
+          {
+            "release": "${{ github.ref_name }}",
+            "pr": ${{ github.event.pull_request.number || 0 }},
+            "env": "production",
+            "lead": "${{ github.actor }}",
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          }
+          JSON
+        shell: bash
+
+      - name: Notify: deployment started (Slack + Teams)
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: |
+          node scripts/deploy/notify.js \
+            --service slack,teams \
+            --template deploy_started \
+            --data-file ./deploy.json
+
+      - name: Deploy (placeholder)
+        id: do_deploy
+        run: |
+          # Replace with your real deploy command(s)
+          # e.g. kubectl apply -f k8s/ || exit 1
+          echo "Performing deployment..."
+        shell: bash
+
+      - name: Notify: deployment completed (Slack + Teams)
+        if: ${{ success() }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: |
+          # Add duration to deploy.json if available
+          node -e "
+const fs = require('fs');
+let d = JSON.parse(fs.readFileSync('deploy.json','utf8'));
+d.duration = '${{ github.run_attempt }}';
+d.timestamp = new Date().toISOString();
+fs.writeFileSync('deploy.json', JSON.stringify(d));
+"
+          node scripts/deploy/notify.js \
+            --service slack,teams,email \
+            --template deploy_completed \
+            --data-file ./deploy.json
+
+      - name: Notify: deployment failed (Slack + Teams)
+        if: ${{ failure() }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: |
+          node -e "
+const fs = require('fs');
+let d = JSON.parse(fs.readFileSync('deploy.json','utf8'));
+d.timestamp = new Date().toISOString();
+d.failure = true;
+fs.writeFileSync('deploy.json', JSON.stringify(d));
+"
+          node scripts/deploy/notify.js \
+            --service slack,teams \
+            --template deploy_failed \
+            --data-file ./deploy.json
+
+      - name: Add PR comment with artifacts (optional)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            Deployment job completed.
+            - Workflow: ${{ github.workflow }}
+            - Run: ${{ github.run_number }}
+            - Artifacts: [premerge artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})  <!-- adjust links to your artifact pages -->
