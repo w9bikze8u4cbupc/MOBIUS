@@ -1,0 +1,8 @@
+Deployment Completed: {{release}}
+
+PR: #{{pr}}
+Environment: {{env}}
+Operator: {{lead}}
+Duration: {{duration}}
+
+Deployment completed successfully at {{timestamp}}.

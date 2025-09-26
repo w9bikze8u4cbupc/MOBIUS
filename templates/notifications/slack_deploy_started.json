@@ -1,0 +1,21 @@
+{
+  "text": "Deployment started: {{release}} (PR #{{pr}})",
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": ":rocket: *Deployment started* for `{{release}}` (PR #{{pr}})"
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Environment: `{{env}}` | Operator: {{lead}}"
+        }
+      ]
+    }
+  ]
+}

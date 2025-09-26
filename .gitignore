@@ -51,6 +51,9 @@ temp/
 tmp.*
 *.tmp
 
+# Notification output files
+notifications_out/
+
 # Coverage data
 coverage/
 *.lcov
