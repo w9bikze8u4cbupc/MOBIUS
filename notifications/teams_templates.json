@@ -1,0 +1,246 @@
+{
+  "deployment_started": {
+    "@type": "MessageCard",
+    "@context": "http://schema.org/extensions",
+    "themeColor": "0076D7",
+    "summary": "MOBIUS Deployment Started",
+    "sections": [
+      {
+        "activityTitle": "🚀 MOBIUS Deployment Started",
+        "activitySubtitle": "Environment: {{environment}}",
+        "facts": [
+          {
+            "name": "Deploy Operator",
+            "value": "{{deploy_operator}}"
+          },
+          {
+            "name": "Git Commit",
+            "value": "{{git_commit}}"
+          },
+          {
+            "name": "Git Branch",
+            "value": "{{git_branch}}"
+          },
+          {
+            "name": "Started At",
+            "value": "{{timestamp}}"
+          }
+        ]
+      }
+    ],
+    "potentialAction": [
+      {
+        "@type": "OpenUri",
+        "name": "View Artifacts",
+        "targets": [
+          {
+            "os": "default",
+            "uri": "{{artifacts_url}}"
+          }
+        ]
+      }
+    ]
+  },
+  "deployment_success": {
+    "@type": "MessageCard",
+    "@context": "http://schema.org/extensions",
+    "themeColor": "36A64F",
+    "summary": "MOBIUS Deployment Successful",
+    "sections": [
+      {
+        "activityTitle": "✅ MOBIUS Deployment Successful",
+        "activitySubtitle": "Environment: {{environment}}",
+        "facts": [
+          {
+            "name": "Deploy Operator",
+            "value": "{{deploy_operator}}"
+          },
+          {
+            "name": "Duration",
+            "value": "{{duration}}"
+          },
+          {
+            "name": "Git Commit",
+            "value": "{{git_commit}}"
+          },
+          {
+            "name": "Git Branch",
+            "value": "{{git_branch}}"
+          },
+          {
+            "name": "Completed At",
+            "value": "{{timestamp}}"
+          }
+        ]
+      }
+    ],
+    "potentialAction": [
+      {
+        "@type": "OpenUri",
+        "name": "View Deployment Artifacts",
+        "targets": [
+          {
+            "os": "default",
+            "uri": "{{artifacts_url}}"
+          }
+        ]
+      }
+    ]
+  },
+  "deployment_failed": {
+    "@type": "MessageCard",
+    "@context": "http://schema.org/extensions",
+    "themeColor": "FF0000",
+    "summary": "MOBIUS Deployment Failed",
+    "sections": [
+      {
+        "activityTitle": "❌ MOBIUS Deployment Failed",
+        "activitySubtitle": "Environment: {{environment}}",
+        "facts": [
+          {
+            "name": "Deploy Operator",
+            "value": "{{deploy_operator}}"
+          },
+          {
+            "name": "Duration",
+            "value": "{{duration}}"
+          },
+          {
+            "name": "Git Commit",
+            "value": "{{git_commit}}"
+          },
+          {
+            "name": "Failed At",
+            "value": "{{timestamp}}"
+          },
+          {
+            "name": "Error Details",
+            "value": "{{error_message}}"
+          }
+        ]
+      }
+    ],
+    "potentialAction": [
+      {
+        "@type": "OpenUri",
+        "name": "View Failure Logs",
+        "targets": [
+          {
+            "os": "default",
+            "uri": "{{artifacts_url}}"
+          }
+        ]
+      }
+    ]
+  },
+  "rollback_initiated": {
+    "@type": "MessageCard",
+    "@context": "http://schema.org/extensions",
+    "themeColor": "FF9900",
+    "summary": "MOBIUS Rollback Initiated",
+    "sections": [
+      {
+        "activityTitle": "🚨 MOBIUS Rollback Initiated",
+        "activitySubtitle": "Environment: {{environment}}",
+        "facts": [
+          {
+            "name": "Rollback Operator",
+            "value": "{{deploy_operator}}"
+          },
+          {
+            "name": "Backup Used",
+            "value": "{{backup_file}}"
+          },
+          {
+            "name": "Reason",
+            "value": "{{rollback_reason}}"
+          },
+          {
+            "name": "Initiated At",
+            "value": "{{timestamp}}"
+          }
+        ]
+      }
+    ]
+  },
+  "rollback_complete": {
+    "@type": "MessageCard",
+    "@context": "http://schema.org/extensions",
+    "themeColor": "36A64F",
+    "summary": "MOBIUS Rollback Complete",
+    "sections": [
+      {
+        "activityTitle": "✅ MOBIUS Rollback Complete",
+        "activitySubtitle": "Environment: {{environment}}",
+        "facts": [
+          {
+            "name": "Duration",
+            "value": "{{duration}}"
+          },
+          {
+            "name": "Backup Used",
+            "value": "{{backup_file}}"
+          },
+          {
+            "name": "System Status",
+            "value": "{{system_status}}"
+          },
+          {
+            "name": "Health Checks",
+            "value": "{{health_check_status}}"
+          },
+          {
+            "name": "Completed At",
+            "value": "{{timestamp}}"
+          }
+        ]
+      }
+    ]
+  },
+  "monitoring_alert": {
+    "@type": "MessageCard",
+    "@context": "http://schema.org/extensions",
+    "themeColor": "FF9900",
+    "summary": "MOBIUS Monitoring Alert",
+    "sections": [
+      {
+        "activityTitle": "⚠️ MOBIUS Monitoring Alert",
+        "activitySubtitle": "Environment: {{environment}}",
+        "facts": [
+          {
+            "name": "Alert Type",
+            "value": "{{alert_type}}"
+          },
+          {
+            "name": "Threshold Breached",
+            "value": "{{threshold_details}}"
+          },
+          {
+            "name": "Current Metrics",
+            "value": "{{current_metrics}}"
+          },
+          {
+            "name": "Auto-rollback Status",
+            "value": "{{auto_rollback_status}}"
+          },
+          {
+            "name": "Alert Time",
+            "value": "{{timestamp}}"
+          }
+        ]
+      }
+    ],
+    "potentialAction": [
+      {
+        "@type": "OpenUri",
+        "name": "View Monitoring Dashboard",
+        "targets": [
+          {
+            "os": "default",
+            "uri": "{{monitoring_url}}"
+          }
+        ]
+      }
+    ]
+  }
+}

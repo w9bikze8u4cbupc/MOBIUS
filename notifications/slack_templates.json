@@ -1,0 +1,267 @@
+{
+  "deployment_started": {
+    "channel": "#deployments",
+    "username": "MOBIUS Deploy Bot",
+    "icon_emoji": ":rocket:",
+    "attachments": [
+      {
+        "color": "#36a64f",
+        "title": "🚀 MOBIUS Deployment Started",
+        "fields": [
+          {
+            "title": "Environment",
+            "value": "{{environment}}",
+            "short": true
+          },
+          {
+            "title": "Deploy Operator",
+            "value": "{{deploy_operator}}",
+            "short": true
+          },
+          {
+            "title": "Git Commit",
+            "value": "`{{git_commit}}`",
+            "short": true
+          },
+          {
+            "title": "Git Branch",
+            "value": "`{{git_branch}}`",
+            "short": true
+          },
+          {
+            "title": "Started At",
+            "value": "{{timestamp}}",
+            "short": false
+          }
+        ],
+        "footer": "MOBIUS Deployment Framework",
+        "ts": "{{unix_timestamp}}"
+      }
+    ]
+  },
+  "deployment_success": {
+    "channel": "#deployments",
+    "username": "MOBIUS Deploy Bot",
+    "icon_emoji": ":white_check_mark:",
+    "attachments": [
+      {
+        "color": "#36a64f",
+        "title": "✅ MOBIUS Deployment Successful",
+        "fields": [
+          {
+            "title": "Environment",
+            "value": "{{environment}}",
+            "short": true
+          },
+          {
+            "title": "Duration",
+            "value": "{{duration}}",
+            "short": true
+          },
+          {
+            "title": "Git Commit",
+            "value": "`{{git_commit}}`",
+            "short": true
+          },
+          {
+            "title": "Deploy Operator",
+            "value": "{{deploy_operator}}",
+            "short": true
+          },
+          {
+            "title": "Completed At",
+            "value": "{{timestamp}}",
+            "short": false
+          },
+          {
+            "title": "Artifacts",
+            "value": "<{{artifacts_url}}|View Deployment Artifacts>",
+            "short": false
+          }
+        ],
+        "footer": "MOBIUS Deployment Framework",
+        "ts": "{{unix_timestamp}}"
+      }
+    ]
+  },
+  "deployment_failed": {
+    "channel": "#deployments",
+    "username": "MOBIUS Deploy Bot",
+    "icon_emoji": ":x:",
+    "attachments": [
+      {
+        "color": "#ff0000",
+        "title": "❌ MOBIUS Deployment Failed",
+        "fields": [
+          {
+            "title": "Environment",
+            "value": "{{environment}}",
+            "short": true
+          },
+          {
+            "title": "Duration",
+            "value": "{{duration}}",
+            "short": true
+          },
+          {
+            "title": "Git Commit",
+            "value": "`{{git_commit}}`",
+            "short": true
+          },
+          {
+            "title": "Deploy Operator",
+            "value": "{{deploy_operator}}",
+            "short": true
+          },
+          {
+            "title": "Failed At",
+            "value": "{{timestamp}}",
+            "short": false
+          },
+          {
+            "title": "Error Details",
+            "value": "{{error_message}}",
+            "short": false
+          },
+          {
+            "title": "Logs & Artifacts",
+            "value": "<{{artifacts_url}}|View Failure Logs>",
+            "short": false
+          }
+        ],
+        "footer": "MOBIUS Deployment Framework",
+        "ts": "{{unix_timestamp}}"
+      }
+    ]
+  },
+  "rollback_initiated": {
+    "channel": "#deployments",
+    "username": "MOBIUS Deploy Bot",
+    "icon_emoji": ":warning:",
+    "attachments": [
+      {
+        "color": "#ff9900",
+        "title": "🚨 MOBIUS Rollback Initiated",
+        "fields": [
+          {
+            "title": "Environment",
+            "value": "{{environment}}",
+            "short": true
+          },
+          {
+            "title": "Rollback Operator",
+            "value": "{{deploy_operator}}",
+            "short": true
+          },
+          {
+            "title": "Backup Used",
+            "value": "`{{backup_file}}`",
+            "short": true
+          },
+          {
+            "title": "Reason",
+            "value": "{{rollback_reason}}",
+            "short": true
+          },
+          {
+            "title": "Initiated At",
+            "value": "{{timestamp}}",
+            "short": false
+          }
+        ],
+        "footer": "MOBIUS Deployment Framework",
+        "ts": "{{unix_timestamp}}"
+      }
+    ]
+  },
+  "rollback_complete": {
+    "channel": "#deployments",
+    "username": "MOBIUS Deploy Bot",
+    "icon_emoji": ":recycle:",
+    "attachments": [
+      {
+        "color": "#36a64f",
+        "title": "✅ MOBIUS Rollback Complete",
+        "fields": [
+          {
+            "title": "Environment",
+            "value": "{{environment}}",
+            "short": true
+          },
+          {
+            "title": "Duration",
+            "value": "{{duration}}",
+            "short": true
+          },
+          {
+            "title": "Backup Used",
+            "value": "`{{backup_file}}`",
+            "short": true
+          },
+          {
+            "title": "System Status",
+            "value": "{{system_status}}",
+            "short": true
+          },
+          {
+            "title": "Completed At",
+            "value": "{{timestamp}}",
+            "short": false
+          },
+          {
+            "title": "Health Checks",
+            "value": "{{health_check_status}}",
+            "short": false
+          }
+        ],
+        "footer": "MOBIUS Deployment Framework",
+        "ts": "{{unix_timestamp}}"
+      }
+    ]
+  },
+  "monitoring_alert": {
+    "channel": "#alerts",
+    "username": "MOBIUS Monitor Bot",
+    "icon_emoji": ":rotating_light:",
+    "attachments": [
+      {
+        "color": "#ff9900",
+        "title": "⚠️ MOBIUS Monitoring Alert",
+        "fields": [
+          {
+            "title": "Environment",
+            "value": "{{environment}}",
+            "short": true
+          },
+          {
+            "title": "Alert Type",
+            "value": "{{alert_type}}",
+            "short": true
+          },
+          {
+            "title": "Threshold Breached",
+            "value": "{{threshold_details}}",
+            "short": false
+          },
+          {
+            "title": "Current Metrics",
+            "value": "{{current_metrics}}",
+            "short": false
+          },
+          {
+            "title": "Auto-rollback Status",
+            "value": "{{auto_rollback_status}}",
+            "short": true
+          },
+          {
+            "title": "Alert Time",
+            "value": "{{timestamp}}",
+            "short": true
+          }
+        ],
+        "footer": "MOBIUS Deployment Framework",
+        "ts": "{{unix_timestamp}}"
+      }
+    ]
+  }
+}
