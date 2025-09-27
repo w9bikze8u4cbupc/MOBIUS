@@ -1,0 +1,284 @@
+{
+  "version": "1.0.0",
+  "description": "Quality gates configuration for dhash guarded rollout",
+  "environments": {
+    "staging": {
+      "monitoring": {
+        "duration_minutes": 60,
+        "initial_poll_interval_ms": 30000,
+        "regular_poll_interval_ms": 120000,
+        "initial_period_minutes": 5
+      },
+      "quality_gates": {
+        "health_failures": {
+          "threshold": 3,
+          "window_minutes": 5,
+          "action": "auto-rollback",
+          "description": "Consecutive health check failures - more lenient for staging",
+          "rationale": "Allow for occasional staging instability during testing"
+        },
+        "extraction_failure_rate": {
+          "threshold": 8.0,
+          "window_minutes": 10,
+          "action": "auto-rollback",
+          "description": "Extraction failure rate percentage over time window",
+          "rationale": "Higher threshold for staging to allow for test data variations"
+        },
+        "p95_hash_time": {
+          "threshold": 3000,
+          "window_minutes": 15,
+          "action": "auto-rollback",
+          "description": "95th percentile hash processing time in milliseconds",
+          "rationale": "Staging may have lower-spec hardware or test load variations"
+        },
+        "low_confidence_queue": {
+          "threshold": 1500,
+          "action": "auto-rollback",
+          "description": "Number of items in low-confidence processing queue",
+          "rationale": "Allow larger queue in staging for stress testing"
+        }
+      }
+    },
+    "production": {
+      "monitoring": {
+        "duration_minutes": 60,
+        "initial_poll_interval_ms": 30000,
+        "regular_poll_interval_ms": 120000,
+        "initial_period_minutes": 5
+      },
+      "quality_gates": {
+        "health_failures": {
+          "threshold": 2,
+          "window_minutes": 5,
+          "action": "auto-rollback",
+          "description": "Consecutive health check failures",
+          "rationale": "Conservative threshold for production - any sustained failure indicates serious issue"
+        },
+        "extraction_failure_rate": {
+          "threshold": 5.0,
+          "window_minutes": 10,
+          "action": "auto-rollback",
+          "description": "Extraction failure rate percentage over time window",
+          "rationale": "Production should maintain high success rate - 5% failure indicates systematic issue"
+        },
+        "p95_hash_time": {
+          "threshold": 2000,
+          "window_minutes": 15,
+          "action": "auto-rollback",
+          "description": "95th percentile hash processing time in milliseconds",
+          "rationale": "Production SLA requires sub-2s P95 response times for user experience"
+        },
+        "low_confidence_queue": {
+          "threshold": 1000,
+          "action": "auto-rollback",
+          "description": "Number of items in low-confidence processing queue",
+          "rationale": "Large queue indicates processing bottleneck affecting user experience"
+        }
+      }
+    }
+  },
+  "notification_settings": {
+    "auto_rollback": {
+      "channels": ["slack", "teams"],
+      "priority": "critical",
+      "required_channels": ["slack"]
+    },
+    "quality_gate_warning": {
+      "channels": ["slack"],
+      "priority": "high",
+      "threshold_percentage": 80
+    },
+    "monitoring_complete": {
+      "channels": ["slack"],
+      "priority": "normal"
+    }
+  },
+  "rollback_settings": {
+    "confirmation_required": {
+      "staging": false,
+      "production": true
+    },
+    "backup_verification_required": {
+      "staging": true,
+      "production": true
+    },
+    "post_rollback_monitoring_minutes": {
+      "staging": 15,
+      "production": 30
+    }
+  },
+  "tuning_guidelines": {
+    "health_failures": {
+      "description": "Number of consecutive health check failures before triggering rollback",
+      "considerations": [
+        "Network intermittency can cause false positives",
+        "Consider load balancer health check configuration",
+        "Balance between responsiveness and stability"
+      ],
+      "recommended_range": {
+        "staging": "2-5",
+        "production": "1-3"
+      }
+    },
+    "extraction_failure_rate": {
+      "description": "Percentage of extraction operations failing over time window",
+      "considerations": [
+        "Input data quality variations",
+        "External dependency failures",
+        "Resource constraints during peak load"
+      ],
+      "recommended_range": {
+        "staging": "5-15%",
+        "production": "2-8%"
+      }
+    },
+    "p95_hash_time": {
+      "description": "95th percentile processing time for hash operations",
+      "considerations": [
+        "Hardware specifications and capacity",
+        "Concurrent load and resource contention",
+        "Input complexity variations"
+      ],
+      "recommended_range": {
+        "staging": "1500-4000ms",
+        "production": "1000-2500ms"
+      }
+    },
+    "low_confidence_queue": {
+      "description": "Number of items queued for low-confidence processing",
+      "considerations": [
+        "Processing capacity vs. input rate",
+        "Memory constraints",
+        "Downstream system capacity"
+      ],
+      "recommended_range": {
+        "staging": "500-2000",
+        "production": "200-1500"
+      }
+    }
+  },
+  "escalation_procedures": {
+    "auto_rollback_triggered": {
+      "immediate": [
+        "Notify on-call engineer via critical alert",
+        "Create incident in incident management system",
+        "Initiate emergency response procedures"
+      ],
+      "within_5_minutes": [
+        "Assess rollback success",
+        "Identify root cause of quality gate violation",
+        "Determine if manual intervention needed"
+      ],
+      "within_15_minutes": [
+        "Brief stakeholders on status",
+        "Plan remediation steps",
+        "Schedule post-incident review"
+      ]
+    },
+    "monitoring_anomalies": {
+      "quality_gate_approaching_threshold": [
+        "Alert development team",
+        "Begin investigation of potential causes",
+        "Prepare for potential manual rollback"
+      ],
+      "multiple_gates_showing_degradation": [
+        "Escalate to senior engineer",
+        "Consider proactive rollback",
+        "Increase monitoring frequency"
+      ]
+    }
+  },
+  "testing_overrides": {
+    "dry_run_mode": {
+      "description": "Settings used during dry-run testing",
+      "monitoring": {
+        "duration_minutes": 5,
+        "poll_interval_ms": 10000
+      },
+      "quality_gates": {
+        "all_thresholds_multiplier": 0.5
+      }
+    },
+    "load_test_mode": {
+      "description": "Settings used during load testing",
+      "quality_gates": {
+        "p95_hash_time": {
+          "threshold_multiplier": 1.5
+        },
+        "low_confidence_queue": {
+          "threshold_multiplier": 2.0
+        }
+      }
+    }
+  },
+  "metrics_collection": {
+    "required_metrics": [
+      "health_check_success_rate",
+      "extraction_failure_rate",
+      "hash_processing_times",
+      "queue_depths",
+      "error_rates_by_type",
+      "resource_utilization"
+    ],
+    "metric_retention": {
+      "raw_metrics_hours": 72,
+      "aggregated_metrics_days": 30,
+      "incident_metrics_days": 365
+    },
+    "alerting_integrations": [
+      "prometheus",
+      "grafana",
+      "datadog",
+      "custom_webhook"
+    ]
+  },
+  "compliance_requirements": {
+    "audit_logging": {
+      "all_quality_gate_evaluations": true,
+      "rollback_decisions": true,
+      "configuration_changes": true,
+      "manual_overrides": true
+    },
+    "data_retention": {
+      "monitoring_logs_days": 90,
+      "rollback_logs_days": 365,
+      "incident_data_days": 2555
+    },
+    "change_management": {
+      "configuration_approval_required": {
+        "staging": false,
+        "production": true
+      },
+      "threshold_changes_require_review": true
+    }
+  },
+  "operational_runbooks": {
+    "quality_gate_tuning": {
+      "when_to_tune": [
+        "After 24-72 hours of production telemetry",
+        "Following load pattern changes",
+        "After infrastructure changes"
+      ],
+      "tuning_process": [
+        "Analyze historical performance data",
+        "Identify false positive/negative rates",
+        "Adjust thresholds incrementally (10-20%)",
+        "Test changes in staging first",
+        "Document rationale for changes"
+      ]
+    },
+    "emergency_procedures": {
+      "manual_rollback_trigger": [
+        "Stop ongoing deployment if in progress",
+        "Execute rollback script with --force flag",
+        "Verify rollback success with smoke tests",
+        "Update incident tracking"
+      ],
+      "monitoring_system_failure": [
+        "Switch to manual monitoring procedures",
+        "Increase deployment oversight",
+        "Restore monitoring system priority"
+      ]
+    }
+  }
+}

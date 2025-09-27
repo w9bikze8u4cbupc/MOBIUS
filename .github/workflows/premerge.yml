@@ -1,0 +1,428 @@
+name: Pre-merge Validation
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [ opened, synchronize, reopened ]
+  workflow_dispatch:
+    inputs:
+      force_validation:
+        description: 'Force validation even on draft PRs'
+        required: false
+        default: 'false'
+
+# Ensure only one pre-merge validation runs at a time per PR
+concurrency:
+  group: premerge-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.10'
+
+jobs:
+  # Job 1: Pre-merge checks and validation
+  premerge-validation:
+    name: Pre-merge validation
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false || github.event.inputs.force_validation == 'true'
+    
+    outputs:
+      validation-passed: ${{ steps.validation-summary.outputs.passed }}
+      artifacts-ready: ${{ steps.artifacts.outputs.ready }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need at least 2 commits for diff analysis
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Setup FFmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v2
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          pip install --upgrade pip
+
+      - name: Create artifacts directory
+        run: |
+          mkdir -p premerge_artifacts
+          mkdir -p premerge_artifacts/backups
+          mkdir -p premerge_artifacts/logs
+
+      # Pre-merge smoke tests
+      - name: Run pre-deployment smoke tests
+        id: smoke-tests
+        run: |
+          echo "Running pre-deployment smoke tests..."
+          ./scripts/smoke_tests.sh --env staging --phase pre-deploy --output premerge_artifacts/smoke-tests-pre.log
+          echo "smoke-tests-passed=true" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      # Backup validation
+      - name: Test backup creation and verification
+        id: backup-test
+        run: |
+          echo "Testing backup functionality..."
+          ./scripts/backup_dhash.sh --env staging --dry-run > premerge_artifacts/backup-dryrun.log
+          ./scripts/backup_dhash.sh --env staging > premerge_artifacts/backup-test.log
+          
+          # Verify backup was created and has SHA256
+          LATEST_BACKUP=$(ls -1 backups/dhash_staging_*.zip 2>/dev/null | sort -r | head -n1 || echo "")
+          if [[ -n "$LATEST_BACKUP" && -f "${LATEST_BACKUP}.sha256" ]]; then
+            echo "Backup test successful"
+            echo "backup-created=$LATEST_BACKUP" >> $GITHUB_OUTPUT
+            echo "backup-test-passed=true" >> $GITHUB_OUTPUT
+            
+            # Verify SHA256
+            if sha256sum -c "${LATEST_BACKUP}.sha256" --quiet; then
+              echo "Backup SHA256 verification passed"
+              echo "sha256-verified=true" >> $GITHUB_OUTPUT
+            else
+              echo "Backup SHA256 verification failed"
+              echo "sha256-verified=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Backup test failed - no backup created"
+            echo "backup-test-passed=false" >> $GITHUB_OUTPUT
+            echo "sha256-verified=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Deploy dry-run
+      - name: Test deployment dry-run
+        id: deploy-dryrun
+        run: |
+          echo "Testing deployment dry-run..."
+          ./scripts/deploy_dhash.sh --env staging --dry-run > premerge_artifacts/deploy-dryrun.log
+          if [[ $? -eq 0 ]]; then
+            echo "deploy-dryrun-passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "deploy-dryrun-passed=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Migration dry-run
+      - name: Test migration dry-run
+        id: migrate-dryrun
+        run: |
+          echo "Testing migration dry-run..."
+          ./scripts/migrate_dhash.sh --env staging --dry-run > premerge_artifacts/migrate-dryrun.log
+          if [[ $? -eq 0 ]]; then
+            echo "migrate-dryrun-passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "migrate-dryrun-passed=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Rollback dry-run
+      - name: Test rollback dry-run
+        id: rollback-dryrun
+        run: |
+          echo "Testing rollback dry-run..."
+          # Create a dummy backup file for rollback testing
+          mkdir -p backups
+          echo "dummy backup content" > backups/dhash_staging_test.zip
+          echo "$(sha256sum backups/dhash_staging_test.zip)" > backups/dhash_staging_test.zip.sha256
+          
+          ./scripts/rollback_dhash.sh --env staging --backup backups/dhash_staging_test.zip --dry-run --force > premerge_artifacts/rollback-dryrun.log
+          if [[ $? -eq 0 ]]; then
+            echo "rollback-dryrun-passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "rollback-dryrun-passed=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Clean up test backup
+          rm -f backups/dhash_staging_test.zip*
+
+      # Monitoring system test
+      - name: Test monitoring system
+        id: monitoring-test
+        run: |
+          echo "Testing monitoring system..."
+          timeout 30 node scripts/monitor_dhash.js --env staging --dry-run --duration 1 > premerge_artifacts/monitor-test.log 2>&1
+          if [[ $? -eq 0 || $? -eq 124 ]]; then  # 124 is timeout exit code, which is expected
+            echo "monitoring-test-passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "monitoring-test-passed=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Notification system test
+      - name: Test notification system
+        id: notification-test
+        run: |
+          echo "Testing notification system..."
+          node scripts/notify.js --type test --env staging --message "Pre-merge validation test" --dry-run > premerge_artifacts/notification-test.log
+          if [[ $? -eq 0 ]]; then
+            echo "notification-test-passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "notification-test-passed=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Logging validation
+      - name: Test logging validation
+        id: logging-test
+        run: |
+          echo "Testing logging validation..."
+          node scripts/validate_logging.js --env staging --dry-run --output premerge_artifacts/logging-validation.log
+          if [[ $? -eq 0 ]]; then
+            echo "logging-test-passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "logging-test-passed=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Quality gates configuration validation
+      - name: Validate quality gates configuration
+        id: config-validation
+        run: |
+          echo "Validating quality gates configuration..."
+          if jq . quality-gates-config.json > /dev/null 2>&1; then
+            echo "Quality gates configuration is valid JSON"
+            echo "config-valid=true" >> $GITHUB_OUTPUT
+            
+            # Check required fields
+            required_fields=("environments.staging" "environments.production" "notification_settings" "rollback_settings")
+            config_complete=true
+            for field in "${required_fields[@]}"; do
+              if ! jq -e ".$field" quality-gates-config.json > /dev/null 2>&1; then
+                echo "Missing required field: $field"
+                config_complete=false
+              fi
+            done
+            
+            if [[ "$config_complete" == true ]]; then
+              echo "Quality gates configuration is complete"
+              echo "config-complete=true" >> $GITHUB_OUTPUT
+            else
+              echo "Quality gates configuration is incomplete"
+              echo "config-complete=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Quality gates configuration is invalid JSON"
+            echo "config-valid=false" >> $GITHUB_OUTPUT
+            echo "config-complete=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Create pre-merge summary
+      - name: Generate validation summary
+        id: validation-summary
+        run: |
+          echo "Generating validation summary..."
+          
+          # Check all test results
+          smoke_tests="${{ steps.smoke-tests.outputs.smoke-tests-passed }}"
+          backup_test="${{ steps.backup-test.outputs.backup-test-passed }}"
+          sha256_verified="${{ steps.backup-test.outputs.sha256-verified }}"
+          deploy_dryrun="${{ steps.deploy-dryrun.outputs.deploy-dryrun-passed }}"
+          migrate_dryrun="${{ steps.migrate-dryrun.outputs.migrate-dryrun-passed }}"
+          rollback_dryrun="${{ steps.rollback-dryrun.outputs.rollback-dryrun-passed }}"
+          monitoring_test="${{ steps.monitoring-test.outputs.monitoring-test-passed }}"
+          notification_test="${{ steps.notification-test.outputs.notification-test-passed }}"
+          logging_test="${{ steps.logging-test.outputs.logging-test-passed }}"
+          config_valid="${{ steps.config-validation.outputs.config-valid }}"
+          config_complete="${{ steps.config-validation.outputs.config-complete }}"
+          
+          # Count passed/failed tests
+          total_tests=11
+          passed_tests=0
+          
+          [[ "$smoke_tests" == "true" ]] && ((passed_tests++))
+          [[ "$backup_test" == "true" ]] && ((passed_tests++))
+          [[ "$sha256_verified" == "true" ]] && ((passed_tests++))
+          [[ "$deploy_dryrun" == "true" ]] && ((passed_tests++))
+          [[ "$migrate_dryrun" == "true" ]] && ((passed_tests++))
+          [[ "$rollback_dryrun" == "true" ]] && ((passed_tests++))
+          [[ "$monitoring_test" == "true" ]] && ((passed_tests++))
+          [[ "$notification_test" == "true" ]] && ((passed_tests++))
+          [[ "$logging_test" == "true" ]] && ((passed_tests++))
+          [[ "$config_valid" == "true" ]] && ((passed_tests++))
+          [[ "$config_complete" == "true" ]] && ((passed_tests++))
+          
+          # Generate summary report
+          cat > premerge_artifacts/validation-summary.txt << EOF
+Pre-merge Validation Summary
+============================
+Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+PR: #${{ github.event.pull_request.number }}
+Commit: ${{ github.sha }}
+
+Test Results ($passed_tests/$total_tests passed):
+- Smoke Tests (Pre-deploy): $smoke_tests
+- Backup Creation: $backup_test
+- SHA256 Verification: $sha256_verified
+- Deploy Dry-run: $deploy_dryrun
+- Migration Dry-run: $migrate_dryrun
+- Rollback Dry-run: $rollback_dryrun
+- Monitoring System: $monitoring_test
+- Notification System: $notification_test
+- Logging Validation: $logging_test
+- Config Validation: $config_valid
+- Config Completeness: $config_complete
+
+Overall Status: $([ $passed_tests -eq $total_tests ] && echo "PASSED" || echo "FAILED")
+EOF
+          
+          cat premerge_artifacts/validation-summary.txt
+          
+          if [[ $passed_tests -eq $total_tests ]]; then
+            echo "All pre-merge validations passed"
+            echo "passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "Some pre-merge validations failed ($passed_tests/$total_tests)"
+            echo "passed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      # Prepare artifacts for upload
+      - name: Prepare artifacts
+        id: artifacts
+        if: always()
+        run: |
+          echo "Preparing artifacts for upload..."
+          
+          # Copy important logs
+          cp -f *.log premerge_artifacts/ 2>/dev/null || true
+          
+          # Create artifacts manifest
+          cat > premerge_artifacts/manifest.json << EOF
+{
+  "generated_at": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
+  "pr_number": ${{ github.event.pull_request.number }},
+  "commit_sha": "${{ github.sha }}",
+  "validation_passed": ${{ steps.validation-summary.outputs.passed }},
+  "artifacts": [
+    "validation-summary.txt",
+    "smoke-tests-pre.log",
+    "backup-dryrun.log",
+    "backup-test.log",
+    "deploy-dryrun.log",
+    "migrate-dryrun.log",
+    "rollback-dryrun.log",
+    "monitor-test.log",
+    "notification-test.log",
+    "logging-validation.log"
+  ]
+}
+EOF
+          
+          echo "ready=true" >> $GITHUB_OUTPUT
+
+      # Upload artifacts
+      - name: Upload pre-merge artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: premerge-artifacts-${{ github.run_number }}
+          path: premerge_artifacts/
+          retention-days: 30
+
+      # Comment on PR with results
+      - name: Comment PR with validation results
+        uses: actions/github-script@v7
+        if: always() && github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'premerge_artifacts/validation-summary.txt';
+            
+            let summary = 'Pre-merge validation summary not available';
+            try {
+              summary = fs.readFileSync(path, 'utf8');
+            } catch (error) {
+              console.log('Could not read validation summary:', error.message);
+            }
+            
+            const passed = '${{ steps.validation-summary.outputs.passed }}' === 'true';
+            const icon = passed ? '✅' : '❌';
+            const status = passed ? 'PASSED' : 'FAILED';
+            
+            const body = `## ${icon} Pre-merge Validation ${status}
+            
+\`\`\`
+${summary}
+\`\`\`
+
+**Artifacts:** Pre-merge validation artifacts have been uploaded and are available for download.
+
+**Next Steps:**
+${passed ? 
+  '- All validations passed ✅\n- Ready for deploy operator (@ops) review\n- Ensure 2 approvers before merge' : 
+  '- Some validations failed ❌\n- Please review the artifacts and fix issues\n- Re-run validations after fixes'
+}
+
+---
+*Generated by pre-merge validation workflow*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  # Job 2: Cross-platform compatibility check (runs in parallel)
+  cross-platform-check:
+    name: Cross-platform compatibility
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Python (Unix)
+        if: runner.os != 'Windows'
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Setup Python (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          python -m pip install --upgrade pip
+        shell: pwsh
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test script execution permissions
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/deploy_dhash.sh --help
+          ./scripts/backup_dhash.sh --help
+
+      - name: Test Node.js scripts
+        run: |
+          node scripts/monitor_dhash.js --help
+          node scripts/notify.js --help
+          node scripts/validate_logging.js --help
+
+      - name: Platform-specific smoke test
+        run: |
+          mkdir -p platform-test-artifacts
+          node scripts/validate_logging.js --env staging --dry-run --output platform-test-artifacts/logging-${{ runner.os }}.log
+
+      - name: Upload platform artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-compatibility-${{ runner.os }}-${{ github.run_number }}
+          path: platform-test-artifacts/
+          retention-days: 7
