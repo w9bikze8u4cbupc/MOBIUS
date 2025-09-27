@@ -1,0 +1,68 @@
+{
+  "monitoring_window_minutes": 60,
+  "poll_intervals": {
+    "initial_high_frequency_minutes": 5,
+    "initial_poll_seconds": 30,
+    "normal_poll_seconds": 120
+  },
+  "auto_rollback_triggers": {
+    "health_check_failures": {
+      "enabled": true,
+      "threshold": 2,
+      "description": "Auto-rollback after >2 consecutive health check failures"
+    },
+    "extraction_failures_rate": {
+      "enabled": true,
+      "threshold_percent": 5.0,
+      "window_minutes": 10,
+      "description": "Auto-rollback if extraction failure rate >5% over 10min window"
+    },
+    "p95_hash_time": {
+      "enabled": true,
+      "threshold_ms": 2000,
+      "window_minutes": 15,
+      "description": "Auto-rollback if P95 hash time >2000ms over 15min window"
+    },
+    "low_confidence_queue_length": {
+      "enabled": true,
+      "threshold": 1000,
+      "description": "Auto-rollback if low confidence queue length >1000 items"
+    }
+  },
+  "health_check_config": {
+    "endpoint": "/health",
+    "expected_status": 200,
+    "timeout_seconds": 10,
+    "required_consecutive_ok_for_stability": 3
+  },
+  "metrics_endpoints": {
+    "extraction_failures": "/metrics/extraction_failures",
+    "hash_performance": "/metrics/hash_performance", 
+    "queue_status": "/metrics/queue_status"
+  },
+  "notification_config": {
+    "slack_webhook_env": "SLACK_WEBHOOK_URL",
+    "email_enabled": false,
+    "notify_on_deploy": true,
+    "notify_on_rollback": true,
+    "notify_on_monitoring_start": true,
+    "notify_on_monitoring_complete": true
+  },
+  "environments": {
+    "production": {
+      "base_url": "https://dhash.production.example.com",
+      "backup_retention_days": 30,
+      "monitoring_enabled": true
+    },
+    "staging": {
+      "base_url": "https://dhash.staging.example.com", 
+      "backup_retention_days": 7,
+      "monitoring_enabled": true
+    },
+    "canary": {
+      "base_url": "https://dhash.canary.example.com",
+      "backup_retention_days": 3,
+      "monitoring_enabled": true
+    }
+  }
+}
