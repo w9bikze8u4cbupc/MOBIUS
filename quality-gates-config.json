@@ -1,0 +1,78 @@
+{
+  "production": {
+    "healthFailures": 2,
+    "extractionFailureRate": 5,
+    "extractionFailureWindow": 10,
+    "p95HashTime": 2000,
+    "p95HashTimeWindow": 15,
+    "queueLength": 1000,
+    "resourceUsage": {
+      "cpu": 80,
+      "memory": 85,
+      "disk": 90
+    },
+    "monitoring": {
+      "duration": 60,
+      "pollInterval": {
+        "initial": 30,
+        "after": 120,
+        "threshold": 5
+      }
+    }
+  },
+  "staging": {
+    "healthFailures": 1,
+    "extractionFailureRate": 10,
+    "extractionFailureWindow": 5,
+    "p95HashTime": 3000,
+    "p95HashTimeWindow": 10,
+    "queueLength": 500,
+    "resourceUsage": {
+      "cpu": 90,
+      "memory": 90,
+      "disk": 95
+    },
+    "monitoring": {
+      "duration": 30,
+      "pollInterval": {
+        "initial": 15,
+        "after": 60,
+        "threshold": 3
+      }
+    }
+  },
+  "development": {
+    "healthFailures": 3,
+    "extractionFailureRate": 15,
+    "extractionFailureWindow": 3,
+    "p95HashTime": 5000,
+    "p95HashTimeWindow": 5,
+    "queueLength": 100,
+    "resourceUsage": {
+      "cpu": 95,
+      "memory": 95,
+      "disk": 98
+    },
+    "monitoring": {
+      "duration": 15,
+      "pollInterval": {
+        "initial": 10,
+        "after": 30,
+        "threshold": 2
+      }
+    }
+  },
+  "thresholds_description": {
+    "healthFailures": "Number of consecutive health check failures before auto-rollback",
+    "extractionFailureRate": "Percentage of extraction failures over time window",
+    "extractionFailureWindow": "Time window in minutes for extraction failure rate",
+    "p95HashTime": "P95 hash processing time threshold in milliseconds",
+    "p95HashTimeWindow": "Time window in minutes for P95 hash time",
+    "queueLength": "Maximum queue length before auto-rollback",
+    "resourceUsage": "Resource usage thresholds (CPU, memory, disk) in percentages",
+    "monitoring.duration": "Total monitoring duration in minutes",
+    "monitoring.pollInterval.initial": "Poll interval in seconds for initial period",
+    "monitoring.pollInterval.after": "Poll interval in seconds after threshold period",
+    "monitoring.pollInterval.threshold": "Minutes after which to switch to longer poll interval"
+  }
+}

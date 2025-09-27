@@ -1,0 +1,21 @@
+{
+  "type": "start",
+  "title": "🚀 dhash Deployment Started",
+  "text": "dhash deployment has started for environment: staging",
+  "color": "#2196F3",
+  "timestamp": "2025-09-27T14:56:55.580Z",
+  "environment": "staging",
+  "fields": [
+    {
+      "name": "Environment",
+      "value": "staging",
+      "inline": true
+    },
+    {
+      "name": "Timestamp",
+      "value": "2025-09-27T14:56:55.580Z",
+      "inline": true
+    }
+  ],
+  "fallback_reason": "Network/webhook failure or dry-run mode"
+}
