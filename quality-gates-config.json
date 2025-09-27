@@ -1,0 +1,205 @@
+{
+  "environments": {
+    "staging": {
+      "environment": "staging",
+      "duration": 30,
+      "pollCadence": {
+        "initial": 30,
+        "normal": 60
+      },
+      "qualityGates": {
+        "healthFailures": {
+          "threshold": 3,
+          "description": "consecutive non-OK health checks (staging is more lenient)"
+        },
+        "extractionFailureRate": {
+          "threshold": 8.0,
+          "timeWindow": 10,
+          "description": "extraction failure rate over 10 minutes (staging allows higher failures)"
+        },
+        "p95HashTime": {
+          "threshold": 3000,
+          "timeWindow": 15,
+          "description": "P95 hash time over 15 minutes (staging allows slower performance)"
+        },
+        "lowConfidenceQueue": {
+          "threshold": 1500,
+          "description": "low-confidence queue length (staging allows larger queue)"
+        }
+      },
+      "autoRollback": false,
+      "notifications": {
+        "enabled": true,
+        "channels": ["console", "file"]
+      }
+    },
+    "production": {
+      "environment": "production",
+      "duration": 60,
+      "pollCadence": {
+        "initial": 30,
+        "normal": 120
+      },
+      "qualityGates": {
+        "healthFailures": {
+          "threshold": 2,
+          "description": "consecutive non-OK health checks"
+        },
+        "extractionFailureRate": {
+          "threshold": 5.0,
+          "timeWindow": 10,
+          "description": "extraction failure rate over 10 minutes"
+        },
+        "p95HashTime": {
+          "threshold": 2000,
+          "timeWindow": 15,
+          "description": "P95 hash time over 15 minutes"
+        },
+        "lowConfidenceQueue": {
+          "threshold": 1000,
+          "description": "low-confidence queue length"
+        }
+      },
+      "autoRollback": true,
+      "notifications": {
+        "enabled": true,
+        "channels": ["console", "file", "webhook"]
+      }
+    },
+    "canary": {
+      "environment": "canary",
+      "duration": 15,
+      "pollCadence": {
+        "initial": 15,
+        "normal": 30
+      },
+      "qualityGates": {
+        "healthFailures": {
+          "threshold": 1,
+          "description": "consecutive non-OK health checks (canary is very strict)"
+        },
+        "extractionFailureRate": {
+          "threshold": 2.0,
+          "timeWindow": 5,
+          "description": "extraction failure rate over 5 minutes (canary very strict)"
+        },
+        "p95HashTime": {
+          "threshold": 1500,
+          "timeWindow": 10,
+          "description": "P95 hash time over 10 minutes (canary very strict)"
+        },
+        "lowConfidenceQueue": {
+          "threshold": 500,
+          "description": "low-confidence queue length (canary very strict)"
+        }
+      },
+      "autoRollback": true,
+      "notifications": {
+        "enabled": true,
+        "channels": ["console", "file", "webhook"]
+      }
+    }
+  },
+  "global": {
+    "description": "Global quality gates configuration for dhash service",
+    "version": "1.0.0",
+    "lastUpdated": "2024-01-01T00:00:00Z",
+    "documentation": {
+      "healthFailures": "Number of consecutive health check failures before triggering rollback",
+      "extractionFailureRate": "Percentage of extraction failures over time window before rollback",
+      "p95HashTime": "95th percentile hash operation time in milliseconds over time window",
+      "lowConfidenceQueue": "Maximum number of items in low-confidence queue before rollback",
+      "timeWindow": "Time window in minutes for rate-based metrics",
+      "pollCadence": {
+        "initial": "Seconds between checks for first 5 minutes",
+        "normal": "Seconds between checks after first 5 minutes"
+      }
+    },
+    "tuningNotes": [
+      "Thresholds are conservative defaults based on service SLA requirements",
+      "Adjust after 24-72h of production telemetry data collection",
+      "Staging environment should have more lenient thresholds for testing",
+      "Canary environment should have stricter thresholds for early detection",
+      "Monitor false positive rates and adjust accordingly",
+      "Consider business hours vs off-hours threshold variations"
+    ],
+    "recommendations": {
+      "healthFailures": {
+        "production": "Keep at 2 for quick detection of service degradation",
+        "staging": "Can be 3-5 for more tolerance during testing",
+        "canary": "Should be 1 for immediate feedback"
+      },
+      "extractionFailureRate": {
+        "baseline": "Establish baseline from 1 week of production data",
+        "seasonality": "Account for daily/weekly patterns in failure rates",
+        "alerting": "Set warning thresholds at 50-75% of rollback thresholds"
+      },
+      "p95HashTime": {
+        "baseline": "Based on SLA requirements (typically 1-2 seconds)",
+        "loadTesting": "Validate thresholds under expected peak load",
+        "degradation": "Should detect 2x normal latency increases"
+      },
+      "queueLength": {
+        "capacity": "Based on maximum sustainable queue processing rate",
+        "backpressure": "Should trigger before memory/disk exhaustion",
+        "recovery": "Allow time for queue drain during normal operations"
+      }
+    }
+  },
+  "alerting": {
+    "webhooks": {
+      "slack": {
+        "enabled": false,
+        "url": "${SLACK_WEBHOOK_URL}",
+        "channel": "#dhash-alerts",
+        "username": "dhash-monitor"
+      },
+      "teams": {
+        "enabled": false,
+        "url": "${TEAMS_WEBHOOK_URL}"
+      },
+      "discord": {
+        "enabled": false,
+        "url": "${DISCORD_WEBHOOK_URL}",
+        "username": "dhash-monitor"
+      }
+    },
+    "email": {
+      "enabled": false,
+      "smtp": {
+        "host": "${SMTP_HOST}",
+        "port": 587,
+        "secure": false,
+        "auth": {
+          "user": "${SMTP_USER}",
+          "pass": "${SMTP_PASS}"
+        }
+      },
+      "recipients": [
+        "ops-team@company.com",
+        "dhash-oncall@company.com"
+      ]
+    }
+  },
+  "customMetrics": {
+    "enabled": false,
+    "endpoints": [
+      {
+        "name": "custom_health_check",
+        "url": "https://dhash-${ENVIRONMENT}.company.com/health",
+        "method": "GET",
+        "timeout": 5000,
+        "expectedStatus": 200,
+        "enabled": true
+      },
+      {
+        "name": "metrics_endpoint",
+        "url": "https://dhash-${ENVIRONMENT}.company.com/metrics",
+        "method": "GET",
+        "timeout": 10000,
+        "expectedStatus": 200,
+        "enabled": true
+      }
+    ]
+  }
+}
