@@ -1,0 +1,5 @@
+# Monitor logs - keep structure but ignore actual logs
+*.log
+*.json
+# Keep this file
+!.gitignore

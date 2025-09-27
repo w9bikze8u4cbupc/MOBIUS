@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dhash Quality Gates Configuration",
+  "description": "Configurable thresholds for dhash production monitoring and auto-rollback",
+  "version": "1.0.0",
+  "environments": {
+    "production": {
+      "monitoring": {
+        "window_minutes": 60,
+        "poll_intervals": {
+          "initial_minutes": 5,
+          "initial_interval_seconds": 30,
+          "normal_interval_seconds": 120
+        }
+      },
+      "quality_gates": {
+        "health": {
+          "enabled": true,
+          "description": "Service health endpoint checks",
+          "threshold": {
+            "consecutive_failures": 2,
+            "check_interval_seconds": 30
+          },
+          "actions": ["alert", "auto_rollback"]
+        },
+        "extraction_failure_rate": {
+          "enabled": true,
+          "description": "Hash extraction failure rate threshold",
+          "threshold": {
+            "max_failure_percentage": 5.0,
+            "evaluation_window_minutes": 10,
+            "min_sample_size": 20
+          },
+          "actions": ["alert", "auto_rollback"]
+        },
+        "p95_hash_time": {
+          "enabled": true,
+          "description": "95th percentile hash processing time",
+          "threshold": {
+            "max_time_ms": 2000,
+            "evaluation_window_minutes": 15,
+            "min_sample_size": 50
+          },
+          "actions": ["alert", "auto_rollback"]
+        },
+        "low_confidence_queue": {
+          "enabled": true,
+          "description": "Low confidence hash queue length",
+          "threshold": {
+            "max_queue_length": 1000,
+            "check_interval_seconds": 60
+          },
+          "actions": ["alert", "auto_rollback"]
+        },
+        "memory_usage": {
+          "enabled": true,
+          "description": "Memory usage threshold",
+          "threshold": {
+            "max_usage_percentage": 85.0,
+            "check_interval_seconds": 120
+          },
+          "actions": ["alert"]
+        },
+        "error_rate": {
+          "enabled": true,
+          "description": "General error rate threshold",
+          "threshold": {
+            "max_error_percentage": 3.0,
+            "evaluation_window_minutes": 5,
+            "min_sample_size": 10
+          },
+          "actions": ["alert"]
+        }
+      },
+      "notifications": {
+        "channels": ["slack", "email"],
+        "escalation": {
+          "initial_delay_minutes": 2,
+          "escalation_levels": [
+            {
+              "delay_minutes": 5,
+              "channels": ["slack", "email"],
+              "recipients": ["@ops", "@media-eng"]
+            },
+            {
+              "delay_minutes": 15,
+              "channels": ["slack", "email", "pager"],
+              "recipients": ["@ops", "@media-eng", "@on-call"]
+            }
+          ]
+        }
+      },
+      "auto_rollback": {
+        "enabled": true,
+        "confirmation_required": false,
+        "backup_retention_hours": 72,
+        "rollback_timeout_minutes": 10
+      }
+    },
+    "staging": {
+      "monitoring": {
+        "window_minutes": 30,
+        "poll_intervals": {
+          "initial_minutes": 2,
+          "initial_interval_seconds": 15,
+          "normal_interval_seconds": 60
+        }
+      },
+      "quality_gates": {
+        "health": {
+          "enabled": true,
+          "description": "Service health endpoint checks",
+          "threshold": {
+            "consecutive_failures": 3,
+            "check_interval_seconds": 30
+          },
+          "actions": ["alert"]
+        },
+        "extraction_failure_rate": {
+          "enabled": true,
+          "description": "Hash extraction failure rate threshold",
+          "threshold": {
+            "max_failure_percentage": 10.0,
+            "evaluation_window_minutes": 5,
+            "min_sample_size": 10
+          },
+          "actions": ["alert"]
+        },
+        "p95_hash_time": {
+          "enabled": true,
+          "description": "95th percentile hash processing time",
+          "threshold": {
+            "max_time_ms": 3000,
+            "evaluation_window_minutes": 10,
+            "min_sample_size": 20
+          },
+          "actions": ["alert"]
+        },
+        "low_confidence_queue": {
+          "enabled": true,
+          "description": "Low confidence hash queue length",
+          "threshold": {
+            "max_queue_length": 500,
+            "check_interval_seconds": 60
+          },
+          "actions": ["alert"]
+        }
+      },
+      "notifications": {
+        "channels": ["slack"],
+        "escalation": {
+          "initial_delay_minutes": 5,
+          "escalation_levels": [
+            {
+              "delay_minutes": 10,
+              "channels": ["slack", "email"],
+              "recipients": ["@ops"]
+            }
+          ]
+        }
+      },
+      "auto_rollback": {
+        "enabled": false,
+        "confirmation_required": true,
+        "backup_retention_hours": 24,
+        "rollback_timeout_minutes": 5
+      }
+    },
+    "development": {
+      "monitoring": {
+        "window_minutes": 15,
+        "poll_intervals": {
+          "initial_minutes": 1,
+          "initial_interval_seconds": 10,
+          "normal_interval_seconds": 30
+        }
+      },
+      "quality_gates": {
+        "health": {
+          "enabled": true,
+          "description": "Service health endpoint checks",
+          "threshold": {
+            "consecutive_failures": 5,
+            "check_interval_seconds": 60
+          },
+          "actions": ["alert"]
+        }
+      },
+      "notifications": {
+        "channels": ["console"],
+        "escalation": {
+          "initial_delay_minutes": 10,
+          "escalation_levels": []
+        }
+      },
+      "auto_rollback": {
+        "enabled": false,
+        "confirmation_required": true,
+        "backup_retention_hours": 12,
+        "rollback_timeout_minutes": 3
+      }
+    }
+  },
+  "default_environment": "production",
+  "global_settings": {
+    "health_check_endpoint": "/health",
+    "metrics_endpoint": "/metrics",
+    "timeout_seconds": 30,
+    "user_agent": "dhash-monitor/1.0.0",
+    "log_level": "info"
+  }
+}
