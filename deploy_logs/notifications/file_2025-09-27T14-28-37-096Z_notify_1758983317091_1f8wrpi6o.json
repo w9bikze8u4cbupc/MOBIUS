@@ -1,0 +1,48 @@
+{
+  "notification_id": "notify_1758983317091_1f8wrpi6o",
+  "timestamp": "2025-09-27T14:28:37.096Z",
+  "channel": "file",
+  "message": "Test deployment notification",
+  "metadata": {
+    "template": {
+      "title": "DHhash Deployment unknown",
+      "color": "#0984e3",
+      "fields": [
+        {
+          "name": "Environment",
+          "value": "development",
+          "inline": true
+        },
+        {
+          "name": "Status",
+          "value": "unknown",
+          "inline": true
+        },
+        {
+          "name": "Timestamp",
+          "value": "2025-09-27T14:28:37.095Z",
+          "inline": true
+        },
+        {
+          "name": "Message",
+          "value": "Test deployment notification",
+          "inline": false
+        }
+      ]
+    },
+    "variables": {
+      "message": "Test deployment notification",
+      "severity": "info",
+      "environment": "development",
+      "timestamp": "2025-09-27T14:28:37.095Z",
+      "notification_id": "notify_1758983317091_1f8wrpi6o",
+      "status": "unknown",
+      "color": "#0984e3",
+      "action": "Review and take appropriate action",
+      "reason": "Unknown",
+      "backup_file": "N/A"
+    }
+  },
+  "delivery_attempts": 0,
+  "reason": "delivery_failed"
+}

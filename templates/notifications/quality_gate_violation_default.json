@@ -1,0 +1,44 @@
+{
+  "title": "🚨 DHhash Quality Gate Violation",
+  "color": "#d63031",
+  "fields": [
+    {
+      "name": "Environment",
+      "value": "{{environment}}",
+      "inline": true
+    },
+    {
+      "name": "Severity",
+      "value": "{{severity}}",
+      "inline": true
+    },
+    {
+      "name": "Alert Time",
+      "value": "{{timestamp}}",
+      "inline": true
+    },
+    {
+      "name": "Violation Details",
+      "value": "{{message}}",
+      "inline": false
+    },
+    {
+      "name": "Required Action",
+      "value": "{{action}}",
+      "inline": false
+    },
+    {
+      "name": "⚠️ Critical Thresholds Breached",
+      "value": "• Health failures: >2 consecutive checks\n• Extraction failure rate: >5% over 10 minutes\n• P95 hash time: >2000ms over 15 minutes\n• Low-confidence queue: >1000 items",
+      "inline": false
+    },
+    {
+      "name": "Monitoring Commands",
+      "value": "`tail -f deploy_logs/monitor.log`\n`curl ${DHASH_{{environment}}_URL}/health`\n`./scripts/smoke_tests.sh --env {{environment}} --level critical`",
+      "inline": false
+    }
+  ],
+  "footer": {
+    "text": "DHhash Quality Gate System"
+  }
+}

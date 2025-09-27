@@ -1,0 +1,57 @@
+{
+  "notification_id": "notify_1758983317340_26z81ky5b",
+  "timestamp": "2025-09-27T14:28:37.341Z",
+  "channel": "file",
+  "message": "🚀 **DHhash Deployment STARTED**\n\n**Environment:** development\n**Time:** 9/27/2025, 2:28:37 PM\n**Message:** Test deployment started\n**Version:** 1.0.0\n**Commit:** 84b8da1d\n**Deployed by:** runner\n\n📋 **Next Steps:**\n• Monitor deployment progress\n• Watch for quality gate violations\n• Prepare for post-deployment validation\n",
+  "metadata": {
+    "template": {
+      "title": "DHhash Deployment started",
+      "color": "#0984e3",
+      "fields": [
+        {
+          "name": "Environment",
+          "value": "development",
+          "inline": true
+        },
+        {
+          "name": "Status",
+          "value": "started",
+          "inline": true
+        },
+        {
+          "name": "Timestamp",
+          "value": "2025-09-27T14:28:37.095Z",
+          "inline": true
+        },
+        {
+          "name": "Message",
+          "value": "🚀 **DHhash Deployment STARTED**\n\n**Environment:** development\n**Time:** 9/27/2025, 2:28:37 PM\n**Message:** Test deployment started\n**Version:** 1.0.0\n**Commit:** 84b8da1d\n**Deployed by:** runner\n\n📋 **Next Steps:**\n• Monitor deployment progress\n• Watch for quality gate violations\n• Prepare for post-deployment validation\n",
+          "inline": false
+        }
+      ]
+    },
+    "variables": {
+      "message": "🚀 **DHhash Deployment STARTED**\n\n**Environment:** development\n**Time:** 9/27/2025, 2:28:37 PM\n**Message:** Test deployment started\n**Version:** 1.0.0\n**Commit:** 84b8da1d\n**Deployed by:** runner\n\n📋 **Next Steps:**\n• Monitor deployment progress\n• Watch for quality gate violations\n• Prepare for post-deployment validation\n",
+      "severity": "info",
+      "environment": "development",
+      "timestamp": "2025-09-27T14:28:37.095Z",
+      "notification_id": "notify_1758983317340_26z81ky5b",
+      "status": "started",
+      "color": "#0984e3",
+      "action": "Monitor deployment progress in development environment",
+      "reason": "Unknown",
+      "backup_file": "N/A",
+      "deployment_status": "started",
+      "deployer": "runner",
+      "hostname": "runnervm3ublj",
+      "node_version": "v20.19.5",
+      "commit": "84b8da1d0f771773ffc08ec7cb8aa8f324bba5be",
+      "branch": "copilot/fix-e8e48cb6-e53c-473c-a801-39a573c66e5b",
+      "clean_repo": false,
+      "version": "1.0.0",
+      "app_name": "mobius-games-tutorial-generator"
+    }
+  },
+  "delivery_attempts": 0,
+  "reason": "delivery_failed"
+}

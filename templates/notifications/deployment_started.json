@@ -1,0 +1,49 @@
+{
+  "title": "🚀 DHhash Deployment Started",
+  "color": "#0984e3",
+  "fields": [
+    {
+      "name": "Environment",
+      "value": "{{environment}}",
+      "inline": true
+    },
+    {
+      "name": "Status",
+      "value": "{{status}}",
+      "inline": true
+    },
+    {
+      "name": "Started At",
+      "value": "{{timestamp}}",
+      "inline": true
+    },
+    {
+      "name": "Deployed By",
+      "value": "{{deployer}}",
+      "inline": true
+    },
+    {
+      "name": "Version",
+      "value": "{{version}}",
+      "inline": true
+    },
+    {
+      "name": "Commit",
+      "value": "{{commit}}",
+      "inline": true
+    },
+    {
+      "name": "Details",
+      "value": "{{message}}",
+      "inline": false
+    },
+    {
+      "name": "Next Steps",
+      "value": "• Monitor deployment progress\n• Watch for quality gate violations\n• Prepare for post-deployment validation",
+      "inline": false
+    }
+  ],
+  "footer": {
+    "text": "DHhash Deployment System"
+  }
+}

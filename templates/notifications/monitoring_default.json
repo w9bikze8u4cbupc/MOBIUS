@@ -1,0 +1,39 @@
+{
+  "title": "📊 DHhash Monitoring Alert",
+  "color": "#fdcb6e",
+  "fields": [
+    {
+      "name": "Environment",
+      "value": "{{environment}}",
+      "inline": true
+    },
+    {
+      "name": "Severity",
+      "value": "{{severity}}",
+      "inline": true
+    },
+    {
+      "name": "Alert Time",
+      "value": "{{timestamp}}",
+      "inline": true
+    },
+    {
+      "name": "Alert Details",
+      "value": "{{message}}",
+      "inline": false
+    },
+    {
+      "name": "Monitoring Status",
+      "value": "• Post-deployment monitoring active\n• Adaptive polling: 30s → 120s intervals\n• Quality gates continuously evaluated\n• Auto-rollback ready if needed",
+      "inline": false
+    },
+    {
+      "name": "System Metrics",
+      "value": "Monitor these key indicators:\n• Health endpoint response times\n• Hash extraction success rates\n• System resource utilization\n• Queue processing efficiency",
+      "inline": false
+    }
+  ],
+  "footer": {
+    "text": "DHhash Monitoring System"
+  }
+}

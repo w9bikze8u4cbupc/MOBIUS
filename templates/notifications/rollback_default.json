@@ -1,0 +1,49 @@
+{
+  "title": "⚡ DHhash Auto-Rollback Triggered",
+  "color": "#e17055",
+  "fields": [
+    {
+      "name": "Environment",
+      "value": "{{environment}}",
+      "inline": true
+    },
+    {
+      "name": "Triggered At",
+      "value": "{{timestamp}}",
+      "inline": true
+    },
+    {
+      "name": "Rollback Status",
+      "value": "{{status}}",
+      "inline": true
+    },
+    {
+      "name": "Trigger Reason",
+      "value": "{{reason}}",
+      "inline": false
+    },
+    {
+      "name": "Backup Used",
+      "value": "{{backup_file}}",
+      "inline": true
+    },
+    {
+      "name": "Quality Gate Violations",
+      "value": "{{message}}",
+      "inline": false
+    },
+    {
+      "name": "🔄 Rollback Information",
+      "value": "• System restored from verified backup\n• Services restarted with previous version\n• Database reverted to backup state\n• Monitoring continues for validation",
+      "inline": false
+    },
+    {
+      "name": "Next Steps",
+      "value": "1. **Validate** system functionality immediately\n2. **Run** smoke tests to confirm operation\n3. **Investigate** root cause of deployment failure\n4. **Document** findings and preventive measures",
+      "inline": false
+    }
+  ],
+  "footer": {
+    "text": "DHhash Auto-Rollback System"
+  }
+}

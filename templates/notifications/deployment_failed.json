@@ -1,0 +1,49 @@
+{
+  "title": "❌ DHhash Deployment Failed",
+  "color": "#d63031",
+  "fields": [
+    {
+      "name": "Environment",
+      "value": "{{environment}}",
+      "inline": true
+    },
+    {
+      "name": "Status",
+      "value": "{{status}}",
+      "inline": true
+    },
+    {
+      "name": "Failed At",
+      "value": "{{timestamp}}",
+      "inline": true
+    },
+    {
+      "name": "Error Details",
+      "value": "{{message}}",
+      "inline": false
+    },
+    {
+      "name": "Available Backup",
+      "value": "{{backup_file}}",
+      "inline": true
+    },
+    {
+      "name": "Rollback Command",
+      "value": "`./scripts/rollback_dhash.sh --backup \"{{backup_file}}\" --env {{environment}}`",
+      "inline": false
+    },
+    {
+      "name": "🚨 Immediate Actions Required",
+      "value": "1. Review deployment logs immediately\n2. Check system health and metrics\n3. Consider immediate rollback if necessary\n4. Alert on-call team if production",
+      "inline": false
+    },
+    {
+      "name": "Investigation Steps",
+      "value": "• Check `deploy_logs/` for detailed logs\n• Validate environment configuration\n• Review recent changes and commits\n• Test rollback procedure in staging first",
+      "inline": false
+    }
+  ],
+  "footer": {
+    "text": "DHhash Deployment System - FAILURE ALERT"
+  }
+}
