@@ -1,0 +1,16 @@
+[
+  {
+    "timestamp": "2025-09-27T01:47:03.289Z",
+    "environment": "staging",
+    "type": "info",
+    "message": "Monitoring started for 1 minutes",
+    "elapsed": "0 minutes"
+  },
+  {
+    "timestamp": "2025-09-27T01:47:03.291Z",
+    "environment": "staging",
+    "type": "error",
+    "message": "AUTO-ROLLBACK TRIGGERED: Extraction failure rate: 7.63% > 5% extraction failure rate over time window",
+    "elapsed": "0 minutes"
+  }
+]

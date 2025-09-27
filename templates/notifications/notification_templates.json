@@ -1,0 +1,254 @@
+{
+  "deployment_start": {
+    "slack": {
+      "text": "🚀 dhash Deployment Started",
+      "attachments": [
+        {
+          "color": "#0066cc",
+          "fields": [
+            {
+              "title": "Environment",
+              "value": "{{environment}}",
+              "short": true
+            },
+            {
+              "title": "Version",
+              "value": "{{version}}",
+              "short": true
+            },
+            {
+              "title": "Initiated By",
+              "value": "{{initiator}}",
+              "short": true
+            },
+            {
+              "title": "Commit",
+              "value": "{{commit}}",
+              "short": true
+            },
+            {
+              "title": "Monitoring",
+              "value": "60-minute quality gate monitoring will begin post-deployment",
+              "short": false
+            }
+          ],
+          "footer": "dhash deployment system",
+          "ts": "{{timestamp}}"
+        }
+      ]
+    },
+    "teams": {
+      "@type": "MessageCard",
+      "@context": "https://schema.org/extensions",
+      "summary": "dhash Deployment Started - {{environment}}",
+      "themeColor": "0066cc",
+      "sections": [
+        {
+          "activityTitle": "🚀 dhash Deployment Started",
+          "activitySubtitle": "Environment: {{environment}}",
+          "facts": [
+            { "name": "Version", "value": "{{version}}" },
+            { "name": "Initiated By", "value": "{{initiator}}" },
+            { "name": "Commit", "value": "{{commit}}" },
+            { "name": "Monitoring", "value": "60-minute quality gate monitoring will begin" }
+          ]
+        }
+      ]
+    },
+    "discord": {
+      "embeds": [
+        {
+          "title": "🚀 dhash Deployment Started",
+          "color": 26812,
+          "fields": [
+            { "name": "Environment", "value": "{{environment}}", "inline": true },
+            { "name": "Version", "value": "{{version}}", "inline": true },
+            { "name": "Initiated By", "value": "{{initiator}}", "inline": true },
+            { "name": "Commit", "value": "{{commit}}", "inline": true },
+            { "name": "Monitoring", "value": "60-minute quality gate monitoring will begin post-deployment" }
+          ],
+          "timestamp": "{{iso_timestamp}}"
+        }
+      ]
+    }
+  },
+  "deployment_success": {
+    "slack": {
+      "text": "✅ dhash Deployment Completed Successfully",
+      "attachments": [
+        {
+          "color": "#36a64f",
+          "fields": [
+            {
+              "title": "Environment",
+              "value": "{{environment}}",
+              "short": true
+            },
+            {
+              "title": "Duration",
+              "value": "{{duration}}",
+              "short": true
+            },
+            {
+              "title": "Version",
+              "value": "{{version}}",
+              "short": true
+            },
+            {
+              "title": "Status",
+              "value": "All pre-deployment checks passed",
+              "short": true
+            },
+            {
+              "title": "Next Steps",
+              "value": "60-minute monitoring window is now active",
+              "short": false
+            }
+          ],
+          "footer": "dhash deployment system",
+          "ts": "{{timestamp}}"
+        }
+      ]
+    },
+    "teams": {
+      "@type": "MessageCard",
+      "@context": "https://schema.org/extensions",
+      "summary": "dhash Deployment Success - {{environment}}",
+      "themeColor": "36a64f",
+      "sections": [
+        {
+          "activityTitle": "✅ dhash Deployment Completed Successfully",
+          "activitySubtitle": "Environment: {{environment}}",
+          "facts": [
+            { "name": "Duration", "value": "{{duration}}" },
+            { "name": "Version", "value": "{{version}}" },
+            { "name": "Status", "value": "All pre-deployment checks passed" },
+            { "name": "Next Steps", "value": "60-minute monitoring window is now active" }
+          ]
+        }
+      ]
+    }
+  },
+  "deployment_failure": {
+    "slack": {
+      "text": "🚨 dhash Deployment Failed",
+      "attachments": [
+        {
+          "color": "#ff0000",
+          "fields": [
+            {
+              "title": "Environment",
+              "value": "{{environment}}",
+              "short": true
+            },
+            {
+              "title": "Failed Stage",
+              "value": "{{stage}}",
+              "short": true
+            },
+            {
+              "title": "Error",
+              "value": "{{error}}",
+              "short": false
+            },
+            {
+              "title": "Action Required",
+              "value": "Investigation and potential rollback needed",
+              "short": false
+            },
+            {
+              "title": "Rollback Command",
+              "value": "`{{rollback_command}}`",
+              "short": false
+            }
+          ],
+          "footer": "dhash deployment system",
+          "ts": "{{timestamp}}"
+        }
+      ]
+    }
+  },
+  "rollback_initiated": {
+    "slack": {
+      "text": "🔄 dhash Rollback Initiated",
+      "attachments": [
+        {
+          "color": "#ff9500",
+          "fields": [
+            {
+              "title": "Environment",
+              "value": "{{environment}}",
+              "short": true
+            },
+            {
+              "title": "Reason",
+              "value": "{{reason}}",
+              "short": true
+            },
+            {
+              "title": "Backup Used",
+              "value": "{{backup}}",
+              "short": true
+            },
+            {
+              "title": "Triggered By",
+              "value": "{{trigger}}",
+              "short": true
+            },
+            {
+              "title": "Status",
+              "value": "Restoration in progress",
+              "short": false
+            },
+            {
+              "title": "ETA",
+              "value": "Service restoration expected within 10 minutes",
+              "short": false
+            }
+          ],
+          "footer": "dhash deployment system",
+          "ts": "{{timestamp}}"
+        }
+      ]
+    }
+  },
+  "quality_gate_violation": {
+    "slack": {
+      "text": "⚠️ dhash Quality Gate Violation",
+      "attachments": [
+        {
+          "color": "#ffcc00",
+          "fields": [
+            {
+              "title": "Environment",
+              "value": "{{environment}}",
+              "short": true
+            },
+            {
+              "title": "Violated Gate",
+              "value": "{{gate_name}}",
+              "short": true
+            },
+            {
+              "title": "Threshold",
+              "value": "{{threshold}}",
+              "short": true
+            },
+            {
+              "title": "Current Value",
+              "value": "{{current_value}}",
+              "short": true
+            },
+            {
+              "title": "Auto-Rollback",
+              "value": "{{auto_rollback_enabled}}",
+              "short": false
+            }
+          ],
+          "footer": "dhash monitoring system",
+          "ts": "{{timestamp}}"
+        }
+      ]
+    }
+  }
+}

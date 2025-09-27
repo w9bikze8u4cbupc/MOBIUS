@@ -1,0 +1,13 @@
+{
+  "environment": "staging",
+  "duration": 1,
+  "actualDuration": 0,
+  "rollbackTriggered": true,
+  "metrics": {
+    "totalHealthChecks": 1,
+    "healthCheckSuccess": 1,
+    "averageHashTime": 809,
+    "maxQueueLength": 1018
+  },
+  "completedAt": "2025-09-27T01:47:03.292Z"
+}
