@@ -1,0 +1,13 @@
+Subject: ❌ Deployment Failed - {{release}}
+
+Deployment Failed
+================
+
+Release: {{release}}
+Environment: {{env}}
+PR: {{pr}}
+Lead: {{lead}}
+Duration: {{duration}}
+Time: {{timestamp}}
+
+This is an automated deployment notification.

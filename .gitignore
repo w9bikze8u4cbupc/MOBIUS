@@ -73,3 +73,7 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Deployment notification temporary files
+deploy_*.json
+notifications_out/

@@ -1,0 +1,12 @@
+Subject: 🚀 Deployment Started - {{release}}
+
+Deployment Started
+==================
+
+Release: {{release}}
+Environment: {{env}}
+PR: {{pr}}
+Lead: {{lead}}
+Time: {{timestamp}}
+
+This is an automated deployment notification.
