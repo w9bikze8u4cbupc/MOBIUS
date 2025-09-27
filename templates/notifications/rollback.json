@@ -1,0 +1,52 @@
+{
+  "title": "⚡ DHash Rollback Notification",
+  "color": "warning",
+  "emoji": "⚡",
+  "channels": {
+    "production": "#incidents-prod",
+    "staging": "#deployments-staging",
+    "development": "#deployments-dev"
+  },
+  "environments": {
+    "production": {
+      "title": "🚨 PRODUCTION DHash Rollback",
+      "color": "danger",
+      "priority": "critical",
+      "escalation_after_minutes": 5,
+      "mentions": ["@ops-team", "@sre-oncall"]
+    },
+    "staging": {
+      "title": "⚠️ STAGING DHash Rollback",
+      "color": "warning",
+      "priority": "high"
+    },
+    "development": {
+      "title": "🔄 DEV DHash Rollback",
+      "color": "warning",
+      "priority": "normal"
+    }
+  },
+  "message_templates": {
+    "start": "DHash rollback initiated for {environment} - Reason: {reason}",
+    "success": "DHash rollback completed successfully for {environment} ✅",
+    "failed": "DHash rollback FAILED for {environment} ❌ - {error}",
+    "auto_triggered": "AUTOMATIC rollback triggered for {environment} due to quality gate violation: {reason}"
+  },
+  "additional_fields": [
+    {
+      "title": "Rollback Reason",
+      "key": "reason",
+      "short": false
+    },
+    {
+      "title": "Backup Used",
+      "key": "backup_file",
+      "short": true
+    },
+    {
+      "title": "Incident ID",
+      "key": "incident_id",
+      "short": true
+    }
+  ]
+}

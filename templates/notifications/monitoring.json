@@ -1,0 +1,79 @@
+{
+  "title": "📊 DHash Monitoring Alert",
+  "color": "danger",
+  "emoji": "🚨",
+  "channels": {
+    "production": "#alerts-prod",
+    "staging": "#alerts-staging",
+    "development": "#alerts-dev"
+  },
+  "environments": {
+    "production": {
+      "title": "🚨 PRODUCTION DHash Quality Gate Alert",
+      "color": "danger",
+      "priority": "critical",
+      "escalation_after_minutes": 10,
+      "mentions": ["@sre-oncall"]
+    },
+    "staging": {
+      "title": "⚠️ STAGING DHash Quality Gate Alert",
+      "color": "warning",
+      "priority": "high"
+    },
+    "development": {
+      "title": "ℹ️ DEV DHash Quality Gate Alert",
+      "color": "warning",
+      "priority": "low"
+    }
+  },
+  "message_templates": {
+    "quality_gate_violation": "Quality gate violation detected in {environment}: {alert}",
+    "auto_rollback_pending": "Auto-rollback will be triggered if violation persists",
+    "monitoring_complete": "Post-deployment monitoring completed successfully for {environment}",
+    "monitoring_failed": "Monitoring system encountered issues for {environment}: {error}"
+  },
+  "alert_types": {
+    "health_check_failures": {
+      "description": "Consecutive health check failures",
+      "severity": "critical",
+      "action": "auto-rollback"
+    },
+    "extraction_failure_rate": {
+      "description": "High extraction failure rate",
+      "severity": "high",
+      "action": "auto-rollback"
+    },
+    "p95_hash_time": {
+      "description": "P95 hash processing time exceeded",
+      "severity": "high",
+      "action": "auto-rollback"
+    },
+    "queue_length": {
+      "description": "Queue length threshold exceeded",
+      "severity": "medium",
+      "action": "auto-rollback"
+    }
+  },
+  "additional_fields": [
+    {
+      "title": "Alert Type",
+      "key": "alert_type",
+      "short": true
+    },
+    {
+      "title": "Threshold",
+      "key": "threshold",
+      "short": true
+    },
+    {
+      "title": "Current Value",
+      "key": "current_value",
+      "short": true
+    },
+    {
+      "title": "Action",
+      "key": "action",
+      "short": true
+    }
+  ]
+}

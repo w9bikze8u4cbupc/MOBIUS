@@ -1,0 +1,11 @@
+DHash Smoke Test Report
+=======================
+Environment: staging
+Test Tier: critical
+Post-rollback: false
+Timestamp: Sat Sep 27 13:47:56 UTC 2025
+Total Tests: 5
+Passed: 5
+Failed: 0
+Pass Rate: 100.00%
+

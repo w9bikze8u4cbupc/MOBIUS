@@ -1,0 +1,51 @@
+{
+  "title": "🚀 DHash Deployment Notification",
+  "color": "good",
+  "emoji": "🚀",
+  "channels": {
+    "production": "#deployments-prod",
+    "staging": "#deployments-staging",
+    "development": "#deployments-dev"
+  },
+  "environments": {
+    "production": {
+      "title": "🚨 PRODUCTION DHash Deployment",
+      "color": "danger",
+      "priority": "high",
+      "escalation_after_minutes": 15
+    },
+    "staging": {
+      "title": "🧪 STAGING DHash Deployment",
+      "color": "warning",
+      "priority": "normal"
+    },
+    "development": {
+      "title": "🛠️ DEV DHash Deployment",
+      "color": "good",
+      "priority": "low"
+    }
+  },
+  "message_templates": {
+    "start": "DHash deployment started for {environment}",
+    "success": "DHash deployment completed successfully for {environment} ✅",
+    "failed": "DHash deployment FAILED for {environment} ❌ - {error}",
+    "rollback": "DHash deployment rolled back for {environment} ⚡ - {reason}"
+  },
+  "additional_fields": [
+    {
+      "title": "Deployment ID",
+      "key": "deployment_id",
+      "short": true
+    },
+    {
+      "title": "Commit SHA",
+      "key": "commit_sha",
+      "short": true
+    },
+    {
+      "title": "Duration",
+      "key": "duration",
+      "short": true
+    }
+  ]
+}
