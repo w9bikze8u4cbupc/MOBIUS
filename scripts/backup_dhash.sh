@@ -92,7 +92,7 @@ EOF
     echo "✅ SHA256 checksum: $SHA256_FILE"
     
     # Verify the checksum immediately
-    if sha256sum -c "$SHA256_FILE" >/dev/null 2>&1; then
+    if (cd "$(dirname "$BACKUP_PATH")" && sha256sum -c "$(basename "$SHA256_FILE")") >/dev/null 2>&1; then
       echo "✅ SHA256 verification: PASS"
     else
       echo "❌ SHA256 verification: FAIL"

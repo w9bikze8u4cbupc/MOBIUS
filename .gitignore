@@ -73,3 +73,16 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Guarded rollout temporary files
+backups/
+notification_fallback/
+*_report_*.txt
+*_report_*.json
+monitor_*.log
+deploy_*.log
+rollback_*.log
+migration_*.log
+smoke_test_report_*.txt
+logging_validation_report_*.json
+deployment_archives/
