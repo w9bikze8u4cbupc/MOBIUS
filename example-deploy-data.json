@@ -1,0 +1,13 @@
+{
+  "customField": "Custom deployment data",
+  "buildNumber": "12345",
+  "deploymentUrl": "https://app.example.com",
+  "rollbackUrl": "https://rollback.example.com/v1.0.0",
+  "monitoringUrl": "https://monitoring.example.com/deployments",
+  "slackChannel": "#deployments",
+  "incidentChannel": "#incidents",
+  "approver": "DevOps Team",
+  "changeRequest": "CR-2024-001",
+  "testResults": "✅ All tests passed",
+  "securityScan": "✅ No vulnerabilities found"
+}
