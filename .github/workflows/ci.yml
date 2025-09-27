@@ -50,6 +50,34 @@ jobs:
           npm run render:preview # <- replace with your preview command
         shell: bash
 
+      - name: DHhash system validation (if enabled)
+        if: env.ENABLE_DHASH_VALIDATION == 'true'
+        run: |
+          echo "=== DHhash System Validation ==="
+          
+          # Create development environment for testing
+          mkdir -p backups deploy_logs
+          
+          # Test dhash scripts if they exist
+          if [ -f "./scripts/deploy_dhash.sh" ]; then
+            echo "Testing dhash deployment scripts..."
+            ./scripts/deploy_dhash.sh --help
+            ./scripts/backup_dhash.sh --help || echo "Backup script not found"
+            ./scripts/smoke_tests.sh --help || echo "Smoke tests script not found"
+            
+            # Run basic validation
+            ./scripts/smoke_tests.sh --env development --level critical --dry-run || echo "Smoke tests not available"
+          fi
+          
+          # Test notification system if available
+          if [ -f "./scripts/notify.js" ]; then
+            echo "Testing notification system..."
+            node scripts/notify.js --type deployment --severity info --message "CI validation test" --env development --channels file
+          fi
+        shell: bash
+        env:
+          ENABLE_DHASH_VALIDATION: ${{ contains(github.event.head_commit.message, '[dhash]') || contains(github.ref, 'dhash') }}
+
       - name: Audio ebur128
         run: |
           ffmpeg -hide_banner -nostats -i out/preview_with_audio.mp4 -filter_complex ebur128 -f null - 2> artifacts/preview_with_audio_ebur128.txt

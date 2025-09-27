@@ -73,3 +73,32 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# === DHhash Deployment System ===
+
+# DHhash deployment logs and artifacts
+deploy_logs/
+monitor_logs/
+premerge_artifacts/
+
+# DHhash backups (keep structure, ignore actual backup files)
+backups/*.zip
+backups/*.sha256
+!backups/.gitkeep
+
+# DHhash databases (development/testing)
+dhash_dev.db
+dhash_test.db
+*.db-journal
+
+# DHhash notification files (keep delivery logs, ignore individual notifications)
+deploy_logs/notifications/*.json
+!deploy_logs/notifications/delivery_log.jsonl
+
+# Migration lock files
+migrations/.migrate-lock
+migrations/**/*.lock
+
+# DHhash runtime files
+*.pid
+*.pid.lock
