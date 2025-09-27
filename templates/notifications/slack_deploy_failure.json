@@ -1,0 +1,21 @@
+{
+  "text": "❌ Deployment Failed",
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Deployment Failed* ❌\n\n*Repository:* {{repository}}\n*Environment:* {{environment}}\n*Release:* {{release}}\n*Branch:* {{branch}}\n*Lead:* {{lead}}\n*Duration:* {{duration}}"
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Failed at {{timestampFormatted}} | Commit: `{{commitHash}}`"
+        }
+      ]
+    }
+  ]
+}

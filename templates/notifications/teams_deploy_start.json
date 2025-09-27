@@ -1,0 +1,42 @@
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions",
+  "themeColor": "0076D7",
+  "summary": "Deployment Started",
+  "sections": [
+    {
+      "activityTitle": "🚀 Deployment Started",
+      "activitySubtitle": "{{repository}} deployment to {{environment}}",
+      "facts": [
+        {
+          "name": "Repository",
+          "value": "{{repository}}"
+        },
+        {
+          "name": "Environment", 
+          "value": "{{environment}}"
+        },
+        {
+          "name": "Release",
+          "value": "{{release}}"
+        },
+        {
+          "name": "Branch",
+          "value": "{{branch}}"
+        },
+        {
+          "name": "Lead",
+          "value": "{{lead}}"
+        },
+        {
+          "name": "Started At",
+          "value": "{{timestampFormatted}}"
+        },
+        {
+          "name": "Commit",
+          "value": "{{commitHash}}"
+        }
+      ]
+    }
+  ]
+}

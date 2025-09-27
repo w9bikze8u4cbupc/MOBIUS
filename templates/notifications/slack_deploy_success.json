@@ -1,0 +1,21 @@
+{
+  "text": "✅ Deployment Completed Successfully",
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Deployment Completed Successfully* ✅\n\n*Repository:* {{repository}}\n*Environment:* {{environment}}\n*Release:* {{release}}\n*Branch:* {{branch}}\n*Lead:* {{lead}}\n*Duration:* {{duration}}"
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Completed at {{timestampFormatted}} | Commit: `{{commitHash}}`"
+        }
+      ]
+    }
+  ]
+}

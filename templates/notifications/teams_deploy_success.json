@@ -1,0 +1,46 @@
+{
+  "@type": "MessageCard",
+  "@context": "http://schema.org/extensions",
+  "themeColor": "00D100",
+  "summary": "Deployment Completed Successfully",
+  "sections": [
+    {
+      "activityTitle": "✅ Deployment Completed Successfully",
+      "activitySubtitle": "{{repository}} deployment to {{environment}} completed",
+      "facts": [
+        {
+          "name": "Repository",
+          "value": "{{repository}}"
+        },
+        {
+          "name": "Environment", 
+          "value": "{{environment}}"
+        },
+        {
+          "name": "Release",
+          "value": "{{release}}"
+        },
+        {
+          "name": "Branch",
+          "value": "{{branch}}"
+        },
+        {
+          "name": "Lead",
+          "value": "{{lead}}"
+        },
+        {
+          "name": "Duration",
+          "value": "{{duration}}"
+        },
+        {
+          "name": "Completed At",
+          "value": "{{timestampFormatted}}"
+        },
+        {
+          "name": "Commit",
+          "value": "{{commitHash}}"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,181 @@
+name: Deploy with Notifications
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      release_version:
+        description: 'Release version'
+        required: true
+        default: 'latest'
+        type: string
+      services:
+        description: 'Notification services'
+        required: false
+        default: 'slack,teams,email'
+        type: string
+
+env:
+  ENVIRONMENT: ${{ github.event.inputs.environment }}
+  RELEASE_VERSION: ${{ github.event.inputs.release_version }}
+  NOTIFICATION_SERVICES: ${{ github.event.inputs.services }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Make scripts executable
+        run: |
+          chmod +x scripts/deploy/notify.js
+          chmod +x scripts/deploy/deploy-notify.js
+
+      - name: Send deployment start notification
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: |
+          node scripts/deploy/deploy-notify.js start \
+            --environment "${{ env.ENVIRONMENT }}" \
+            --release "${{ env.RELEASE_VERSION }}" \
+            --services "${{ env.NOTIFICATION_SERVICES }}" \
+            --lead "${{ github.actor }}"
+
+      # Simulated deployment steps
+      - name: Deploy application
+        id: deploy
+        run: |
+          echo "🚀 Deploying to ${{ env.ENVIRONMENT }}..."
+          echo "Release: ${{ env.RELEASE_VERSION }}"
+          
+          # Record start time for duration calculation
+          echo "DEPLOY_START_TIME=$(date +%s)" >> $GITHUB_ENV
+          
+          # Simulate deployment work
+          sleep 10
+          
+          # Simulate potential failure (uncomment to test failure scenario)
+          # if [ "${{ env.ENVIRONMENT }}" = "production" ]; then
+          #   echo "Simulating production deployment failure"
+          #   exit 1
+          # fi
+          
+          echo "✅ Deployment completed successfully"
+
+      - name: Calculate deployment duration
+        if: always()
+        run: |
+          if [ -n "$DEPLOY_START_TIME" ]; then
+            end_time=$(date +%s)
+            duration_seconds=$((end_time - DEPLOY_START_TIME))
+            
+            # Convert to human readable format
+            if [ $duration_seconds -ge 3600 ]; then
+              hours=$((duration_seconds / 3600))
+              minutes=$(((duration_seconds % 3600) / 60))
+              seconds=$((duration_seconds % 60))
+              duration="${hours}h ${minutes}m ${seconds}s"
+            elif [ $duration_seconds -ge 60 ]; then
+              minutes=$((duration_seconds / 60))
+              seconds=$((duration_seconds % 60))
+              duration="${minutes}m ${seconds}s"
+            else
+              duration="${duration_seconds}s"
+            fi
+            
+            echo "DEPLOY_DURATION=$duration" >> $GITHUB_ENV
+          else
+            echo "DEPLOY_DURATION=unknown" >> $GITHUB_ENV
+          fi
+
+      - name: Send deployment success notification
+        if: success()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: |
+          node scripts/deploy/deploy-notify.js success \
+            --environment "${{ env.ENVIRONMENT }}" \
+            --release "${{ env.RELEASE_VERSION }}" \
+            --services "${{ env.NOTIFICATION_SERVICES }}" \
+            --duration "${{ env.DEPLOY_DURATION }}" \
+            --lead "${{ github.actor }}"
+
+      - name: Send deployment failure notification
+        if: failure()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: |
+          node scripts/deploy/deploy-notify.js failure \
+            --environment "${{ env.ENVIRONMENT }}" \
+            --release "${{ env.RELEASE_VERSION }}" \
+            --services "${{ env.NOTIFICATION_SERVICES }}" \
+            --duration "${{ env.DEPLOY_DURATION }}" \
+            --lead "${{ github.actor }}"
+
+      - name: Add PR comment on success
+        if: success() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🎉 **Deployment Successful** 
+
+              - **Environment:** ${{ env.ENVIRONMENT }}
+              - **Release:** ${{ env.RELEASE_VERSION }}
+              - **Duration:** ${{ env.DEPLOY_DURATION }}
+              - **Lead:** ${{ github.actor }}
+              - **Commit:** ${{ github.sha }}
+
+              The deployment completed successfully!`
+            })
+
+      - name: Add PR comment on failure
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `❌ **Deployment Failed**
+
+              - **Environment:** ${{ env.ENVIRONMENT }}
+              - **Release:** ${{ env.RELEASE_VERSION }}
+              - **Duration:** ${{ env.DEPLOY_DURATION }}
+              - **Lead:** ${{ github.actor }}
+              - **Commit:** ${{ github.sha }}
+
+              Please check the workflow logs for details.`
+            })
+
+      - name: Upload email notifications as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-notifications-${{ env.ENVIRONMENT }}
+          path: notifications_out/
+          retention-days: 30
+        continue-on-error: true

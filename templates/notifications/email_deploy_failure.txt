@@ -1,0 +1,24 @@
+❌ DEPLOYMENT FAILED
+
+Repository: {{repository}}
+Environment: {{environment}}
+Release: {{release}}
+Branch: {{branch}}
+Commit: {{commitHash}}
+Lead: {{lead}}
+Duration: {{duration}}
+
+Failed at: {{timestampFormatted}}
+
+The deployment has failed and requires immediate attention.
+
+Action required:
+- Review deployment logs for error details
+- Check application health and status
+- Rollback if necessary
+- Notify incident response team if critical
+
+Contact {{lead}} for more information.
+
+---
+Automated notification from {{repository}} deployment pipeline.

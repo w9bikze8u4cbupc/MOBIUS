@@ -1,0 +1,21 @@
+{
+  "text": "🚀 Deployment Started",
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Deployment Started* 🚀\n\n*Repository:* {{repository}}\n*Environment:* {{environment}}\n*Release:* {{release}}\n*Branch:* {{branch}}\n*Lead:* {{lead}}"
+      }
+    },
+    {
+      "type": "context",
+      "elements": [
+        {
+          "type": "mrkdwn",
+          "text": "Started at {{timestampFormatted}} | Commit: `{{commitHash}}`"
+        }
+      ]
+    }
+  ]
+}

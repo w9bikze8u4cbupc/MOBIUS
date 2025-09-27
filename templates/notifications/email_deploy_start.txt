@@ -1,0 +1,15 @@
+🚀 DEPLOYMENT STARTED
+
+Repository: {{repository}}
+Environment: {{environment}}
+Release: {{release}}
+Branch: {{branch}}
+Commit: {{commitHash}}
+Lead: {{lead}}
+
+Started at: {{timestampFormatted}}
+
+This deployment has been initiated. Please monitor the progress and verify the deployment once completed.
+
+---
+Automated notification from {{repository}} deployment pipeline.

@@ -1,0 +1,61 @@
+name: Simple Deploy with Notifications
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Make scripts executable
+        run: chmod +x scripts/deploy/deploy-notify.js
+
+      - name: Deploy with notifications
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: |
+          # Start notification
+          node scripts/deploy/deploy-notify.js start \
+            --environment "${{ github.event.inputs.environment }}" \
+            --lead "${{ github.actor }}"
+
+          # Your deployment commands here
+          echo "🚀 Deploying application..."
+          sleep 5  # Simulate deployment
+          
+          # Success notification (automatically includes duration)
+          node scripts/deploy/deploy-notify.js success \
+            --environment "${{ github.event.inputs.environment }}" \
+            --lead "${{ github.actor }}" \
+            --duration "5s"
+
+      - name: Handle deployment failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+        run: |
+          node scripts/deploy/deploy-notify.js failure \
+            --environment "${{ github.event.inputs.environment }}" \
+            --lead "${{ github.actor }}"
