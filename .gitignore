@@ -73,3 +73,9 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Deployment artifacts and testing
+backups/
+out/*.mp4
+out/*.mp4.info
+out/preview.*
