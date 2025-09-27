@@ -1,0 +1,275 @@
+{
+  "environments": {
+    "production": {
+      "description": "Production environment with strict quality gates",
+      "monitoring_duration_minutes": 60,
+      "adaptive_polling": {
+        "initial_interval_seconds": 30,
+        "regular_interval_seconds": 120,
+        "transition_after_minutes": 10,
+        "alert_interval_seconds": 60
+      },
+      "quality_gates": {
+        "health_failures": {
+          "description": "Consecutive health check failures",
+          "threshold": 2,
+          "action": "auto_rollback",
+          "severity": "critical"
+        },
+        "extraction_failure_rate": {
+          "description": "Hash extraction failure rate over time window",
+          "threshold_percentage": 5.0,
+          "time_window_minutes": 10,
+          "action": "auto_rollback",
+          "severity": "critical"
+        },
+        "p95_hash_time": {
+          "description": "95th percentile hash processing time",
+          "threshold_ms": 2000,
+          "time_window_minutes": 15,
+          "action": "auto_rollback",
+          "severity": "high"
+        },
+        "low_confidence_queue_size": {
+          "description": "Number of items in low-confidence processing queue",
+          "threshold": 1000,
+          "action": "auto_rollback",
+          "severity": "high"
+        },
+        "memory_usage": {
+          "description": "Memory usage percentage",
+          "threshold_percentage": 85.0,
+          "time_window_minutes": 5,
+          "action": "alert",
+          "severity": "medium"
+        },
+        "cpu_usage": {
+          "description": "CPU usage percentage",
+          "threshold_percentage": 80.0,
+          "time_window_minutes": 5,
+          "action": "alert",
+          "severity": "medium"
+        },
+        "disk_usage": {
+          "description": "Disk usage percentage",
+          "threshold_percentage": 90.0,
+          "action": "alert",
+          "severity": "medium"
+        },
+        "error_rate": {
+          "description": "General error rate percentage",
+          "threshold_percentage": 1.0,
+          "time_window_minutes": 5,
+          "action": "alert",
+          "severity": "medium"
+        }
+      },
+      "notification_channels": {
+        "critical": ["slack", "email", "file"],
+        "high": ["slack", "file"],
+        "medium": ["file"],
+        "low": ["file"]
+      }
+    },
+    "staging": {
+      "description": "Staging environment with relaxed quality gates for testing",
+      "monitoring_duration_minutes": 30,
+      "adaptive_polling": {
+        "initial_interval_seconds": 45,
+        "regular_interval_seconds": 180,
+        "transition_after_minutes": 5,
+        "alert_interval_seconds": 120
+      },
+      "quality_gates": {
+        "health_failures": {
+          "description": "Consecutive health check failures",
+          "threshold": 3,
+          "action": "alert",
+          "severity": "high"
+        },
+        "extraction_failure_rate": {
+          "description": "Hash extraction failure rate over time window",
+          "threshold_percentage": 10.0,
+          "time_window_minutes": 10,
+          "action": "alert",
+          "severity": "high"
+        },
+        "p95_hash_time": {
+          "description": "95th percentile hash processing time",
+          "threshold_ms": 3000,
+          "time_window_minutes": 15,
+          "action": "alert",
+          "severity": "medium"
+        },
+        "low_confidence_queue_size": {
+          "description": "Number of items in low-confidence processing queue",
+          "threshold": 2000,
+          "action": "alert",
+          "severity": "medium"
+        },
+        "memory_usage": {
+          "description": "Memory usage percentage",
+          "threshold_percentage": 90.0,
+          "time_window_minutes": 10,
+          "action": "alert",
+          "severity": "low"
+        },
+        "error_rate": {
+          "description": "General error rate percentage",
+          "threshold_percentage": 5.0,
+          "time_window_minutes": 10,
+          "action": "alert",
+          "severity": "low"
+        }
+      },
+      "notification_channels": {
+        "critical": ["slack", "file"],
+        "high": ["slack", "file"],
+        "medium": ["file"],
+        "low": ["file"]
+      }
+    },
+    "development": {
+      "description": "Development environment with minimal monitoring",
+      "monitoring_duration_minutes": 15,
+      "adaptive_polling": {
+        "initial_interval_seconds": 60,
+        "regular_interval_seconds": 300,
+        "transition_after_minutes": 3,
+        "alert_interval_seconds": 180
+      },
+      "quality_gates": {
+        "health_failures": {
+          "description": "Consecutive health check failures",
+          "threshold": 5,
+          "action": "alert",
+          "severity": "low"
+        },
+        "extraction_failure_rate": {
+          "description": "Hash extraction failure rate over time window",
+          "threshold_percentage": 20.0,
+          "time_window_minutes": 15,
+          "action": "alert",
+          "severity": "low"
+        },
+        "memory_usage": {
+          "description": "Memory usage percentage",
+          "threshold_percentage": 95.0,
+          "time_window_minutes": 15,
+          "action": "alert",
+          "severity": "low"
+        }
+      },
+      "notification_channels": {
+        "critical": ["file"],
+        "high": ["file"],
+        "medium": ["file"],
+        "low": ["file"]
+      }
+    }
+  },
+  "tuning_guidance": {
+    "production_tuning_notes": [
+      "Conservative defaults - tune after 24-72h of production telemetry",
+      "health_failures threshold of 2 provides quick detection while avoiding false positives",
+      "extraction_failure_rate of 5% over 10 minutes catches sustained issues",
+      "p95_hash_time of 2000ms aligns with SLA requirements",
+      "Adaptive polling reduces load: 30s initial → 120s regular after 10 minutes"
+    ],
+    "threshold_adjustment_guidelines": {
+      "increase_thresholds_if": [
+        "Frequent false positive alerts during normal operations",
+        "System naturally operates near current threshold values",
+        "Business requirements allow higher tolerances"
+      ],
+      "decrease_thresholds_if": [
+        "Issues are detected too late to prevent customer impact",
+        "System performance has improved and can sustain tighter SLAs",
+        "Compliance requirements demand stricter monitoring"
+      ]
+    },
+    "monitoring_best_practices": [
+      "Review and adjust thresholds monthly based on observed baselines",
+      "Test alert thresholds in staging before applying to production",
+      "Document threshold changes with business justification",
+      "Consider seasonal or event-driven load patterns when setting thresholds",
+      "Implement gradual threshold changes rather than dramatic adjustments"
+    ],
+    "rollback_decision_matrix": {
+      "auto_rollback_conditions": [
+        "Multiple critical quality gates breached simultaneously",
+        "Health check failures exceed threshold",
+        "Performance degradation affects user experience",
+        "Data integrity issues detected"
+      ],
+      "manual_rollback_conditions": [
+        "Single quality gate breach with unclear cause",
+        "Performance degradation within acceptable bounds",
+        "Non-critical functionality affected",
+        "Issue can be resolved with hotfix"
+      ]
+    }
+  },
+  "metric_definitions": {
+    "health_failures": {
+      "source": "health_check_endpoint",
+      "calculation": "consecutive_failures",
+      "reset_condition": "successful_health_check"
+    },
+    "extraction_failure_rate": {
+      "source": "dhash_extraction_metrics",
+      "calculation": "(failed_extractions / total_extractions) * 100",
+      "time_window": "sliding_window"
+    },
+    "p95_hash_time": {
+      "source": "dhash_processing_metrics",
+      "calculation": "95th_percentile_processing_time",
+      "time_window": "sliding_window"
+    },
+    "low_confidence_queue_size": {
+      "source": "queue_metrics",
+      "calculation": "current_queue_length",
+      "measurement": "instantaneous"
+    },
+    "memory_usage": {
+      "source": "system_metrics",
+      "calculation": "(used_memory / total_memory) * 100",
+      "measurement": "instantaneous"
+    },
+    "cpu_usage": {
+      "source": "system_metrics",
+      "calculation": "average_cpu_utilization",
+      "time_window": "1_minute_average"
+    },
+    "disk_usage": {
+      "source": "system_metrics",
+      "calculation": "(used_disk / total_disk) * 100",
+      "measurement": "instantaneous"
+    },
+    "error_rate": {
+      "source": "application_logs",
+      "calculation": "(error_count / total_requests) * 100",
+      "time_window": "sliding_window"
+    }
+  },
+  "alert_escalation": {
+    "level_1": {
+      "triggers": ["medium", "high"],
+      "delay_minutes": 0,
+      "channels": ["file", "slack"]
+    },
+    "level_2": {
+      "triggers": ["critical"],
+      "delay_minutes": 0,
+      "channels": ["slack", "email", "file"]
+    },
+    "level_3": {
+      "triggers": ["auto_rollback_triggered"],
+      "delay_minutes": 0,
+      "channels": ["slack", "email", "phone", "file"]
+    }
+  },
+  "version": "1.0.0",
+  "last_updated": "2023-10-27T14:15:00Z",
+  "schema_version": "v1"
+}
