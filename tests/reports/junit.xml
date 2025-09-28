@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="2" failures="0" errors="0" time="0.338">
+  <testsuite name="API Health" errors="0" failures="0" skipped="0" timestamp="2025-09-28T18:58:38" time="0.13" tests="2">
+    <testcase classname="API Health should have basic API structure" name="API Health should have basic API structure" time="0.002">
+    </testcase>
+    <testcase classname="API Health should validate video generator module" name="API Health should validate video generator module" time="0.001">
+    </testcase>
+  </testsuite>
+</testsuites>
