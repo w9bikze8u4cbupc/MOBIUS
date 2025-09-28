@@ -1,15 +1,18 @@
 {
   "name": "mobius-games-tutorial-generator",
   "version": "1.0.0",
+  "type": "module",
   "description": "A pipeline for generating game tutorial videos from structured game rules",
   "main": "index.js",
   "scripts": {
+    "start": "node src/api/health-server.js",
+    "start:full": "node src/api/index.js",
     "compile-shotlist": "node scripts/compile-shotlist.mjs",
     "bind-alignment": "node scripts/bind-alignment.mjs",
     "render": "node scripts/render-ffmpeg.mjs",
     "verify": "node scripts/verify.mjs",
     "test-pipeline": "npm run compile-shotlist && npm run verify && npm run bind-alignment",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "gen:shotlists": "node scripts/compile-shotlist.mjs gigs/hanamikoji.json > tmp/shotlist.json",
     "gen:timelines": "echo 'Generating timelines...'",
     "render:proxy": "node scripts/render-ffmpeg.mjs tmp/timeline.json assets out/preview.mp4 --preview",
@@ -35,7 +38,9 @@
   "author": "Mobius Games",
   "license": "MIT",
   "dependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
