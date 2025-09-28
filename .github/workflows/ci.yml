@@ -1,94 +1,179 @@
-name: CI
+name: FastAPI Multi-Platform CI
 
 on:
   push:
+    branches: [main, staging]
   pull_request:
+    branches: [main, staging]
+
+env:
+  PYTHON_VERSION: '3.11'
+  ALLOWED_TOKEN: ${{ secrets.ALLOWED_TOKEN }}
 
 jobs:
-  build-and-qa:
+  lint-and-test:
+    name: Lint & Test
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install deps
-        run: npm ci
-
-      - name: Ensure FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v2
-
-      - name: Install Python (Unix)
-        if: runner.os != 'Windows'
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
 
-      - name: Install Python (Windows)
-        if: runner.os == 'Windows'
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-        shell: pwsh
+          pip install -r requirements.txt
+        shell: bash
 
-      - name: Build
-        run: npm run build --if-present
-
-      - name: Unit tests
-        run: npm test -- --ci --reporters=default
-
-      - name: Render preview
+      - name: Install dev dependencies
         run: |
-          mkdir -p out artifacts
-          npm run render:preview # <- replace with your preview command
+          pip install pytest pytest-asyncio pytest-cov black==23.9.1 isort flake8
         shell: bash
 
-      - name: Audio ebur128
+      - name: Lint with isort
         run: |
-          ffmpeg -hide_banner -nostats -i out/preview_with_audio.mp4 -filter_complex ebur128 -f null - 2> artifacts/preview_with_audio_ebur128.txt
+          isort --check-only --diff src/ tests/
         shell: bash
 
-      - name: Capture provenance (Unix)
-        if: runner.os != 'Windows'
-        run: bash scripts/capture_provenance.sh artifacts out/preview_with_audio.mp4
+      - name: Lint with black
+        run: |
+          black --check --diff src/ tests/
         shell: bash
 
-      - name: Capture provenance (Windows)
-        if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/capture_provenance.ps1 artifacts out/preview_with_audio.mp4
-        shell: cmd
-
-      - name: Audio gates (Unix)
-        if: runner.os != 'Windows'
-        run: python3 scripts/check_audio_compliance.py artifacts/preview_with_audio_ebur128.txt
+      - name: Lint with flake8
+        run: |
+          flake8 src/ tests/ --max-line-length=88 --extend-ignore=E203,W503
         shell: bash
 
-      - name: Audio gates (Windows)
-        if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/check_audio_compliance.ps1 artifacts/preview_with_audio_ebur128.txt
-        shell: cmd
-
-      - name: Container gates (Unix)
-        if: runner.os != 'Windows'
-        run: bash scripts/check_container.sh artifacts/preview_ffprobe.json
+      - name: Test with pytest
+        run: |
+          mkdir -p test-results
+          pytest --cov=src --cov-report=xml:coverage.xml --junitxml=test-results/results.xml -v
         shell: bash
 
-      - name: Container gates (Windows)
-        if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/check_container.ps1 artifacts/preview_ffprobe.json
-        shell: cmd
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.os }}
+          path: |
+            coverage.xml
+            test-results/results.xml
 
-      - name: Upload artifacts
+  docker-build-and-smoke:
+    name: Docker Build & Smoke Test
+    needs: lint-and-test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up QEMU (for multi-arch)
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --tag mobius-fastapi:latest \
+            --load \
+            .
+        shell: bash
+
+      - name: Run Docker smoke test
+        run: |
+          # Start container in background
+          docker run -d --name mobius-test -p 8000:8000 mobius-fastapi:latest
+          
+          # Wait for container to be ready
+          sleep 10
+          
+          # Test health endpoint with auth token
+          curl -f -H "Authorization: Bearer ${{ env.ALLOWED_TOKEN }}" http://localhost:8000/health || exit 1
+          
+          # Capture logs
+          mkdir -p artifacts
+          docker logs mobius-test > artifacts/container-logs-${{ matrix.os }}.txt 2>&1
+          
+          # Stop container
+          docker stop mobius-test
+          docker rm mobius-test
+        shell: bash
+
+      - name: Upload container artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: qa-${{ matrix.os }}
-          path: |
-            artifacts/**
-            out/preview_with_audio.mp4
+          name: container-artifacts-${{ matrix.os }}
+          path: artifacts/
+
+  staging-e2e:
+    name: Staging E2E Smoke Test
+    needs: [lint-and-test, docker-build-and-smoke]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/staging'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Run docker-compose E2E
+        run: |
+          # Create docker-compose override for staging
+          cat > docker-compose.staging.yml << EOF
+          version: '3.8'
+          services:
+            api:
+              environment:
+                - ENVIRONMENT=staging
+                - ALLOWED_TOKEN=${{ env.ALLOWED_TOKEN }}
+            
+            db:
+              environment:
+                - POSTGRES_DB=mobius_staging
+          EOF
+          
+          # Start full stack
+          docker-compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+          
+          # Wait for services
+          sleep 30
+          
+          # Run E2E smoke tests
+          docker-compose exec -T api python -m pytest tests/e2e/ -v || exit 1
+          
+          # Capture logs
+          mkdir -p artifacts
+          docker-compose logs > artifacts/e2e-logs.txt
+          
+          # Cleanup
+          docker-compose down -v
+        shell: bash
+
+      - name: Upload E2E artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-staging-artifacts
+          path: artifacts/
