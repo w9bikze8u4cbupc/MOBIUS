@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - ALLOWED_TOKEN=${ALLOWED_TOKEN:-dev_token_here}
+    volumes:
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mobius-net
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./client/src:/app/src
+      - ./client/public:/app/public
+    environment:
+      - REACT_APP_BACKEND_URL=http://localhost:8000
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+    networks:
+      - mobius-net
+
+  # Node.js API (existing)
+  api:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM node:20-slim
+        WORKDIR /app
+        COPY package*.json ./
+        RUN npm ci
+        COPY src ./src
+        EXPOSE 5001
+        CMD ["node", "src/api/index.js"]
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./src:/app/src
+      - ./uploads:/app/uploads
+    environment:
+      - PORT=5001
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - IMAGE_EXTRACTOR_API_KEY=${IMAGE_EXTRACTOR_API_KEY}
+    networks:
+      - mobius-net
+
+networks:
+  mobius-net:
+    driver: bridge
+
+volumes:
+  backend_data:
+    driver: local
