@@ -92,11 +92,17 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            --tag mobius-fastapi:latest \
-            --load \
-            .
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            # Multi-arch build on Linux
+            docker buildx build \
+              --platform linux/amd64,linux/arm64 \
+              --tag mobius-fastapi:latest \
+              --load \
+              .
+          else
+            # Single arch build on macOS/Windows  
+            docker build --tag mobius-fastapi:latest .
+          fi
         shell: bash
 
       - name: Run Docker smoke test

@@ -54,6 +54,12 @@ tmp.*
 # Coverage data
 coverage/
 *.lcov
+.coverage
+coverage.xml
+
+# Test results
+test-results/
+*.xml
 
 # Optional files (if you generate these)
 *.mp3
@@ -66,6 +72,18 @@ tests/golden/reports/
 
 # Node.js dependencies
 node_modules/
+
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
 
 # Log files
 *.log
