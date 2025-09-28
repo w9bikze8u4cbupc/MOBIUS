@@ -41,6 +41,7 @@
     "@types/jest": "^29.5.14",
     "@types/node": "^18.0.0",
     "jest": "^29.7.0",
+    "jest-junit": "^16.0.0",
     "ts-jest": "^29.4.1",
     "ts-node": "^10.9.1"
   },
@@ -48,14 +49,32 @@
     "preset": "ts-jest",
     "testEnvironment": "node",
     "roots": [
-      "<rootDir>/src"
+      "<rootDir>/src",
+      "<rootDir>/scripts"
     ],
     "testMatch": [
       "**/__tests__/**/*.ts",
-      "**/?(*.)+(spec|test).ts"
+      "**/__tests__/**/*.js",
+      "**/?(*.)+(spec|test).ts",
+      "**/?(*.)+(spec|test).js"
     ],
     "transform": {
       "^.+\\.tsx?$": "ts-jest"
-    }
+    },
+    "reporters": [
+      "default",
+      ["jest-junit", {
+        "outputDirectory": ".",
+        "outputName": "junit.xml"
+      }]
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.{js,ts}",
+      "scripts/**/*.{js,ts}",
+      "!**/*.d.ts",
+      "!**/node_modules/**"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": ["text", "lcov", "html"]
   }
 }
