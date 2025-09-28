@@ -3,6 +3,7 @@ import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.entry";
+import GlowingOrbWithBackend from "./components/GlowingOrbWithBackend";
 
 // Configure PDF.js worker
 GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -838,6 +839,12 @@ function App() {
       )}
 
 
+      {/* FastAPI Backend Integration Demo */}
+      <div style={{ marginTop: 40, padding: 20, border: "2px dashed #ccc", borderRadius: 8 }}>
+        <h3>🚀 FastAPI Backend Integration Demo</h3>
+        <p>This component demonstrates the new FastAPI backend with real-time job processing and WebSocket updates.</p>
+        <GlowingOrbWithBackend />
+      </div>
       {/* Footer */}
       <footer style={{ marginTop: 60, color: "#888", fontSize: 14, textAlign: "center" }}>
         <div>
