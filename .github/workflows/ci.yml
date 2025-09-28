@@ -1,94 +1,194 @@
-name: CI
+name: Multi-Platform FastAPI CI
 
 on:
   push:
+    branches: [main, staging]
   pull_request:
+    branches: [main, staging]
 
 jobs:
-  build-and-qa:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  # Linting job - runs on Ubuntu only for speed
+  lint:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install deps
-        run: npm ci
-
-      - name: Ensure FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v2
-
-      - name: Install Python (Unix)
-        if: runner.os != 'Windows'
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
-      - name: Install Python (Windows)
-        if: runner.os == 'Windows'
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install backend dependencies
         run: |
+          cd backend
           python -m pip install --upgrade pip
-        shell: pwsh
+          pip install -r requirements.txt
 
-      - name: Build
-        run: npm run build --if-present
-
-      - name: Unit tests
-        run: npm test -- --ci --reporters=default
-
-      - name: Render preview
+      - name: Check code formatting with Black
         run: |
-          mkdir -p out artifacts
-          npm run render:preview # <- replace with your preview command
-        shell: bash
+          cd backend
+          black --check --diff .
 
-      - name: Audio ebur128
+      - name: Lint with flake8
         run: |
-          ffmpeg -hide_banner -nostats -i out/preview_with_audio.mp4 -filter_complex ebur128 -f null - 2> artifacts/preview_with_audio_ebur128.txt
-        shell: bash
+          cd backend
+          flake8 .
 
-      - name: Capture provenance (Unix)
-        if: runner.os != 'Windows'
-        run: bash scripts/capture_provenance.sh artifacts out/preview_with_audio.mp4
-        shell: bash
+      - name: Check import sorting with isort
+        run: |
+          cd backend
+          isort --check-only --diff .
 
-      - name: Capture provenance (Windows)
-        if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/capture_provenance.ps1 artifacts out/preview_with_audio.mp4
-        shell: cmd
+  # Multi-platform test matrix
+  test:
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.11']
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Audio gates (Unix)
-        if: runner.os != 'Windows'
-        run: python3 scripts/check_audio_compliance.py artifacts/preview_with_audio_ebur128.txt
-        shell: bash
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
 
-      - name: Audio gates (Windows)
-        if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/check_audio_compliance.ps1 artifacts/preview_with_audio_ebur128.txt
-        shell: cmd
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/pip
+            ~/AppData/Local/pip/Cache
+            ~/Library/Caches/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-      - name: Container gates (Unix)
-        if: runner.os != 'Windows'
-        run: bash scripts/check_container.sh artifacts/preview_ffprobe.json
-        shell: bash
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Container gates (Windows)
-        if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/check_container.ps1 artifacts/preview_ffprobe.json
-        shell: cmd
+      - name: Run pytest with coverage
+        run: |
+          cd backend
+          pytest -v --cov=. --cov-report=xml --cov-report=term-missing
 
-      - name: Upload artifacts
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.os }}
+          path: |
+            backend/coverage.xml
+            backend/.pytest_cache/
+
+  # Docker build and smoke test - Ubuntu only
+  docker-smoke-test:
+    needs: lint
+    runs-on: ubuntu-latest
+    env:
+      ALLOWED_TOKEN: ${{ secrets.ALLOWED_TOKEN }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          cd backend
+          docker build -t mobius-ingestion:test .
+
+      - name: Run Docker container for smoke test
+        run: |
+          # Start container in background
+          docker run -d \
+            --name mobius-test \
+            -p 8000:8000 \
+            -e ALLOWED_TOKEN="${ALLOWED_TOKEN}" \
+            mobius-ingestion:test
+
+      - name: Wait for container to start
+        run: |
+          echo "Waiting for container to be ready..."
+          timeout=30
+          while [ $timeout -gt 0 ]; do
+            if docker exec mobius-test curl -f http://localhost:8000/health >/dev/null 2>&1; then
+              echo "Container is ready!"
+              break
+            fi
+            echo "Waiting... ($timeout seconds remaining)"
+            sleep 1
+            timeout=$((timeout - 1))
+          done
+          
+          if [ $timeout -eq 0 ]; then
+            echo "Container failed to start within 30 seconds"
+            docker logs mobius-test
+            exit 1
+          fi
+
+      - name: Test health endpoint
+        run: |
+          response=$(curl -s http://localhost:8000/health)
+          echo "Health endpoint response: $response"
+          
+          # Verify response contains expected fields
+          if echo "$response" | grep -q '"status":"healthy"' && echo "$response" | grep -q '"service":"mobius-ingestion"'; then
+            echo "✅ Health check passed"
+          else
+            echo "❌ Health check failed"
+            exit 1
+          fi
+
+      - name: Test authenticated endpoint
+        run: |
+          # Test without auth (should fail)
+          if curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/api/status | grep -q "403\|401"; then
+            echo "✅ Unauthenticated request correctly rejected"
+          else
+            echo "❌ Unauthenticated request should have been rejected"
+            exit 1
+          fi
+          
+          # Test with auth (should succeed)
+          if [ -n "${ALLOWED_TOKEN}" ]; then
+            response=$(curl -s -H "Authorization: Bearer ${ALLOWED_TOKEN}" http://localhost:8000/api/status)
+            if echo "$response" | grep -q '"authenticated":true'; then
+              echo "✅ Authenticated request succeeded"
+            else
+              echo "❌ Authenticated request failed: $response"
+              exit 1
+            fi
+          else
+            echo "⚠️  ALLOWED_TOKEN not set, skipping authenticated test"
+          fi
+
+      - name: Cleanup container
+        if: always()
+        run: |
+          docker stop mobius-test || true
+          docker rm mobius-test || true
+
+      - name: Upload Docker logs
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: qa-${{ matrix.os }}
+          name: docker-logs
           path: |
-            artifacts/**
-            out/preview_with_audio.mp4
+            /tmp/docker-logs.txt

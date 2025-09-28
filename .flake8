@@ -1,0 +1,16 @@
+[flake8]
+max-line-length = 88
+extend-ignore = E203, W503
+exclude = 
+    .git,
+    __pycache__,
+    build,
+    dist,
+    *.egg-info,
+    .venv,
+    venv,
+    .env
+per-file-ignores = 
+    # Allow star imports in __init__.py files
+    __init__.py:F401,F403
+max-complexity = 10
