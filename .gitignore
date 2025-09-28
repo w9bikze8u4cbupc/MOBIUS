@@ -16,6 +16,13 @@ yarn-error.log*
 .env.test
 *.env*
 
+# Python Virtual Environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
 # IDE and editor specific
 .idea/
 .vscode/
