@@ -73,3 +73,13 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+backend/.coverage
+backend/coverage.xml
+backend/results.xml
+*.pyc
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
