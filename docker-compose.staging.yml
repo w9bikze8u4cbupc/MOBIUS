@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  mobius-api:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=staging
+      - PORT=5001
+      - ALLOWED_TOKEN=${ALLOWED_TOKEN:-staging-test-token}
+    volumes:
+      - ./uploads:/app/uploads
+      - ./tmp:/app/tmp
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # Optional: Add a database service if needed later
+  # db:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_DB: mobius
+  #     POSTGRES_USER: mobius
+  #     POSTGRES_PASSWORD: mobius
+  #   volumes:
+  #     - db_data:/var/lib/postgresql/data
+
+# volumes:
+#   db_data:
