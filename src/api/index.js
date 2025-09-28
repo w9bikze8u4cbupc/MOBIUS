@@ -20,7 +20,6 @@ import { extractTextFromPDF } from './pdfUtils.js';
 import { extractComponentsFromText } from './utils.js';
 import { extractComponentsWithAI } from './aiUtils.js';
 import multer from 'multer';
-import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
 
@@ -53,7 +52,14 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // --- API Configuration ---
 const BACKEND_URL = `http://localhost:${port}`;
 const IMAGE_EXTRACTOR_API_KEY = process.env.IMAGE_EXTRACTOR_API_KEY;
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Handle missing OpenAI API key gracefully for containerized testing
+let openai = null;
+if (process.env.OPENAI_API_KEY) {
+  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+} else {
+  console.warn('⚠️ OpenAI API key not provided. AI features will be disabled.');
+}
 
 // Validate OUTPUT_DIR at startup  
 const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(__dirname, 'uploads', 'MobiusGames');
@@ -1628,29 +1634,44 @@ app.post('/summarize', async (req, res) => {
       `;
 
       const finalPrompt =
-      (resummarize && previousSummary)
-      ? englishBasePrompt.replace(
-      'Here is the rulebook text:',
-      `Here is the rulebook text and additional context:
+        (resummarize && previousSummary)
+        ? englishBasePrompt.replace(
+            'Here is the rulebook text:',
+            `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
-      Previous Summary: ${previousSummary}
+            Components List: ${JSON.stringify(components)}
+            Game Metadata: ${JSON.stringify(metadata)}
+            Previous Summary: ${previousSummary}
 
-      Rulebook Text:        )       : englishBasePrompt           .replace(             'Here is the rulebook text:',            Here is the rulebook text and additional context:
+            Rulebook Text:`
+          )
+        : englishBasePrompt
+            .replace(
+              'Here is the rulebook text:',
+              `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
+              Components List: ${JSON.stringify(components)}
+              Game Metadata: ${JSON.stringify(metadata)}
 
-      Rulebook Text:          )           .replace(             'Component Overview:',            Component Overview:
+              Rulebook Text:`
+            )
+            .replace(
+              'Component Overview:',
+              `Component Overview:
 
-          Use the provided components list: ${JSON.stringify(components)}
-          Provide exact quantities and clear descriptions for each component
-          Add visual cues like "[Show close-up of resource tokens]" or "[Display all cards fanned out]"
-          Mention any unique or unusual pieces that distinguish this game        )         .replace(           'Setup:',          Setup:
-          Reference the components list for accurate quantities: ${JSON.stringify(components)}
-          Walk through setup step-by-step with detailed instructions (e.g., "Shuffle the 40 mission cards thoroughly, then place them face-down in the center")
-          Add visual placeholders like "[Overhead shot: Initial board setup]" or "[Animation: Card placement]"
-          Highlight common setup mistakes and how to avoid them`
-          );
+              Use the provided components list: ${JSON.stringify(components)}
+              Provide exact quantities and clear descriptions for each component
+              Add visual cues like "[Show close-up of resource tokens]" or "[Display all cards fanned out]"
+              Mention any unique or unusual pieces that distinguish this game`
+            )
+            .replace(
+              'Setup:',
+              `Setup:
+              Reference the components list for accurate quantities: ${JSON.stringify(components)}
+              Walk through setup step-by-step with detailed instructions (e.g., "Shuffle the 40 mission cards thoroughly, then place them face-down in the center")
+              Add visual placeholders like "[Overhead shot: Initial board setup]" or "[Animation: Card placement]"
+              Highlight common setup mistakes and how to avoid them`
+            );
 
       console.log('Final prompt (truncated):', finalPrompt.slice(0, 500));
       
@@ -2818,6 +2839,11 @@ app.get('/load-project/:id', (req, res) => {
       }
     }
   );
+});
+
+// Health check endpoint for Docker
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
 const PORT = process.env.PORT || 5001;
