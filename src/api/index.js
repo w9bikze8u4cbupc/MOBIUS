@@ -84,6 +84,45 @@ app.use((req, res, next) => {
   next();  
 });
 
+// --- Basic Health Endpoints ---
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    service: 'MOBIUS API',
+    timestamp: new Date().toISOString() 
+  });
+});
+
+app.get('/health', (req, res) => {
+  // Simple health check with optional authentication
+  const authHeader = req.headers.authorization;
+  const allowedToken = process.env.ALLOWED_TOKEN;
+  
+  if (allowedToken && authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    if (token === allowedToken) {
+      res.json({
+        status: 'healthy',
+        authenticated: true,
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+      });
+    } else {
+      res.status(401).json({ error: 'Invalid token' });
+    }
+  } else if (!allowedToken) {
+    // No token required, return basic health
+    res.json({
+      status: 'healthy',
+      authenticated: false,
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime()
+    });
+  } else {
+    res.status(401).json({ error: 'Authentication required' });
+  }
+});
+
 
 
 // --- API Endpoint for Explaining Text Chunks ---

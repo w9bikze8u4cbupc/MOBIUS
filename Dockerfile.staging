@@ -1,0 +1,33 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy source code
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+
+# Create uploads directory
+RUN mkdir -p uploads
+
+# Expose port
+EXPOSE 5001
+
+# Install ffmpeg for video processing
+RUN apk add --no-cache ffmpeg
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "const http = require('http'); \
+    const options = { host: 'localhost', port: 5001, path: '/', timeout: 2000 }; \
+    const req = http.get(options, (res) => process.exit(res.statusCode === 200 ? 0 : 1)); \
+    req.on('error', () => process.exit(1)); \
+    req.on('timeout', () => { req.destroy(); process.exit(1); });"
+
+# Start the application
+CMD ["node", "src/api/index.js"]

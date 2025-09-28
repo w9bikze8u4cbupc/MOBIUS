@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.staging
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=staging
+      - PORT=5001
+      - ALLOWED_TOKEN=${ALLOWED_TOKEN}
+    volumes:
+      - ./src:/app/src
+      - ./uploads:/app/uploads
+    depends_on:
+      - client
+    command: ["node", "src/api/index.js"]
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.staging
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=staging
+      - REACT_APP_API_URL=http://localhost:5001
+    volumes:
+      - ./client/src:/app/src
+    command: ["npm", "start"]
+
+networks:
+  default:
+    name: mobius-staging
