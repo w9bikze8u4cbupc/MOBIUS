@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mobius-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ALLOWED_TOKEN=${ALLOWED_TOKEN:-dev-token-123}
+      - REACT_APP_API_TOKEN=${REACT_APP_API_TOKEN:-dev-token-123}
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend:/app
+    networks:
+      - mobius-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # React Frontend (if needed)
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: mobius-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_API_TOKEN=${REACT_APP_API_TOKEN:-dev-token-123}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - mobius-network
+
+  # Optional: Redis for job queue (production enhancement)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: mobius-redis
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - mobius-network
+  #   command: redis-server --appendonly yes
+  #   volumes:
+  #     - redis-data:/data
+
+networks:
+  mobius-network:
+    driver: bridge
+
+volumes:
+  uploads-data:
+  # redis-data:

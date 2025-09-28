@@ -38,6 +38,65 @@ jobs:
           python -m pip install --upgrade pip
         shell: pwsh
 
+      # Backend testing (FastAPI)
+      - name: Setup backend (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd backend
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+        shell: bash
+
+      - name: Setup backend (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd backend
+          python -m venv .venv
+          .\.venv\Scripts\Activate.ps1
+          pip install --upgrade pip
+          pip install -r requirements.txt
+        shell: pwsh
+
+      - name: Lint backend (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd backend
+          source .venv/bin/activate
+          flake8 main.py test_api.py --max-line-length=88 --extend-ignore=E203,W503
+          black --check main.py test_api.py --line-length=88
+        shell: bash
+
+      - name: Lint backend (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd backend
+          .\.venv\Scripts\Activate.ps1
+          flake8 main.py test_api.py --max-line-length=88 --extend-ignore=E203,W503
+          black --check main.py test_api.py --line-length=88
+        shell: pwsh
+
+      - name: Test backend (Unix)
+        if: runner.os != 'Windows'
+        env:
+          ALLOWED_TOKEN: test-token-123
+        run: |
+          cd backend
+          source .venv/bin/activate
+          python -m pytest test_api.py -v
+        shell: bash
+
+      - name: Test backend (Windows)
+        if: runner.os == 'Windows'
+        env:
+          ALLOWED_TOKEN: test-token-123
+        run: |
+          cd backend
+          .\.venv\Scripts\Activate.ps1
+          python -m pytest test_api.py -v
+        shell: pwsh
+
       - name: Build
         run: npm run build --if-present
 
