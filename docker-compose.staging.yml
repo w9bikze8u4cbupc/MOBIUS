@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   api-ci:
     build:
@@ -11,9 +9,4 @@ services:
       - NODE_ENV=container
       - USE_MOCKS=true
       - PORT=5001
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:5001/health"]
-      interval: 5s
-      timeout: 3s
-      retries: 6
     restart: "no"

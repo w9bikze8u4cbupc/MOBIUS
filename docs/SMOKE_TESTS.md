@@ -11,13 +11,13 @@ Build and run locally:
 1. Build
 
 ```bash
-docker-compose -f docker-compose.staging.yml build
+docker compose -f docker-compose.staging.yml build
 ```
 
 2. Start the CI API service
 
 ```bash
-docker-compose -f docker-compose.staging.yml up -d api-ci
+docker compose -f docker-compose.staging.yml up -d api-ci
 ```
 
 3. Run the smoke test script (bundled in repo)
@@ -29,7 +29,7 @@ docker-compose -f docker-compose.staging.yml up -d api-ci
 4. Tear down
 
 ```bash
-docker-compose -f docker-compose.staging.yml down -v
+docker compose -f docker-compose.staging.yml down -v
 ```
 
 Expected /health JSON:

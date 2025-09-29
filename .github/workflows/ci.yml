@@ -75,11 +75,11 @@ jobs:
 
       - name: Build CI API container
         run: |
-          docker-compose -f docker-compose.staging.yml build --progress=plain
+          docker compose -f docker-compose.staging.yml build
 
       - name: Start CI API (detached)
         run: |
-          docker-compose -f docker-compose.staging.yml up -d api-ci
+          docker compose -f docker-compose.staging.yml up -d api-ci
 
       - name: Run smoke test script (with retries and timeouts)
         id: run_smoke
@@ -93,7 +93,7 @@ jobs:
       - name: Collect compose logs (always)
         if: always()
         run: |
-          docker-compose -f docker-compose.staging.yml logs --no-color > api-ci-compose.logs || true
+          docker compose -f docker-compose.staging.yml logs --no-color > api-ci-compose.logs || true
 
       - name: Upload compose logs
         if: always()
@@ -105,4 +105,4 @@ jobs:
       - name: Teardown containers
         if: always()
         run: |
-          docker-compose -f docker-compose.staging.yml down -v --remove-orphans
+          docker compose -f docker-compose.staging.yml down -v --remove-orphans
