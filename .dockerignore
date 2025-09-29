@@ -1,0 +1,73 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.npmrc
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+*.env*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs and runtime data
+*.log
+logs/
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Build artifacts
+dist/
+build/
+
+# Temporary files
+tmp/
+temp/
+
+# Documentation and non-essential files
+*.md
+!README.md
+docs/
+tests/
+
+# CI/CD files
+.github/
+.gitignore
+.git/
+
+# Project specific excludes
+client/
+scripts/
+src/api/
+src/services/
+src/utils/
+src/video_generator.py
+package.json
+package-lock.json
