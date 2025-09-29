@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./src/api
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=test
+      - PORT=5001
+      # Add other environment variables as needed for testing
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      # Mount uploads directory for testing
+      - api-uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5001/health', res => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - mobius-network
+
+  # Smoke test service
+  api-smoke-test:
+    image: curlimages/curl:latest
+    depends_on:
+      api:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Running API smoke tests...'
+        
+        # Test health endpoint
+        curl -f http://api:5001/health || exit 1
+        echo 'Health check passed'
+        
+        # Test basic API response
+        curl -f -H 'Content-Type: application/json' http://api:5001/ || echo 'Root endpoint test (may not exist)'
+        
+        # Add more specific API endpoint tests here based on your API
+        echo 'API smoke tests completed successfully'
+      "
+    networks:
+      - mobius-network
+
+volumes:
+  api-uploads:
+
+networks:
+  mobius-network:
+    driver: bridge

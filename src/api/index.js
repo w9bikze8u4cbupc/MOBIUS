@@ -2820,6 +2820,15 @@ app.get('/load-project/:id', (req, res) => {
   );
 });
 
+// Health check endpoint for containerized deployment
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    service: 'mobius-api'
+  });
+});
+
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
