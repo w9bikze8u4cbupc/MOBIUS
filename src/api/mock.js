@@ -67,11 +67,13 @@ const mockResponses = {
   }
 };
 
-const isMockMode = () => MOCK_MODE;
+function isMockMode() {
+  return MOCK_MODE;
+}
 
-const getMockResponse = (endpoint) => {
+function getMockResponse(endpoint) {
   return mockResponses[endpoint] || { error: 'Mock response not defined for ' + endpoint };
-};
+}
 
 module.exports = {
   isMockMode,

@@ -1,11 +1,8 @@
 # CI-only Dockerfile for mock API
 FROM node:20-alpine
 
-# Install system dependencies
+# Install system dependencies  
 RUN apk add --no-cache \
-    ffmpeg \
-    python3 \
-    py3-pip \
     curl \
     bash
 
@@ -15,15 +12,15 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install only express and cors for CI mode
+RUN npm install express cors
 
-# Copy source code
-COPY src/ ./src/
-COPY scripts/ ./scripts/
+# Copy source code for CI server
+COPY src/api/ci-server.js ./src/api/
+COPY src/api/mock.js ./src/api/
 
 # Create uploads directory structure
-RUN mkdir -p /app/uploads/extracted-images /app/uploads/tmp /app/uploads/pages
+RUN mkdir -p /app/uploads
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S appuser && \
@@ -42,4 +39,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 # Start the application in mock mode
 ENV NODE_ENV=ci
 ENV MOBIUS_MODE=mock
-CMD ["node", "src/api/index.js"]
+CMD ["node", "src/api/ci-server.js"]
