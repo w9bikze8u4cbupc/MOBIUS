@@ -1,0 +1,12 @@
+{
+  "name": "mobius-api-ci",
+  "version": "0.1.0",
+  "description": "Minimal CI-only API for smoke tests",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node -e \"console.log('no tests'); process.exit(0)\""
+  },
+  "author": "mobius-ci",
+  "license": "MIT"
+}
