@@ -17,12 +17,12 @@ jobs:
       - name: Run API smoke tests
         run: |
           echo "Starting containerized API smoke tests..."
-          docker-compose -f docker-compose.staging.yml up --build --abort-on-container-exit --exit-code-from api-smoke-test
+          docker compose -f docker-compose.staging.yml up --build --abort-on-container-exit --exit-code-from api-smoke-test
         
       - name: Cleanup
         if: always()
         run: |
-          docker-compose -f docker-compose.staging.yml down -v
+          docker compose -f docker-compose.staging.yml down -v
 
   build-and-qa:
     strategy:
