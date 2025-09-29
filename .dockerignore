@@ -1,0 +1,84 @@
+# Git and version control
+.git
+.gitignore
+.gitattributes
+
+# Documentation and README files
+README.md
+*.md
+docs/
+
+# CI/CD and build artifacts
+.github/
+dist/
+build/
+coverage/
+*.log
+
+# Development dependencies and caches
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+.yarn/
+
+# Environment and secrets
+.env*
+*.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+
+# OS specific files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Test files and test data
+tests/
+**/*.test.js
+**/*.test.ts
+**/*.spec.js
+**/*.spec.ts
+jest.config.*
+__tests__/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Media and asset files (for smaller image)
+*.mp4
+*.mp3
+*.wav
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+out/
+assets/
+uploads/
+
+# Development scripts
+scripts/
+gigs/
+
+# Docker files (avoid recursion)
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Client-side code (API only)
+client/

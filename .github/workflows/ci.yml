@@ -92,3 +92,53 @@ jobs:
           path: |
             artifacts/**
             out/preview_with_audio.mp4
+
+  api-smoke-tests:
+    runs-on: ubuntu-latest
+    needs: [build-and-qa]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build CI image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.ci
+          tags: mobius-api-ci:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start staging stack
+        run: |
+          docker compose -f docker-compose.staging.yml up -d
+          echo "Waiting for service to be ready..."
+
+      - name: Wait for service readiness
+        run: |
+          timeout 60 bash -c 'while ! curl -f http://localhost:5001/health; do sleep 2; done'
+
+      - name: Install jq for smoke tests
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Run smoke tests
+        run: |
+          chmod +x scripts/ci/smoke-tests.sh
+          ./scripts/ci/smoke-tests.sh http://localhost:5001 30 2
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "Collecting container logs..."
+          docker compose -f docker-compose.staging.yml logs
+          echo "Container status:"
+          docker compose -f docker-compose.staging.yml ps
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker-compose.staging.yml down --volumes --remove-orphans

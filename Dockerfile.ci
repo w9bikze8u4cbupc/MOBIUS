@@ -1,0 +1,34 @@
+# Dockerfile.ci - Optimized Node 20 Alpine image for CI testing
+FROM node:20-alpine
+
+# Create non-root user early
+RUN addgroup -g 1001 -S mobius && \
+    adduser -S mobius -u 1001 -G mobius
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files first for better caching
+COPY package*.json ./
+
+# Install dependencies as root, then change ownership
+RUN npm ci --silent && \
+    npm cache clean --force && \
+    chown -R mobius:mobius /app
+
+# Copy source code and set ownership
+COPY --chown=mobius:mobius src/ ./src/
+COPY --chown=mobius:mobius package*.json ./
+
+# Switch to non-root user
+USER mobius
+
+# Expose port
+EXPOSE 5001
+
+# Add healthcheck
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:5001/health || exit 1
+
+# Default command
+CMD ["node", "src/api/ci-server.js"]
