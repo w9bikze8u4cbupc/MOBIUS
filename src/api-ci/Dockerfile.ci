@@ -1,29 +1,27 @@
-# Multi-stage Dockerfile optimized for CI smoke tests
-FROM node:20-alpine AS build
-
-WORKDIR /app
-
-# Install build/runtime utilities required for health checks and minimal deps
-COPY package*.json ./
-RUN apk add --no-cache curl wget ca-certificates && npm install --production
-
-# Copy source
-COPY . .
-
+# Single-stage Dockerfile optimized for CI smoke tests
 FROM node:20-alpine
+
 WORKDIR /app
-COPY --from=build /app /app
+
+# Copy package files and install dependencies
+COPY package*.json ./
+RUN npm install --production
+
+# Copy source code
+COPY . .
 
 # Add a non-root user with fixed UID for CI reproducibility
 RUN addgroup -g 1001 -S mobius && adduser -u 1001 -S mobius -G mobius
+
+# Switch to non-root user
 USER mobius
 
 ENV NODE_ENV=container
 ENV PORT=5001
 EXPOSE 5001
 
-# Healthcheck uses wget to be compatible on minimal images
+# Simple healthcheck without external tools - just check if port is listening
 HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=6 \
-  CMD wget -qO- http://localhost:5001/health || exit 1
+  CMD node -e "require('http').get('http://localhost:5001/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 CMD ["node", "index.js"]
