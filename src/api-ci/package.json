@@ -1,0 +1,17 @@
+{
+  "name": "mobius-api-ci",
+  "version": "0.1.0",
+  "description": "Lightweight CI-only API for smoke testing containerized builds",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "keywords": ["ci", "api", "smoke-tests", "docker"],
+  "author": "Mobius Games",
+  "license": "MIT"
+}
