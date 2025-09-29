@@ -64,6 +64,9 @@ coverage/
 tests/golden/**/debug/
 tests/golden/reports/
 
+# Genesis verification reports
+verification-reports/
+
 # Node.js dependencies
 node_modules/
 
