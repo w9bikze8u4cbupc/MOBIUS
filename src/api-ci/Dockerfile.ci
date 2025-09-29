@@ -1,0 +1,39 @@
+# Multi-stage Dockerfile optimized for CI smoke tests
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+# Copy package files first for caching
+COPY package*.json ./
+
+# Install dependencies first, then utilities
+RUN npm install --production
+
+# Install utilities separately to avoid conflicts
+RUN apk add --no-cache wget curl || echo "Failed to install utilities, continuing without them"
+
+# Copy source
+COPY . .
+
+FROM node:20-alpine
+WORKDIR /app
+
+# Install utilities in final stage
+RUN apk add --no-cache wget curl || echo "Failed to install utilities, continuing without them"
+
+# Copy application
+COPY --from=build /app /app
+
+# Add a non-root user with fixed UID for CI reproducibility
+RUN addgroup -g 1001 -S mobius && adduser -u 1001 -S mobius -G mobius
+USER mobius
+
+ENV NODE_ENV=container
+ENV PORT=5001
+EXPOSE 5001
+
+# Healthcheck uses wget if available, otherwise try curl
+HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=6 \
+  CMD wget -qO- http://localhost:5001/health || curl -f http://localhost:5001/health || exit 1
+
+CMD ["node", "index.js"]
