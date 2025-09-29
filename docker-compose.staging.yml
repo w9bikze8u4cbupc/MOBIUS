@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  api-ci:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=ci
+      - MOBIUS_MODE=mock
+      - PORT=5001
+      - OUTPUT_DIR=/app/uploads
+    volumes:
+      - api_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  api_uploads:
+    driver: local

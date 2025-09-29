@@ -23,6 +23,7 @@ import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
+import { isMockMode, getMockResponse } from './mock.js';
 
 
 
@@ -101,6 +102,12 @@ app.post('/api/explain-chunk', async (req, res) => {
     console.error('Error in /api/explain-chunk:', err);  
     res.status(500).json({ error: 'Failed to generate explanation.' });  
   }  
+});
+
+// --- Health Check Endpoint ---
+app.get('/health', (req, res) => {
+  const healthData = getMockResponse('health');
+  res.json(healthData);
 });
 
 // --- Save Project Endpoint ---
@@ -323,6 +330,12 @@ function cleanComponents(components) {
 // Optional: Route to get just components (lighter endpoint)
 app.get('/api/bgg-components', async (req, res) => {
   try {
+    // Check if in mock mode
+    if (isMockMode()) {
+      console.log('Running in mock mode - returning mock BGG components');
+      return res.json(getMockResponse('bggComponents'));
+    }
+
     const { url } = req.query;
     
     if (!url) {
@@ -375,7 +388,14 @@ app.get('/api/bgg-components', async (req, res) => {
 
 app.post('/api/extract-components', async (req, res) => {    
   try {    
-    console.log('Starting component extraction...');    
+    console.log('Starting component extraction...');
+    
+    // Check if in mock mode
+    if (isMockMode()) {
+      console.log('Running in mock mode - returning mock component extraction');
+      return res.json(getMockResponse('extractComponents'));
+    }
+    
     const pdfPath = req.body.pdfPath;    
     if (!pdfPath) {    
       return res.status(400).json({ error: 'No PDF path provided' });    
