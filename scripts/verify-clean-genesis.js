@@ -172,6 +172,13 @@ class GenesisVerifier {
       return true;
     }
     
+    // Skip documentation about genesis verification (legitimate)
+    if (filePath.includes('docs/genesis-verification.md') ||
+        filePath.includes('README') ||
+        filePath.includes('CHANGELOG')) {
+      return true;
+    }
+    
     // Skip other legitimate references (can be expanded as needed)
     return false;
   }
@@ -209,6 +216,13 @@ class GenesisVerifier {
       // Search commit messages
       commits.forEach(commit => {
         if (commit.toLowerCase().includes('genesis')) {
+          // Skip commits that are about the verification script itself
+          if (commit.includes('verification') || 
+              commit.includes('verify-clean-genesis') ||
+              commit.includes('Implement MOBIUS genesis verification')) {
+            return;
+          }
+          
           this.addMatch('git-commit', 'Git History', commit);
         }
       });
@@ -223,6 +237,13 @@ class GenesisVerifier {
         if (gitLogResult.status === 0 && gitLogResult.stdout.trim()) {
           const matches = gitLogResult.stdout.split('\n').filter(line => line.trim());
           matches.forEach(match => {
+            // Skip matches that are about the verification script itself
+            if (match.includes('verification') || 
+                match.includes('verify-clean-genesis') ||
+                match.includes('Implement MOBIUS genesis verification')) {
+              return;
+            }
+            
             this.addMatch('git-content', 'Git History', match);
           });
         }
