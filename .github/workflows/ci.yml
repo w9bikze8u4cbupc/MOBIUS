@@ -92,3 +92,67 @@ jobs:
           path: |
             artifacts/**
             out/preview_with_audio.mp4
+
+  api-smoke-tests:
+    name: API smoke tests (containerized)
+    needs: build-and-qa
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build API container
+        run: |
+          docker compose -f docker-compose.staging.yml build --progress=plain --no-cache
+
+      - name: Start API container (detached)
+        run: |
+          docker compose -f docker-compose.staging.yml up -d api
+
+      - name: Wait for health check (30s timeout)
+        id: wait_health
+        run: |
+          set -euo pipefail
+          timeout=30
+          start=$(date +%s)
+          ok=false
+          while [ $(( $(date +%s) - start )) -lt $timeout ]; do
+            if docker compose -f docker-compose.staging.yml exec -T api sh -c "wget -q -O - http://localhost:5001/health" > /tmp/health.json 2>/dev/null; then
+              echo "Health check response:"
+              cat /tmp/health.json
+              ok=true
+              break
+            fi
+            echo "Waiting for API health..."
+            sleep 2
+          done
+          if [ "$ok" != "true" ]; then
+            echo "Health check did not become healthy within ${timeout}s"
+            exit 1
+          fi
+
+      - name: Validate JSON response
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.staging.yml exec -T api sh -c "wget -q -O - http://localhost:5001/health" > /tmp/health.json
+          jq -e '.status == "healthy" and .mode' /tmp/health.json
+
+      - name: Collect compose logs (always)
+        if: always()
+        run: |
+          docker compose -f docker-compose.staging.yml logs --no-color > api-compose.logs || true
+
+      - name: Upload compose logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-compose-logs
+          path: api-compose.logs
+
+      - name: Teardown containers
+        if: always()
+        run: |
+          docker compose -f docker-compose.staging.yml down -v --remove-orphans
