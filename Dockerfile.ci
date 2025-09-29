@@ -29,7 +29,6 @@ RUN npm ci --only=production --silent && \
 
 # Copy application code
 COPY src/api/ci-server.js ./src/api/
-COPY src/api/package*.json ./src/api/ 2>/dev/null || true
 
 # Change ownership to non-root user
 RUN chown -R mobius:mobius /app

@@ -92,3 +92,65 @@ jobs:
           path: |
             artifacts/**
             out/preview_with_audio.mp4
+
+  # New job: API smoke tests for containerized CI validation
+  api-smoke-tests:
+    needs: build-and-qa
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build CI API image
+        run: |
+          docker build -f Dockerfile.ci -t mobius-api-ci:ci .
+
+      - name: Start staging services
+        run: |
+          docker compose -f docker-compose.staging.yml up -d
+          
+      - name: Wait for API readiness
+        run: |
+          echo "Waiting for API to be ready..."
+          for i in {1..30}; do
+            if curl -f http://localhost:5001/health > /dev/null 2>&1; then
+              echo "API is ready after ${i} attempts"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "API failed to become ready after 30 attempts"
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: Run smoke tests
+        run: |
+          ./scripts/ci/simple-smoke-test.sh http://localhost:5001 30
+        timeout-minutes: 3
+
+      - name: Collect container logs on failure
+        if: failure()
+        run: |
+          echo "=== Container Status ==="
+          docker compose -f docker-compose.staging.yml ps
+          echo "=== API Logs ==="
+          docker compose -f docker-compose.staging.yml logs mobius-api-ci
+          echo "=== Health Check ==="
+          curl -v http://localhost:5001/health || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker-compose.staging.yml down --volumes --remove-orphans

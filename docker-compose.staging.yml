@@ -8,8 +8,6 @@
 #   docker compose -f docker-compose.staging.yml down     # Stop services
 #   docker compose -f docker-compose.staging.yml logs     # View logs
 
-version: '3.8'
-
 services:
   mobius-api-ci:
     build:
