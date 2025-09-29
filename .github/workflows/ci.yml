@@ -5,6 +5,56 @@ on:
   pull_request:
 
 jobs:
+  api-smoke-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build API container
+        run: |
+          cd src/api
+          docker build -t mobius-api:test .
+
+      - name: Run API smoke tests
+        run: |
+          # Start the service with docker compose
+          docker compose -f docker-compose.staging.yml up -d api
+          
+          # Wait for health check with timeout
+          echo "Waiting for API health check..."
+          timeout 30 bash -c 'until curl -f http://localhost:5001/health; do sleep 2; done'
+          
+          # Test health endpoint
+          curl -f http://localhost:5001/health
+          
+          # Test that service returns expected health response
+          response=$(curl -s http://localhost:5001/health)
+          echo "Health check response: $response"
+          
+          # Verify JSON response contains expected fields
+          echo "$response" | jq -r '.status' | grep -q "healthy"
+          echo "$response" | jq -r '.mode' | grep -q "mock"
+
+      - name: Collect container logs
+        if: always()
+        run: |
+          mkdir -p artifacts
+          docker compose -f docker-compose.staging.yml logs api > artifacts/api-container.log 2>&1
+
+      - name: Cleanup containers
+        if: always()
+        run: |
+          docker compose -f docker-compose.staging.yml down -v
+          docker image rm mobius-api:test || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-smoke-test-logs
+          path: artifacts/
+
   build-and-qa:
     strategy:
       fail-fast: false

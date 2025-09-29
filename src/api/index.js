@@ -1,27 +1,41 @@
 
 import express from 'express';
 import cors from 'cors';
-import db from './db.js';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import OpenAI from 'openai';
-import * as pdfToImg from 'pdf-to-img';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execFile } from 'child_process';
 import { ensureDir } from 'fs-extra'; // If you use fs-extra for directory creation  
-import sharp from 'sharp'; // For image processing
 import { dirname } from 'path';
 import { XMLParser } from 'fast-xml-parser';
 import fs, { promises as fsPromises, existsSync } from 'fs';
-import { explainChunkWithAI } from './aiUtils.js';
-import { extractTextFromPDF } from './pdfUtils.js';
-import { extractComponentsFromText } from './utils.js';
-import { extractComponentsWithAI } from './aiUtils.js';
-import multer from 'multer';
-import pdfParse from 'pdf-parse';
-import xml2js from 'xml2js';
+
+// Conditional imports for containerized deployment
+const USE_MOCKS = process.env.NODE_ENV === 'container' || process.env.USE_MOCKS === 'true';
+const mockPath = USE_MOCKS ? './mock/' : './';
+
+const { default: db } = await import(mockPath + 'db.js');
+const { explainChunkWithAI, extractComponentsWithAI } = await import(mockPath + 'aiUtils.js');
+const { extractTextFromPDF } = await import(mockPath + 'pdfUtils.js');
+const { extractComponentsFromText } = await import(mockPath + 'utils.js');
+
+// Only import these if not using mocks
+let multer, pdfParse, xml2js, pdfToImg, sharp;
+if (!USE_MOCKS) {
+  multer = (await import('multer')).default;
+  pdfParse = (await import('pdf-parse')).default;
+  xml2js = (await import('xml2js'));
+  pdfToImg = await import('pdf-to-img');
+  sharp = (await import('sharp')).default;
+} else {
+  // Mock sharp for container mode
+  sharp = () => ({
+    resize: () => ({ jpeg: () => ({ toFile: () => Promise.resolve() }) })
+  });
+}
 import { promisify } from 'node:util';
 
 
@@ -53,7 +67,23 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // --- API Configuration ---
 const BACKEND_URL = `http://localhost:${port}`;
 const IMAGE_EXTRACTOR_API_KEY = process.env.IMAGE_EXTRACTOR_API_KEY;
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Initialize OpenAI client conditionally
+let openai;
+if (USE_MOCKS) {
+  // Mock OpenAI client
+  openai = {
+    chat: {
+      completions: {
+        create: async () => ({
+          choices: [{ message: { content: 'Mock AI response' } }]
+        })
+      }
+    }
+  };
+} else {
+  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
 
 // Validate OUTPUT_DIR at startup  
 const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(__dirname, 'uploads', 'MobiusGames');
@@ -82,6 +112,16 @@ app.use((req, res, next) => {
   // For now, skip API key validation in development  
   console.log(`${req.method} ${req.path} - API key validation skipped`);  
   next();  
+});
+
+// --- Health Check Endpoint ---
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version || '1.0.0',
+    mode: USE_MOCKS ? 'mock' : 'production'
+  });
 });
 
 
@@ -1211,23 +1251,39 @@ function extractComponents(description) {
 }
 
 // --- File Upload Configuration ---
-const storage = multer.diskStorage({  
-  destination: (req, file, cb) => {  
-    const uploadPath = path.join(__dirname, 'uploads'); // ✅ Fixed path
-    if (!existsSync(uploadPath)) {  
-      fs.mkdirSync(uploadPath, { recursive: true });  
-    }  
-    cb(null, uploadPath);  
-  },
-  filename: function (req, file, cb) {
-    // Create a safe filename with timestamp
-    const timestamp = Date.now();
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
-    cb(null, `${timestamp}_${safeName}`);
-  }
-});
+// Setup multer conditionally
+let upload;
+if (USE_MOCKS) {
+  // Mock upload middleware for container mode
+  upload = {
+    single: () => (req, res, next) => {
+      req.file = { filename: 'mock.pdf', path: '/tmp/mock.pdf' };
+      next();
+    },
+    array: () => (req, res, next) => {
+      req.files = [];
+      next();
+    }
+  };
+} else {
+  const storage = multer.diskStorage({  
+    destination: (req, file, cb) => {  
+      const uploadPath = path.join(__dirname, 'uploads'); // ✅ Fixed path
+      if (!existsSync(uploadPath)) {  
+        fs.mkdirSync(uploadPath, { recursive: true });  
+      }  
+      cb(null, uploadPath);  
+    },
+    filename: function (req, file, cb) {
+      // Create a safe filename with timestamp
+      const timestamp = Date.now();
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
+      cb(null, `${timestamp}_${safeName}`);
+    }
+  });
 
-const upload = multer({ storage: storage });
+  upload = multer({ storage: storage });
+}
 
 // Helper function to identify components using AI  
 async function identifyComponents(text) {
@@ -1627,30 +1683,45 @@ app.post('/summarize', async (req, res) => {
       Here is the rulebook text:
       `;
 
-      const finalPrompt =
-      (resummarize && previousSummary)
-      ? englishBasePrompt.replace(
+    const finalPrompt =
+    (resummarize && previousSummary)
+    ? englishBasePrompt.replace(
       'Here is the rulebook text:',
       `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
+      Components List: ${JSON.stringify(components)}
+      Game Metadata: ${JSON.stringify(metadata)}
       Previous Summary: ${previousSummary}
 
-      Rulebook Text:        )       : englishBasePrompt           .replace(             'Here is the rulebook text:',            Here is the rulebook text and additional context:
+      Rulebook Text:`
+      )
+    : englishBasePrompt
+      .replace(
+        'Here is the rulebook text:',
+        `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
+        Components List: ${JSON.stringify(components)}
+        Game Metadata: ${JSON.stringify(metadata)}
 
-      Rulebook Text:          )           .replace(             'Component Overview:',            Component Overview:
+        Rulebook Text:`
+      )
+      .replace(
+        'Component Overview:',
+        `Component Overview:
 
-          Use the provided components list: ${JSON.stringify(components)}
-          Provide exact quantities and clear descriptions for each component
-          Add visual cues like "[Show close-up of resource tokens]" or "[Display all cards fanned out]"
-          Mention any unique or unusual pieces that distinguish this game        )         .replace(           'Setup:',          Setup:
-          Reference the components list for accurate quantities: ${JSON.stringify(components)}
-          Walk through setup step-by-step with detailed instructions (e.g., "Shuffle the 40 mission cards thoroughly, then place them face-down in the center")
-          Add visual placeholders like "[Overhead shot: Initial board setup]" or "[Animation: Card placement]"
-          Highlight common setup mistakes and how to avoid them`
-          );
+        Use the provided components list: ${JSON.stringify(components)}
+        Provide exact quantities and clear descriptions for each component
+        Add visual cues like "[Show close-up of resource tokens]" or "[Display all cards fanned out]"
+        Mention any unique or unusual pieces that distinguish this game`
+      )
+      .replace(
+        'Setup:',
+        `Setup:
+        Reference the components list for accurate quantities: ${JSON.stringify(components)}
+        Walk through setup step-by-step with detailed instructions (e.g., "Shuffle the 40 mission cards thoroughly, then place them face-down in the center")
+        Add visual placeholders like "[Overhead shot: Initial board setup]" or "[Animation: Card placement]"
+        Highlight common setup mistakes and how to avoid them`
+      );
 
       console.log('Final prompt (truncated):', finalPrompt.slice(0, 500));
       
