@@ -1,0 +1,24 @@
+# Dockerfile.ci - optimized for CI smoke tests
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files and install production deps
+COPY package*.json ./
+RUN npm install --production --no-optional
+
+# Copy app
+COPY . .
+
+# Create non-root user
+RUN addgroup -S app && adduser -S app -G app
+USER app
+
+ENV NODE_ENV=container
+ENV PORT=5001
+EXPOSE 5001
+
+HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=6 \
+  CMD wget -qO- http://localhost:5001/health || exit 1
+
+CMD ["node", "index.js"]
