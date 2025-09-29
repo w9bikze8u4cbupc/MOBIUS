@@ -1,0 +1,63 @@
+# .dockerignore - Minimal build context for CI container
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Development files
+.git/
+.github/
+.vscode/
+.idea/
+
+# Build outputs
+dist/
+build/
+out/
+artifacts/
+
+# Testing and CI
+tests/
+coverage/
+*.test.js
+*.spec.js
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Environment and config files
+.env*
+.DS_Store
+Thumbs.db
+
+# Media and assets (not needed for API)
+*.mp3
+*.wav
+*.mp4
+*.pdf
+*.png
+*.jpg
+*.jpeg
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# Client application (not needed for API)
+client/
+
+# Scripts (except what's needed)
+scripts/
+!scripts/ci/
+
+# Other Dockerfiles
+Dockerfile*
+!Dockerfile.ci
+docker-compose*.yml
+!docker-compose.staging.yml

@@ -1,0 +1,49 @@
+# docker-compose.staging.yml - Local/CI orchestration for staging smoke tests
+
+services:
+  mobius-api-ci:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+    container_name: mobius-api-staging
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=production
+      - API_MODE=mock
+      - PORT=5001
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - mobius-staging
+
+  # Optional: Add a test runner service for automated testing
+  smoke-tests:
+    image: alpine:latest
+    depends_on:
+      mobius-api-ci:
+        condition: service_healthy
+    container_name: mobius-smoke-tests
+    volumes:
+      - ./scripts/ci:/scripts
+    working_dir: /scripts
+    command: ["./smoke-tests.sh", "http://mobius-api-ci:5001", "30", "2"]
+    networks:
+      - mobius-staging
+    profiles:
+      - testing
+
+networks:
+  mobius-staging:
+    driver: bridge
+    name: mobius-staging-network
+
+# Volumes for persistent data (if needed in future)
+volumes:
+  staging-data:
+    driver: local
