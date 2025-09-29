@@ -92,3 +92,37 @@ jobs:
           path: |
             artifacts/**
             out/preview_with_audio.mp4
+
+  api-smoke-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Docker Compose
+        run: |
+          sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose || echo "Using built-in docker compose"
+
+      - name: Start API services
+        run: docker compose -f docker-compose.staging.yml up -d
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for API to start..."
+          sleep 15
+          timeout 60 bash -c 'until curl -f http://localhost:5001/health; do echo "Waiting for API..."; sleep 5; done'
+
+      - name: Run smoke tests
+        run: |
+          chmod +x scripts/ci/smoke-tests.sh
+          ./scripts/ci/smoke-tests.sh --api-url http://localhost:5001
+
+      - name: Check container health
+        run: |
+          docker compose -f docker-compose.staging.yml ps
+          docker compose -f docker-compose.staging.yml logs
+
+      - name: Stop services
+        if: always()
+        run: docker compose -f docker-compose.staging.yml down

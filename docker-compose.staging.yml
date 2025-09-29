@@ -1,0 +1,23 @@
+services:
+  mobius-api-ci:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=staging
+      - PORT=5001
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - mobius-ci-network
+
+networks:
+  mobius-ci-network:
+    driver: bridge

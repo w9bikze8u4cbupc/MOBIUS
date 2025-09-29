@@ -1,0 +1,21 @@
+{
+  "name": "mobius-ci-api",
+  "version": "1.0.0",
+  "description": "Lightweight CI API for MOBIUS Games smoke tests",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "keywords": [
+    "mobius",
+    "ci",
+    "api",
+    "health-check"
+  ],
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}

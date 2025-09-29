@@ -1,0 +1,41 @@
+# Node modules (will be installed in container)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Git files
+.git/
+.gitignore
+
+# Documentation and tests (not needed in CI image)
+docs/
+tests/
+*.md
+
+# CI/build artifacts
+artifacts/
+out/
+tmp/
+.github/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Main API (not needed for CI API)
+src/api/
+src/services/
+src/utils/
+
+# Client and other unneeded files
+client/
+scripts/
+gigs/
+assets/
