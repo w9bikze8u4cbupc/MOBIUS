@@ -1,0 +1,60 @@
+# MOBIUS CI Mock API Dockerfile
+# Optimized Node 20 Alpine image for CI/CD testing and validation
+# 
+# Features:
+# - Non-root user execution (mobius:1001)
+# - Minimal dependencies for faster builds
+# - Built-in healthcheck
+# - Production-ready security practices
+
+FROM node:20-alpine
+
+# Set up non-root user for security
+RUN addgroup -g 1001 mobius && \
+    adduser -D -u 1001 -G mobius mobius
+
+# Set working directory
+WORKDIR /app
+
+# Install curl for healthcheck (Alpine minimal)
+RUN apk add --no-cache curl
+
+# Copy package files first for better Docker layer caching
+COPY package*.json ./
+
+# Install dependencies as root, then clean up
+RUN npm ci --only=production --silent && \
+    npm cache clean --force && \
+    rm -rf ~/.npm
+
+# Copy application code
+COPY src/api/ci-server.js ./src/api/
+COPY src/api/package*.json ./src/api/ 2>/dev/null || true
+
+# Change ownership to non-root user
+RUN chown -R mobius:mobius /app
+
+# Switch to non-root user
+USER mobius
+
+# Expose port 5001 (matches ci-server.js default)
+EXPOSE 5001
+
+# Health check using the /health endpoint
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:5001/health || exit 1
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=5001
+
+# Start the CI mock API server
+CMD ["node", "src/api/ci-server.js"]
+
+# Labels for metadata and documentation
+LABEL maintainer="MOBIUS Team"
+LABEL description="CI Mock API Server for testing and validation"
+LABEL version="1.0.0"
+LABEL org.opencontainers.image.source="https://github.com/w9bikze8u4cbupc/MOBIUS"
+LABEL org.opencontainers.image.description="Lightweight mock API for CI/CD pipeline testing"
+LABEL org.opencontainers.image.version="1.0.0"

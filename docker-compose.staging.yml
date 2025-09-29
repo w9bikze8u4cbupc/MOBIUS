@@ -1,0 +1,60 @@
+# MOBIUS Staging Docker Compose
+# 
+# Local and CI orchestration for smoke testing and validation.
+# Designed for fast startup, reliable health checks, and easy debugging.
+#
+# Usage:
+#   docker compose -f docker-compose.staging.yml up -d    # Start services
+#   docker compose -f docker-compose.staging.yml down     # Stop services
+#   docker compose -f docker-compose.staging.yml logs     # View logs
+
+version: '3.8'
+
+services:
+  mobius-api-ci:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+    image: mobius-api-ci:local
+    container_name: mobius-api-staging
+    ports:
+      - "5001:5001"  # Adjust host port if needed to avoid conflicts
+    environment:
+      - NODE_ENV=production
+      - PORT=5001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    # Resource limits to prevent runaway containers in CI
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+    # Logging configuration for CI debugging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Labels for container management and CI identification
+    labels:
+      - "traefik.enable=false"  # Disable Traefik if running
+      - "com.mobius.service=api-ci"
+      - "com.mobius.environment=staging"
+      - "com.mobius.version=1.0.0"
+
+# Networks (optional, using default bridge network for simplicity)
+networks:
+  default:
+    name: mobius-staging
+
+# Volumes (none needed for this stateless service)
+# volumes:
