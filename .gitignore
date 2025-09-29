@@ -69,6 +69,8 @@ node_modules/
 
 # Log files
 *.log
+api-ci-compose.logs
+scripts/ci/smoke-tests.log
 
 # OS generated files
 .DS_Store

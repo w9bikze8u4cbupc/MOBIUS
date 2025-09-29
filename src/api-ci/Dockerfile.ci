@@ -3,12 +3,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files and install production deps
-COPY package*.json ./
-RUN npm install --production --no-optional
-
-# Copy app
+# Copy the entire src/api-ci directory 
 COPY . .
+
+# Install dependencies with npm cache disabled for reproducibility
+RUN npm install --no-cache --production --prefer-offline
 
 # Create non-root user
 RUN addgroup -S app && adduser -S app -G app
@@ -18,7 +17,7 @@ ENV NODE_ENV=container
 ENV PORT=5001
 EXPOSE 5001
 
-HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=6 \
+HEALTHCHECK --interval=5s --timeout=3s --start-period=10s --retries=6 \
   CMD wget -qO- http://localhost:5001/health || exit 1
 
 CMD ["node", "index.js"]
