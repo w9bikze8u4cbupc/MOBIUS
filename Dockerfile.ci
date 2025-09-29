@@ -8,9 +8,11 @@ RUN addgroup -g 1001 -S mobius && \
 # Set working directory
 WORKDIR /app
 
-# Install only production dependencies
-COPY package*.json ./
-RUN npm ci --omit=dev --omit=optional && \
+# Create minimal package.json for CI
+RUN echo '{"name":"mobius-api-ci","version":"1.0.0","type":"module","dependencies":{"express":"^5.1.0","cors":"^2.8.5"}}' > package.json
+
+# Install minimal dependencies
+RUN npm install && \
     npm cache clean --force && \
     chown -R mobius:mobius /app
 
