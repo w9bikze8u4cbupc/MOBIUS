@@ -92,3 +92,54 @@ jobs:
           path: |
             artifacts/**
             out/preview_with_audio.mp4
+
+  api-smoke-tests:
+    runs-on: ubuntu-latest
+    needs: build-and-qa
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build CI container
+        run: |
+          docker compose -f docker-compose.staging.yml build api-ci
+
+      - name: Start API container
+        run: |
+          docker compose -f docker-compose.staging.yml up -d api-ci
+          
+      - name: Wait for API to be ready
+        run: |
+          timeout 60 bash -c 'while ! curl -f -s http://localhost:5001/health > /dev/null; do sleep 2; done'
+          echo "API is ready"
+
+      - name: Run smoke tests
+        run: |
+          ./scripts/ci/smoke-tests.sh http://localhost:5001 30 2
+
+      - name: Upload smoke test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-smoke-test-logs
+          path: |
+            smoke-tests.log
+
+      - name: Upload container logs on failure  
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-ci-compose-logs
+          path: |
+            docker-logs.txt
+        continue-on-error: true
+
+      - name: Get container logs
+        if: failure()
+        run: |
+          docker compose -f docker-compose.staging.yml logs api-ci > docker-logs.txt || true
+
+      - name: Cleanup containers
+        if: always()
+        run: |
+          docker compose -f docker-compose.staging.yml down -v || true
