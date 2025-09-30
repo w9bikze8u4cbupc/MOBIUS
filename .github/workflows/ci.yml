@@ -92,3 +92,64 @@ jobs:
           path: |
             artifacts/**
             out/preview_with_audio.mp4
+
+  api-smoke-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+
+      - name: Run repository verification
+        run: |
+          npm run verify-clean-genesis || node scripts/verify-clean-genesis.js
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build CI container
+        run: |
+          docker build -f Dockerfile.ci -t mobius-api-ci:local .
+
+      - name: Start staging environment
+        run: |
+          docker compose -f docker-compose.staging.yml up -d
+          sleep 5
+
+      - name: Wait for API to be ready
+        run: |
+          timeout 60 bash -c 'until curl -sf http://localhost:5001/health; do sleep 2; done'
+
+      - name: Run smoke tests
+        run: |
+          ./scripts/ci/smoke-tests.sh http://localhost:5001 30 2
+
+      - name: Collect container logs
+        if: failure()
+        run: |
+          docker compose -f docker-compose.staging.yml logs --no-log-prefix -t > container-logs.txt
+
+      - name: Stop staging environment
+        if: always()
+        run: |
+          docker compose -f docker-compose.staging.yml down --volumes --remove-orphans
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-smoke-test-logs
+          path: |
+            smoke-tests-*.log
+            container-logs.txt
+            verification-reports/

@@ -1,0 +1,116 @@
+# .dockerignore - Optimize Docker builds by excluding unnecessary files
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Dependencies and build artifacts
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+# Build outputs
+dist/
+build/
+out/
+*.tgz
+
+# Environment files
+.env*
+!.env.example
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Documentation and examples
+README.md
+docs/
+examples/
+*.md
+!package.json
+
+# Test files and coverage
+test/
+tests/
+coverage/
+.nyc_output
+*.test.js
+*.spec.js
+jest.config.*
+
+# CI/CD files
+.github/
+.circleci/
+.travis.yml
+azure-pipelines.yml
+Jenkinsfile
+
+# Development tools
+.editorconfig
+.eslintrc*
+.prettierrc*
+.babelrc*
+webpack.config.*
+rollup.config.*
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+*.tmp
+*.temp
+
+# Logs
+logs/
+*.log
+ci-run-logs/
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Generated reports
+verification-reports/
+
+# Local uploads (will be mounted as volume)
+uploads/
+
+# Docker files (not needed inside container)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Scripts not needed in production
+scripts/
+!scripts/verify-clean-genesis.js
+
+# Client-side code (if separate from API)
+client/
+
+# Python files (if any)
+*.pyc
+__pycache__/
+.python-version
+
+# Backup files
+*.backup
+*.bak

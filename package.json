@@ -13,17 +13,23 @@
     "gen:shotlists": "node scripts/compile-shotlist.mjs gigs/hanamikoji.json > tmp/shotlist.json",
     "gen:timelines": "echo 'Generating timelines...'",
     "render:proxy": "node scripts/render-ffmpeg.mjs tmp/timeline.json assets out/preview.mp4 --preview",
-    "golden:check": "node scripts/golden-check.mjs",
+    "golden:check": "npm run golden:check:sushi && npm run golden:check:loveletter",
     "golden:update:sushi": "node scripts/generate_golden.js --game \"Sushi Go\" --in \"out/sushi-go/preview.mp4\" --out \"tests/golden/sushi-go\" --frames \"5,10,20\"",
     "golden:update:loveletter": "node scripts/generate_golden.js --game \"Love Letter\" --in \"out/love-letter/preview.mp4\" --out \"tests/golden/love-letter\" --frames \"5,10,20\"",
     "golden:check:sushi": "node scripts/check_golden.js --game \"Sushi Go\" --in \"out/sushi-go/preview.mp4\" --golden \"tests/golden/sushi-go\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\"",
     "golden:check:loveletter": "node scripts/check_golden.js --game \"Love Letter\" --in \"out/love-letter/preview.mp4\" --golden \"tests/golden/love-letter\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\"",
-    "golden:check": "npm run golden:check:sushi && npm run golden:check:loveletter",
     "golden:approve": "npm run golden:update:sushi && npm run golden:update:loveletter",
     "golden:check-with-junit": "node scripts/check_golden.js --game \"Hanamikoji\" --in \"out/preview.mp4\" --golden \"tests/golden/hanamikoji\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\" --junit tests/reports/hanamikoji.xml",
     "golden:update": "node scripts/generate_golden.js",
     "golden:check:junit": "node scripts/check_golden.js --junit tests/golden/reports/junit.xml",
-    "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\""
+    "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\"",
+    "verify-clean-genesis": "node scripts/verify-clean-genesis.js",
+    "ci:server": "node src/api/ci-server.js",
+    "ci:smoke-tests": "./scripts/ci/smoke-tests.sh",
+    "ci:build": "docker build -f Dockerfile.ci -t mobius-api-ci:local .",
+    "ci:up": "docker compose -f docker-compose.staging.yml up -d",
+    "ci:down": "docker compose -f docker-compose.staging.yml down --volumes --remove-orphans",
+    "ci:test": "npm run ci:build && npm run ci:up && sleep 5 && npm run ci:smoke-tests; npm run ci:down"
   },
   "keywords": [
     "game",
@@ -35,6 +41,8 @@
   "author": "Mobius Games",
   "license": "MIT",
   "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
     "typescript": "^5.0.0"
   },
   "devDependencies": {

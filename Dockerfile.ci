@@ -1,0 +1,43 @@
+# Dockerfile.ci - Lightweight container for CI/CD testing
+# This is a CI-only container that runs the mock API for testing purposes
+
+FROM node:20-alpine
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S mobius && \
+    adduser -S mobius -u 1001 -G mobius
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files for dependency installation
+COPY package*.json ./
+
+# Install dependencies (including devDependencies for express/cors)
+RUN npm ci && \
+    npm cache clean --force
+
+# Copy source code
+COPY src/ ./src/
+COPY scripts/verify-clean-genesis.js ./scripts/verify-clean-genesis.js
+
+# Create necessary directories
+RUN mkdir -p uploads verification-reports ci-run-logs && \
+    chown -R mobius:mobius /app
+
+# Switch to non-root user
+USER mobius
+
+# Expose port
+EXPOSE 5001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:5001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=5001
+
+# Start the mock API server
+CMD ["node", "src/api/ci-server.js"]
