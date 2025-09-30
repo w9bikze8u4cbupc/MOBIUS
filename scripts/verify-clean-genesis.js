@@ -39,6 +39,7 @@ const EXCLUDE_PATTERNS = [
   'package-lock.json',
   '*.yml',
   '*.yaml',
+  'README.md',
 ];
 
 // Parse command line arguments
