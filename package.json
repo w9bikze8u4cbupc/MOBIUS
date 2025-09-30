@@ -4,6 +4,7 @@
   "description": "A pipeline for generating game tutorial videos from structured game rules",
   "main": "index.js",
   "scripts": {
+    "verify-clean-genesis": "node scripts/verify-clean-genesis.js",
     "compile-shotlist": "node scripts/compile-shotlist.mjs",
     "bind-alignment": "node scripts/bind-alignment.mjs",
     "render": "node scripts/render-ffmpeg.mjs",
@@ -35,6 +36,8 @@
   "author": "Mobius Games",
   "license": "MIT",
   "dependencies": {
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
     "typescript": "^5.0.0"
   },
   "devDependencies": {
