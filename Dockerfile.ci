@@ -1,0 +1,40 @@
+# MOBIUS CI Dockerfile
+# Lightweight container for CI testing without external dependencies
+# Runs as non-root user for security
+
+FROM node:20-alpine
+
+# Create non-root user
+RUN addgroup -g 1001 -S mobius && \
+    adduser -S mobius -u 1001 -G mobius
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci && \
+    npm cache clean --force
+
+# Copy application source
+COPY src/ ./src/
+COPY scripts/verify-clean-genesis.js ./scripts/verify-clean-genesis.js
+
+# Create necessary directories and set permissions
+RUN mkdir -p logs verification-reports ci-run-logs && \
+    chown -R mobius:mobius /app
+
+# Switch to non-root user
+USER mobius
+
+# Expose port
+EXPOSE 5001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "const http = require('http'); http.get('http://localhost:5001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"
+
+# Default command
+CMD ["node", "src/api/ci-server.js"]

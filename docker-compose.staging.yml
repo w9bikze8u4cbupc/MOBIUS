@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  mobius-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+    container_name: mobius-ci-api
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=test
+      - PORT=5001
+      - HOST=0.0.0.0
+    volumes:
+      # Mount logs directory for debugging
+      - ./ci-run-logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http = require('http'); http.get('http://localhost:5001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - mobius-ci
+
+networks:
+  mobius-ci:
+    driver: bridge
+    name: mobius-ci-network
+
+# Optional: Add a test client container for more comprehensive testing
+# Uncomment if needed for integration tests
+#
+# test-client:
+#   image: curlimages/curl:latest
+#   container_name: mobius-test-client
+#   depends_on:
+#     mobius-api:
+#       condition: service_healthy
+#   networks:
+#     - mobius-ci
+#   command: >
+#     sh -c "
+#       echo 'Testing API health...' &&
+#       curl -f http://mobius-api:5001/health &&
+#       echo 'Testing API root...' &&
+#       curl -f http://mobius-api:5001/ &&
+#       echo 'All tests passed!'
+#     "
+#   profiles:
+#     - testing
