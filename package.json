@@ -8,6 +8,7 @@
     "bind-alignment": "node scripts/bind-alignment.mjs",
     "render": "node scripts/render-ffmpeg.mjs",
     "verify": "node scripts/verify.mjs",
+    "verify-clean-genesis": "node scripts/verify-clean-genesis.js",
     "test-pipeline": "npm run compile-shotlist && npm run verify && npm run bind-alignment",
     "test": "jest",
     "gen:shotlists": "node scripts/compile-shotlist.mjs gigs/hanamikoji.json > tmp/shotlist.json",
@@ -35,6 +36,14 @@
   "author": "Mobius Games",
   "license": "MIT",
   "dependencies": {
+    "axios": "^1.9.0",
+    "cohere-ai": "^7.17.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "openai": "^4.97.0",
+    "pdfjs-dist": "^5.2.133",
+    "react-markdown": "^10.1.0",
     "typescript": "^5.0.0"
   },
   "devDependencies": {
