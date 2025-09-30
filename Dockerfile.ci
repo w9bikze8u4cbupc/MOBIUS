@@ -1,0 +1,16 @@
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY . .
+
+FROM node:20-alpine AS runtime
+RUN addgroup -S mobius && adduser -S -G mobius -u 1001 mobius
+WORKDIR /app
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/src ./src
+COPY --from=build /app/package.json ./package.json
+USER 1001
+EXPOSE 5001
+HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=3 CMD wget -qO- http://localhost:5001/health || exit 1
+CMD ["node", "src/api/ci-server.mjs"]
