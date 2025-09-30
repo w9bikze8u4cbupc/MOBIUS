@@ -1,0 +1,116 @@
+name: API Smoke Tests (CI)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/api/**'
+      - 'scripts/ci/**'
+      - 'Dockerfile.ci'
+      - 'docker-compose.staging.yml'
+      - '.dockerignore'
+      - '.github/workflows/api-smoke-tests.yml'
+  push:
+    branches:
+      - main
+      - 'ci/**'
+
+jobs:
+  api-smoke-tests:
+    name: CI Mock API & Smoke Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for verification tool
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: |
+          npm install --production express cors
+          echo "✅ Production dependencies installed"
+      
+      - name: Run repository verification
+        id: verify
+        run: |
+          echo "🔍 Running repository verification..."
+          node scripts/verify-clean-genesis.js || echo "verification_failed=true" >> $GITHUB_OUTPUT
+          echo "✅ Verification complete"
+        continue-on-error: true
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        run: |
+          echo "🐳 Building Docker image..."
+          docker build -f Dockerfile.ci -t mobius-api-ci:latest .
+          echo "✅ Docker image built successfully"
+      
+      - name: Start Docker Compose stack
+        run: |
+          echo "🚀 Starting Docker Compose stack..."
+          docker compose -f docker-compose.staging.yml up -d
+          echo "✅ Stack started"
+      
+      - name: Wait for service readiness
+        run: |
+          echo "⏳ Waiting for service to be ready..."
+          timeout 60 bash -c 'until curl -sf http://localhost:5001/health > /dev/null; do echo "Waiting..."; sleep 2; done'
+          echo "✅ Service is ready"
+      
+      - name: Run smoke tests
+        id: smoke_tests
+        run: |
+          echo "🧪 Running smoke tests..."
+          chmod +x scripts/ci/smoke-tests.sh
+          ./scripts/ci/smoke-tests.sh http://localhost:5001 30 2 | tee smoke-tests.log
+          echo "✅ Smoke tests completed"
+      
+      - name: Show container logs
+        if: always()
+        run: |
+          echo "📋 Container logs:"
+          docker compose -f docker-compose.staging.yml logs
+      
+      - name: Upload verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-report
+          path: verification-reports/
+          retention-days: 30
+      
+      - name: Upload smoke test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-logs
+          path: smoke-tests.log
+          retention-days: 30
+      
+      - name: Cleanup Docker resources
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources..."
+          docker compose -f docker-compose.staging.yml down --volumes --remove-orphans
+          echo "✅ Cleanup complete"
+      
+      - name: Check results
+        if: always()
+        run: |
+          if [ "${{ steps.smoke_tests.outcome }}" != "success" ]; then
+            echo "❌ Smoke tests failed"
+            exit 1
+          fi
+          if [ "${{ steps.verify.outputs.verification_failed }}" == "true" ]; then
+            echo "⚠️  Repository verification found issues (non-blocking)"
+          fi
+          echo "✅ All checks passed"

@@ -1,0 +1,44 @@
+# CI-only Dockerfile for deterministic container validation
+# Non-root execution, minimal Alpine base, production deps only
+
+FROM node:20-alpine
+
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
+
+# Create non-root user (UID 1001)
+RUN addgroup -g 1001 -S appuser && \
+    adduser -u 1001 -S appuser -G appuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install production dependencies only
+# Note: The main package.json may not have all deps, 
+# but we need express and cors for ci-server.mjs
+RUN npm ci --omit=dev || npm install --production express cors
+
+# Copy source files needed for CI mock server
+COPY src/api/ci-server.mjs ./src/api/
+
+# Change ownership to non-root user
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 5001
+
+# Health check
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "fetch('http://localhost:5001/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
+
+# Run the CI mock server
+CMD ["node", "src/api/ci-server.mjs"]
