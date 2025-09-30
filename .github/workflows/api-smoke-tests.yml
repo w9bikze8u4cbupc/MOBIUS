@@ -1,0 +1,79 @@
+name: API Smoke Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'ci/**'
+
+jobs:
+  api-smoke-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify repo cleanliness
+        run: node scripts/verify-clean-genesis.js --ci
+        continue-on-error: false
+
+      - name: Build CI image
+        run: |
+          docker build -f Dockerfile.ci -t mobius-api-ci:ci .
+      
+      - name: Start staging compose
+        run: |
+          docker compose -f docker-compose.staging.yml up -d
+        continue-on-error: false
+
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:5001/health; then
+              echo "Service ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Timeout waiting for service ready" >&2
+          exit 1
+
+      - name: Run smoke tests
+        run: |
+          ./scripts/ci/smoke-tests.sh http://localhost:5001 30 2
+        continue-on-error: false
+
+      - name: Collect logs (on failure)
+        if: failure()
+        run: |
+          docker compose -f docker-compose.staging.yml logs --no-log-prefix -t > compose-logs.log || true
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-smoke-logs
+          path: |
+            smoke-tests.log
+            compose-logs.log
+            verification-reports/
+          if-no-files-found: ignore
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.staging.yml down --volumes --remove-orphans

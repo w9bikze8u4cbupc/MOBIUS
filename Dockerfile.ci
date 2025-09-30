@@ -1,0 +1,36 @@
+# Dockerfile.ci - Lightweight container for CI smoke tests
+FROM node:20-alpine
+
+# Create non-root user
+RUN addgroup -g 1001 -S mobius && \
+    adduser -S mobius -u 1001 -G mobius
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Copy node_modules from host (must run npm install locally first)
+COPY node_modules ./node_modules
+
+# Copy application files
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+
+# Create necessary directories
+RUN mkdir -p /app/uploads /app/verification-reports && \
+    chown -R mobius:mobius /app
+
+# Switch to non-root user
+USER mobius
+
+# Expose port
+EXPOSE 5001
+
+# Health check
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --spider -q http://localhost:5001/health || exit 1
+
+# Start CI mock server
+CMD ["node", "src/api/ci-server.mjs"]

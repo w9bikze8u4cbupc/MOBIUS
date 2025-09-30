@@ -63,6 +63,7 @@ coverage/
 # Debug and report directories
 tests/golden/**/debug/
 tests/golden/reports/
+verification-reports/
 
 # Node.js dependencies
 node_modules/
