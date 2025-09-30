@@ -23,7 +23,8 @@
     "golden:check-with-junit": "node scripts/check_golden.js --game \"Hanamikoji\" --in \"out/preview.mp4\" --golden \"tests/golden/hanamikoji\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\" --junit tests/reports/hanamikoji.xml",
     "golden:update": "node scripts/generate_golden.js",
     "golden:check:junit": "node scripts/check_golden.js --junit tests/golden/reports/junit.xml",
-    "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\""
+    "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\"",
+    "verify-clean-genesis": "node scripts/verify-clean-genesis.js"
   },
   "keywords": [
     "game",
@@ -35,6 +36,8 @@
   "author": "Mobius Games",
   "license": "MIT",
   "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
     "typescript": "^5.0.0"
   },
   "devDependencies": {
