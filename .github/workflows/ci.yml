@@ -92,3 +92,40 @@ jobs:
           path: |
             artifacts/**
             out/preview_with_audio.mp4
+
+  api-smoke-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify repository cleanliness
+        run: npm run verify-clean-genesis
+
+      - name: Build Docker image
+        run: docker build -f Dockerfile.ci -t mobius-api-ci:local .
+
+      - name: Start staging environment
+        run: docker compose -f docker-compose.staging.yml up -d
+
+      - name: Wait for service
+        run: sleep 10
+
+      - name: Run smoke tests
+        run: ./scripts/ci/smoke-tests.sh http://localhost:5001 30 2
+
+      - name: Collect container logs
+        if: failure()
+        run: docker compose -f docker-compose.staging.yml logs --no-log-prefix -t
+
+      - name: Stop staging environment
+        if: always()
+        run: docker compose -f docker-compose.staging.yml down --volumes --remove-orphans

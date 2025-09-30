@@ -64,6 +64,13 @@ coverage/
 tests/golden/**/debug/
 tests/golden/reports/
 
+# CI artifacts and logs
+ci-run-logs/
+verification-reports/
+*.patch
+patch.b64
+PR_BODY.md
+
 # Node.js dependencies
 node_modules/
 
