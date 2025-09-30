@@ -57,6 +57,8 @@ const EXCLUDED_PATTERNS = [
   /dist\//,
   /build\//,
   /coverage\//,
+  /scripts\/verify-clean-genesis\.js$/, // Exclude this script itself
+  /verification-reports\//,
 ];
 
 // Colors
