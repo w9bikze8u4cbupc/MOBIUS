@@ -2,6 +2,8 @@
 
 This guide provides detailed instructions for setting up the MOBIUS development environment on Windows machines.
 
+> **💡 Want to get started quickly?** See [QUICKSTART.md](./QUICKSTART.md) for a condensed setup guide.
+
 ## Table of Contents
 
 1. [Recommended Setup: WSL2 + Docker Desktop](#recommended-setup-wsl2--docker-desktop)

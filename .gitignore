@@ -14,7 +14,7 @@ yarn-error.log*
 .env.development
 .env.production
 .env.test
-*.env*
+!.env.example
 
 # IDE and editor specific
 .idea/

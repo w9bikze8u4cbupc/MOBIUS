@@ -10,16 +10,20 @@ MOBIUS helps content creators produce engaging board game tutorial videos by:
 - Generating tutorial scripts
 - Rendering professional videos with synchronized audio
 
-## Quick Start
+## 🚀 Quick Start
 
-### Prerequisites
+See [QUICKSTART.md](./QUICKSTART.md) for a condensed setup guide to get running in minutes.
+
+For detailed Windows setup instructions, see [WINDOWS_SETUP.md](./WINDOWS_SETUP.md).
+
+## Prerequisites
 
 - **Node.js** 20.14 or higher (20.18+ recommended)
 - **FFmpeg** for video/audio processing
 - **Python** 3.10+ (for some utilities)
 - **Docker Desktop** (optional, for containerized development)
 
-### Installation
+## Installation
 
 ```bash
 # Clone the repository
