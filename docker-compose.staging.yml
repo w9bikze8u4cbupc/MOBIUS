@@ -1,0 +1,45 @@
+# docker-compose.staging.yml - Staging environment with health checks
+#
+# This compose file defines the staging environment that mirrors CI.
+# It includes health checks, volumes for development, and environment variables.
+
+version: '3.8'
+
+services:
+  mobius-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+    image: mobius-api-ci:staging
+    container_name: mobius-api-staging
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=staging
+      - PORT=5001
+      - LOG_LEVEL=info
+    volumes:
+      # Mount source for development
+      - ./src:/app/src:ro
+      - ./scripts:/app/scripts:ro
+      # Persist logs
+      - ./logs:/app/logs
+      # Verification reports
+      - ./verification-reports:/app/verification-reports
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5001/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - mobius-network
+
+networks:
+  mobius-network:
+    driver: bridge
+
+volumes:
+  logs:
+  verification-reports:
