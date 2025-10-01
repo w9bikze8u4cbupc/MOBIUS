@@ -1,7 +1,7 @@
 #!/bin/bash
-# Smoke tests for MOBIUS API
-# Usage: ./smoke-tests.sh <base_url> <timeout_seconds> <max_retries>
-# Example: ./smoke-tests.sh http://localhost:5001 30 2
+# Smoke tests for MOBIUS CI environment
+# Usage: ./smoke-tests.sh [container_name] [timeout_seconds] [max_retries]
+# Example: ./smoke-tests.sh mobius-ci-staging 30 2
 
 set -e
 
@@ -12,7 +12,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Arguments
-BASE_URL="${1:-http://localhost:5001}"
+CONTAINER_NAME="${1:-mobius-ci-staging}"
 TIMEOUT="${2:-30}"
 MAX_RETRIES="${3:-2}"
 
@@ -44,108 +44,112 @@ print_info() {
   echo -e "${YELLOW}ℹ${NC} $1"
 }
 
-# Function to make HTTP request with retries
-http_request() {
-  local url=$1
-  local method=${2:-GET}
-  local retry=0
-  local response
-  local http_code
-  
-  while [ $retry -le $MAX_RETRIES ]; do
-    response=$(curl -s -w "\n%{http_code}" -X "$method" "$url" -m "$TIMEOUT" 2>&1)
-    http_code=$(echo "$response" | tail -n1)
-    body=$(echo "$response" | sed '$d')
-    
-    if [ -n "$http_code" ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
-      echo "$body"
-      return 0
-    fi
-    
-    retry=$((retry + 1))
-    if [ $retry -le $MAX_RETRIES ]; then
-      sleep 2
-    fi
-  done
-  
-  echo "HTTP_ERROR:$http_code:$body"
-  return 1
-}
-
 # Start tests
 echo "========================================"
-echo "MOBIUS API Smoke Tests"
+echo "MOBIUS CI Smoke Tests"
 echo "========================================"
 echo ""
-echo "Base URL: $BASE_URL"
-echo "Timeout: ${TIMEOUT}s per request"
+echo "Container: $CONTAINER_NAME"
+echo "Timeout: ${TIMEOUT}s"
 echo "Max retries: $MAX_RETRIES"
 echo ""
 echo "Running tests..."
 echo ""
 
-# Test 1: Health check endpoint
-print_info "Testing health check endpoint..."
-response=$(http_request "$BASE_URL/health" GET)
-if [ $? -eq 0 ]; then
-  print_test "PASS" "GET /health" "Service is healthy"
+# Test 1: Docker is available
+print_info "Testing Docker availability..."
+if command -v docker &> /dev/null; then
+  print_test "PASS" "Docker command available" "docker $(docker --version)"
 else
-  print_test "FAIL" "GET /health" "$response"
+  print_test "FAIL" "Docker command available" "Docker not found in PATH"
 fi
 
-# Test 2: Root endpoint
-print_info "Testing root endpoint..."
-response=$(http_request "$BASE_URL/" GET)
-if [ $? -eq 0 ]; then
-  print_test "PASS" "GET /" "Root endpoint accessible"
+# Test 2: Check if container exists
+print_info "Testing container existence..."
+if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+  print_test "PASS" "Container exists" "Container $CONTAINER_NAME found"
 else
-  print_test "FAIL" "GET /" "$response"
+  print_test "FAIL" "Container exists" "Container $CONTAINER_NAME not found"
+  echo ""
+  echo "Available containers:"
+  docker ps -a --format "table {{.Names}}\t{{.Status}}"
 fi
 
-# Test 3: API info endpoint
-print_info "Testing API info endpoint..."
-response=$(http_request "$BASE_URL/api/info" GET)
-if [ $? -eq 0 ]; then
-  # Check if response contains expected JSON structure
-  if echo "$response" | grep -q "version\|name\|api"; then
-    print_test "PASS" "GET /api/info" "API info returned"
+# Test 3: Check container status
+print_info "Testing container status..."
+container_status=$(docker inspect --format='{{.State.Status}}' "$CONTAINER_NAME" 2>/dev/null || echo "not_found")
+if [ "$container_status" = "running" ] || [ "$container_status" = "exited" ]; then
+  print_test "PASS" "Container status" "Status: $container_status"
+else
+  print_test "FAIL" "Container status" "Unexpected status: $container_status"
+fi
+
+# Test 4: Check container exit code (if exited)
+if [ "$container_status" = "exited" ]; then
+  print_info "Testing container exit code..."
+  exit_code=$(docker inspect --format='{{.State.ExitCode}}' "$CONTAINER_NAME" 2>/dev/null || echo "-1")
+  if [ "$exit_code" = "0" ]; then
+    print_test "PASS" "Container exit code" "Exited successfully (code 0)"
   else
-    print_test "FAIL" "GET /api/info" "Invalid response format"
+    print_test "FAIL" "Container exit code" "Exited with code $exit_code"
   fi
-else
-  print_test "FAIL" "GET /api/info" "$response"
 fi
 
-# Test 4: 404 handling
-print_info "Testing 404 error handling..."
-response=$(curl -s -w "\n%{http_code}" "$BASE_URL/nonexistent-endpoint" -m "$TIMEOUT" 2>&1)
-http_code=$(echo "$response" | tail -n1)
-if [ "$http_code" = "404" ]; then
-  print_test "PASS" "GET /nonexistent-endpoint" "404 handled correctly"
+# Test 5: Check container logs for errors
+print_info "Testing container logs..."
+logs=$(docker logs "$CONTAINER_NAME" 2>&1 | tail -20)
+if echo "$logs" | grep -qi "error\|fail\|exception"; then
+  print_test "FAIL" "Container logs" "Errors found in logs"
+  echo ""
+  echo "Last 20 lines of logs:"
+  echo "$logs"
 else
-  print_test "FAIL" "GET /nonexistent-endpoint" "Expected 404, got $http_code"
+  print_test "PASS" "Container logs" "No obvious errors in logs"
 fi
 
-# Test 5: CORS headers (if applicable)
-print_info "Testing CORS headers..."
-response=$(curl -s -I "$BASE_URL/health" -H "Origin: http://localhost:3000" -m "$TIMEOUT" 2>&1)
-if echo "$response" | grep -qi "access-control-allow"; then
-  print_test "PASS" "CORS headers" "CORS headers present"
+# Test 6: Check if verification reports were created
+print_info "Testing verification artifacts..."
+if [ -d "./verification-reports" ] && [ "$(ls -A ./verification-reports 2>/dev/null)" ]; then
+  report_count=$(ls -1 ./verification-reports/*.json 2>/dev/null | wc -l)
+  print_test "PASS" "Verification reports" "$report_count report(s) created"
 else
-  print_test "FAIL" "CORS headers" "CORS headers missing"
+  print_test "FAIL" "Verification reports" "No reports found in ./verification-reports/"
 fi
 
-# Test 6: Response time check
-print_info "Testing response time..."
-start_time=$(date +%s%N)
-response=$(curl -s "$BASE_URL/health" -m "$TIMEOUT" 2>&1)
-end_time=$(date +%s%N)
-elapsed=$(( (end_time - start_time) / 1000000 )) # Convert to milliseconds
-
-if [ $elapsed -lt 5000 ]; then
-  print_test "PASS" "Response time" "Health check completed in ${elapsed}ms"
+# Test 7: Check Node.js availability in container
+print_info "Testing Node.js in container..."
+if docker exec "$CONTAINER_NAME" node --version &>/dev/null; then
+  node_version=$(docker exec "$CONTAINER_NAME" node --version 2>&1)
+  print_test "PASS" "Node.js in container" "Version: $node_version"
 else
-  print_test "FAIL" "Response time" "Health check took ${elapsed}ms (>5000ms)"
+  print_test "FAIL" "Node.js in container" "Could not execute node command"
+fi
+
+# Test 8: Check ffmpeg availability in container
+print_info "Testing ffmpeg in container..."
+if docker exec "$CONTAINER_NAME" ffmpeg -version &>/dev/null; then
+  ffmpeg_version=$(docker exec "$CONTAINER_NAME" ffmpeg -version 2>&1 | head -n1)
+  print_test "PASS" "ffmpeg in container" "Version: $ffmpeg_version"
+else
+  print_test "FAIL" "ffmpeg in container" "Could not execute ffmpeg command"
+fi
+
+# Test 9: Check image size
+print_info "Testing Docker image size..."
+image_name="mobius-api-ci:staging"
+if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "$image_name"; then
+  image_size=$(docker images --format "{{.Size}}" "$image_name")
+  print_test "PASS" "Docker image" "Size: $image_size"
+else
+  print_test "FAIL" "Docker image" "Image $image_name not found"
+fi
+
+# Test 10: Check non-root user
+print_info "Testing non-root user..."
+if docker inspect --format='{{.Config.User}}' "$CONTAINER_NAME" 2>/dev/null | grep -q "mobius\|1001"; then
+  print_test "PASS" "Non-root user" "Container runs as non-root user"
+else
+  print_test "FAIL" "Non-root user" "Container may be running as root"
 fi
 
 # Summary
@@ -165,9 +169,9 @@ else
   echo -e "${RED}Some tests failed!${NC}"
   echo ""
   echo "Troubleshooting:"
-  echo "  1. Check if services are running: docker compose ps"
-  echo "  2. Check container logs: docker compose logs"
-  echo "  3. Check service health: curl $BASE_URL/health"
-  echo "  4. Verify port $( echo $BASE_URL | sed 's/.*://') is not in use"
+  echo "  1. Check container logs: docker logs $CONTAINER_NAME"
+  echo "  2. Check container status: docker ps -a"
+  echo "  3. Check verification reports: ls -la verification-reports/"
+  echo "  4. Rebuild image: docker build -f Dockerfile.ci -t mobius-api-ci:staging ."
   exit 1
 fi

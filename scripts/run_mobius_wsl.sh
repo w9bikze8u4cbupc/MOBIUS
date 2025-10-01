@@ -217,7 +217,7 @@ if [ -f "scripts/ci/smoke-tests.sh" ]; then
   print_info "Running smoke tests..."
   
   # Run smoke tests and capture output
-  if ./scripts/ci/smoke-tests.sh http://localhost:5001 30 2 > smoke-tests.log 2>&1; then
+  if ./scripts/ci/smoke-tests.sh mobius-ci-staging 30 2 > smoke-tests.log 2>&1; then
     print_status "Smoke tests passed"
     cat smoke-tests.log
   else
