@@ -1,0 +1,47 @@
+# docker-compose.staging.yml — Staging environment with health checks and volumes
+#
+# This compose file sets up a staging environment for MOBIUS with:
+# - Health checks for service readiness
+# - Volume mounts for verification reports and logs
+# - Proper networking
+# - Environment configuration
+
+version: '3.8'
+
+services:
+  mobius-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+    image: mobius-api-ci:local
+    container_name: mobius-api-staging
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=staging
+      - PORT=5001
+      - LOG_LEVEL=info
+    volumes:
+      # Mount verification reports for access from host
+      - ./verification-reports:/app/verification-reports
+      # Mount logs for debugging
+      - ./logs:/app/logs
+      # Mount scripts for running verification
+      - ./scripts:/app/scripts:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - mobius-network
+
+networks:
+  mobius-network:
+    driver: bridge
+
+volumes:
+  verification-reports:
+  logs:

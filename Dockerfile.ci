@@ -1,0 +1,54 @@
+# Dockerfile.ci — Alpine-based Node 20.18.1 CI image with ffmpeg
+#
+# This image is optimized for CI/staging environments:
+# - Alpine Linux for minimal size
+# - Node.js 20.18.1 LTS
+# - ffmpeg for video processing
+# - Build tools for native dependencies
+# - Non-root user (UID 1001) for security
+# - Production-only dependencies
+
+FROM node:20.18.1-alpine
+
+# Install ffmpeg and build dependencies
+RUN apk add --no-cache \
+    ffmpeg \
+    python3 \
+    make \
+    g++ \
+    git \
+    curl \
+    bash
+
+# Create non-root user
+RUN addgroup -g 1001 -S mobius && \
+    adduser -u 1001 -S mobius -G mobius
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files
+COPY package*.json ./
+
+# Install dependencies as root, then change ownership
+RUN npm ci --only=production && \
+    npm cache clean --force
+
+# Copy application code
+COPY --chown=mobius:mobius . .
+
+# Ensure scripts are executable
+RUN chmod +x scripts/*.js scripts/*.sh scripts/ci/*.sh 2>/dev/null || true
+
+# Switch to non-root user
+USER mobius
+
+# Expose port
+EXPOSE 5001
+
+# Health check
+HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:5001/health || exit 1
+
+# Default command
+CMD ["node", "src/api/index.js"]
