@@ -2820,6 +2820,16 @@ app.get('/load-project/:id', (req, res) => {
   );
 });
 
+// Health check endpoint for monitoring and smoke tests
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    service: 'mobius-api',
+    version: '1.0.0'
+  });
+});
+
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
