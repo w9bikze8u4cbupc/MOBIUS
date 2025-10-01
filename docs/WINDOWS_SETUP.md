@@ -331,6 +331,32 @@ docker exec -it <container-id> sh
 docker compose -f docker-compose.staging.yml logs -f mobius-api
 ```
 
+### Docker Build in CI Environments
+
+**Note:** Some CI environments may have network restrictions or SSL certificate issues that can affect Docker builds. If you encounter:
+
+- `self-signed certificate in certificate chain` errors
+- Package repository access issues
+- Network timeout errors
+
+Try these solutions:
+
+1. **For npm SSL issues:**
+   ```bash
+   docker build --build-arg NPM_CONFIG_STRICT_SSL=false -f Dockerfile.ci -t mobius-api-ci:local .
+   ```
+
+2. **For proxy environments:**
+   ```bash
+   docker build --build-arg HTTP_PROXY=$HTTP_PROXY --build-arg HTTPS_PROXY=$HTTPS_PROXY -f Dockerfile.ci -t mobius-api-ci:local .
+   ```
+
+3. **Use pre-built images:**
+   If available, pull pre-built images from a container registry instead of building locally.
+
+4. **Local development:**
+   For local Windows WSL2 development, these issues are typically not present as your local Docker Desktop has direct internet access.
+
 ## Additional Resources
 
 - [WSL2 Documentation](https://docs.microsoft.com/en-us/windows/wsl/)
