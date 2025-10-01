@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+    image: mobius-api-ci:local
+    container_name: mobius-api-staging
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=staging
+      - PORT=5001
+      - API_KEY=${API_KEY:-test-api-key-12345}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - IMAGE_EXTRACTOR_API_KEY=${IMAGE_EXTRACTOR_API_KEY:-}
+    volumes:
+      - api-uploads:/app/uploads
+      - api-tmp:/app/tmp
+      - api-out:/app/out
+    networks:
+      - mobius-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Optional: Add a database service if needed in the future
+  # db:
+  #   image: postgres:15-alpine
+  #   container_name: mobius-db-staging
+  #   environment:
+  #     - POSTGRES_USER=mobius
+  #     - POSTGRES_PASSWORD=mobius_dev_pass
+  #     - POSTGRES_DB=mobius
+  #   volumes:
+  #     - db-data:/var/lib/postgresql/data
+  #   networks:
+  #     - mobius-network
+  #   restart: unless-stopped
+
+volumes:
+  api-uploads:
+  api-tmp:
+  api-out:
+  # db-data:
+
+networks:
+  mobius-network:
+    driver: bridge
