@@ -63,12 +63,16 @@ coverage/
 # Debug and report directories
 tests/golden/**/debug/
 tests/golden/reports/
+verification-reports/
 
 # Node.js dependencies
 node_modules/
 
 # Log files
 *.log
+logs/
+smoke-tests.log
+compose-logs.log
 
 # OS generated files
 .DS_Store

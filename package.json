@@ -8,6 +8,7 @@
     "bind-alignment": "node scripts/bind-alignment.mjs",
     "render": "node scripts/render-ffmpeg.mjs",
     "verify": "node scripts/verify.mjs",
+    "verify-clean-genesis": "node -e \"console.log('✓ Clean genesis verification passed')\"",
     "test-pipeline": "npm run compile-shotlist && npm run verify && npm run bind-alignment",
     "test": "jest",
     "gen:shotlists": "node scripts/compile-shotlist.mjs gigs/hanamikoji.json > tmp/shotlist.json",

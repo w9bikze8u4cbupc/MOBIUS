@@ -1,0 +1,52 @@
+# MOBIUS CI Docker Image
+# Alpine-based Node.js 20.18.1 with ffmpeg and build tools
+# Non-root runtime for security
+
+FROM node:20.18.1-alpine
+
+# Install system dependencies
+RUN apk add --no-cache \
+    ffmpeg \
+    ffmpeg-libs \
+    git \
+    bash \
+    python3 \
+    make \
+    g++ \
+    cairo-dev \
+    jpeg-dev \
+    pango-dev \
+    giflib-dev \
+    pixman-dev
+
+# Create non-root user (UID 1001)
+RUN addgroup -g 1001 mobiusgroup && \
+    adduser -D -u 1001 -G mobiusgroup mobiususer
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies as root (for permissions)
+RUN npm ci --only=production || npm install --only=production
+
+# Copy application code
+COPY . .
+
+# Change ownership to non-root user
+RUN chown -R mobiususer:mobiusgroup /app
+
+# Switch to non-root user
+USER mobiususer
+
+# Expose port (informational)
+EXPOSE 5001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:5001/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))" || exit 1
+
+# Default command
+CMD ["node", "src/api/index.js"]

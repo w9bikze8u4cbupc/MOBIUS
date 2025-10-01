@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  mobius-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+    container_name: mobius-api-staging
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=staging
+      - PORT=5001
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - IMAGE_EXTRACTOR_API_KEY=${IMAGE_EXTRACTOR_API_KEY:-}
+      - OUTPUT_DIR=/app/uploads/MobiusGames
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./verification-reports:/app/verification-reports
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5001/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    user: "1001:1001"
+    networks:
+      - mobius-network
+
+networks:
+  mobius-network:
+    driver: bridge
+
+volumes:
+  uploads:
+  logs:
+  verification-reports:
