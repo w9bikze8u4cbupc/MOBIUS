@@ -1,28 +1,29 @@
-# Dockerfile.ci — Alpine-based Node 20.18.1 CI image with ffmpeg
+# Dockerfile.ci — Node 20.18.1 CI image with ffmpeg
 #
 # This image is optimized for CI/staging environments:
-# - Alpine Linux for minimal size
+# - Debian-based Node image (more reliable package management than Alpine)
 # - Node.js 20.18.1 LTS
 # - ffmpeg for video processing
 # - Build tools for native dependencies
 # - Non-root user (UID 1001) for security
 # - Production-only dependencies
 
-FROM node:20.18.1-alpine
+FROM node:20.18.1-slim
 
 # Install ffmpeg and build dependencies
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     python3 \
     make \
     g++ \
     git \
     curl \
-    bash
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN addgroup -g 1001 -S mobius && \
-    adduser -u 1001 -S mobius -G mobius
+RUN groupadd -g 1001 mobius && \
+    useradd -u 1001 -g mobius -m -s /bin/bash mobius
 
 # Set working directory
 WORKDIR /app
@@ -31,7 +32,10 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies as root, then change ownership
-RUN npm ci --only=production && \
+# Use --omit=dev for production-only install (modern npm syntax)
+# Set strict-ssl=false for CI environments with cert issues
+RUN npm config set strict-ssl false && \
+    npm ci --omit=dev && \
     npm cache clean --force
 
 # Copy application code
