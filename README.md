@@ -5,11 +5,14 @@
 [![License](https://img.shields.io/github/license/w9bikze8u4cbupc/mobius-games-tutorial-generator)](LICENSE)
 
 #### What is this
+
 Cross-platform verification scripts for Mobius Games Tutorial Generator that validate security, performance, reliability, and connectivity. Two entry points:
+
 - Bash: mobius_golden_path.sh
 - PowerShell: mobius_golden_path.ps1
 
 #### Prerequisites
+
 - Server/API and frontend URLs reachable from the runner
 - Optional metrics token (if metrics endpoint is protected)
 - Recommended: at least one CI lane with NODE_ENV=production
@@ -17,6 +20,7 @@ Cross-platform verification scripts for Mobius Games Tutorial Generator that val
 #### Quickstart
 
 PR smoke (bash):
+
 ```bash
 mkdir -p artifacts
 mobius_golden_path.sh \
@@ -29,6 +33,7 @@ mobius_golden_path.sh \
 ```
 
 PR smoke (PowerShell):
+
 ```powershell
 mkdir artifacts -ea 0 | Out-Null
 .\mobius_golden_path.ps1 `
@@ -42,6 +47,7 @@ mkdir artifacts -ea 0 | Out-Null
 ```
 
 Nightly (full) with metrics token:
+
 ```bash
 mkdir -p artifacts
 mobius_golden_path.sh \
@@ -54,13 +60,16 @@ mobius_golden_path.sh \
 ```
 
 #### Sample Artifacts
+
 For reference, sample artifacts demonstrating the output format can be found in the [sample_artifacts](sample_artifacts/) directory:
+
 - [sample_junit.xml](sample_artifacts/sample_junit.xml) - Example JUnit XML output with timing attributes
 - [sample_summary.json](sample_artifacts/sample_summary.json) - Example JSON summary output with schema validation
 
 #### Common flags
 
 **Bash (mobius_golden_path.sh)**
+
 - --server, --frontend, --metrics-token
 - --start-stack
 - --local-text-pdf, --local-scanned-pdf, --remote-pdf
@@ -76,6 +85,7 @@ For reference, sample artifacts demonstrating the output format can be found in 
 - -h, --help
 
 **PowerShell (mobius_golden_path.ps1)**
+
 - -Server, -Frontend, -MetricsTok
 - -StartStack
 - -LocalTextPDF, -LocalScannedPDF, -RemotePDF
@@ -90,18 +100,22 @@ For reference, sample artifacts demonstrating the output format can be found in 
 - -DryRun, -Version
 
 Note on units:
+
 - TimeoutDefault/TimeoutPreview in seconds
 - PreviewMaxMs/TtsCacheDeltaMs in milliseconds
 
 #### Profiles
+
 - smoke: readyz, health, CORS preflight, SSRF allow/deny, TTS (cache), preview timing
 - full: everything in smoke plus metrics/histograms, AJV strictness, pressure/readiness, optional PM2 reload, optional image/PDF (guarded)
 
 #### Outputs
+
 - JSON summary: machine-readable results and timings
 - JUnit XML: per-check test cases for CI annotations
 
 #### CI Quickstart (GitHub Actions)
+
 ```yaml
 jobs:
   verify:
@@ -129,6 +143,7 @@ jobs:
 ```
 
 #### See also
+
 [VERIFICATION_SCRIPTS_OPERATIONAL_GUIDE.md](VERIFICATION_SCRIPTS_OPERATIONAL_GUIDE.md) for full details and troubleshooting.
 
 ## Mobius Games Tutorial Generator
@@ -142,6 +157,46 @@ This project includes several helper scripts to streamline development:
 - `dev-up.sh` / `dev-up.ps1` - Start the development environment
 - `dev-down.sh` / `dev-down.ps1` - Stop the development environment
 - `dev-restart.sh` / `dev-restart.ps1` - Restart the development environment
+
+### Development Server Commands and Ports
+
+To run the development servers manually:
+
+```bash
+# Start both frontend and backend servers
+npm run dev
+
+# Start only the backend server
+npm run server
+
+# Start only the frontend server
+npm run client
+```
+
+The development servers run on the following ports:
+
+- Frontend: http://localhost:3001
+- Backend: http://localhost:5001
+
+Environment variables can be configured in `client/.env`:
+
+- `PORT=3001` - Frontend port
+- `REACT_APP_API_BASE=http://localhost:5001` - Backend API base URL
+- `REACT_APP_SHOW_DEV_TEST=false` - Set to `true` to show the DevTestPage instead of the Tutorial Generator
+
+To verify the servers are running:
+
+```bash
+# Check if frontend is reachable
+curl -v http://localhost:3001/
+
+# Check if backend is healthy
+curl -v http://localhost:5001/healthz
+
+# Check if ports are listening (Windows)
+netstat -ano | findstr ":3001"
+netstat -ano | findstr ":5001"
+```
 
 ### Enhanced Features
 
@@ -210,16 +265,19 @@ npm install
 ```
 
 **Run analysis:**
+
 ```bash
 coala --non-interactive
 ```
 
 **Apply automatic fixes:**
+
 ```bash
 coala -A
 ```
 
 The configuration includes:
+
 - ESLint v9 with security and complexity plugins for JS/TS
 - BanditBear for Python security analysis
 - RadonBear for Python complexity analysis
@@ -227,3 +285,87 @@ The configuration includes:
 - Pre-commit hooks to prevent issues from being committed
 
 Note: This project uses ESLint v9 with the new flat config format (`eslint.config.js`).
+
+## Developer Quick Start
+
+### Default Ports
+
+- Frontend: http://localhost:3001
+- Backend: http://localhost:5001
+
+### Toggling UI Modes
+
+To switch between the DevTestPage and the main Tutorial Generator UI:
+
+Edit `client/.env`:
+
+```bash
+# Show DevTestPage
+REACT_APP_SHOW_DEV_TEST=true
+
+# Show Tutorial Generator (main UI)
+REACT_APP_SHOW_DEV_TEST=false
+```
+
+**Important**: Create React App reads .env at start time only. After changing environment variables, you must restart the development server:
+
+```bash
+# From project root
+npm run dev
+```
+
+### Running Development Servers
+
+```bash
+# Start both frontend and backend servers
+npm run dev
+
+# Start only the backend server
+npm run server
+
+# Start only the frontend server
+cd client && npm start
+```
+
+### Running CI Locally
+
+To run the same checks that CI performs locally:
+
+```bash
+# Run linting and build checks
+npm run lint
+npm run build
+
+# Run tests
+npm test
+
+# Run the full CI validation
+npm run ci:validate
+```
+
+### WebSocket Connection Handling
+
+This project includes a WebSocketGuard utility (`client/src/utils/WebSocketGuard.js`) that provides:
+
+- Exponential backoff retry logic
+- Jitter to prevent thundering herd
+- Connection state management
+- Error handling and recovery
+
+To use it in your WebSocket connections:
+
+```javascript
+import WebSocketGuard from './utils/WebSocketGuard';
+
+const wsGuard = new WebSocketGuard('ws://localhost:5001/socket', {
+  maxRetries: 5,
+  initialDelay: 1000,
+  maxDelay: 30000,
+  onOpen: () => console.log('Connected'),
+  onClose: () => console.log('Disconnected'),
+  onError: (error) => console.error('WebSocket error:', error),
+  onMessage: (event) => console.log('Message received:', event.data),
+});
+
+wsGuard.connect();
+```

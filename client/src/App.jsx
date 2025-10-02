@@ -4,7 +4,8 @@ import DevTestPage from './components/DevTestPage';
 import TutorialOrchestrator from './components/TutorialOrchestrator';
 import { ToastProvider } from './contexts/ToastContext';
 
-const SHOW_DEV_TEST = process.env.REACT_APP_SHOW_DEV_TEST === 'true';
+const SHOW_DEV_TEST =
+  String(process.env.REACT_APP_SHOW_DEV_TEST || '').toLowerCase() === 'true';
 
 function App() {
   return React.createElement(
