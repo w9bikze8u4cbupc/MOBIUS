@@ -1,3 +1,10 @@
+# editor/backup files
+*.backup
+*.bak
+*~
+# temporary App backup
+client/src/App.jsx.backup
+
 # General Node.js ignores
 dist/
 build/
@@ -98,4 +105,3 @@ cache/
 test.pdf
 test-output.txt*.backup
 *.bak
-client/src/App.js
