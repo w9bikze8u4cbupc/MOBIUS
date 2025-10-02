@@ -1,6 +1,19 @@
-import React from "react";
-import TutorialOrchestrator from "./components/TutorialOrchestrator";
+import React from 'react';
 
-export default function App() {
-  return <TutorialOrchestrator />;
+import DevTestPage from './components/DevTestPage';
+import TutorialOrchestrator from './components/TutorialOrchestrator';
+import { ToastProvider } from './contexts/ToastContext';
+
+const SHOW_DEV_TEST = process.env.REACT_APP_SHOW_DEV_TEST === 'true';
+
+function App() {
+  return React.createElement(
+    ToastProvider,
+    null,
+    SHOW_DEV_TEST
+      ? React.createElement(DevTestPage, null)
+      : React.createElement(TutorialOrchestrator, null)
+  );
 }
+
+export default App;
