@@ -96,4 +96,6 @@ cache/
 
 # Test files
 test.pdf
-test-output.txt
+test-output.txt*.backup
+*.bak
+client/src/App.js
