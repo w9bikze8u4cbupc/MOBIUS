@@ -1,0 +1,52 @@
+# Mobius Games Tutorial Generator - TutorialOrchestrator Fixes
+
+This patch includes all the fixes and improvements made to the TutorialOrchestrator component:
+
+## 1. Fixed React Hooks ESLint Error
+
+The main issue was that hooks were being called conditionally, which violates React's Rules of Hooks.
+The solution was to restructure the component to separate the environment variable check from the hook calls.
+
+## 2. Fixed Duplicate Export Issue
+
+Removed duplicate `export default TutorialOrchestrator;` statement that was causing build errors.
+
+## 3. Enhanced Environment Variable Helper
+
+Improved the getEnv function in utils/env.js to provide better type conversion.
+
+## 4. Added Environment Variable Documentation
+
+Added REACT_APP_SHOW_TUTORIAL to .env.example and README.md
+
+## 5. Added Diagnostic Logging
+
+Added temporary diagnostic console logs to verify environment variable values at runtime.
+
+## 6. Added Unit Test
+
+Created a basic unit test to verify the component's visibility behavior.
+
+## 7. Added Service Worker Unregistration Utility
+
+Created a utility to help with clearing cached assets during development.
+
+## Files Modified:
+
+1. client/src/components/TutorialOrchestrator.jsx
+2. client/src/utils/env.js
+3. client/.env.example
+4. README.md
+5. client/src/components/TutorialOrchestrator.test.jsx
+6. client/src/utils/unregisterServiceWorkers.js
+
+## Usage:
+
+To hide the Tutorial Generator UI, set in client/.env:
+REACT_APP_SHOW_TUTORIAL=false
+
+To show the Tutorial Generator UI (default):
+REACT_APP_SHOW_TUTORIAL=true
+
+After making changes to .env, restart the development server:
+cd client && npm start

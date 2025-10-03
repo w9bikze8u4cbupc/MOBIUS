@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Test</h1>
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+        const ws = new WebSocket('ws://localhost:5002/ws');
+
+        ws.onopen = function() {
+            output.innerHTML += '<p>Connected to WebSocket server</p>';
+            ws.send(JSON.stringify({ type: 'ping' }));
+        };
+
+        ws.onmessage = function(event) {
+            output.innerHTML += '<p>Received: ' + event.data + '</p>';
+        };
+
+        ws.onclose = function() {
+            output.innerHTML += '<p>Connection closed</p>';
+        };
+
+        ws.onerror = function(error) {
+            output.innerHTML += '<p>Error: ' + error + '</p>';
+        };
+    </script>
+</body>
+</html>

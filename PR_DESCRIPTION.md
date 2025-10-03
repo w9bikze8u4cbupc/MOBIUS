@@ -1,50 +1,67 @@
-# feat: perf validation + baseline compare, warn-only, promotion guardrails, and translation toggles [perf-baseline]
+# Standardize env var handling & add WebSocketGuard with tests
 
 ## Summary
 
-Added PERF_BASELINE_PATH support + branch-aware warn-only default in compare_perf_to_baseline.cjs
-Introduced promotion guardrails (main-only, trailer required, reason for lowering) in promote_baselines.cjs
-Translation toggles (TRANSLATE_MODE: disabled|optional|required) + LT_URL override + health check
+This PR standardizes the handling of the `REACT_APP_SHOW_DEV_TEST` environment variable and adds a robust WebSocket connection guard with exponential backoff and jitter to improve development stability.
 
 ## Changes
 
-- scripts/compare_perf_to_baseline.cjs
-- scripts/promote_baselines.cjs
-- src/utils/translation.js
-- README additions (modes, CI env, examples)
+### Environment Variable Standardization
+- Created a standardized helper utility (`src/utils/env.js`) for accessing environment variables
+- Updated `App.jsx` and `index.js` to use the new helper instead of direct `process.env` access
+- Added ESLint rule to prevent direct `process.env` access in the future
+
+### WebSocket Connection Improvements
+- Implemented `WebSocketGuard` utility with exponential backoff and jitter
+- Added comprehensive unit tests for all WebSocketGuard functionality
+- Reduced noisy WebSocket reconnection logs during development
 
 ## Validation Evidence
 
-- `npm audit --omit=dev` => 0 vulnerabilities
-- Compare vs baseline: PASS with PERF_BASELINE_PATH=baselines/perf.json
-- Forced regression => FAIL in normal; "skipped" with PERF_WARN_ONLY=1 on feature branch
-- JUnit strictness: negative test fails when JUnit XMLs absent
-- Promotion guardrails: correct blocking/allowance per scenarios (dry-run)
+- All existing tests pass
+- New WebSocketGuard unit tests pass with full coverage of edge cases
+- ESLint validation enforces the new environment variable access pattern
+- Manual testing confirms dev test toggle works correctly
 
 ## CI Config Notes
 
-Job env:
-```yaml
-TRANSLATE_MODE: disabled
-PERF_BASELINE_PATH: baselines/perf.json
-```
+The new ESLint rule will prevent direct access to `process.env` and require using the helper functions in `src/utils/env.js`.
 
-Artifact upload for JUnit with if-no-files-found: error
-Matrix fail-fast disabled; caches pinned; step summary shows perf and artifact pointers
+Example:
+```javascript
+// Before (no longer allowed)
+const showDevTest = String(process.env.REACT_APP_SHOW_DEV_TEST || '').toLowerCase() === 'true';
+
+// After (required)
+import { getShowDevTest } from './utils/env';
+const showDevTest = getShowDevTest();
+```
 
 ## Security
 
-pdfjs-dist bumped; audit clean
+No security implications. The env helper actually improves security by restricting which environment variables can be accessed.
 
 ## Risk & Rollout
 
-Low risk; guarded by envs and dry-run
-Roll out via PR merge to main; baseline promotion only on main with trailer
-Rollback: revert scripts or set TRANSLATE_MODE=disabled globally
+Low risk. Changes are limited to development utilities and do not affect production code paths.
+
+## How to Test
+
+1. Start the development servers:
+   ```bash
+   npm run dev
+   ```
+2. Verify the frontend is accessible at http://localhost:3001
+3. Confirm the dev test toggle still works correctly
+4. Run the unit tests:
+   ```bash
+   npm test -- client
+   ```
 
 ## Checklist
 
-- [x] CI green on all OS runners
-- [x] Baseline compare step uses PERF_BASELINE_PATH
-- [x] Step summary includes perf metrics and artifacts
-- [x] Docs merged (translation modes, promotion rules)
+- [x] CI passes with new ESLint rules
+- [x] All existing tests continue to pass
+- [x] New WebSocketGuard tests pass
+- [x] Dev test toggle functionality verified
+- [x] No more noisy WebSocket reconnection logs

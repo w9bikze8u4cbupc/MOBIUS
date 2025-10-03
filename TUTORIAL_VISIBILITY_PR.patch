@@ -1,0 +1,234 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Mobius Games Developer <developer@mobiusgames.com>
+Date: Thu, 2 Oct 2025 10:00:00 +0000
+Subject: [PATCH] feat(tutorial): add env helper, .env.example, README docs, and tests for tutorial visibility
+
+Introduces client/src/utils/env.js to centralize env parsing
+Adds client/.env.example documenting REACT_APP_SHOW_TUTORIAL and REACT_APP_DEBUG_TUTORIAL
+Updates README with usage instructions
+Integrates helper into TutorialOrchestrator.jsx and adds conditional diagnostic logging in dev
+Adds tests for helper and visibility behavior
+Ensures lint/formatting consistency
+
+---
+ client/.env.example                                    |  9 +++++++++
+ client/README.md                                       | 16 ++++++++++++++++
+ client/src/components/TutorialOrchestrator.jsx         |  9 +++++++--
+ client/src/components/TutorialOrchestrator.test.jsx    | 20 ++++++++++++++++++++
+ client/src/utils/env.js                                | 23 +++++++++++++++++++++++
+ client/src/utils/__tests__/env.test.js                 | 49 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 6 files changed, 124 insertions(+), 2 deletions(-)
+ create mode 100644 client/src/utils/env.js
+ create mode 100644 client/src/utils/__tests__/env.test.js
+ create mode 100644 client/src/components/TutorialOrchestrator.test.jsx
+
+diff --git a/client/.env.example b/client/.env.example
+new file mode 100644
+index 0000000..b6b6b6b
+--- /dev/null
++++ b/client/.env.example
+@@ -0,0 +1,9 @@
++# Environment variables for the Mobius Games Tutorial Generator
++
++# Toggle to show/hide the tutorial component
++# Set to true to show the tutorial, false to hide it
++REACT_APP_SHOW_TUTORIAL=true
++
++# Enable tutorial debugging logs (development only)
++# Set to true to show diagnostic information in browser console
++REACT_APP_DEBUG_TUTORIAL=false
++
+diff --git a/client/README.md b/client/README.md
+index 1234567..7654321 100644
+--- a/client/README.md
++++ b/client/README.md
+@@ -150,6 +150,22 @@ Edit `client/.env`:
+ REACT_APP_SHOW_DEV_TEST=false
+ ```
+ 
++To toggle the tutorial component visibility:
++
++```bash
++# Show tutorial component
++REACT_APP_SHOW_TUTORIAL=true
++
++# Hide tutorial component
++REACT_APP_SHOW_TUTORIAL=false
++```
++
++To enable diagnostic logging for the tutorial component (development only):
++
++```bash
++# Enable tutorial debugging logs
++REACT_APP_DEBUG_TUTORIAL=true
++```
++
++**Important**: Create React App reads .env at start time only. After changing environment variables, you must restart the development server:
++
+ ```bash
+ # From project root
+ npm run dev
+diff --git a/client/src/components/TutorialOrchestrator.jsx b/client/src/components/TutorialOrchestrator.jsx
+index abc1234..def5678 100644
+--- a/client/src/components/TutorialOrchestrator.jsx
++++ b/client/src/components/TutorialOrchestrator.jsx
+@@ -5,7 +5,7 @@ import {
+   generateConcatFile,
+ } from '../utils/storyboard';
+ // Import the env helpers
+-import { getEnv } from '../utils/env';
++import { getShowTutorial, getDebugTutorial } from '../utils/env';
+ 
+ const TutorialOrchestrator = () => {
+   // Check if tutorial should be shown based on environment variable
+-@@ -13,8 +13,13 @@ const TutorialOrchestrator = () => {
+   const showTutorial = getEnv('REACT_APP_SHOW_TUTORIAL', false);
++  const showTutorial = getShowTutorial();
+   
+   // Diagnostic log for development
+-  console.debug('REACT_APP_SHOW_TUTORIAL=', process.env.REACT_APP_SHOW_TUTORIAL);
++  // Diagnostic log for development (only shown when DEBUG_TUTORIAL is enabled)
++  if (process.env.NODE_ENV === 'development' && getDebugTutorial() === true) {
++    console.debug(
++      'REACT_APP_SHOW_TUTORIAL=',
++      process.env.REACT_APP_SHOW_TUTORIAL,
++      'showTutorial=',
++      showTutorial
++    );
++  }
+
+   // If not showing tutorial, render nothing
+   if (!showTutorial) {
+diff --git a/client/src/components/TutorialOrchestrator.test.jsx b/client/src/components/TutorialOrchestrator.test.jsx
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/client/src/components/TutorialOrchestrator.test.jsx
+@@ -0,0 +1,20 @@
++import React from 'react';
++import { render } from '@testing-library/react';
++import TutorialOrchestrator from './TutorialOrchestrator';
++
++// Mock the env utility
++jest.mock('../utils/env', () => ({
++  getShowTutorial: jest.fn(),
++}));
++
++describe('TutorialOrchestrator', () => {
++  it('should render nothing when showTutorial is false', () => {
++    require('../utils/env').getShowTutorial.mockReturnValue(false);
++    const { container } = render(React.createElement(TutorialOrchestrator));
++    expect(container.firstChild).toBeNull();
++  });
++
++  it('should render tutorial content when showTutorial is true', () => {
++    require('../utils/env').getShowTutorial.mockReturnValue(true);
++    const { container } = render(React.createElement(TutorialOrchestrator));
++    expect(container.firstChild).not.toBeNull();
++  });
++});
+diff --git a/client/src/utils/env.js b/client/src/utils/env.js
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/client/src/utils/env.js
+@@ -0,0 +1,23 @@
++/**
++ * Gets the REACT_APP_SHOW_TUTORIAL environment variable
++ * @returns {boolean} Whether to show the tutorial
++ */
++export function getShowTutorial() {
++  const val = process.env.REACT_APP_SHOW_TUTORIAL;
++  if (val === undefined) return false;
++  if (val === 'true') return true;
++  if (val === 'false') return false;
++  return Boolean(val);
++}
++
++/**
++ * Gets the REACT_APP_DEBUG_TUTORIAL environment variable
++ * @returns {boolean} Whether to show tutorial debug logs
++ */
++export function getDebugTutorial() {
++  const val = process.env.REACT_APP_DEBUG_TUTORIAL;
++  if (val === undefined) return false;
++  if (val === 'true') return true;
++  if (val === 'false') return false;
++  return Boolean(val);
++}
++
+diff --git a/client/src/utils/__tests__/env.test.js b/client/src/utils/__tests__/env.test.js
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/client/src/utils/__tests__/env.test.js
+@@ -0,0 +1,49 @@
++import { getShowTutorial, getDebugTutorial } from '../env';
++
++describe('env utils', () => {
++  describe('getShowTutorial', () => {
++    const OLD_ENV = process.env;
++
++    beforeEach(() => {
++      jest.resetModules();
++      process.env = { ...OLD_ENV };
++    });
++
++    afterAll(() => {
++      process.env = OLD_ENV;
++    });
++
++    it('should return false when REACT_APP_SHOW_TUTORIAL is not set', () => {
++      delete process.env.REACT_APP_SHOW_TUTORIAL;
++      expect(getShowTutorial()).toBe(false);
++    });
++
++    it('should return false when REACT_APP_SHOW_TUTORIAL is "false"', () => {
++      process.env.REACT_APP_SHOW_TUTORIAL = 'false';
++      expect(getShowTutorial()).toBe(false);
++    });
++
++    it('should return true when REACT_APP_SHOW_TUTORIAL is "true"', () => {
++      process.env.REACT_APP_SHOW_TUTORIAL = 'true';
++      expect(getShowTutorial()).toBe(true);
++    });
++
++    it('should return true when REACT_APP_SHOW_TUTORIAL is any non-empty string', () => {
++      process.env.REACT_APP_SHOW_TUTORIAL = 'yes';
++      expect(getShowTutorial()).toBe(true);
++    });
++  });
++
++  describe('getDebugTutorial', () => {
++    const OLD_ENV = process.env;
++
++    beforeEach(() => {
++      jest.resetModules();
++      process.env = { ...OLD_ENV };
++    });
++
++    afterAll(() => {
++      process.env = OLD_ENV;
++    });
++
++    it('should return false when REACT_APP_DEBUG_TUTORIAL is not set', () => {
++      delete process.env.REACT_APP_DEBUG_TUTORIAL;
++      expect(getDebugTutorial()).toBe(false);
++    });
++
++    it('should return false when REACT_APP_DEBUG_TUTORIAL is "false"', () => {
++      process.env.REACT_APP_DEBUG_TUTORIAL = 'false';
++      expect(getDebugTutorial()).toBe(false);
++    });
++
++    it('should return true when REACT_APP_DEBUG_TUTORIAL is "true"', () => {
++      process.env.REACT_APP_DEBUG_TUTORIAL = 'true';
++      expect(getDebugTutorial()).toBe(true);
++    });
++
++    it('should return true when REACT_APP_DEBUG_TUTORIAL is any non-empty string', () => {
++      process.env.REACT_APP_DEBUG_TUTORIAL = 'yes';
++      expect(getDebugTutorial()).toBe(true);
++    });
++  });
++});

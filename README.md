@@ -34,7 +34,7 @@ mobius_golden_path.sh \
 
 PR smoke (PowerShell):
 
-```powershell
+``powershell
 mkdir artifacts -ea 0 | Out-Null
 .\mobius_golden_path.ps1 `
   -Profile smoke `
@@ -273,7 +273,7 @@ coala --non-interactive
 
 **Apply automatic fixes:**
 
-```bash
+``bash
 coala -A
 ```
 
@@ -316,6 +316,13 @@ REACT_APP_SHOW_TUTORIAL=true
 
 # Hide tutorial component
 REACT_APP_SHOW_TUTORIAL=false
+```
+
+To enable diagnostic logging for the tutorial component (development only):
+
+```bash
+# Enable tutorial debugging logs
+REACT_APP_DEBUG_TUTORIAL=true
 ```
 
 **Important**: Create React App reads .env at start time only. After changing environment variables, you must restart the development server:

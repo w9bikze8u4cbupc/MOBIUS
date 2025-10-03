@@ -2,7 +2,7 @@
   "name": "client",
   "version": "0.1.0",
   "private": true,
-  "proxy": "http://localhost:5001",
+  "proxy": "http://localhost:5002",
   "dependencies": {
     "@babel/runtime": "^7.25.0",
     "@emotion/react": "^11.13.0",
@@ -63,10 +63,14 @@
     ]
   },
   "devDependencies": {
+    "@babel/eslint-parser": "^7.28.4",
+    "@babel/preset-react": "^7.27.1",
+    "dos2unix": "^1.1.2",
     "eslint": "^8.0.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-config-react-app": "^7.0.1",
     "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-react": "^7.37.5",
     "prettier": "^3.3.3"
   }
 }

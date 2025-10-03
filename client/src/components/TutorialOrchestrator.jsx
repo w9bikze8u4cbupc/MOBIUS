@@ -6,15 +6,22 @@ import {
   buildChapters,
   generateConcatFile,
 } from '../utils/storyboard';
-// Import the env helper
-import { getShowTutorial } from '../utils/env';
+// Import the env helpers
+import { getShowTutorial, getDebugTutorial } from '../utils/env';
 
 const TutorialOrchestrator = () => {
   // Check if tutorial should be shown based on environment variable
   const showTutorial = getShowTutorial();
   
-  // Diagnostic log for development
-  console.debug('REACT_APP_SHOW_TUTORIAL=', process.env.REACT_APP_SHOW_TUTORIAL, 'showTutorial=', showTutorial);
+  // Diagnostic log for development (only shown when DEBUG_TUTORIAL is enabled)
+  if (process.env.NODE_ENV === 'development' && getDebugTutorial() === true) {
+    console.debug(
+      'REACT_APP_SHOW_TUTORIAL=',
+      process.env.REACT_APP_SHOW_TUTORIAL,
+      'showTutorial=',
+      showTutorial
+    );
+  }
 
   // If not showing tutorial, render nothing
   if (!showTutorial) {

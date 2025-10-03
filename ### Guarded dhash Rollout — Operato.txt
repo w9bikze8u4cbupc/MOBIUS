@@ -1,0 +1,29 @@
+### Guarded dhash Rollout — Operator Quick Reference
+
+#### Purpose
+Safe, one-command guarded rollouts for dhash with pre-merge validation, backup verification, T+60 monitoring with quality gates, auto-rollback, manual rollback, and notification usage.
+
+#### Prerequisites
+- Deploy operator credentials and GitHub permissions.  
+- CI passing for the PR (premerge.yml artifacts available).  
+- Backups present in backups/ with matching .sha256 files.  
+- Secrets (SLACK_WEBHOOK, TEAMS_WEBHOOK, EMAIL creds) stored in GitHub Actions secrets.  
+- Local tools: bash (POSIX), Node 18+ for notify.js, sha256sum (or equivalent).
+
+#### Quick safety checklist
+- [ ] Attach artifacts: backups/*.zip + .sha256, deploy-dryrun.log, migrate-dryrun.log, postdeploy-smoketests.log, test_logging.log, premerge_artifacts/, monitor_logs/, CI links.  
+- [ ] Premerge CI green on all platforms.  
+- [ ] Branch protection in place (2 approvers, ≥1 Ops/SRE).  
+- [ ] Deploy operator (@ops) signs off.
+
+#### Create PR
+- Paste PR_BODY.md content as the PR description.  
+- Add explicit merge note: MERGE_NOW approved with guarded rollout — rebase-and-merge after gates pass.
+
+#### Merge strategy
+- Use rebase-and-merge for a linear history.  
+- Do not merge until checklist items and @ops sign-off are complete.
+
+#### One-command production deploy
+```bash
+./quick-deploy.sh --env production

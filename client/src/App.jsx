@@ -1,13 +1,15 @@
 import React from 'react';
+import { getShowDevTest } from './utils/env';
 
 import DevTestPage from './components/DevTestPage';
 import TutorialOrchestrator from './components/TutorialOrchestrator';
 import { ToastProvider } from './contexts/ToastContext';
 
-const SHOW_DEV_TEST =
-  String(process.env.REACT_APP_SHOW_DEV_TEST || '').toLowerCase() === 'true';
+const SHOW_DEV_TEST = getShowDevTest();
+console.log('SHOW_DEV_TEST constant:', SHOW_DEV_TEST);
 
 function App() {
+  console.log('Rendering App component, SHOW_DEV_TEST:', SHOW_DEV_TEST);
   return React.createElement(
     ToastProvider,
     null,

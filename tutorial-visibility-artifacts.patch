@@ -1,0 +1,217 @@
+diff --git a/TUTORIAL_VISIBILITY_SQUASH_COMMIT_MSG.txt b/TUTORIAL_VISIBILITY_SQUASH_COMMIT_MSG.txt
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/TUTORIAL_VISIBILITY_SQUASH_COMMIT_MSG.txt
+@@ -0,0 +1,9 @@
++Add centralized env helper for tutorial visibility and gated debug logging
++
++Summary:
++- client/src/utils/env.js: parse and normalize REACT_APP_SHOW_TUTORIAL and REACT_APP_DEBUG_TUTORIAL
++- client/src/components/TutorialOrchestrator.jsx: use env helper; debug logs only in development + debug flag
++- Tests for env helper and component visibility
++- CI workflow to run lint (no warnings), tests, and production build on PRs
++
++Risk: low — debug gating in dev only. See docs for validation and rollback steps.
+diff --git a/TUTORIAL_VISIBILITY_RELEASE_NOTE.md b/TUTORIAL_VISIBILITY_RELEASE_NOTE.md
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/TUTORIAL_VISIBILITY_RELEASE_NOTE.md
+@@ -0,0 +1,8 @@
++Feature: Toggle A→Z Tutorial UI with env var
++
++What changed:
++- Centralized env parsing for REACT_APP_SHOW_TUTORIAL and REACT_APP_DEBUG_TUTORIAL
++- Safe debug logging (only when NODE_ENV=development && REACT_APP_DEBUG_TUTORIAL=true)
++- Unit tests, docs, CI checks, and PR automation
++
++Notes: Do not enable REACT_APP_DEBUG_TUTORIAL outside development environments.
+diff --git a/TUTORIAL_VISIBILITY_POST_MERGE_COMMANDS.md b/TUTORIAL_VISIBILITY_POST_MERGE_COMMANDS.md
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/TUTORIAL_VISIBILITY_POST_MERGE_COMMANDS.md
+@@ -0,0 +1,18 @@
++Post-merge checklist (run after merge to main)
++
++1) Pull latest:
++   git checkout main
++   git pull origin main
++
++2) Install & validate:
++   npm ci
++   npm run lint -- --max-warnings=0
++   npm test
++   npm run build
++
++3) Deploy or stage build artifacts per your normal deploy flow.
++
++4) Run smoke tests from TUTORIAL_VISIBILITY_SMOKE_TEST.md
++
++5) Monitor per monitoring checklist for 24–72 hrs.
+diff --git a/TUTORIAL_VISIBILITY_SMOKE_TEST.md b/TUTORIAL_VISIBILITY_SMOKE_TEST.md
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/TUTORIAL_VISIBILITY_SMOKE_TEST.md
+@@ -0,0 +1,28 @@
++Smoke test checklist — run in staging after merge
++
++1) Start frontend pointing to staging backend.
++   - Verify REACT_APP_SHOW_TUTORIAL not set → Tutorial UI hidden
++2) Set REACT_APP_SHOW_TUTORIAL=true in staging env and restart frontend
++   - Confirm Tutorial UI appears and can be opened/closed
++3) Verify debug logs:
++   - NODE_ENV=production + REACT_APP_DEBUG_TUTORIAL=true → no debug logs visible
++   - NODE_ENV=development + REACT_APP_DEBUG_TUTORIAL=true → debug logs shown in console
++4) Run automated UI unit tests for TutorialOrchestrator
++5) Run a production build and open app locally (npm run build → serve)
++6) Run basic end-to-end flow (pick a sample project, open tutorial steps)
++7) Report any anomalies and follow rollback if needed
++
++If any step fails, capture logs and escalate; see rollback instructions.
+diff --git a/TUTORIAL_VISIBILITY_MONITORING.md b/TUTORIAL_VISIBILITY_MONITORING.md
+new file mode 100644
+index 0000000..5555555
+--- /dev/null
++++ b/TUTORIAL_VISIBILITY_MONITORING.md
+@@ -0,0 +1,24 @@
++Monitoring & telemetry to watch post-release
++
++Key signals:
++- Frontend errors (Sentry or console error rate spike)
++- Uncaught exceptions in API calls that reference tutorial feature
++- Increase in frontend bundle size (build step should catch; still monitor)
++- User reports of missing UI or accidental debug messages
++
++Dashboards / Alerts:
++- Error count > baseline + 25% in 1 hour → page on-call
++- Any high-severity error mentioning "TutorialOrchestrator" or env helper → immediate triage
++
++Logs:
++- Check server-side logs for any unexpected reads/writes to tutorial flags
++- Check client console errors in staging & production
++
++Roll-forward/rollback window: monitor closely for 24–72 hours after merge.
+diff --git a/TUTORIAL_VISIBILITY_ROLLBACK.md b/TUTORIAL_VISIBILITY_ROLLBACK.md
+new file mode 100644
+index 0000000..6666666
+--- /dev/null
++++ b/TUTORIAL_VISIBILITY_ROLLBACK.md
+@@ -0,0 +1,22 @@
++Rollback instructions
++
++1) If immediate regression, revert the merge on GitHub (revert PR) or run:
++   git revert <merge-commit-sha> -m 1
++   git push origin HEAD:revert/tutorial-visibility-<timestamp>
++
++2) If deploy-only rollback needed:
++   - Redeploy previous image/tag or previous artifact from CI (the last green build)
++
++3) If rollback is not possible quickly, mitigate by:
++   - Setting REACT_APP_SHOW_TUTORIAL=false in runtime config
++   - Ensure REACT_APP_DEBUG_TUTORIAL is unset in production
++
++4) After rollback, run smoke tests and reopen a PR with fix + tests.
+diff --git a/TUTORIAL_VISIBILITY_REVIEWER_GUIDANCE.md b/TUTORIAL_VISIBILITY_REVIEWER_GUIDANCE.md
+new file mode 100644
+index 0000000..7777777
+--- /dev/null
++++ b/TUTORIAL_VISIBILITY_REVIEWER_GUIDANCE.md
+@@ -0,0 +1,28 @@
++Reviewer guidance for Tutorial Visibility PR
++
++Primary checks:
++- CI green: lint (no warnings), tests, production build
++- Unit tests added for env helper and TutorialOrchestrator pass
++- Ensure no console.debug/info logs leak in production paths
++- Confirm README and .env.example updated and accurate
++
++Code review checklist:
++- env parsing centralized (single helper)
++- Debug logging gated to NODE_ENV === 'development' && REACT_APP_DEBUG_TUTORIAL === true
++- No feature flags hard-coded; defaults are safe (false)
++- Small, focused commits (squash policy ok)
++
++Operational checks:
++- Smoke test steps exist and are runnable
++- Rollback plan present
++- PR body includes testing steps and reviewer checklist
+diff --git a/CREATE_TUTORIAL_VISIBILITY_PR.sh b/CREATE_TUTORIAL_VISIBILITY_PR.sh
+new file mode 100644
+index 0000000..8888888
+--- /dev/null
++++ b/CREATE_TUTORIAL_VISIBILITY_PR.sh
+@@ -0,0 +1,40 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++# Usage: ./CREATE_TUTORIAL_VISIBILITY_PR.sh [branch-name]
++BRANCH="${1:-feat/tutorial-visibility}"
++TITLE="Add REACT_APP_SHOW_TUTORIAL env helper, docs, tests, and CI"
++BODY_FILE="TUTORIAL_VISIBILITY_PR_BODY.md"
++
++echo "Ensure you are on branch: $BRANCH"
++git checkout -B "$BRANCH"
++git add .
++git commit -m "chore(tutorial-visibility): add final PR artifacts and docs" || true
++git push --set-upstream origin "$BRANCH"
++
++if command -v gh >/dev/null 2>&1; then
++  echo "Creating PR via GitHub CLI..."
++  gh pr create --title "$TITLE" --body-file "$BODY_FILE" --base main --head "$BRANCH" --label "feature"
++else
++  echo "gh CLI not found. PR pushed to origin/$BRANCH."
++  echo "Create a PR manually or install GitHub CLI: https://cli.github.com/"
++fi
++
++echo "Done."
+diff --git a/CREATE_TUTORIAL_VISIBILITY_PR.bat b/CREATE_TUTORIAL_VISIBILITY_PR.bat
+new file mode 100644
+index 0000000..9999999
+--- /dev/null
++++ b/CREATE_TUTORIAL_VISIBILITY_PR.bat
+@@ -0,0 +1,20 @@
++@echo off
++setlocal
++set BRANCH=%1
++if "%BRANCH%"=="" set BRANCH=feat/tutorial-visibility
++
++git checkout -B %BRANCH%
++git add .
++git commit -m "chore(tutorial-visibility): add final PR artifacts and docs" 2>NUL || echo Commit skipped (no changes)
++git push --set-upstream origin %BRANCH%
++where gh >NUL 2>&1
++if %ERRORLEVEL%==0 (
++  gh pr create --title "Add REACT_APP_SHOW_TUTORIAL env helper, docs, tests, and CI" --body-file TUTORIAL_VISIBILITY_PR_BODY.md --base main --head %BRANCH% --label feature
++) else (
++  echo gh CLI not found. PR pushed to origin/%BRANCH%. Create PR manually.
++)
++
++endlocal
+diff --git a/TUTORIAL_VISIBILITY_FINAL_SUMMARY.md b/TUTORIAL_VISIBILITY_FINAL_SUMMARY.md
+new file mode 100644
+index 0000000..aaaaaaaa
+--- /dev/null
++++ b/TUTORIAL_VISIBILITY_FINAL_SUMMARY.md
+@@ -0,0 +1,22 @@
++Tutorial Visibility — final summary
++
++Goal:
++Make the A→Z Tutorial UI toggleable and ensure debug logging is gated, with tests, docs and CI protections.
++
++What this patch adds:
++- Final PR artifacts (squash commit msg, release note, smoke test, monitoring, rollback, reviewer guidance)
++- PR creation scripts (bash + Windows)
++- Short post-merge commands and final summary
++
++Validation:
++- CI must pass: lint (no warnings), tests, production build
++- Run smoke-test checklist in staging (see TUTORIAL_VISIBILITY_SMOKE_TEST.md)
++
++If you want, next I'll:
++1) Generate the exact gh pr create command pre-filled with reviewers/labels and a branch-protection curl snippet OR
++2) Produce a git-formatted patch that also includes the CI workflow file (.github/workflows/tutorial-visibility-ci.yml) and the env helper files (client/src/utils/env.js + tests)
++
++I chose to provide the PR artifact patch now. Reply "include CI + code files" to have me expand the patch to also add the CI workflow and code changes.

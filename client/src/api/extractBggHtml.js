@@ -1,7 +1,11 @@
 import { fetchJson } from '../utils/fetchJson';
 
 export async function extractBggHtml({ apiBase, bggUrl, addToast }) {
-  return fetchJson(`${apiBase}/api/extract-bgg-html`, {
+  // Use relative URL to go through proxy when apiBase is empty
+  const url = apiBase
+    ? `${apiBase}/api/extract-bgg-html`
+    : '/api/extract-bgg-html';
+  return fetchJson(url, {
     method: 'POST',
     body: { bggUrl },
     toast: { addToast, dedupeKey: 'extract-bgg-html' },

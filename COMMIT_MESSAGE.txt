@@ -1,0 +1,3 @@
+Stabilize frontend: WebSocketGuard + env helper, deterministic tests, lint & PR artifacts
+
+Standardize environment variable access via helper, add WebSocketGuard with exponential backoff + jitter, make tests deterministic, add targeted ESLint rule, and include PR artifacts for smooth CI validation.

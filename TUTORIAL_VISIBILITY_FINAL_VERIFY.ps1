@@ -55,15 +55,11 @@ if ($currentBranch -eq "feat/tutorial-visibility") {
 # Check that the branch has been pushed
 Write-Host ""
 Write-Host "Checking if branch has been pushed..." -ForegroundColor Yellow
-try {
-    $upstreamBranch = git rev-parse --abbrev-ref "@{u}" 2>$null
-    if ($upstreamBranch) {
-        Write-Host "  [OK] Branch is tracking '$upstreamBranch'" -ForegroundColor Green
-    } else {
-        Write-Host "  [WARN] Branch is not tracking an upstream branch" -ForegroundColor Yellow
-    }
-} catch {
-    Write-Host "  [WARN] Could not determine upstream branch" -ForegroundColor Yellow
+$upstreamBranch = git rev-parse --abbrev-ref @{u} 2>$null
+if ($upstreamBranch) {
+    Write-Host "  [OK] Branch is tracking '$upstreamBranch'" -ForegroundColor Green
+} else {
+    Write-Host "  [WARN] Branch is not tracking an upstream branch" -ForegroundColor Yellow
 }
 
 Write-Host ""

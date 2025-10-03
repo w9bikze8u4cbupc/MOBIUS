@@ -1,0 +1,1 @@
+Stabilize frontend: add WebSocketGuard, env helper, deterministic tests, ESLint rule, and PR/CI artifacts

@@ -1,13 +1,33 @@
+version: '3.8'
+
 services:
-  dev:
-    build:
+  mock-backend:
+    build: 
       context: .
-      dockerfile: Dockerfile
-    volumes:
-      - .:/workspace:cached
-    working_dir: /workspace
-    security_opt:
-      - no-new-privileges:true
+      dockerfile: Dockerfile.mock
+    ports:
+      - "5002:5002"
     environment:
-      - CI=true
-    tty: true
+      - PORT=5002
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_BASE=http://mock-backend:5002
+      - REACT_APP_WS_URL=ws://mock-backend:5002/ws
+    depends_on:
+      - mock-backend
+
+# To build custom Dockerfile for mock server
+# Create Dockerfile.mock in the root directory with:
+# FROM node:20
+# WORKDIR /app
+# COPY package*.json ./
+# RUN npm install express ws cors
+# COPY mock-server.mjs ./
+# EXPOSE 5002
+# CMD ["node", "mock-server.mjs"]

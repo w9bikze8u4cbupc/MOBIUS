@@ -118,16 +118,19 @@
   "author": "Mobius Games",
   "license": "MIT",
   "dependencies": {
+    "body-parser": "^2.2.0",
     "canvas": "^3.2.0",
     "cheerio": "^1.1.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
+    "express": "^4.21.2",
     "express-rate-limit": "^8.1.0",
     "fast-xml-parser": "^5.2.5",
     "fs-extra": "^11.3.1",
     "helmet": "^8.1.0",
     "image-size": "^2.0.2",
     "multer": "^2.0.2",
+    "node-fetch": "^3.3.2",
     "openai": "^5.20.0",
     "pdf-parse": "^1.1.1",
     "pdf-to-img": "^5.0.0",
@@ -137,6 +140,7 @@
     "sharp": "^0.34.3",
     "sqlite3": "^5.1.7",
     "typescript": "^5.0.0",
+    "ws": "^8.18.3",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
@@ -194,5 +198,10 @@
       "prettier --write",
       "eslint --fix"
     ]
+  },
+  "directories": {
+    "doc": "docs",
+    "example": "examples",
+    "test": "tests"
   }
 }

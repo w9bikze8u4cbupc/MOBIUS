@@ -1,95 +1,117 @@
-# Implementation Summary
+# Tutorial Visibility Implementation Summary
 
-This document summarizes the improvements made to tighten the remaining gaps in the mobius-games-tutorial-generator project.
+## ✅ Completed Features
 
-## 1. SSRF Allowlist Enforcement
+### 1. Environment Helper Utilities
+- **File**: `client/src/utils/env.js`
+- **Functions**:
+  - `getShowTutorial()` - Controls tutorial visibility
+  - `getDebugTutorial()` - Controls diagnostic logging
+- **Features**:
+  - Safe environment variable access
+  - Boolean string parsing (`'true'`/`'false'`)
+  - Default values when not set
+  - Type conversion for non-boolean values
 
-### Changes Made
-- Updated all URL validation endpoints to return 400 status codes with structured error codes
-- Added `code: 'url_disallowed'` for all disallowed URL cases
-- Echo X-Request-ID in error responses for traceability
-- Added validation after fetch with redirect to re-validate final URL host
+### 2. Configuration Documentation
+- **File**: `client/.env.example`
+- **Variables**:
+  - `REACT_APP_SHOW_TUTORIAL=true` - Toggle tutorial visibility
+  - `REACT_APP_DEBUG_TUTORIAL=false` - Enable diagnostic logging
+- **Features**:
+  - Clear documentation for each variable
+  - Usage examples
+  - Default values
 
-### Files Modified
-- `src/api/index.js` - Updated URL validation in multiple endpoints
+### 3. Component Integration
+- **File**: `client/src/components/TutorialOrchestrator.jsx`
+- **Features**:
+  - Conditional rendering based on `REACT_APP_SHOW_TUTORIAL`
+  - Development-only diagnostic logging controlled by `REACT_APP_DEBUG_TUTORIAL`
+  - Proper import and usage of helper functions
 
-## 2. PDF Validation with Real File Tests
+### 4. Documentation Updates
+- **File**: `README.md`
+- **Features**:
+  - Instructions for toggling tutorial visibility
+  - Instructions for enabling diagnostic logging
+  - Clear usage examples
+  - Important notes about environment variable loading
 
-### Test Fixtures Created
-- `tests/fixtures/small-valid.pdf` - Valid minimal PDF file
-- `tests/fixtures/not-a-pdf.bin` - Invalid file with wrong content
-- `tests/fixtures/big.pdf` - Oversized file (60KB)
+### 5. Unit Tests
+- **Files**:
+  - `client/src/utils/__tests__/env.test.js` - Tests for helper functions
+  - `client/src/components/TutorialOrchestrator.test.jsx` - Tests for component visibility
+- **Coverage**:
+  - All helper function cases (undefined, true, false, other strings)
+  - Component rendering when visible/invisible
+  - Proper mocking of environment variables
 
-### Error Codes Implemented
-- `pdf_oversize` - For files exceeding size limits
-- `pdf_bad_signature` - For files missing PDF signature
-- `pdf_bad_mime` - For files with incorrect MIME type
-- `pdf_parse_failed` - For general PDF parsing failures
-- `pdf_upload_failed` - For upload failures
+### 6. Validation Scripts
+- **Files**:
+  - `validate_tutorial_visibility.sh` - Bash validation script
+  - `validate_tutorial_visibility.ps1` - PowerShell validation script
+- **Features**:
+  - File existence checks
+  - README documentation verification
+  - Component integration verification
+  - Test execution
+  - Linting validation
 
-## 3. Retry-with-Jitter Implementation
+### 7. PR Artifacts
+- **Files**:
+  - `TUTORIAL_VISIBILITY_PR.patch` - Git patch for changes
+  - `TUTORIAL_VISIBILITY_PR_BODY.md` - PR description content
+  - `GITHUB_PR_UI_COPY.md` - Ready-to-paste GitHub UI content
+  - `CREATE_PR_COMMANDS.md` - CLI commands for PR creation
 
-### Changes Made
-- Updated retry logic to use deterministic jitter (250ms/750ms)
-- Added `/test-flaky` endpoint for validation testing
-- Updated both BGG extraction and start-extraction endpoints
+## 🎯 Key Benefits
 
-### Benefits
-- Prevents retry storms with jittered backoff
-- Respects server responses (no retry on 403)
-- Improves success rate for rate-limited requests
+1. **Configurable Visibility** - Easily show/hide tutorial component via environment variable
+2. **Development Debugging** - Optional diagnostic logging for troubleshooting
+3. **Safe Environment Access** - Centralized, type-safe environment variable handling
+4. **Comprehensive Testing** - Full test coverage for all functionality
+5. **Clear Documentation** - Well-documented configuration and usage
+6. **Cross-Platform Support** - Validation scripts for both Bash and PowerShell
+7. **Low Risk** - Development-only features that don't affect production
 
-## 4. ESLint Ratchet Plan
+## 🚀 Usage Instructions
 
-### Configuration Updates
-- Focused on high-signal errors first:
-  - `no-undef` - Error
-  - `no-unused-vars` - Warning with ignore pattern
-  - `no-empty` - Error
-  - Security plugin violations - Error
-  - Promise errors - Error
+### Toggle Tutorial Visibility
+```bash
+# Show tutorial component
+REACT_APP_SHOW_TUTORIAL=true
 
-### Future Direction
-- Gradually enable stylistic rules as warnings
-- Add CI step with `npx eslint . --max-warnings=0`
+# Hide tutorial component
+REACT_APP_SHOW_TUTORIAL=false
+```
 
-## 5. Updated Validation Script
+### Enable Diagnostic Logging
+```bash
+# Enable tutorial debugging logs (development only)
+REACT_APP_DEBUG_TUTORIAL=true
+```
 
-### Features
-- Assertions for status codes and structured error codes
-- Comprehensive test coverage for all validation scenarios
-- Clear pass/fail reporting
+**Important**: Create React App reads .env at start time only. After changing environment variables, you must restart the development server.
 
-## 6. Readiness Endpoint Improvements
+## 🧪 Validation
 
-### Enhancements
-- Added worker pool ping timing
-- Added BGG DNS resolve timing
-- Enhanced logging with duration metrics
+Run the cross-platform validation scripts to verify the implementation:
 
-## 7. XML Fallback Caching
+**Bash**:
+```bash
+./validate_tutorial_visibility.sh
+```
 
-### Implementation
-- Added 2-5 minute caching for XML fallback responses
-- Reduces rate-limit exposure from BGG API
-- Improves performance for repeated requests
+**PowerShell**:
+```bash
+.\validate_tutorial_visibility.ps1
+```
 
-## 8. Temp-file Cleanup Logging
-
-### Improvement
-- Added logging of file counts cleaned per sweep
-- Better observability for cleanup operations
-
-## Files Created
-1. `tests/fixtures/small-valid.pdf` - Valid PDF test fixture
-2. `tests/fixtures/not-a-pdf.bin` - Invalid PDF test fixture
-3. `tests/fixtures/big.pdf` - Oversized PDF test fixture
-4. `updated-validation.ps1` - Updated validation script with assertions
-5. `test-retry-validation.js` - Retry validation test script
-
-## Files Modified
-1. `src/api/index.js` - Multiple endpoints updated for structured error responses
-2. `eslint.config.js` - Updated ESLint configuration for ratchet approach
-
-## Testing
-All improvements have been implemented with proper error handling and validation. The updated validation script can be used to verify all functionality works as expected.
+Or run the core validation steps manually:
+```bash
+npm ci
+npm run lint -- --fix
+npm test
+npm start
+```

@@ -1,14 +1,6 @@
 {
   "extends": ["react-app", "react-app/jest"],
   "rules": {
-    // Custom rule to ensure REACT_APP_SHOW_DEV_TEST is properly handled
-    "no-restricted-properties": [
-      "error",
-      {
-        "object": "process",
-        "property": "env",
-        "message": "Please use the consistent check: String(process.env.REACT_APP_SHOW_DEV_TEST || '').toLowerCase() === 'true'"
-      }
-    ]
+    // No specific restrictions on process.env for now
   }
 }

@@ -143,7 +143,11 @@ app.use((req, res, next) => {
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false })); // disable CSP for API-only server
 // CORS configuration
-const CORS_ORIGIN = process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'];
+const CORS_ORIGIN = process.env.CORS_ORIGIN?.split(',') || [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3001',
+];
 app.use(
   cors({
     origin: CORS_ORIGIN,
@@ -1357,8 +1361,8 @@ function normalizeLangsKey(langsParam) {
   const raw = Array.isArray(langsParam)
     ? langsParam
     : String(langsParam)
-      .split(/[,\s]+/)
-      .filter(Boolean);
+        .split(/[,\s]+/)
+        .filter(Boolean);
   if (raw.length === 1 && /^(multi|all|auto)$/i.test(raw[0])) return 'all';
   const uniq = Array.from(new Set(raw.map((s) => s.toLowerCase()))).sort();
   return uniq.join(',');
@@ -1409,8 +1413,8 @@ const KEYWORDS_BY_LANG = {
     'à votre tour',
     'a votre tour',
     'pendant votre tour',
-    'phase d\'actions',
-    'phase d\'actions',
+    "phase d'actions",
+    "phase d'actions",
     'actions disponibles',
   ],
   es: [
@@ -1890,7 +1894,7 @@ app.post('/api/extract-bgg-html', async (req, res) => {
       return res.status(500).json({
         error: 'Blocked by Cloudflare or anti-bot protection. Try again later.',
         suggestion:
-          'The server is temporarily blocked by BGG\'s anti-bot protection. Please try again in a few minutes or use a different URL.',
+          "The server is temporarily blocked by BGG's anti-bot protection. Please try again in a few minutes or use a different URL.",
         source: 'html',
       });
     }
@@ -2110,7 +2114,7 @@ app.use((error, req, res, next) => {
       success: false,
       code: 'pdf_bad_mime',
       message: error.message,
-      suggestion: 'Please ensure you\'re uploading a valid PDF file with .pdf extension.',
+      suggestion: "Please ensure you're uploading a valid PDF file with .pdf extension.",
     });
   }
 
@@ -2235,10 +2239,10 @@ app.post('/upload-pdf', uploadPdf.single('pdf'), async (req, res) => {
       suggestion: 'Please try uploading a smaller PDF file (< 50MB) or check file permissions.',
       validationDetails: req.file
         ? {
-          fileSize: req.file.size,
-          fileName: req.file.originalname,
-          fileType: req.file.mimetype,
-        }
+            fileSize: req.file.size,
+            fileName: req.file.originalname,
+            fileType: req.file.mimetype,
+          }
         : null,
     });
   }
@@ -3138,20 +3142,20 @@ app.post('/start-extraction', async (req, res) => {
             const value = link['@_value'];
             switch (type) {
               case 'boardgamepublisher':
-              gameInfo.publishers.push(value);
-              break;
+                gameInfo.publishers.push(value);
+                break;
               case 'boardgamedesigner':
-              gameInfo.designers.push(value);
-              break;
+                gameInfo.designers.push(value);
+                break;
               case 'boardgameartist':
-              gameInfo.artists.push(value);
-              break;
+                gameInfo.artists.push(value);
+                break;
               case 'boardgamecategory':
-              gameInfo.categories.push(value);
-              break;
+                gameInfo.categories.push(value);
+                break;
               case 'boardgamemechanic':
-              gameInfo.mechanics.push(value);
-              break;
+                gameInfo.mechanics.push(value);
+                break;
             }
           });
         }

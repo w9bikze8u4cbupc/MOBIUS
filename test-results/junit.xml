@@ -1,19 +1,64 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="7" failures="0" errors="0" time="3.608">
-  <testsuite name="URL Validation and SSRF Protection" errors="0" failures="0" skipped="0" timestamp="2025-09-20T20:26:51" time="1.041" tests="7">
-    <testcase classname="URL Validation and SSRF Protection should allow valid HTTPS URLs from allowlist" name="URL Validation and SSRF Protection should allow valid HTTPS URLs from allowlist" time="0.004">
+<testsuites name="jest tests" tests="20" failures="0" errors="0" time="6.151">
+  <testsuite name="WebSocketGuard" errors="0" failures="0" skipped="19" timestamp="2025-10-02T14:09:05" time="1.837" tests="20">
+    <testcase classname="WebSocketGuard should create a WebSocket connection" name="WebSocketGuard should create a WebSocket connection" time="0">
+      <skipped/>
     </testcase>
-    <testcase classname="URL Validation and SSRF Protection should reject HTTP URLs when HTTPS is required" name="URL Validation and SSRF Protection should reject HTTP URLs when HTTPS is required" time="0.001">
+    <testcase classname="WebSocketGuard should connect to WebSocket" name="WebSocketGuard should connect to WebSocket" time="0">
+      <skipped/>
     </testcase>
-    <testcase classname="URL Validation and SSRF Protection should reject URLs not in allowlist" name="URL Validation and SSRF Protection should reject URLs not in allowlist" time="0.001">
+    <testcase classname="WebSocketGuard should not reconnect if already connected" name="WebSocketGuard should not reconnect if already connected" time="0">
+      <skipped/>
     </testcase>
-    <testcase classname="URL Validation and SSRF Protection should reject private IP addresses not in allowlist" name="URL Validation and SSRF Protection should reject private IP addresses not in allowlist" time="0.001">
+    <testcase classname="WebSocketGuard should handle WebSocket open event" name="WebSocketGuard should handle WebSocket open event" time="0">
+      <skipped/>
     </testcase>
-    <testcase classname="URL Validation and SSRF Protection should allow localhost when in allowlist" name="URL Validation and SSRF Protection should allow localhost when in allowlist" time="0.002">
+    <testcase classname="WebSocketGuard should handle WebSocket close event" name="WebSocketGuard should handle WebSocket close event" time="0.083">
     </testcase>
-    <testcase classname="URL Validation and SSRF Protection should allow private IPs when explicitly allowed and in allowlist" name="URL Validation and SSRF Protection should allow private IPs when explicitly allowed and in allowlist" time="0.001">
+    <testcase classname="WebSocketGuard should handle WebSocket error event" name="WebSocketGuard should handle WebSocket error event" time="0">
+      <skipped/>
     </testcase>
-    <testcase classname="URL Validation and SSRF Protection isAllowedUrl should correctly identify allowed hosts" name="URL Validation and SSRF Protection isAllowedUrl should correctly identify allowed hosts" time="0.002">
+    <testcase classname="WebSocketGuard should handle WebSocket message event" name="WebSocketGuard should handle WebSocket message event" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="WebSocketGuard should send message when connected" name="WebSocketGuard should send message when connected" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="WebSocketGuard should not send message when not connected" name="WebSocketGuard should not send message when not connected" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="WebSocketGuard should close connection" name="WebSocketGuard should close connection" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="WebSocketGuard should calculate delay with exponential backoff" name="WebSocketGuard should calculate delay with exponential backoff" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="WebSocketGuard should reset retry count" name="WebSocketGuard should reset retry count" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="WebSocketGuard applies exponential backoff + jitter within bounds" name="WebSocketGuard applies exponential backoff + jitter within bounds" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="WebSocketGuard does not exceed maximum retry attempts" name="WebSocketGuard does not exceed maximum retry attempts" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="WebSocketGuard respects max delay cap" name="WebSocketGuard respects max delay cap" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="WebSocketGuard applies exponential backoff + jitter within bounds" name="WebSocketGuard applies exponential backoff + jitter within bounds" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="WebSocketGuard does not reconnect when ws.readyState === OPEN" name="WebSocketGuard does not reconnect when ws.readyState === OPEN" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="WebSocketGuard does not reconnect when ws.readyState === CONNECTING" name="WebSocketGuard does not reconnect when ws.readyState === CONNECTING" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="WebSocketGuard respects maximum retry attempts" name="WebSocketGuard respects maximum retry attempts" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="WebSocketGuard calculates delay with proper jitter bounds" name="WebSocketGuard calculates delay with proper jitter bounds" time="0">
+      <skipped/>
     </testcase>
   </testsuite>
 </testsuites>

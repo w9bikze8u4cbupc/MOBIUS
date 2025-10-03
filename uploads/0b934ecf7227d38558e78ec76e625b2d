@@ -1,0 +1,128 @@
+%PDF-1.4
+%âãÏÓ
+1 0 obj
+<<
+/Title (Test Game Rulebook)
+/Creator (Test PDF Generator)
+/Producer (Test)
+/CreationDate (D:20250920113300)
+>>
+endobj
+2 0 obj
+<<
+/Type /Catalog
+/Pages 3 0 R
+>>
+endobj
+3 0 obj
+<<
+/Type /Pages
+/Kids [4 0 R]
+/Count 1
+>>
+endobj
+4 0 obj
+<<
+/Type /Page
+/Parent 3 0 R
+/MediaBox [0 0 612 792]
+/Contents 5 0 R
+/Resources <<
+/ProcSet [/PDF /Text]
+/Font <<
+/F1 6 0 R
+/F2 7 0 R
+>>
+>>
+>>
+endobj
+5 0 obj
+<<
+/Length 300
+>>
+stream
+BT
+/F1 16 Tf
+72 720 Td
+(Test Board Game) Tj
+ET
+BT
+/F1 14 Tf
+72 690 Td
+(Rulebook) Tj
+ET
+BT
+/F2 12 Tf
+72 650 Td
+(Contents & Setup) Tj
+ET
+BT
+/F2 12 Tf
+72 630 Td
+(1 Game board) Tj
+ET
+BT
+/F2 12 Tf
+72 615 Td
+(50 Cards) Tj
+ET
+BT
+/F2 12 Tf
+72 600 Td
+(4 Player boards) Tj
+ET
+BT
+/F2 12 Tf
+72 585 Td
+(100 Tokens) Tj
+ET
+BT
+/F2 12 Tf
+72 570 Td
+(6 Dice) Tj
+ET
+BT
+/F2 12 Tf
+72 540 Td
+(Object of the Game) Tj
+ET
+BT
+/F2 12 Tf
+72 520 Td
+(The goal is to collect the most points by the end of the game.) Tj
+ET
+endstream
+endobj
+6 0 obj
+<<
+/Type /Font
+/Subtype /Type1
+/BaseFont /Helvetica-Bold
+>>
+endobj
+7 0 obj
+<<
+/Type /Font
+/Subtype /Type1
+/BaseFont /Helvetica
+>>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000010 00000 n 
+0000000120 00000 n 
+0000000173 00000 n 
+0000000230 00000 n 
+0000000450 00000 n 
+0000000800 00000 n 
+0000000900 00000 n 
+trailer
+<<
+/Size 8
+/Root 2 0 R
+/Info 1 0 R
+>>
+startxref
+1000
+%%EOF

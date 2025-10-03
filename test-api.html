@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>API Test</h1>
+    <button onclick="testHealth()">Test Health Endpoint</button>
+    <button onclick="testGenerate()">Test Generate Endpoint</button>
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+
+        async function testHealth() {
+            try {
+                const response = await fetch('http://localhost:5002/healthz');
+                const data = await response.text();
+                output.innerHTML += '<p>Health endpoint response: ' + data + '</p>';
+            } catch (error) {
+                output.innerHTML += '<p>Error testing health endpoint: ' + error + '</p>';
+            }
+        }
+
+        async function testGenerate() {
+            try {
+                const response = await fetch('http://localhost:5002/api/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        prompt: 'hello'
+                    })
+                });
+                const data = await response.json();
+                output.innerHTML += '<p>Generate endpoint response: ' + JSON.stringify(data, null, 2) + '</p>';
+            } catch (error) {
+                output.innerHTML += '<p>Error testing generate endpoint: ' + error + '</p>';
+            }
+        }
+    </script>
+</body>
+</html>

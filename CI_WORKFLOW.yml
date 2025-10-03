@@ -1,0 +1,55 @@
+name: WebSocketGuard PR Validation
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'client/src/utils/WebSocketGuard.js'
+      - 'client/src/utils/__tests__/WebSocketGuard.test.js'
+      - 'client/src/utils/env.js'
+      - 'client/src/App.jsx'
+      - 'client/src/index.js'
+      - 'client/.eslintrc.json'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [16.x, 18.x]
+        
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: client/package-lock.json
+        
+    - name: Install client dependencies
+      run: |
+        cd client
+        npm ci
+        
+    - name: Run ESLint
+      run: |
+        cd client
+        npm run lint
+        
+    - name: Run WebSocketGuard tests
+      run: |
+        cd client
+        npx jest src/utils/__tests__/WebSocketGuard.test.js --config=../jest.config.cjs --runInBand --detectOpenHandles --verbose
+        
+    - name: Run all client tests
+      run: |
+        cd client
+        npm test
+        
+    - name: Check for test artifacts
+      run: |
+        # Ensure no lingering processes or open handles
+        echo "Test run completed successfully"

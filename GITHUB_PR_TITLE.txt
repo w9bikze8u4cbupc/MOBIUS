@@ -1,0 +1,1 @@
+Stabilize frontend: WebSocketGuard + env helper, deterministic tests, lint & PR artifacts
