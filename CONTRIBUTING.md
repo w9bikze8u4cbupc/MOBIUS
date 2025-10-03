@@ -2,6 +2,50 @@
 
 Thank you for your interest in contributing to the Mobius Verification Scripts! This document provides guidelines for adding new checks and maintaining the codebase.
 
+## Developer onboarding — secure token handling & repo hooks
+
+Before contributing to this repository, please ensure you've set up the pre-commit hooks that will prevent accidental commits of sensitive tokens.
+
+### Install required tooling (if not already)
+- Git, curl, jq (recommended), Node 18+, and your usual dev tools.
+
+### Enable pre-commit hooks (one-time per machine)
+- Unix/macOS:
+  ```bash
+  ./scripts/setup-hooks.sh
+  ```
+
+- Windows (PowerShell):
+  ```powershell
+  .\scripts\setup-hooks.ps1
+  ```
+
+The script symlinks/copies the [.githooks/*](file:///c:/Users/danie/Documents/mobius-games-tutorial-generator/.githooks) scripts into .git/hooks and verifies executable bits.
+
+### What the hook does
+- Scans staged files for token-like patterns (GitHub tokens, AWS, generic API keys).
+- Blocks commits that appear to include secrets.
+
+### Temporary bypass (use only with caution and document why you bypassed)
+- `git commit --no-verify` OR set env `SKIP_TOKEN_HOOK=1` for the commit command.
+
+### Testing the hook
+- Stage a harmless test file that contains the token pattern `ghp_TESTTOKEN_EXAMPLE` to confirm it flags — do not stage real secrets.
+
+### If you see false positives
+- Report them in #dev-security with a minimal repro; we'll tune the regex and update the hook.
+
+### Token best practices
+- Use environment variables or OS secret store (do not commit .env files).
+- Prefer short-lived / fine‑grained tokens and rotate monthly or per incident.
+- Never paste tokens into chat or public threads.
+
+### Need admin tasks?
+- If you must run the branch-protection apply script and you are not an admin, ask an admin to run it or create the token with admin scope for that one operation and then rotate it.
+
+### Onboarding checklist
+Add this to onboarding checklist: "Run `scripts/setup-hooks.{sh,ps1}` and confirm commit hook blocks sample token."
+
 ## Adding New Checks
 
 ### Naming Convention
@@ -20,7 +64,7 @@ Update the profile definitions in both scripts:
 - **PowerShell**: Modify the profile expansion section around line 250
 
 Example:
-```bash
+``bash
 # Profile expansion
 if [[ -n "$PROFILE" && ${#ONLY_KEYS[@]} -eq 0 ]]; then
   case "$PROFILE" in

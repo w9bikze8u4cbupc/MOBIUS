@@ -18,6 +18,12 @@
 - [ ] [CFG-04] Licenses/attribution reviewed for fonts/images/VO/SFX/BGM
 - [ ] [REL-03] Product/SME sign-off recorded (game variation + locale)
 
+## Security Validation (required for all PRs)
+- [ ] Confirm CI run completed on the branch and list check names from Actions
+- [ ] Paste protection verification JSON (redact tokens)
+- [ ] Confirm at least one admin validated apply/verify steps
+- [ ] Approve after 24–72 hours of no workflow friction
+
 ## Notes for Reviewers
 - Summary of intent/changes:
 - Known non-functional diffs (if any):
