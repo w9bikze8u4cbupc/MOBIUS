@@ -1,0 +1,3 @@
+This is another test file to verify the pre-commit hook.
+Fake token for testing: github_pat_TESTTOKEN_EXAMPLE
+This should be blocked by the pre-commit hook.
