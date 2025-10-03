@@ -116,7 +116,7 @@ Note on units:
 
 #### CI Quickstart (GitHub Actions)
 
-```yaml
+```
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -183,6 +183,7 @@ Environment variables can be configured in `client/.env`:
 - `PORT=3001` - Frontend port
 - `REACT_APP_API_BASE=http://localhost:5001` - Backend API base URL
 - `REACT_APP_SHOW_DEV_TEST=false` - Set to `true` to show the DevTestPage instead of the Tutorial Generator
+- `REACT_APP_SHOW_TUTORIAL=true` - Set to `false` to hide the Tutorial Generator UI
 
 To verify the servers are running:
 
@@ -305,6 +306,16 @@ REACT_APP_SHOW_DEV_TEST=true
 
 # Show Tutorial Generator (main UI)
 REACT_APP_SHOW_DEV_TEST=false
+```
+
+To toggle the tutorial component visibility:
+
+```bash
+# Show tutorial component
+REACT_APP_SHOW_TUTORIAL=true
+
+# Hide tutorial component
+REACT_APP_SHOW_TUTORIAL=false
 ```
 
 **Important**: Create React App reads .env at start time only. After changing environment variables, you must restart the development server:

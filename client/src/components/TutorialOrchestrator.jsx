@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import { orchestrateExtractionAdvanced } from '../utils/orchestrate';
 import {
   buildStoryboard,
@@ -6,16 +6,37 @@ import {
   buildChapters,
   generateConcatFile,
 } from '../utils/storyboard';
+// Import the env helper
+import { getShowTutorial } from '../utils/env';
 
 const TutorialOrchestrator = () => {
-  const [pdfUrl, setPdfUrl] = useState('https://arxiv.org/pdf/2106.14881.pdf');
-  const [websiteUrl, setWebsiteUrl] = useState('');
-  const [language, setLanguage] = useState('fr');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [results, setResults] = useState(null);
-  const [storyboard, setStoryboard] = useState(null);
-  const [chapters, setChapters] = useState(null);
-  const [options, setOptions] = useState({
+  // Check if tutorial should be shown based on environment variable
+  const showTutorial = getShowTutorial();
+  
+  // Diagnostic log for development
+  console.debug('REACT_APP_SHOW_TUTORIAL=', process.env.REACT_APP_SHOW_TUTORIAL, 'showTutorial=', showTutorial);
+
+  // If not showing tutorial, render nothing
+  if (!showTutorial) {
+    return null;
+  }
+
+  // Render the actual UI component
+  return React.createElement(TutorialOrchestratorContent);
+};
+
+// Extract all hook logic into a separate component
+function TutorialOrchestratorContent() {
+  const [pdfUrl, setPdfUrl] = React.useState(
+    'https://arxiv.org/pdf/2106.14881.pdf'
+  );
+  const [websiteUrl, setWebsiteUrl] = React.useState('');
+  const [language, setLanguage] = React.useState('fr');
+  const [isProcessing, setIsProcessing] = React.useState(false);
+  const [results, setResults] = React.useState(null);
+  const [storyboard, setStoryboard] = React.useState(null);
+  const [chapters, setChapters] = React.useState(null);
+  const [options, setOptions] = React.useState({
     dpi: '300',
     trim: '1',
     convert: '1',
@@ -28,7 +49,7 @@ const TutorialOrchestrator = () => {
     embeddedBoost: '1.04',
   });
 
-  const handleOrchestrate = useCallback(async () => {
+  const handleOrchestrate = React.useCallback(async () => {
     if (!pdfUrl) {
       alert('Please provide a PDF URL');
       return;
@@ -80,7 +101,7 @@ const TutorialOrchestrator = () => {
     }
   }, [pdfUrl, websiteUrl, language, options]);
 
-  const downloadConcatFile = useCallback(() => {
+  const downloadConcatFile = React.useCallback(() => {
     if (!storyboard) return;
 
     const content = generateConcatFile(storyboard);
@@ -93,7 +114,7 @@ const TutorialOrchestrator = () => {
     URL.revokeObjectURL(url);
   }, [storyboard]);
 
-  const downloadChapters = useCallback(() => {
+  const downloadChapters = React.useCallback(() => {
     if (!chapters) return;
 
     const content = chapters.chapters;
@@ -106,143 +127,171 @@ const TutorialOrchestrator = () => {
     URL.revokeObjectURL(url);
   }, [chapters]);
 
-  return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      <h1>🎬 A→Z Tutorial Generator</h1>
+  return React.createElement(
+    'div',
+    { style: { padding: '20px', maxWidth: '1200px', margin: '0 auto' } },
+    React.createElement('h1', null, '🎬 A→Z Tutorial Generator'),
 
-      {/* Input Form */}
-      <div
-        style={{
+    // Input Form
+    React.createElement(
+      'div',
+      {
+        style: {
           marginBottom: '30px',
           padding: '20px',
           border: '1px solid #ddd',
           borderRadius: '8px',
-        }}
-      >
-        <h2>📋 Configuration</h2>
+        },
+      },
+      React.createElement('h2', null, '📋 Configuration'),
 
-        <div style={{ marginBottom: '15px' }}>
-          <label
-            style={{
+      React.createElement(
+        'div',
+        { style: { marginBottom: '15px' } },
+        React.createElement(
+          'label',
+          {
+            style: {
               display: 'block',
               marginBottom: '5px',
               fontWeight: 'bold',
-            }}
-          >
-            PDF URL (Required):
-          </label>
-          <input
-            type="url"
-            value={pdfUrl}
-            onChange={e => setPdfUrl(e.target.value)}
-            placeholder="https://example.com/rulebook.pdf"
-            style={{
-              width: '100%',
-              padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #ccc',
-            }}
-          />
-        </div>
+            },
+          },
+          'PDF URL (Required):'
+        ),
+        React.createElement('input', {
+          type: 'url',
+          value: pdfUrl,
+          onChange: e => setPdfUrl(e.target.value),
+          placeholder: 'https://example.com/rulebook.pdf',
+          style: {
+            width: '100%',
+            padding: '8px',
+            borderRadius: '4px',
+            border: '1px solid #ccc',
+          },
+        })
+      ),
 
-        <div style={{ marginBottom: '15px' }}>
-          <label
-            style={{
+      React.createElement(
+        'div',
+        { style: { marginBottom: '15px' } },
+        React.createElement(
+          'label',
+          {
+            style: {
               display: 'block',
               marginBottom: '5px',
               fontWeight: 'bold',
-            }}
-          >
-            Website URL (Optional):
-          </label>
-          <input
-            type="url"
-            value={websiteUrl}
-            onChange={e => setWebsiteUrl(e.target.value)}
-            placeholder="https://boardgamegeek.com/boardgame/..."
-            style={{
-              width: '100%',
-              padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #ccc',
-            }}
-          />
-        </div>
+            },
+          },
+          'Website URL (Optional):'
+        ),
+        React.createElement('input', {
+          type: 'url',
+          value: websiteUrl,
+          onChange: e => setWebsiteUrl(e.target.value),
+          placeholder: 'https://boardgamegeek.com/boardgame/...',
+          style: {
+            width: '100%',
+            padding: '8px',
+            borderRadius: '4px',
+            border: '1px solid #ccc',
+          },
+        })
+      ),
 
-        <div style={{ marginBottom: '15px' }}>
-          <label
-            style={{
+      React.createElement(
+        'div',
+        { style: { marginBottom: '15px' } },
+        React.createElement(
+          'label',
+          {
+            style: {
               display: 'block',
               marginBottom: '5px',
               fontWeight: 'bold',
-            }}
-          >
-            Language:
-          </label>
-          <select
-            value={language}
-            onChange={e => setLanguage(e.target.value)}
-            style={{
+            },
+          },
+          'Language:'
+        ),
+        React.createElement(
+          'select',
+          {
+            value: language,
+            onChange: e => setLanguage(e.target.value),
+            style: {
               padding: '8px',
               borderRadius: '4px',
               border: '1px solid #ccc',
-            }}
-          >
-            <option value="en">English</option>
-            <option value="fr">Français</option>
-            <option value="es">Español</option>
-            <option value="de">Deutsch</option>
-            <option value="it">Italiano</option>
-          </select>
-        </div>
+            },
+          },
+          React.createElement('option', { value: 'en' }, 'English'),
+          React.createElement('option', { value: 'fr' }, 'Français'),
+          React.createElement('option', { value: 'es' }, 'Español'),
+          React.createElement('option', { value: 'de' }, 'Deutsch'),
+          React.createElement('option', { value: 'it' }, 'Italiano')
+        )
+      ),
 
-        {/* Advanced Options */}
-        <details style={{ marginBottom: '15px' }}>
-          <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>
-            ⚙️ Advanced Options
-          </summary>
-          <div
-            style={{
+      // Advanced Options
+      React.createElement(
+        'details',
+        { style: { marginBottom: '15px' } },
+        React.createElement(
+          'summary',
+          { style: { cursor: 'pointer', fontWeight: 'bold' } },
+          '⚙️ Advanced Options'
+        ),
+        React.createElement(
+          'div',
+          {
+            style: {
               marginTop: '10px',
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
               gap: '10px',
-            }}
-          >
-            {Object.entries(options).map(([key, value]) => (
-              <div key={key}>
-                <label
-                  style={{
+            },
+          },
+          Object.entries(options).map(([key, value]) =>
+            React.createElement(
+              'div',
+              { key: key },
+              React.createElement(
+                'label',
+                {
+                  style: {
                     display: 'block',
                     fontSize: '12px',
                     marginBottom: '2px',
-                  }}
-                >
-                  {key}:
-                </label>
-                <input
-                  type="text"
-                  value={value}
-                  onChange={e =>
-                    setOptions(prev => ({ ...prev, [key]: e.target.value }))
-                  }
-                  style={{
-                    width: '100%',
-                    padding: '4px',
-                    fontSize: '12px',
-                    borderRadius: '3px',
-                    border: '1px solid #ccc',
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        </details>
+                  },
+                },
+                key + ':'
+              ),
+              React.createElement('input', {
+                type: 'text',
+                value: value,
+                onChange: e =>
+                  setOptions(prev => ({ ...prev, [key]: e.target.value })),
+                style: {
+                  width: '100%',
+                  padding: '4px',
+                  fontSize: '12px',
+                  borderRadius: '3px',
+                  border: '1px solid #ccc',
+                },
+              })
+            )
+          )
+        )
+      ),
 
-        <button
-          onClick={handleOrchestrate}
-          disabled={isProcessing}
-          style={{
+      React.createElement(
+        'button',
+        {
+          onClick: handleOrchestrate,
+          disabled: isProcessing,
+          style: {
             padding: '12px 24px',
             backgroundColor: isProcessing ? '#ccc' : '#007bff',
             color: 'white',
@@ -251,263 +300,360 @@ const TutorialOrchestrator = () => {
             cursor: isProcessing ? 'not-allowed' : 'pointer',
             fontSize: '16px',
             fontWeight: 'bold',
-          }}
-        >
-          {isProcessing ? '🔄 Processing...' : '🚀 Generate Tutorial'}
-        </button>
-      </div>
+          },
+        },
+        isProcessing ? '🔄 Processing...' : '🚀 Generate Tutorial'
+      )
+    ),
 
-      {/* Results */}
-      {results && (
-        <div style={{ marginBottom: '30px' }}>
-          <h2>📊 Orchestration Results</h2>
-
-          <div
-            style={{
+    // Results
+    results &&
+      React.createElement(
+        'div',
+        { style: { marginBottom: '30px' } },
+        React.createElement('h2', null, '📊 Orchestration Results'),
+        React.createElement(
+          'div',
+          {
+            style: {
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
               gap: '15px',
               marginBottom: '20px',
-            }}
-          >
-            <div
-              style={{
+            },
+          },
+          React.createElement(
+            'div',
+            {
+              style: {
                 padding: '15px',
                 backgroundColor: '#f8f9fa',
                 borderRadius: '8px',
-              }}
-            >
-              <h3>🎯 Actions Detection</h3>
-              <p>
-                <strong>Pages Found:</strong> {results.detectedPages.length}
-              </p>
-              <p>
-                <strong>Pages:</strong>{' '}
-                {results.detectedPages.join(', ') || 'None'}
-              </p>
-              {results.metadata.detectError && (
-                <p style={{ color: 'red', fontSize: '12px' }}>
-                  Error: {results.metadata.detectError}
-                </p>
-              )}
-            </div>
+              },
+            },
+            React.createElement('h3', null, '🎯 Actions Detection'),
+            React.createElement(
+              'p',
+              null,
+              React.createElement('strong', null, 'Pages Found:'),
+              ' ',
+              results.detectedPages.length
+            ),
+            React.createElement(
+              'p',
+              null,
+              React.createElement('strong', null, 'Pages:'),
+              ' ',
+              results.detectedPages.join(', ') || 'None'
+            ),
+            results.metadata.detectError &&
+              React.createElement(
+                'p',
+                {
+                  style: { color: 'red', fontSize: '12px' },
+                },
+                'Error: ',
+                results.metadata.detectError
+              )
+          ),
 
-            <div
-              style={{
+          React.createElement(
+            'div',
+            {
+              style: {
                 padding: '15px',
                 backgroundColor: '#f8f9fa',
                 borderRadius: '8px',
-              }}
-            >
-              <h3>🖼️ Component Extraction</h3>
-              <p>
-                <strong>Images:</strong> {results.metadata.imagesExtracted}
-              </p>
-              <p>
-                <strong>Source:</strong> {results.extract.source}
-              </p>
-              <p>
-                <strong>Cache:</strong> {results.extract.cache}
-              </p>
-              {results.extract.popplerMissing && (
-                <p style={{ color: 'orange', fontSize: '12px' }}>
-                  ⚠️ Poppler missing - PDF extraction disabled
-                </p>
-              )}
-            </div>
+              },
+            },
+            React.createElement('h3', null, '🖼️ Component Extraction'),
+            React.createElement(
+              'p',
+              null,
+              React.createElement('strong', null, 'Images:'),
+              ' ',
+              results.metadata.imagesExtracted
+            ),
+            React.createElement(
+              'p',
+              null,
+              React.createElement('strong', null, 'Source:'),
+              ' ',
+              results.extract.source
+            ),
+            React.createElement(
+              'p',
+              null,
+              React.createElement('strong', null, 'Cache:'),
+              ' ',
+              results.extract.cache
+            ),
+            results.extract.popplerMissing &&
+              React.createElement(
+                'p',
+                {
+                  style: { color: 'orange', fontSize: '12px' },
+                },
+                '⚠️ Poppler missing - PDF extraction disabled'
+              )
+          ),
 
-            <div
-              style={{
+          React.createElement(
+            'div',
+            {
+              style: {
                 padding: '15px',
                 backgroundColor: '#f8f9fa',
                 borderRadius: '8px',
-              }}
-            >
-              <h3>⚙️ Options Applied</h3>
-              <div style={{ fontSize: '12px' }}>
-                {Object.entries(results.metadata.options).map(
-                  ([key, value]) => (
-                    <div key={key}>
-                      <strong>{key}:</strong> {value}
-                    </div>
-                  )
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+              },
+            },
+            React.createElement('h3', null, '⚙️ Options Applied'),
+            React.createElement(
+              'div',
+              { style: { fontSize: '12px' } },
+              Object.entries(results.metadata.options).map(([key, value]) =>
+                React.createElement(
+                  'div',
+                  { key: key },
+                  React.createElement('strong', null, key + ':'),
+                  ' ',
+                  value
+                )
+              )
+            )
+          )
+        )
+      ),
 
-      {/* Top Images */}
-      {results?.extract?.images && results.extract.images.length > 0 && (
-        <div style={{ marginBottom: '30px' }}>
-          <h2>🏆 Top 5 Images (by Score)</h2>
-          <div
-            style={{
+    // Top Images
+    results?.extract?.images &&
+      results.extract.images.length > 0 &&
+      React.createElement(
+        'div',
+        { style: { marginBottom: '30px' } },
+        React.createElement('h2', null, '🏆 Top 5 Images (by Score)'),
+        React.createElement(
+          'div',
+          {
+            style: {
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
               gap: '15px',
-            }}
-          >
-            {results.extract.images
-              .slice()
-              .sort((a, b) => (b.score || 0) - (a.score || 0))
-              .slice(0, 5)
-              .map((img, index) => (
-                <div
-                  key={index}
-                  style={{
+            },
+          },
+          results.extract.images
+            .slice()
+            .sort((a, b) => (b.score || 0) - (a.score || 0))
+            .slice(0, 5)
+            .map((img, index) =>
+              React.createElement(
+                'div',
+                {
+                  key: index,
+                  style: {
                     border: '1px solid #ddd',
                     borderRadius: '8px',
                     overflow: 'hidden',
-                  }}
-                >
-                  <div style={{ position: 'relative' }}>
-                    <img
-                      src={img.url}
-                      alt={`Top ${index + 1}`}
-                      style={{
-                        width: '100%',
-                        height: '150px',
-                        objectFit: 'cover',
-                      }}
-                    />
-                    <div
-                      style={{
+                  },
+                },
+                React.createElement(
+                  'div',
+                  { style: { position: 'relative' } },
+                  React.createElement('img', {
+                    src: img.url,
+                    alt: `Top ${index + 1}`,
+                    style: {
+                      width: '100%',
+                      height: '150px',
+                      objectFit: 'cover',
+                    },
+                  }),
+                  React.createElement(
+                    'div',
+                    {
+                      style: {
                         position: 'absolute',
                         top: '5px',
                         left: '5px',
                         display: 'flex',
                         gap: '3px',
-                      }}
-                    >
-                      <span
-                        style={{
+                      },
+                    },
+                    React.createElement(
+                      'span',
+                      {
+                        style: {
                           background: 'rgba(52,152,219,0.9)',
                           color: 'white',
                           padding: '2px 6px',
                           borderRadius: '3px',
                           fontSize: '10px',
-                        }}
-                      >
-                        {img.source}
-                      </span>
-                      {img.page && (
-                        <span
-                          style={{
+                        },
+                      },
+                      img.source
+                    ),
+                    img.page &&
+                      React.createElement(
+                        'span',
+                        {
+                          style: {
                             background: 'rgba(155,89,182,0.9)',
                             color: 'white',
                             padding: '2px 6px',
                             borderRadius: '3px',
                             fontSize: '10px',
-                          }}
-                        >
-                          p.{img.page}
-                        </span>
-                      )}
-                      <span
-                        style={{
+                          },
+                        },
+                        'p.' + img.page
+                      ),
+                    React.createElement(
+                      'span',
+                      {
+                        style: {
                           background: 'rgba(231,76,60,0.9)',
                           color: 'white',
                           padding: '2px 6px',
                           borderRadius: '3px',
                           fontSize: '10px',
-                        }}
-                      >
-                        {Math.round((img.score || 0) / 1000)}k
-                      </span>
-                    </div>
-                  </div>
-                  <div style={{ padding: '10px', fontSize: '12px' }}>
-                    <div>
-                      <strong>Page:</strong> {img.page || 'N/A'}
-                    </div>
-                    <div>
-                      <strong>Size:</strong> {img.width}×{img.height}
-                    </div>
-                    <div>
-                      <strong>Score:</strong>{' '}
-                      {img.score?.toLocaleString() || 'N/A'}
-                    </div>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
+                        },
+                      },
+                      Math.round((img.score || 0) / 1000) + 'k'
+                    )
+                  )
+                ),
+                React.createElement(
+                  'div',
+                  { style: { padding: '10px', fontSize: '12px' } },
+                  React.createElement(
+                    'div',
+                    null,
+                    React.createElement('strong', null, 'Page:'),
+                    ' ',
+                    img.page || 'N/A'
+                  ),
+                  React.createElement(
+                    'div',
+                    null,
+                    React.createElement('strong', null, 'Size:'),
+                    ' ',
+                    img.width + '×' + img.height
+                  ),
+                  React.createElement(
+                    'div',
+                    null,
+                    React.createElement('strong', null, 'Score:'),
+                    ' ',
+                    img.score?.toLocaleString() || 'N/A'
+                  )
+                )
+              )
+            )
+        )
+      ),
 
-      {/* Storyboard */}
-      {storyboard && (
-        <div style={{ marginBottom: '30px' }}>
-          <h2>🎬 Storyboard ({storyboard.length} shots)</h2>
-          <div
-            style={{
+    // Storyboard
+    storyboard &&
+      React.createElement(
+        'div',
+        { style: { marginBottom: '30px' } },
+        React.createElement(
+          'h2',
+          null,
+          '🎬 Storyboard (' + storyboard.length + ' shots)'
+        ),
+        React.createElement(
+          'div',
+          {
+            style: {
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
               gap: '15px',
-            }}
-          >
-            {storyboard.map((shot, index) => (
-              <div
-                key={index}
-                style={{
+            },
+          },
+          storyboard.map((shot, index) =>
+            React.createElement(
+              'div',
+              {
+                key: index,
+                style: {
                   border: '1px solid #ddd',
                   borderRadius: '8px',
                   padding: '15px',
-                }}
-              >
-                <h4>{shot.title}</h4>
-                {shot.imgUrl ? (
-                  <img
-                    src={shot.imgUrl}
-                    alt={shot.title}
-                    style={{
-                      width: '100%',
-                      height: '120px',
-                      objectFit: 'cover',
-                      borderRadius: '4px',
-                      marginBottom: '10px',
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: '100%',
-                      height: '120px',
-                      backgroundColor: '#f0f0f0',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: '4px',
-                      marginBottom: '10px',
-                    }}
-                  >
-                    No Image
-                  </div>
-                )}
-                <div style={{ fontSize: '12px' }}>
-                  <div>
-                    <strong>Duration:</strong> {shot.duration}s
-                  </div>
-                  <div>
-                    <strong>Page:</strong> {shot.page || 'N/A'}
-                  </div>
-                  <div>
-                    <strong>Source:</strong> {shot.source}
-                  </div>
-                  <div>
-                    <strong>Score:</strong>{' '}
-                    {shot.score?.toLocaleString() || 'N/A'}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                },
+              },
+              React.createElement('h4', null, shot.title),
+              shot.imgUrl
+                ? React.createElement('img', {
+                  src: shot.imgUrl,
+                  alt: shot.title,
+                  style: {
+                    width: '100%',
+                    height: '120px',
+                    objectFit: 'cover',
+                    borderRadius: '4px',
+                    marginBottom: '10px',
+                  },
+                })
+                : React.createElement(
+                    'div',
+                    {
+                      style: {
+                        width: '100%',
+                        height: '120px',
+                        backgroundColor: '#f0f0f0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '4px',
+                        marginBottom: '10px',
+                      },
+                    },
+                    'No Image'
+                  ),
+              React.createElement(
+                'div',
+                { style: { fontSize: '12px' } },
+                React.createElement(
+                  'div',
+                  null,
+                  React.createElement('strong', null, 'Duration:'),
+                  ' ',
+                  shot.duration + 's'
+                ),
+                React.createElement(
+                  'div',
+                  null,
+                  React.createElement('strong', null, 'Page:'),
+                  ' ',
+                  shot.page || 'N/A'
+                ),
+                React.createElement(
+                  'div',
+                  null,
+                  React.createElement('strong', null, 'Source:'),
+                  ' ',
+                  shot.source
+                ),
+                React.createElement(
+                  'div',
+                  null,
+                  React.createElement('strong', null, 'Score:'),
+                  ' ',
+                  shot.score?.toLocaleString() || 'N/A'
+                )
+              )
+            )
+          )
+        ),
 
-          <div style={{ marginTop: '15px' }}>
-            <button
-              onClick={downloadConcatFile}
-              style={{
+        React.createElement(
+          'div',
+          { style: { marginTop: '15px' } },
+          React.createElement(
+            'button',
+            {
+              onClick: downloadConcatFile,
+              style: {
                 padding: '8px 16px',
                 backgroundColor: '#28a745',
                 color: 'white',
@@ -515,83 +661,91 @@ const TutorialOrchestrator = () => {
                 borderRadius: '4px',
                 marginRight: '10px',
                 cursor: 'pointer',
-              }}
-            >
-              📁 Download FFmpeg Concat File
-            </button>
-          </div>
-        </div>
-      )}
+              },
+            },
+            '📁 Download FFmpeg Concat File'
+          )
+        )
+      ),
 
-      {/* YouTube Chapters */}
-      {chapters && (
-        <div style={{ marginBottom: '30px' }}>
-          <h2>📺 YouTube Chapters</h2>
-          <p>
-            <strong>Total Duration:</strong> {chapters.formattedDuration}
-          </p>
-          <textarea
-            value={chapters.chapters}
-            readOnly
-            style={{
-              width: '100%',
-              height: '200px',
-              padding: '10px',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-              fontFamily: 'monospace',
-              fontSize: '12px',
-              marginBottom: '10px',
-            }}
-          />
-          <button
-            onClick={downloadChapters}
-            style={{
+    // YouTube Chapters
+    chapters &&
+      React.createElement(
+        'div',
+        { style: { marginBottom: '30px' } },
+        React.createElement('h2', null, '📺 YouTube Chapters'),
+        React.createElement(
+          'p',
+          null,
+          React.createElement('strong', null, 'Total Duration:'),
+          ' ',
+          chapters.formattedDuration
+        ),
+        React.createElement('textarea', {
+          value: chapters.chapters,
+          readOnly: true,
+          style: {
+            width: '100%',
+            height: '200px',
+            padding: '10px',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            fontFamily: 'monospace',
+            fontSize: '12px',
+            marginBottom: '10px',
+          },
+        }),
+        React.createElement(
+          'button',
+          {
+            onClick: downloadChapters,
+            style: {
               padding: '8px 16px',
               backgroundColor: '#dc3545',
               color: 'white',
               border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
-            }}
-          >
-            📁 Download Chapters
-          </button>
-        </div>
-      )}
+            },
+          },
+          '📁 Download Chapters'
+        )
+      ),
 
-      {/* FFmpeg Command */}
-      {storyboard && (
-        <div
-          style={{
+    // FFmpeg Command
+    storyboard &&
+      React.createElement(
+        'div',
+        {
+          style: {
             marginBottom: '30px',
             padding: '15px',
             backgroundColor: '#f8f9fa',
             borderRadius: '8px',
-          }}
-        >
-          <h3>🎥 FFmpeg Video Generation</h3>
-          <p>
-            After downloading the concat file, use this command to generate the
-            video:
-          </p>
-          <code
-            style={{
+          },
+        },
+        React.createElement('h3', null, '🎥 FFmpeg Video Generation'),
+        React.createElement(
+          'p',
+          null,
+          'After downloading the concat file, use this command to generate the video:'
+        ),
+        React.createElement(
+          'code',
+          {
+            style: {
               display: 'block',
               padding: '10px',
               backgroundColor: '#e9ecef',
               borderRadius: '4px',
               fontSize: '12px',
               marginTop: '5px',
-            }}
-          >
-            ffmpeg -f concat -safe 0 -i tutorial_concat.txt -vsync vfr -pix_fmt
-            yuv420p -r 30 tutorial_draft.mp4
-          </code>
-        </div>
-      )}
-    </div>
+            },
+          },
+          'ffmpeg -f concat -safe 0 -i tutorial_concat.txt -vsync vfr -pix_fmt yuv420p -r 30 tutorial_draft.mp4'
+        )
+      )
   );
-};
+}
 
 export default TutorialOrchestrator;
