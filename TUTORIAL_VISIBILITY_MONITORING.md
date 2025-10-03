@@ -1,19 +1,17 @@
-Monitoring checklist (first 24–72 hours post-merge)
+Monitoring & telemetry to watch post-release
 
-1) CI & Build
-   - Monitor CI for unexpected failures on subsequent PRs
+Key signals:
+- Frontend errors (Sentry or console error rate spike)
+- Uncaught exceptions in API calls that reference tutorial feature
+- Increase in frontend bundle size (build step should catch; still monitor)
+- User reports of missing UI or accidental debug messages
 
-2) Error & Performance Monitoring
-   - Watch Sentry / Datadog / NewRelic for new exceptions originating around TutorialOrchestrator
-   - Ensure no spike of client-side errors tied to the change
+Dashboards / Alerts:
+- Error count > baseline + 25% in 1 hour → page on-call
+- Any high-severity error mentioning "TutorialOrchestrator" or env helper → immediate triage
 
-3) Client logs / Console
-   - Verify no debug logs leak into production
-   - Check for repeated warnings or deprecation messages
+Logs:
+- Check server-side logs for any unexpected reads/writes to tutorial flags
+- Check client console errors in staging & production
 
-4) UX Regression
-   - Verify primary user journeys are intact (login, dashboard, tutorial flows)
-   - Confirm lazy-loaded chunks still load normally
-
-5) Rollback readiness
-   - Ensure rollback PR procedure is documented and team knows how to trigger it quickly
+Roll-forward/rollback window: monitor closely for 24–72 hours after merge.

@@ -1,10 +1,9 @@
-feat(tutorial): add env helper, debug flag, .env.example, docs, tests, and CI workflow
+Add centralized env helper for tutorial visibility and gated debug logging
 
-- Adds a centralized env helper (client/src/utils/env.js) to parse:
-  - REACT_APP_SHOW_TUTORIAL (boolean)
-  - REACT_APP_DEBUG_TUTORIAL (boolean)
-- Integrates helper into TutorialOrchestrator.jsx and gates diagnostic logging to development when REACT_APP_DEBUG_TUTORIAL=true
-- Adds client/.env.example and README updates documenting usage
-- Adds unit tests for helper and component visibility
-- Adds validation scripts and cross-platform automation scripts
-- Adds GitHub Actions CI (/.github/workflows/tutorial-visibility-ci.yml) that runs lint, tests, and build on PRs (strict linting; warnings fail CI)
+Summary:
+- client/src/utils/env.js: parse and normalize REACT_APP_SHOW_TUTORIAL and REACT_APP_DEBUG_TUTORIAL
+- client/src/components/TutorialOrchestrator.jsx: use env helper; debug logs only in development + debug flag
+- Tests for env helper and component visibility
+- CI workflow to run lint (no warnings), tests, and production build on PRs
+
+Risk: low — debug gating in dev only. See docs for validation and rollback steps.

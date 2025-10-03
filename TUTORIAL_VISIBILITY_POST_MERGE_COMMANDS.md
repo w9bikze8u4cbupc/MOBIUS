@@ -21,7 +21,7 @@ git push origin $NEW_TAG
 ```
 
 ### PowerShell Version:
-```powershell
+``powershell
 # Update local main and delete feature branch locally
 git checkout main
 git pull origin main
@@ -82,3 +82,21 @@ If the issue is specifically with the tutorial visibility, you can temporarily h
 REACT_APP_SHOW_TUTORIAL=false
 ```
 in the production environment variables, then redeploy.
+
+Post-merge checklist (run after merge to main)
+
+1) Pull latest:
+   git checkout main
+   git pull origin main
+
+2) Install & validate:
+   npm ci
+   npm run lint -- --max-warnings=0
+   npm test
+   npm run build
+
+3) Deploy or stage build artifacts per your normal deploy flow.
+
+4) Run smoke tests from TUTORIAL_VISIBILITY_SMOKE_TEST.md
+
+5) Monitor per monitoring checklist for 24–72 hrs.

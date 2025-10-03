@@ -1,17 +1,6 @@
 # Final Reviewer Guidance
 
-Thanks for reviewing — this PR centralizes environment parsing for tutorial visibility and makes the A→Z UI toggleable via REACT_APP_SHOW_TUTORIAL. CI is strict: lint, tests, and build must pass.
-
-Please verify:
-- CI green and no lint warnings (CI fails on warnings)
-- Unit tests for env helper and TutorialOrchestrator pass
-- Local manual checks:
-  - Toggle REACT_APP_SHOW_TUTORIAL in client/.env, restart dev server, confirm UI appears/disappears
-  - Toggle REACT_APP_DEBUG_TUTORIAL only in development and verify diagnostic log appears
-- Confirm .env.example and README updates are accurate
-- Confirm there are no stray console.debug statements outside the gated debug branch
-
-If CI is green and checks are OK, approve and squash-merge using the provided commit message.
+Thanks for reviewing — key points:
 
 ## CI Status
 - [ ] CI must be green (lint, tests, build)
@@ -59,3 +48,21 @@ Adds validation scripts and cross-platform automation scripts
 Adds GitHub Actions CI (.github/workflows/tutorial-visibility-ci.yml) that runs lint, tests, and build on PRs (strict linting; warnings fail CI)
 ```
 
+# Reviewer guidance for Tutorial Visibility PR
+
+Primary checks:
+- CI green: lint (no warnings), tests, production build
+- Unit tests added for env helper and TutorialOrchestrator pass
+- Ensure no console.debug/info logs leak in production paths
+- Confirm README and .env.example updated and accurate
+
+Code review checklist:
+- env parsing centralized (single helper)
+- Debug logging gated to NODE_ENV === 'development' && REACT_APP_DEBUG_TUTORIAL === true
+- No feature flags hard-coded; defaults are safe (false)
+- Small, focused commits (squash policy ok)
+
+Operational checks:
+- Smoke test steps exist and are runnable
+- Rollback plan present
+- PR body includes testing steps and reviewer checklist

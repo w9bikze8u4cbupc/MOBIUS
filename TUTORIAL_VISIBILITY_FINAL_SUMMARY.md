@@ -1,27 +1,19 @@
-Final Summary — Tutorial Visibility Feature
+Tutorial Visibility — final summary
 
-Scope:
-- Add env helper (client/src/utils/env.js)
-- Add env flags:
-  - REACT_APP_SHOW_TUTORIAL
-  - REACT_APP_DEBUG_TUTORIAL
-- Integrate into TutorialOrchestrator.jsx
-- Add unit tests and validation scripts
-- Add CI workflow (.github/workflows/tutorial-visibility-ci.yml)
-- Add documentation, PR artifacts, and automation scripts
+Goal:
+Make the A→Z Tutorial UI toggleable and ensure debug logging is gated, with tests, docs and CI protections.
 
-Status:
-- Implementation complete
-- Unit tests passing locally (per prior run)
-- CI workflow added (tutorial-visibility-ci.yml)
-- Final artifacts for PR merge/checklist created
+What this patch adds:
+- Final PR artifacts (squash commit msg, release note, smoke test, monitoring, rollback, reviewer guidance)
+- PR creation scripts (bash + Windows)
+- Short post-merge commands and final summary
 
-Next steps:
-1) Run local validation scripts (lint/test/build)
-2) Create branch, apply patch, commit & push
-3) Create PR with provided PR body + reviewer checklist
-4) Wait for CI green + review approval
-5) Squash-merge and run post-merge smoke tests
-6) Monitor for 72 hours, follow rollback instructions if required
+Validation:
+- CI must pass: lint (no warnings), tests, production build
+- Run smoke-test checklist in staging (see TUTORIAL_VISIBILITY_SMOKE_TEST.md)
 
-Owner: Project lead (you) — responsible for merging and post-merge verification
+If you want, next I'll:
+1) Generate the exact gh pr create command pre-filled with reviewers/labels and a branch-protection curl snippet OR
+2) Produce a git-formatted patch that also includes the CI workflow file (.github/workflows/tutorial-visibility-ci.yml) and the env helper files (client/src/utils/env.js + tests)
+
+I chose to provide the PR artifact patch now. Reply "include CI + code files" to have me expand the patch to also add the CI workflow and code changes.

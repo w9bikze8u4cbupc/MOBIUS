@@ -1,19 +1,15 @@
-Quick smoke test (after deploying to staging or serving production build locally)
+Smoke test checklist — run in staging after merge
 
-1) Build & serve:
-   cd client
-   npm run build
-   npx serve -s build
+1) Start frontend pointing to staging backend.
+   - Verify REACT_APP_SHOW_TUTORIAL not set → Tutorial UI hidden
+2) Set REACT_APP_SHOW_TUTORIAL=true in staging env and restart frontend
+   - Confirm Tutorial UI appears and can be opened/closed
+3) Verify debug logs:
+   - NODE_ENV=production + REACT_APP_DEBUG_TUTORIAL=true → no debug logs visible
+   - NODE_ENV=development + REACT_APP_DEBUG_TUTORIAL=true → debug logs shown in console
+4) Run automated UI unit tests for TutorialOrchestrator
+5) Run a production build and open app locally (npm run build → serve)
+6) Run basic end-to-end flow (pick a sample project, open tutorial steps)
+7) Report any anomalies and follow rollback if needed
 
-2) Verify toggles:
-   - REACT_APP_SHOW_TUTORIAL=false  -> A→Z UI is hidden
-   - REACT_APP_SHOW_TUTORIAL=true   -> A→Z UI is present
-
-3) Confirm debug flag:
-   - REACT_APP_DEBUG_TUTORIAL has NO effect in production (NODE_ENV=production)
-   - Diagnostic logs only appear in development when NODE_ENV=development && REACT_APP_DEBUG_TUTORIAL=true
-
-4) Manual UX sanity:
-   - Navigate pages that used TutorialOrchestrator previously
-   - Execute primary flows that may have interacted with tutorial UI
-   - Confirm no runtime console errors and page load is normal
+If any step fails, capture logs and escalate; see rollback instructions.

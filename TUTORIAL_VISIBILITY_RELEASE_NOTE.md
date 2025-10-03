@@ -1,11 +1,8 @@
-# Release Note Snippet
+Feature: Toggle A→Z Tutorial UI with env var
 
-## Title:
-Make tutorial generator visibility configurable via environment variables
+What changed:
+- Centralized env parsing for REACT_APP_SHOW_TUTORIAL and REACT_APP_DEBUG_TUTORIAL
+- Safe debug logging (only when NODE_ENV=development && REACT_APP_DEBUG_TUTORIAL=true)
+- Unit tests, docs, CI checks, and PR automation
 
-## Details:
-Introduces REACT_APP_SHOW_TUTORIAL to toggle the "A→Z Tutorial Generator" UI without code changes.
-
-Introduces REACT_APP_DEBUG_TUTORIAL to enable development-only diagnostic logging (gated to NODE_ENV=development).
-
-Adds a centralized env helper, unit tests, validation scripts, documentation, and CI to ensure quality and prevent regressions.
+Notes: Do not enable REACT_APP_DEBUG_TUTORIAL outside development environments.
