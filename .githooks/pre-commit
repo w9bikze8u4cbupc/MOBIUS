@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# .githooks/pre-commit
+set -euo pipefail
+
+# Allow devs to skip token check explicitly (not recommended)
+if [ -n "${SKIP_TOKEN_HOOK:-}" ]; then
+  exit 0
+fi
+
+# Patterns to detect common secret/token formats (extendable)
+PATTERN='(ghp_[A-Za-z0-9_]{36,}|github_pat_[A-Za-z0-9_]{36,}|GITHUB_TOKEN|AWS_SECRET_ACCESS_KEY|AIza[0-9A-Za-z-_]{35})'
+
+# Get staged files
+STAGED=$(git diff --cached --name-only -z | xargs -0 -n1 echo)
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+# Search staged diffs for token patterns
+MATCHES=0
+for file in $STAGED; do
+  # Only check text files
+  if git ls-files --error-unmatch -- "$file" >/dev/null 2>&1; then
+    if git show :"$file" 2>/dev/null | grep -nE --color=never "$PATTERN" >/dev/null 2>&1; then
+      echo "Potential secret/token found in staged file: $file"
+      git show :"$file" | grep -nE --color=always "$PATTERN" || true
+      MATCHES=$((MATCHES + 1))
+    fi
+  fi
+done
+
+if [ "$MATCHES" -gt 0 ]; then
+  echo
+  echo "Commit blocked: potential secret(s) detected in staged files."
+  echo "If this is a false positive, you can bypass the hook with --no-verify, or set SKIP_TOKEN_HOOK=1 for one commit."
+  echo "Recommended action: remove the secret from the file, rotate the secret if it was exposed, and then commit."
+  exit 1
+fi
+
+exit 0

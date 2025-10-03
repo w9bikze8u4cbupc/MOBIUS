@@ -37,18 +37,16 @@ PR smoke (PowerShell):
 ``powershell
 mkdir artifacts -ea 0 | Out-Null
 .\mobius_golden_path.ps1 `
-  -Profile smoke `
-  -Server http://localhost:5001 `
-  -Frontend http://localhost:3000 `
-  -JsonSummary artifacts\summary.json `
-  -JUnitPath artifacts\junit.xml `
-  -FailFast `
-  -Quiet
+-Profile smoke `  -Server http://localhost:5001`
+-Frontend http://localhost:3000 `  -JsonSummary artifacts\summary.json`
+-JUnitPath artifacts\junit.xml `  -FailFast`
+-Quiet
+
 ```
 
 Nightly (full) with metrics token:
 
-```bash
+``bash
 mkdir -p artifacts
 mobius_golden_path.sh \
   --profile full \
@@ -267,8 +265,9 @@ npm install
 
 **Run analysis:**
 
-```bash
+``bash
 coala --non-interactive
+
 ```
 
 **Apply automatic fixes:**
@@ -334,16 +333,21 @@ npm run dev
 
 ### Running Development Servers
 
-```bash
+``bash
+
 # Start both frontend and backend servers
+
 npm run dev
 
 # Start only the backend server
+
 npm run server
 
 # Start only the frontend server
+
 cd client && npm start
-```
+
+````
 
 ### Running CI Locally
 
@@ -359,7 +363,7 @@ npm test
 
 # Run the full CI validation
 npm run ci:validate
-```
+````
 
 ### WebSocket Connection Handling
 
@@ -372,18 +376,67 @@ This project includes a WebSocketGuard utility (`client/src/utils/WebSocketGuard
 
 To use it in your WebSocket connections:
 
-```javascript
+``javascript
 import WebSocketGuard from './utils/WebSocketGuard';
 
 const wsGuard = new WebSocketGuard('ws://localhost:5001/socket', {
-  maxRetries: 5,
-  initialDelay: 1000,
-  maxDelay: 30000,
-  onOpen: () => console.log('Connected'),
-  onClose: () => console.log('Disconnected'),
-  onError: (error) => console.error('WebSocket error:', error),
-  onMessage: (event) => console.log('Message received:', event.data),
+maxRetries: 5,
+initialDelay: 1000,
+maxDelay: 30000,
+onOpen: () => console.log('Connected'),
+onClose: () => console.log('Disconnected'),
+onError: (error) => console.error('WebSocket error:', error),
+onMessage: (event) => console.log('Message received:', event.data),
 });
 
 wsGuard.connect();
+
+````
+
+## Branch Protection
+
+This repository implements branch protection rules to ensure code quality and security.
+
+Detailed information about the branch protection configuration can be found in:
+- [BRANCH_PROTECTION.md](./BRANCH_PROTECTION.md) - Complete documentation of branch protection rules
+- [BRANCH_PROTECTION_ARTIFACTS_SUMMARY.md](./BRANCH_PROTECTION_ARTIFACTS_SUMMARY.md) - Catalog of all related files and scripts
+- [BRANCH_PROTECTION_TROUBLESHOOTING.md](./BRANCH_PROTECTION_TROUBLESHOOTING.md) - Troubleshooting guide for common issues
+- [FINE_GRAINED_TOKEN_FIX.md](./FINE_GRAINED_TOKEN_FIX.md) - Specific guide for fixing fine-grained token issues
+- [MANUAL_TOKEN_TEST.md](./MANUAL_TOKEN_TEST.md) - Manual testing guide for token verification
+- [MANUAL_TOKEN_VERIFICATION.md](./MANUAL_TOKEN_VERIFICATION.md) - Manual verification guide for token issues
+- [TOKEN_ISSUE_RESOLUTION.md](./TOKEN_ISSUE_RESOLUTION.md) - Guide for resolving token corruption issues
+
+Automation scripts for applying and verifying branch protection are available in the [scripts](./scripts) directory:
+- Standard protection: [apply-branch-protection.sh](./scripts/apply-branch-protection.sh) and [apply-branch-protection.ps1](./scripts/apply-branch-protection.ps1)
+- Strict protection: [apply-strict-branch-protection.sh](./scripts/apply-strict-branch-protection.sh) and [apply-strict-branch-protection.ps1](./scripts/apply-strict-branch-protection.ps1)
+- Verification: [verify-branch-protection.sh](./scripts/verify-branch-protection.sh) and [verify-branch-protection.ps1](./scripts/verify-branch-protection.ps1)
+
+These scripts require a GitHub Personal Access Token with appropriate permissions.
+
+## Secure Token Handling
+
+We added a Secure Token Handling Guide to help prevent accidental exposure of GitHub tokens and other secrets.
+
+- Guide: [BRANCH_PROTECTION_TOKEN_GUIDE.md](BRANCH_PROTECTION_TOKEN_GUIDE.md)
+- Pre-commit hook: [.githooks/pre-commit](.githooks/pre-commit) (versioned in repo; enable locally with `git config core.hooksPath .githooks` and `chmod +x .githooks/pre-commit`)
+
+To enable the pre-commit hook locally:
+
+```bash
+# From repo root
+mkdir -p .githooks
+chmod +x .githooks/pre-commit
+chmod +x .githooks/pre-commit.ps1
+git config core.hooksPath .githooks
+````
+
+On Windows PowerShell:
+
+```powershell
+# From repo root
+New-Item -ItemType Directory -Path .githooks -Force
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+# Then enable with git config core.hooksPath .githooks
 ```
+
+The pre-commit hook will scan staged files for token-like patterns and fail the commit if potential secrets are detected. To bypass the hook (not recommended), use `git commit --no-verify` or set `SKIP_TOKEN_HOOK=1`.
