@@ -65,3 +65,38 @@ Low risk. Changes are limited to development utilities and do not affect product
 - [x] New WebSocketGuard tests pass
 - [x] Dev test toggle functionality verified
 - [x] No more noisy WebSocket reconnection logs
+
+
+# security(secrets): add token handling guide + pre-commit hooks + PR validation checklist
+
+## Description
+This PR adds critical security documentation and tooling to prevent accidental commits of sensitive tokens and prepare for branch protection rollout:
+
+1. **Team Announcement** - Clear guidance for immediate token revocation and rotation
+2. **Contributing Guide Updates** - Developer onboarding requirements for secure token handling and pre-commit hooks
+3. **PR Template Enhancement** - Security validation checklist for all pull requests
+
+## Changes
+- Added TEAM_ANNOUNCEMENT.md with immediate actions for token exposure
+- Updated CONTRIBUTING.md with secure token handling requirements and hook setup instructions
+- Enhanced .github/PULL_REQUEST_TEMPLATE.md with security validation section
+
+## Security Impact
+- Prevents accidental commits of GitHub tokens and other secrets
+- Establishes consistent security practices across the team
+- Prepares repository for stricter branch protection policies
+- Reduces risk of token exposure in code repositories
+
+## Checklist
+- [x] Team announcement created
+- [x] Contributing guide updated with security requirements
+- [x] PR template enhanced with security validation section
+- [ ] Admin to revoke exposed tokens
+- [ ] Developers to create new tokens and run verification checks
+- [ ] Admin to apply branch protection
+- [ ] CI checks validated (24-72 hours)
+- [ ] Stricter protections enabled (CODEOWNERS + signed commits)
+
+## Labels
+- security
+- onboarding
