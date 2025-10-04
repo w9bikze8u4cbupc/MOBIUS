@@ -1,0 +1,1 @@
+This file is used to trigger the CI workflow for testing the branch protection check runs capture.
