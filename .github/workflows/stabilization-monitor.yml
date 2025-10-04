@@ -1,0 +1,210 @@
+name: "Stabilization Monitor"
+
+on:
+  push:
+    branches:
+      - main
+  workflow_run:
+    workflows:
+      - "CI"
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  monitor-protection-health:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'cancelled'
+    permissions:
+      contents: read
+      checks: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Monitor CI Context Health
+        id: monitor
+        run: |
+          # Expected contexts from branch protection
+          EXPECTED_CONTEXTS=(
+            "build-and-qa (macos-latest)"
+            "build-and-qa (ubuntu-latest)" 
+            "build-and-qa (windows-latest)"
+            "Golden checks (macos-latest)"
+            "Golden checks (ubuntu-latest)"
+            "Golden checks (windows-latest)"
+          )
+          
+          # Get actual check runs for this commit
+          ACTUAL_CONTEXTS=$(gh api repos/${{ github.repository }}/commits/${{ github.event.workflow_run.head_sha }}/check-runs \
+            --jq '.check_runs[] | select(.app.slug == "github-actions") | .name' | sort)
+          
+          # Create monitoring log entry
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          LOG_DIR="stabilization-logs"
+          mkdir -p "$LOG_DIR"
+          
+          LOG_FILE="$LOG_DIR/ci-health-$(date -u +%Y%m%d).log"
+          
+          echo "=== CI Health Check - $TIMESTAMP ===" >> "$LOG_FILE"
+          echo "Commit: ${{ github.event.workflow_run.head_sha }}" >> "$LOG_FILE"
+          echo "Workflow: ${{ github.event.workflow_run.name }}" >> "$LOG_FILE"
+          echo "Conclusion: ${{ github.event.workflow_run.conclusion }}" >> "$LOG_FILE"
+          echo "" >> "$LOG_FILE"
+          
+          # Check for missing contexts
+          MISSING_CONTEXTS=""
+          FLAKY_CONTEXTS=""
+          
+          for expected in "${EXPECTED_CONTEXTS[@]}"; do
+            if ! echo "$ACTUAL_CONTEXTS" | grep -Fxq "$expected"; then
+              MISSING_CONTEXTS="$MISSING_CONTEXTS- $expected\n"
+              echo "MISSING: $expected" >> "$LOG_FILE"
+            else
+              # Check if context failed
+              CONTEXT_STATUS=$(gh api repos/${{ github.repository }}/commits/${{ github.event.workflow_run.head_sha }}/check-runs \
+                --jq ".check_runs[] | select(.name == \"$expected\") | .conclusion")
+              
+              if [ "$CONTEXT_STATUS" = "failure" ]; then
+                FLAKY_CONTEXTS="$FLAKY_CONTEXTS- $expected (FAILED)\n"
+                echo "FLAKY: $expected - Status: $CONTEXT_STATUS" >> "$LOG_FILE"
+              else
+                echo "HEALTHY: $expected - Status: $CONTEXT_STATUS" >> "$LOG_FILE"
+              fi
+            fi
+          done
+          
+          # Check for unexpected contexts
+          EXTRA_CONTEXTS=""
+          while IFS= read -r actual; do
+            if [ -n "$actual" ]; then
+              FOUND=false
+              for expected in "${EXPECTED_CONTEXTS[@]}"; do
+                if [ "$actual" = "$expected" ]; then
+                  FOUND=true
+                  break
+                fi
+              done
+              if [ "$FOUND" = false ]; then
+                EXTRA_CONTEXTS="$EXTRA_CONTEXTS- $actual\n"
+                echo "EXTRA: $actual" >> "$LOG_FILE"
+              fi
+            fi
+          done <<< "$ACTUAL_CONTEXTS"
+          
+          echo "" >> "$LOG_FILE"
+          
+          # Set outputs for issue creation
+          echo "missing_contexts<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$MISSING_CONTEXTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "flaky_contexts<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$FLAKY_CONTEXTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "extra_contexts<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$EXTRA_CONTEXTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "workflow_conclusion=${{ github.event.workflow_run.conclusion }}" >> $GITHUB_OUTPUT
+          echo "commit_sha=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+          
+          # Determine if this is an anomaly
+          if [ -n "$MISSING_CONTEXTS" ] || [ -n "$FLAKY_CONTEXTS" ]; then
+            echo "anomaly_detected=true" >> $GITHUB_OUTPUT
+            echo "ANOMALY DETECTED!" >> "$LOG_FILE"
+          else
+            echo "anomaly_detected=false" >> $GITHUB_OUTPUT
+            echo "All contexts healthy" >> "$LOG_FILE"
+          fi
+          
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Anomaly Issue
+        if: steps.monitor.outputs.anomaly_detected == 'true'
+        run: |
+          ISSUE_TITLE="🚨 CI Stabilization Anomaly Detected - $(date -u +%Y-%m-%d)"
+          
+          ISSUE_BODY="## CI Stabilization Anomaly Report
+          
+          **Commit:** \`${{ steps.monitor.outputs.commit_sha }}\`
+          **Workflow Conclusion:** \`${{ steps.monitor.outputs.workflow_conclusion }}\`
+          **Detection Time:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ### Issues Detected
+          "
+          
+          if [ -n "${{ steps.monitor.outputs.missing_contexts }}" ]; then
+            ISSUE_BODY="$ISSUE_BODY
+          **Missing Contexts:**
+          ${{ steps.monitor.outputs.missing_contexts }}
+          "
+          fi
+          
+          if [ -n "${{ steps.monitor.outputs.flaky_contexts }}" ]; then
+            ISSUE_BODY="$ISSUE_BODY
+          **Failed Contexts:**
+          ${{ steps.monitor.outputs.flaky_contexts }}
+          "
+          fi
+          
+          if [ -n "${{ steps.monitor.outputs.extra_contexts }}" ]; then
+            ISSUE_BODY="$ISSUE_BODY
+          **Unexpected Contexts:**
+          ${{ steps.monitor.outputs.extra_contexts }}
+          "
+          fi
+          
+          ISSUE_BODY="$ISSUE_BODY
+          ### Required Actions
+          
+          1. **Immediate:** Investigate the root cause of the anomaly
+          2. **Review:** Check if branch protection settings need adjustment
+          3. **Remediate:** Apply targeted fixes to restore CI health
+          4. **Verify:** Confirm all six contexts are working correctly
+          
+          ### Expected Contexts
+          - build-and-qa (macos-latest)
+          - build-and-qa (ubuntu-latest) 
+          - build-and-qa (windows-latest)
+          - Golden checks (macos-latest)
+          - Golden checks (ubuntu-latest)
+          - Golden checks (windows-latest)
+          
+          ### Rollback Plan
+          If issues persist, refer to: \`STRICTER_PROTECTION_ROLLBACK_PLAN.md\`
+          
+          ---
+          *This issue was automatically created during the 72-hour stabilization watch period.*
+          "
+          
+          # Create the issue
+          gh issue create \
+            --title "$ISSUE_TITLE" \
+            --body "$ISSUE_BODY" \
+            --label "ci-anomaly,stabilization-watch,priority-high"
+            
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit Monitoring Logs
+        if: always()
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          if [ -d "stabilization-logs" ]; then
+            git add stabilization-logs/
+            if git diff --staged --quiet; then
+              echo "No changes to commit"
+            else
+              git commit -m "📊 CI health monitoring log - $(date -u +%Y-%m-%d)"
+              git push
+            fi
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

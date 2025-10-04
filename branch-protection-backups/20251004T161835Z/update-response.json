@@ -1,0 +1,71 @@
+{
+  "url": "https://api.github.com/repos/w9bikze8u4cbupc/MOBIUS/branches/main/protection",
+  "required_status_checks": {
+    "url": "https://api.github.com/repos/w9bikze8u4cbupc/MOBIUS/branches/main/protection/required_status_checks",
+    "strict": true,
+    "contexts": [
+      "build-and-qa (macos-latest)",
+      "build-and-qa (ubuntu-latest)",
+      "build-and-qa (windows-latest)",
+      "Golden checks (macos-latest)",
+      "Golden checks (ubuntu-latest)",
+      "Golden checks (windows-latest)"
+    ],
+    "contexts_url": "https://api.github.com/repos/w9bikze8u4cbupc/MOBIUS/branches/main/protection/required_status_checks/contexts",
+    "checks": [
+      {
+        "context": "build-and-qa (macos-latest)",
+        "app_id": 15368
+      },
+      {
+        "context": "build-and-qa (ubuntu-latest)",
+        "app_id": 15368
+      },
+      {
+        "context": "build-and-qa (windows-latest)",
+        "app_id": 15368
+      },
+      {
+        "context": "Golden checks (macos-latest)",
+        "app_id": 15368
+      },
+      {
+        "context": "Golden checks (ubuntu-latest)",
+        "app_id": 15368
+      },
+      {
+        "context": "Golden checks (windows-latest)",
+        "app_id": 15368
+      }
+    ]
+  },
+  "required_signatures": {
+    "url": "https://api.github.com/repos/w9bikze8u4cbupc/MOBIUS/branches/main/protection/required_signatures",
+    "enabled": false
+  },
+  "enforce_admins": {
+    "url": "https://api.github.com/repos/w9bikze8u4cbupc/MOBIUS/branches/main/protection/enforce_admins",
+    "enabled": false
+  },
+  "required_linear_history": {
+    "enabled": false
+  },
+  "allow_force_pushes": {
+    "enabled": false
+  },
+  "allow_deletions": {
+    "enabled": false
+  },
+  "block_creations": {
+    "enabled": false
+  },
+  "required_conversation_resolution": {
+    "enabled": false
+  },
+  "lock_branch": {
+    "enabled": false
+  },
+  "allow_fork_syncing": {
+    "enabled": false
+  }
+}

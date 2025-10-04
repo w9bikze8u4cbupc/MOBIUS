@@ -1,0 +1,29 @@
+{
+  "checks": [
+    {
+      "context": "build-and-qa (macos-latest)",
+      "app_id": null
+    },
+    {
+      "context": "build-and-qa (ubuntu-latest)",
+      "app_id": null
+    },
+    {
+      "context": "build-and-qa (windows-latest)",
+      "app_id": null
+    },
+    {
+      "context": "Golden checks (macos-latest)",
+      "app_id": null
+    },
+    {
+      "context": "Golden checks (ubuntu-latest)",
+      "app_id": null
+    },
+    {
+      "context": "Golden checks (windows-latest)",
+      "app_id": null
+    }
+  ],
+  "strict": true
+}
