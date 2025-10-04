@@ -1,0 +1,89 @@
+name: Capture Check Runs
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+jobs:
+  capture-check-runs:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: read
+    steps:
+      - name: Get PR number
+        id: pr
+        run: |
+          PR_NUMBER=$(gh api repos/${{ github.repository }}/pulls \
+            --jq ".[] | select(.head.sha == \"${{ github.event.workflow_run.head_sha }}\") | .number")
+          echo "number=$PR_NUMBER" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get check runs
+        id: checks
+        run: |
+          # Get all check runs for this commit
+          CHECK_RUNS=$(gh api repos/${{ github.repository }}/commits/${{ github.event.workflow_run.head_sha }}/check-runs \
+            --jq '.check_runs[] | select(.app.slug == "github-actions") | .name' | sort -u)
+          
+          # Format as bulleted list
+          FORMATTED_CHECKS=""
+          while IFS= read -r check; do
+            if [ -n "$check" ]; then
+              FORMATTED_CHECKS="${FORMATTED_CHECKS}- ${check}"$'\n'
+            fi
+          done <<< "$CHECK_RUNS"
+          
+          # Save to output (escape newlines for GitHub Actions)
+          {
+            echo 'checks<<EOF'
+            echo "$FORMATTED_CHECKS"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comment on PR
+        if: steps.pr.outputs.number != ''
+        run: |
+          # Create or update comment
+          COMMENT_BODY="## 🤖 Captured CI Check-Run Names
+          
+          The following check-run names were detected for this PR:
+          
+          ${{ steps.checks.outputs.checks }}
+          
+          **For branch protection update:**
+          Copy the exact check-run names above and use them in the \`required_status_checks.contexts\` array.
+          
+          **Predicted contexts array:**
+          \`\`\`json
+          $(echo '${{ steps.checks.outputs.checks }}' | sed 's/^- /"/; s/$/",/' | sed '$ s/,$//' | tr '\n' ' ' | sed 's/ *$//' | sed 's/^/[/; s/$/]/')
+          \`\`\`
+          
+          ---
+          *This comment is automatically updated when CI runs complete.*"
+          
+          # Check if comment already exists
+          EXISTING_COMMENT=$(gh api repos/${{ github.repository }}/issues/${{ steps.pr.outputs.number }}/comments \
+            --jq '.[] | select(.body | contains("🤖 Captured CI Check-Run Names")) | .id' | head -1)
+          
+          if [ -n "$EXISTING_COMMENT" ]; then
+            # Update existing comment
+            gh api repos/${{ github.repository }}/issues/comments/$EXISTING_COMMENT \
+              --method PATCH \
+              --field body="$COMMENT_BODY"
+          else
+            # Create new comment
+            gh api repos/${{ github.repository }}/issues/${{ steps.pr.outputs.number }}/comments \
+              --method POST \
+              --field body="$COMMENT_BODY"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
