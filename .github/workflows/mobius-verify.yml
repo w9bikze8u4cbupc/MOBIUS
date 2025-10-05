@@ -1,0 +1,23 @@
+name: Mobius Verify
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install root deps
+        run: npm ci
+      - name: Install client deps
+        run: |
+          cd client
+          npm ci
+      - name: Start & verify (bash)
+        run: |
+          bash ./mobius-verify.sh
