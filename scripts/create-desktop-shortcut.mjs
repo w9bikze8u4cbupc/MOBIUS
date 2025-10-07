@@ -17,6 +17,12 @@ import os from 'os';
 
 const execPromise = promisify(exec);
 
+// Skip execution in CI environments
+if (process.env.CI && process.env.GITHUB_ACTIONS) {
+  console.log('SKIP: desktop shortcut creation in CI');
+  process.exit(0);
+}
+
 function candidatesForDesktop() {
   const home = os.homedir();
   const cands = [];

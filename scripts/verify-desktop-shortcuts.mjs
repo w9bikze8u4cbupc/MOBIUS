@@ -18,6 +18,12 @@ import { promisify } from 'util';
 import { exec } from 'child_process';
 const execPromise = promisify(exec);
 
+// Skip execution in CI environments
+if (process.env.CI && process.env.GITHUB_ACTIONS) {
+  console.log('SKIP: desktop shortcut verification in CI');
+  process.exit(0);
+}
+
 function existsSync(p) {
   try { return fs.existsSync(p); } catch { return false; }
 }
