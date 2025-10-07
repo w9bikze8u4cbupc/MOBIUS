@@ -43,9 +43,14 @@ jobs:
         run: npm run build --if-present
         working-directory: client
 
-      - name: Unit tests
+      - name: Unit tests (root)
+        run: npm test -- --ci --reporters=default
+        working-directory: .
+
+      - name: Unit tests (client)  # keep client tests if they exist; will be skipped/fast if none
         run: npm test -- --ci --reporters=default
         working-directory: client
+        continue-on-error: false
 
       - name: Render preview
         run: |

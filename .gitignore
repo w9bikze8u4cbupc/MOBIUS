@@ -73,3 +73,12 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Output and binary files
+/data/exports/
+/output/
+/ffmpeg-bin/
+/*.mp4
+!/data/exports/.gitkeep
+!/output/.gitkeep
+!/ffmpeg-bin/README.md
