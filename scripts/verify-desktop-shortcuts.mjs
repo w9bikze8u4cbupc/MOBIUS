@@ -4,10 +4,19 @@
  * Handles both standard Desktop and OneDrive Desktop paths
  */
 
+// add near the top of file (ESM __dirname helpers)
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { promisify } from 'util';
+import { exec } from 'child_process';
+const execPromise = promisify(exec);
 
 function existsSync(p) {
   try { return fs.existsSync(p); } catch { return false; }
@@ -15,9 +24,10 @@ function existsSync(p) {
 
 function windowsVerifyFromOutput(stdout) {
   if (!stdout) return null;
-  const m = stdout.match(/Created:\s*(.+)$/m);
+  // Parse the created path from PowerShell output (optionally quoted)
+  const m = stdout.match(/Created:\s*("?)(.+?)\1\s*$/m);
   if (m) {
-    const p = m[1].trim();
+    const p = m[2].trim();
     if (existsSync(p)) return p;
   }
   return null;
@@ -27,10 +37,11 @@ function candidatesForDesktop() {
   const home = os.homedir();
   const cands = [];
   cands.push(path.join(home, 'Desktop'));
-  // handle common OneDrive location via env OneDrive
   if (process.env.OneDrive) cands.push(path.join(process.env.OneDrive, 'Desktop'));
-  // also userprofile Desktop
+  if (process.env.OneDriveCommercial) cands.push(path.join(process.env.OneDriveCommercial, 'Desktop'));
+  if (process.env.OneDriveConsumer) cands.push(path.join(process.env.OneDriveConsumer, 'Desktop'));
   if (process.env.USERPROFILE) cands.push(path.join(process.env.USERPROFILE, 'Desktop'));
+  if (process.env.PUBLIC) cands.push(path.join(process.env.PUBLIC, 'Desktop')); // Public desktop
   // uniq and return
   return [...new Set(cands)];
 }
@@ -85,14 +96,21 @@ function checkMacShortcut() {
   }
 }
 
-function checkLinuxShortcut() {
+async function checkLinuxShortcut() {
   try {
     console.log('Checking Linux shortcut...');
     
-    const desktopPath = path.join(os.homedir(), 'Desktop');
-    const shortcutPath = path.join(desktopPath, 'Mobius Tutorial Generator.desktop');
-    
-    if (fs.existsSync(shortcutPath)) {
+    // Linux: use xdg-user-dir DESKTOP + fallback
+    const candidates = [];
+    try {
+      const { stdout: xdgOut } = await execPromise('xdg-user-dir DESKTOP');
+      const xdg = (xdgOut || '').trim();
+      if (xdg && xdg !== '$HOME/Desktop') candidates.push(xdg);
+    } catch (e) { /* ignore if xdg-user-dir not present */ }
+    candidates.push(path.join(os.homedir(), 'Desktop'));
+    const shortcutName = 'Mobius Tutorial Generator.desktop';
+    const shortcutPath = candidates.map(d => path.join(d, shortcutName)).find(p => fs.existsSync(p));
+    if (shortcutPath) {
       console.log('✅ Linux shortcut found:', shortcutPath);
       return true;
     } else {
@@ -105,7 +123,7 @@ function checkLinuxShortcut() {
   }
 }
 
-function runVerification() {
+async function runVerification() {
   console.log('Verifying desktop shortcuts for Mobius Tutorial Generator...\n');
   
   let found = false;
@@ -116,11 +134,11 @@ function runVerification() {
   } else if (platform === 'darwin') {
     found = checkMacShortcut();
   } else if (platform === 'linux') {
-    found = checkLinuxShortcut();
+    found = await checkLinuxShortcut();
   } else {
     console.log('Unsupported platform:', platform);
     // Try all platforms
-    found = checkWindowsShortcut() || checkMacShortcut() || checkLinuxShortcut();
+    found = checkWindowsShortcut() || checkMacShortcut() || await checkLinuxShortcut();
   }
   
   console.log('\n--- Verification Results ---');
@@ -136,5 +154,6 @@ function runVerification() {
 }
 
 // Run the verification
-const result = runVerification();
-process.exit(result ? 0 : 1);
+runVerification().then(result => {
+  process.exit(result ? 0 : 1);
+});

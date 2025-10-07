@@ -75,7 +75,10 @@ node_modules/
 Thumbs.db
 
 # Output and binary files
-data/exports/
-output/
-ffmpeg-bin/
-*.mp4
+/data/exports/
+/output/
+/ffmpeg-bin/
+/*.mp4
+!/data/exports/.gitkeep
+!/output/.gitkeep
+!/ffmpeg-bin/README.md

@@ -3,6 +3,12 @@
  * This script creates desktop shortcuts for the Mobius Tutorial Generator
  */
 
+// add near the top of file (ESM __dirname helpers)
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
@@ -15,10 +21,11 @@ function candidatesForDesktop() {
   const home = os.homedir();
   const cands = [];
   cands.push(path.join(home, 'Desktop'));
-  // handle common OneDrive location via env OneDrive
   if (process.env.OneDrive) cands.push(path.join(process.env.OneDrive, 'Desktop'));
-  // also userprofile Desktop
+  if (process.env.OneDriveCommercial) cands.push(path.join(process.env.OneDriveCommercial, 'Desktop'));
+  if (process.env.OneDriveConsumer) cands.push(path.join(process.env.OneDriveConsumer, 'Desktop'));
   if (process.env.USERPROFILE) cands.push(path.join(process.env.USERPROFILE, 'Desktop'));
+  if (process.env.PUBLIC) cands.push(path.join(process.env.PUBLIC, 'Desktop')); // Public desktop
   // uniq and return
   return [...new Set(cands)];
 }
@@ -27,18 +34,18 @@ async function createWindowsShortcut() {
   try {
     console.log('Creating Windows shortcut...');
     
-    // Run the PowerShell script
-    const { stdout, stderr } = await execPromise(
-      'powershell -ExecutionPolicy Bypass -File ./scripts/create-desktop-shortcut.ps1 -Name "Mobius Tutorial Generator" -Url "http://localhost:3000"'
-    );
+    // Run the PowerShell script with absolute path
+    const winScript = path.resolve(__dirname, 'create-desktop-shortcut.ps1');
+    const cmd = `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${winScript}" -Name "Mobius Tutorial Generator" -Url "http://localhost:3000"`;
+    const { stdout, stderr } = await execPromise(cmd);
     
     console.log('PowerShell script output:', stdout);
     if (stderr) console.error('PowerShell script errors:', stderr);
     
-    // Parse the created path from PowerShell output
-    const createdPathMatch = stdout.match(/Created:\s*(.+)$/m);
+    // Parse the created path from PowerShell output (optionally quoted)
+    const createdPathMatch = stdout.match(/Created:\s*("?)(.+?)\1\s*$/m);
     if (createdPathMatch) {
-      const createdPath = createdPathMatch[1].trim();
+      const createdPath = createdPathMatch[2].trim();
       if (fs.existsSync(createdPath)) {
         console.log('✅ Windows shortcut created successfully at:', createdPath);
         return true;
@@ -67,13 +74,10 @@ async function createMacShortcut() {
   try {
     console.log('Creating macOS shortcut...');
     
-    // Make the script executable
-    await execPromise('chmod +x ./scripts/create-desktop-shortcut-mac.sh');
-    
-    // Run the script
-    const { stdout, stderr } = await execPromise(
-      './scripts/create-desktop-shortcut-mac.sh "Mobius Tutorial Generator" "http://localhost:3000"'
-    );
+    // Run the script with absolute path
+    const macScript = path.resolve(__dirname, 'create-desktop-shortcut-mac.sh');
+    await execPromise(`chmod +x "${macScript}"`);
+    const { stdout, stderr } = await execPromise(`"${macScript}" "Mobius Tutorial Generator" "http://localhost:3000"`);
     
     console.log('Bash script output:', stdout);
     if (stderr) console.error('Bash script errors:', stderr);
@@ -99,22 +103,25 @@ async function createLinuxShortcut() {
   try {
     console.log('Creating Linux shortcut...');
     
-    // Make the script executable
-    await execPromise('chmod +x ./scripts/create-desktop-shortcut-linux.sh');
-    
-    // Run the script
-    const { stdout, stderr } = await execPromise(
-      './scripts/create-desktop-shortcut-linux.sh "Mobius Tutorial Generator" "http://localhost:3000"'
-    );
+    // Run the script with absolute path
+    const linuxScript = path.resolve(__dirname, 'create-desktop-shortcut-linux.sh');
+    await execPromise(`chmod +x "${linuxScript}"`);
+    const { stdout, stderr } = await execPromise(`"${linuxScript}" "Mobius Tutorial Generator" "http://localhost:3000"`);
     
     console.log('Bash script output:', stdout);
     if (stderr) console.error('Bash script errors:', stderr);
     
-    // Check if the shortcut was created
-    const desktopPath = path.join(os.homedir(), 'Desktop');
-    const shortcutPath = path.join(desktopPath, 'Mobius Tutorial Generator.desktop');
-    
-    if (fs.existsSync(shortcutPath)) {
+    // Linux: use xdg-user-dir DESKTOP + fallback
+    const candidates = [];
+    try {
+      const { stdout: xdgOut } = await execPromise('xdg-user-dir DESKTOP');
+      const xdg = (xdgOut || '').trim();
+      if (xdg && xdg !== '$HOME/Desktop') candidates.push(xdg);
+    } catch (e) { /* ignore if xdg-user-dir not present */ }
+    candidates.push(path.join(os.homedir(), 'Desktop'));
+    const shortcutName = 'Mobius Tutorial Generator.desktop';
+    const shortcutPath = candidates.map(d => path.join(d, shortcutName)).find(p => fs.existsSync(p));
+    if (shortcutPath) {
       console.log('✅ Linux shortcut created successfully at:', shortcutPath);
       return true;
     } else {
