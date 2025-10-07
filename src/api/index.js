@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 
 import express from 'express';
 import cors from 'cors';
@@ -2825,3 +2826,815 @@ app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
 });
+=======
+import express from 'express';
+import cors from 'cors';
+import morgan from 'morgan';
+import compression from 'compression';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs/promises';
+
+import { ensureStorageLayout, upload, paths } from './storage.js';
+import { 
+  listProjects, 
+  getProjectById, 
+  upsertProject,
+  getComponentsByProjectId,
+  createComponent,
+  getRulebookSectionById,
+  getRulebookSectionsByProjectId,
+  createRulebookSection
+} from './db.js';
+import { 
+  validateProject,
+  validateGameComponent,
+  validateRulebookSection,
+  validateMediaAsset,
+  validateProjectId,
+  validateComponentId,
+  validateSectionId,
+  validateAssetId
+} from './validation.js';
+
+import { BggService } from '../services/BGGService.js';
+import { PdfUtils } from '../services/pdfUtils.js';
+import { AiUtils } from '../services/aiUtils.js';
+import { RendererWorker } from './worker/rendererWorker.js';
+import { RenderService } from './renderService.js';
+import exportsRouter from './exportsRouter.js';
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const PORT = process.env.PORT || 5002;
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
+const API_PREFIX = '/api';
+
+app.disable('x-powered-by');
+app.use(cors({ origin: FRONTEND_ORIGIN, credentials: true }));
+app.use(compression());
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan('dev'));
+
+// Static access to uploads/output for previewing assets in dev
+app.use('/uploads', express.static(path.resolve(paths.UPLOADS_ROOT)));
+app.use('/output', express.static(path.resolve(paths.OUTPUT_ROOT)));
+
+// Add the exports router
+app.use('/api/exports', exportsRouter);
+
+// Health check
+app.get('/healthz', async (_req, res) => {
+  // Check FFmpeg availability
+  const ffmpegAvailable = await RenderService.isFFmpegAvailable();
+  
+  res.status(200).json({
+    status: 'ok',
+    message: 'MOBIUS backend OK',
+    ffmpeg: ffmpegAvailable ? 'ok' : 'missing',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Projects listing (for UI dashboard)
+app.get(`${API_PREFIX}/projects`, async (_req, res, next) => {
+  try {
+    const projects = await listProjects();
+    res.json({ projects });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Retrieve single project
+app.get(`${API_PREFIX}/projects/:projectId`, validateProjectId, async (req, res, next) => {
+  try {
+    const project = await getProjectById(req.params.projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    res.json({ project });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Create or update project baseline
+app.post(`${API_PREFIX}/projects`, validateProject, async (req, res, next) => {
+  try {
+    const {
+      externalId,
+      name,
+      language,
+      voiceId,
+      detailBoost,
+      metadata,
+      script,
+      assets,
+      audio,
+      captions,
+      render,
+      status,
+    } = req.body;
+
+    const project = await upsertProject({
+      externalId,
+      name,
+      language,
+      voiceId,
+      detailBoost,
+      metadata,
+      script,
+      assets,
+      audio,
+      captions,
+      render,
+      status,
+    });
+
+    res.status(201).json({ project });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// BGG ingestion endpoint
+app.post(`${API_PREFIX}/projects/:projectId/bgg-fetch`, validateProjectId, async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const { bggUrl } = req.body;
+    
+    if (!bggUrl) {
+      return res.status(400).json({ error: 'bggUrl is required' });
+    }
+
+    // Fetch metadata from BGG
+    const rawMetadata = await BggService.fetchMetadata(bggUrl);
+    const metadata = BggService.normalizeMetadata(rawMetadata);
+    
+    // Update project with metadata
+    const project = await upsertProject({
+      externalId: projectId,
+      metadata
+    });
+
+    res.json({ project });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Rulebook upload endpoint
+app.post(`${API_PREFIX}/projects/:projectId/rulebook`, validateProjectId, upload.single('rulebook'), async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    
+    if (!req.file) {
+      return res.status(400).json({ error: 'rulebook PDF is required' });
+    }
+
+    // Store file info
+    const fileInfo = {
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      path: req.file.path,
+    };
+
+    // Extract text from PDF
+    const extracted = await PdfUtils.extractText(req.file.path);
+    
+    // Extract images from PDF
+    const imagesDir = path.join(paths.PDF_IMAGES_ROOT, projectId);
+    const imagePaths = await PdfUtils.extractImages(req.file.path, imagesDir);
+    
+    // Detect TOC and split into sections
+    const tocSections = await PdfUtils.detectTOC(extracted.pages);
+    const sections = await PdfUtils.splitIntoSections(extracted.pages, tocSections);
+    
+    // Store sections in database
+    const storedSections = [];
+    for (const section of sections) {
+      const storedSection = await createRulebookSection(projectId, {
+        title: section.title,
+        text: section.text,
+        pageStart: section.pageStart,
+        pageEnd: section.pageEnd,
+        orderIndex: section.orderIndex
+      });
+      storedSections.push(storedSection);
+    }
+
+    res.status(201).json({
+      projectId,
+      file: fileInfo,
+      extracted: {
+        text: extracted.text,
+        pageCount: extracted.pageCount,
+        fileSize: extracted.fileSize
+      },
+      sections: storedSections,
+      images: imagePaths
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Extract components from rulebook
+app.post(`${API_PREFIX}/projects/:projectId/extract-components`, validateProjectId, async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const { sectionId, useAllSections } = req.body;
+    
+    let textToAnalyze = '';
+    
+    if (sectionId) {
+      // Extract from specific section
+      const section = await getRulebookSectionById(sectionId);
+      if (!section) {
+        return res.status(404).json({ error: 'Section not found' });
+      }
+      textToAnalyze = section.text;
+    } else if (useAllSections) {
+      // Extract from all sections
+      const sections = await getRulebookSectionsByProjectId(projectId);
+      textToAnalyze = sections.map(s => s.text).join('\n\n');
+    } else {
+      return res.status(400).json({ error: 'Either sectionId or useAllSections must be specified' });
+    }
+
+    // Extract components using AI
+    const rawComponents = await AiUtils.extractComponentsWithAI(textToAnalyze);
+    const components = AiUtils.normalizeComponents(rawComponents);
+    
+    // Store components in database
+    const storedComponents = [];
+    for (const component of components) {
+      const storedComponent = await createComponent(projectId, component);
+      storedComponents.push(storedComponent);
+    }
+
+    res.json({ 
+      projectId, 
+      components: storedComponents,
+      extractionSummary: {
+        componentCount: storedComponents.length,
+        source: sectionId ? `section-${sectionId}` : 'all-sections'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get components endpoint
+app.get(`${API_PREFIX}/projects/:projectId/components`, validateProjectId, async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const components = await getComponentsByProjectId(projectId);
+    res.json({ components });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get sections endpoint
+app.get(`${API_PREFIX}/projects/:projectId/sections`, validateProjectId, async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const sections = await getRulebookSectionsByProjectId(projectId);
+    res.json({ sections });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Game components endpoints
+app.get(`${API_PREFIX}/projects/:projectId/components`, validateProjectId, async (req, res, next) => {
+  try {
+    const components = await getGameComponentsByProjectId(req.params.projectId);
+    res.json({ components });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post(`${API_PREFIX}/projects/:projectId/components`, validateProjectId, validateGameComponent, async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const componentData = req.body;
+    
+    const component = await createGameComponent(projectId, componentData);
+    res.status(201).json({ component });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put(`${API_PREFIX}/components/:componentId`, validateComponentId, validateGameComponent, async (req, res, next) => {
+  try {
+    const { componentId } = req.params;
+    const componentData = req.body;
+    
+    const component = await updateGameComponent(componentId, componentData);
+    if (!component) {
+      return res.status(404).json({ error: 'Component not found' });
+    }
+    
+    res.json({ component });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete(`${API_PREFIX}/components/:componentId`, validateComponentId, async (req, res, next) => {
+  try {
+    const { componentId } = req.params;
+    
+    await deleteGameComponent(componentId);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Rulebook sections endpoints
+app.get(`${API_PREFIX}/projects/:projectId/sections`, validateProjectId, async (req, res, next) => {
+  try {
+    const sections = await getRulebookSectionsByProjectId(req.params.projectId);
+    res.json({ sections });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post(`${API_PREFIX}/projects/:projectId/sections`, validateProjectId, validateRulebookSection, async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const sectionData = req.body;
+    
+    const section = await createRulebookSection(projectId, sectionData);
+    res.status(201).json({ section });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put(`${API_PREFIX}/sections/:sectionId`, validateSectionId, validateRulebookSection, async (req, res, next) => {
+  try {
+    const { sectionId } = req.params;
+    const sectionData = req.body;
+    
+    const section = await updateRulebookSection(sectionId, sectionData);
+    if (!section) {
+      return res.status(404).json({ error: 'Section not found' });
+    }
+    
+    res.json({ section });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete(`${API_PREFIX}/sections/:sectionId`, validateSectionId, async (req, res, next) => {
+  try {
+    const { sectionId } = req.params;
+    
+    await deleteRulebookSection(sectionId);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Media assets endpoints
+app.get(`${API_PREFIX}/projects/:projectId/assets`, validateProjectId, async (req, res, next) => {
+  try {
+    const assets = await getMediaAssetsByProjectId(req.params.projectId);
+    res.json({ assets });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post(`${API_PREFIX}/projects/:projectId/assets`, validateProjectId, validateMediaAsset, async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const assetData = req.body;
+    
+    const asset = await createMediaAsset(projectId, assetData);
+    res.status(201).json({ asset });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put(`${API_PREFIX}/assets/:assetId`, validateAssetId, validateMediaAsset, async (req, res, next) => {
+  try {
+    const { assetId } = req.params;
+    const assetData = req.body;
+    
+    const asset = await updateMediaAsset(assetId, assetData);
+    if (!asset) {
+      return res.status(404).json({ error: 'Asset not found' });
+    }
+    
+    res.json({ asset });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete(`${API_PREFIX}/assets/:assetId`, validateAssetId, async (req, res, next) => {
+  try {
+    const { assetId } = req.params;
+    
+    await deleteMediaAsset(assetId);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// BGG ingestion stub
+app.post(`${API_PREFIX}/bgg/ingest`, validateProjectId, async (req, res, next) => {
+  try {
+    const { projectId, bggUrl } = req.body;
+    if (!bggUrl) {
+      return res.status(400).json({ error: 'bggUrl is required' });
+    }
+
+    const metadata = await fetchMetadataStub({ bggUrl });
+    res.json({ projectId, metadata });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Rulebook upload (PDF)
+app.post(`${API_PREFIX}/rulebook/upload`, upload.single('rulebook'), validateProjectId, async (req, res, next) => {
+  try {
+    const { projectId } = req.body;
+    if (!req.file) return res.status(400).json({ error: 'rulebook PDF is required' });
+
+    res.status(201).json({
+      projectId,
+      file: {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        path: req.file.path,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Rulebook parsing stub
+app.post(`${API_PREFIX}/rulebook/parse`, validateProjectId, async (req, res, next) => {
+  try {
+    const { projectId, pdfPath } = req.body;
+    if (!pdfPath) {
+      return res.status(400).json({ error: 'pdfPath is required' });
+    }
+
+    const parsed = await parseRulebookStub({ projectId, pdfPath });
+    res.json(parsed);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Script generation stub
+app.post(`${API_PREFIX}/script/generate`, validateProjectId, async (req, res, next) => {
+  try {
+    const { projectId, language = 'fr-CA', detailBoost = 25 } = req.body;
+
+    const script = await generateScriptStub({ language, detailBoost });
+    res.json({ projectId, script });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Asset processing stub
+app.post(`${API_PREFIX}/assets/process`, validateProjectId, async (req, res, next) => {
+  try {
+    const { projectId } = req.body;
+
+    const assets = await processAssetsStub({ projectId });
+    res.json(assets);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Audio generation stub
+app.post(`${API_PREFIX}/audio/generate`, validateProjectId, async (req, res, next) => {
+  try {
+    const { projectId, voiceId } = req.body;
+    if (!voiceId) {
+      return res.status(400).json({ error: 'voiceId is required' });
+    }
+
+    const audio = await generateAudioStub({ voiceId });
+    res.json({ projectId, audio });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Captions generation stub
+app.post(`${API_PREFIX}/captions/generate`, validateProjectId, async (req, res, next) => {
+  try {
+    const { projectId, language = 'fr-CA' } = req.body;
+
+    const captions = await generateCaptionsStub({ language });
+    res.json({ projectId, captions });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Preview rendering stub
+app.post(`${API_PREFIX}/render/preview`, validateProjectId, async (req, res, next) => {
+  try {
+    const { projectId, durationSeconds = 10 } = req.body;
+
+    const preview = await renderPreviewStub({ durationSeconds });
+    res.json({ projectId, preview });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Full render stub
+app.post(`${API_PREFIX}/render/full`, validateProjectId, async (req, res, next) => {
+  try {
+    const { projectId } = req.body;
+
+    const render = await renderFullStub();
+    res.json({ projectId, render });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Render endpoints for Phase 5: Rendering & Packaging
+
+// Enqueue render job
+app.post(`${API_PREFIX}/projects/:id/render`, validateProjectId, async (req, res, next) => {
+  try {
+    const { id: projectId } = req.params;
+    const { sections, components, audioMap, options } = req.body;
+    
+    // Validate project exists
+    const project = await getProjectById(projectId);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    // Validate input parameters
+    if (sections && !Array.isArray(sections)) {
+      return res.status(400).json({ error: 'sections must be an array' });
+    }
+    
+    if (components && !Array.isArray(components)) {
+      return res.status(400).json({ error: 'components must be an array' });
+    }
+    
+    if (audioMap && typeof audioMap !== 'object') {
+      return res.status(400).json({ error: 'audioMap must be an object' });
+    }
+    
+    // Validate render options
+    if (options) {
+      if (options.resolution && typeof options.resolution !== 'string') {
+        return res.status(400).json({ error: 'options.resolution must be a string' });
+      }
+      
+      if (options.fps && (typeof options.fps !== 'number' || options.fps <= 0)) {
+        return res.status(400).json({ error: 'options.fps must be a positive number' });
+      }
+      
+      if (options.quality && typeof options.quality !== 'string') {
+        return res.status(400).json({ error: 'options.quality must be a string' });
+      }
+    }
+    
+    // Check FFmpeg availability
+    const ffmpegStatus = await RenderService.isFFmpegAvailable();
+    if (!ffmpegStatus.available) {
+      return res.status(503).json({ 
+        error: 'FFmpeg is not available on this system', 
+        details: ffmpegStatus.error || 'FFmpeg not found in PATH' 
+      });
+    }
+    
+    // Enqueue render task
+    const taskId = await RendererWorker.enqueueTask(projectId, {
+      sections: sections || [],
+      components: components || [],
+      audioMap: audioMap || {},
+      renderOptions: options || {}
+    });
+    
+    res.status(202).json({ taskId, message: 'Render job enqueued' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get render status
+app.get(`${API_PREFIX}/exports/:taskId/status`, async (req, res, next) => {
+  try {
+    const { taskId } = req.params;
+    
+    const status = await RendererWorker.getTaskStatus(taskId);
+    res.json({ status });
+  } catch (error) {
+    if (error.message === 'Task not found') {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    next(error);
+  }
+});
+
+// List exports for project
+app.get(`${API_PREFIX}/projects/:id/exports`, validateProjectId, async (req, res, next) => {
+  try {
+    const { id: projectId } = req.params;
+    
+    const exports = await RendererWorker.getProjectExports(projectId);
+    res.json({ exports });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Download export
+app.get(`${API_PREFIX}/exports/:id/download`, async (req, res, next) => {
+  try {
+    const { id: exportId } = req.params;
+    const { type = 'mp4' } = req.query;
+    
+    const exportData = await RendererWorker.getTaskStatus(exportId);
+    
+    if (exportData.status !== 'done') {
+      return res.status(400).json({ error: 'Export not completed' });
+    }
+    
+    let filePath;
+    let mimeType;
+    
+    switch (type) {
+      case 'mp4':
+        filePath = exportData.outputPath;
+        mimeType = 'video/mp4';
+        break;
+      case 'srt':
+        filePath = exportData.srtPath;
+        mimeType = 'text/plain';
+        break;
+      case 'zip':
+        // For zip, we need to construct the path
+        const exportDir = path.dirname(exportData.outputPath);
+        filePath = path.join(exportDir, 'archive.zip');
+        mimeType = 'application/zip';
+        break;
+      default:
+        return res.status(400).json({ error: 'Invalid file type. Supported types: mp4, srt, zip' });
+    }
+    
+    if (!filePath) {
+      return res.status(404).json({ error: `File type ${type} not available for this export` });
+    }
+    
+    // Check if file exists
+    try {
+      await fs.access(filePath);
+    } catch (err) {
+      return res.status(404).json({ error: 'Export file not found' });
+    }
+    
+    // Set appropriate headers
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="export-${exportId}.${type}"`);
+    
+    // Stream the file
+    res.sendFile(filePath);
+  } catch (error) {
+    if (error.message === 'Task not found') {
+      return res.status(404).json({ error: 'Export not found' });
+    }
+    next(error);
+  }
+});
+
+// Cancel render job
+app.post(`${API_PREFIX}/exports/:id/cancel`, async (req, res, next) => {
+  try {
+    const { id: taskId } = req.params;
+    
+    await RendererWorker.cancelTask(taskId);
+    res.json({ message: 'Render job cancelled' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete export
+app.delete(`${API_PREFIX}/exports/:id`, async (req, res, next) => {
+  try {
+    const { id: exportId } = req.params;
+    
+    await RendererWorker.deleteExport(exportId);
+    res.status(204).send();
+  } catch (error) {
+    if (error.message === 'Export not found') {
+      return res.status(404).json({ error: 'Export not found' });
+    }
+    next(error);
+  }
+});
+
+// Sample render endpoint for quick validation (dev mode only)
+app.post(`${API_PREFIX}/render/sample`, async (req, res, next) => {
+  try {
+    // Check if we're in development mode
+    if (process.env.NODE_ENV !== 'development') {
+      return res.status(403).json({ error: 'Sample render only available in development mode' });
+    }
+    
+    // Check FFmpeg availability
+    const ffmpegStatus = await RenderService.isFFmpegAvailable();
+    if (!ffmpegStatus.available) {
+      return res.status(503).json({ 
+        error: 'FFmpeg is not available on this system', 
+        details: ffmpegStatus.error || 'FFmpeg not found in PATH' 
+      });
+    }
+    
+    // Create a sample project for testing
+    const sampleProject = await upsertProject({
+      name: 'Sample Render Test',
+      language: 'en-US',
+      voiceId: 'sample-voice'
+    });
+    
+    // Enqueue a tiny render job
+    const taskId = await RendererWorker.enqueueTask(sampleProject.id, {
+      sections: [{title: "Intro", text: "Welcome to Mobius"}],
+      components: [],
+      audioMap: {},
+      renderOptions: {
+        resolution: "1280x720",
+        fps: 30,
+        burnSubtitles: false
+      }
+    });
+    
+    res.status(202).json({ 
+      taskId, 
+      projectId: sampleProject.id,
+      message: 'Sample render job enqueued' 
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Error handler
+// eslint-disable-next-line no-unused-vars
+app.use((error, _req, res, _next) => {
+  console.error(error);
+  res.status(error.status || 500).json({
+    error: error.message ?? 'Internal Server Error',
+  });
+});
+
+export async function startServer() {
+  await ensureStorageLayout();
+
+  app.listen(PORT, () => {
+    console.log(`MOBIUS backend listening on port ${PORT}`);
+  });
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  startServer().catch((error) => {
+    console.error('Fatal startup error', error);
+    process.exit(1);
+  });
+}
+>>>>>>> Stashed changes
