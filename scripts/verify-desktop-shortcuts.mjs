@@ -18,9 +18,12 @@ import { promisify } from 'util';
 import { exec } from 'child_process';
 const execPromise = promisify(exec);
 
+// Guard against import-time side effects in tests
+const runningUnderTest = process.env.NODE_ENV === 'test' || !!process.env.JEST_WORKER_ID;
+
 // Skip execution in CI environments when not explicitly requested
 // This prevents test failures while still allowing normal usage
-if (process.env.CI && process.env.GITHUB_ACTIONS && !process.env.FORCE_DESKTOP_SHORTCUT_RUN) {
+if (!runningUnderTest && process.env.CI && process.env.GITHUB_ACTIONS && !process.env.FORCE_DESKTOP_SHORTCUT_RUN) {
   console.log('SKIP: desktop shortcut verification in CI');
   process.exit(0);
 }
@@ -160,7 +163,17 @@ async function runVerification() {
   return found;
 }
 
-// Run the verification
-runVerification().then(result => {
-  process.exit(result ? 0 : 1);
-});
+// Export main function to prevent import-time side effects
+export async function main() {
+  return runVerification();
+}
+
+// Guard top-level execution
+if (!runningUnderTest && (!process.env.CI || !process.env.GITHUB_ACTIONS || process.env.FORCE_DESKTOP_SHORTCUT_RUN)) {
+  main().then(result => {
+    process.exit(result ? 0 : 1);
+  }).catch(error => {
+    console.error('Unexpected error:', error);
+    process.exit(1);
+  });
+}
