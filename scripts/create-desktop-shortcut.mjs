@@ -17,8 +17,9 @@ import os from 'os';
 
 const execPromise = promisify(exec);
 
-// Skip execution in CI environments
-if (process.env.CI && process.env.GITHUB_ACTIONS) {
+// Skip execution in CI environments when not explicitly requested
+// This prevents test failures while still allowing normal usage
+if (process.env.CI && process.env.GITHUB_ACTIONS && !process.env.FORCE_DESKTOP_SHORTCUT_RUN) {
   console.log('SKIP: desktop shortcut creation in CI');
   process.exit(0);
 }
