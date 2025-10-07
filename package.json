@@ -1,6 +1,6 @@
 {
   "name": "mobius-games-tutorial-generator",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A pipeline for generating game tutorial videos from structured game rules",
   "main": "index.js",
   "scripts": {
@@ -13,12 +13,11 @@
     "gen:shotlists": "node scripts/compile-shotlist.mjs gigs/hanamikoji.json > tmp/shotlist.json",
     "gen:timelines": "echo 'Generating timelines...'",
     "render:proxy": "node scripts/render-ffmpeg.mjs tmp/timeline.json assets out/preview.mp4 --preview",
-    "golden:check": "node scripts/golden-check.mjs",
+    "golden:check": "npm run golden:check:sushi && npm run golden:check:loveletter",
     "golden:update:sushi": "node scripts/generate_golden.js --game \"Sushi Go\" --in \"out/sushi-go/preview.mp4\" --out \"tests/golden/sushi-go\" --frames \"5,10,20\"",
     "golden:update:loveletter": "node scripts/generate_golden.js --game \"Love Letter\" --in \"out/love-letter/preview.mp4\" --out \"tests/golden/love-letter\" --frames \"5,10,20\"",
     "golden:check:sushi": "node scripts/check_golden.js --game \"Sushi Go\" --in \"out/sushi-go/preview.mp4\" --golden \"tests/golden/sushi-go\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\"",
     "golden:check:loveletter": "node scripts/check_golden.js --game \"Love Letter\" --in \"out/love-letter/preview.mp4\" --golden \"tests/golden/love-letter\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\"",
-    "golden:check": "npm run golden:check:sushi && npm run golden:check:loveletter",
     "golden:approve": "npm run golden:update:sushi && npm run golden:update:loveletter",
     "golden:check-with-junit": "node scripts/check_golden.js --game \"Hanamikoji\" --in \"out/preview.mp4\" --golden \"tests/golden/hanamikoji\" --frames \"5,10,20\" --ssim \"0.995\" --lufs_tol \"1.0\" --tp_tol \"1.0\" --junit tests/reports/hanamikoji.xml",
     "golden:update": "node scripts/generate_golden.js",
