@@ -1,0 +1,25 @@
+name: Smoke Test Scripts
+on:
+  push:
+  pull_request:
+jobs:
+  import-safety:
+    name: Import-safety check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Ensure Node resolves .mjs modules
+        run: node -v
+
+      - name: Import create-desktop-shortcut
+        run: node --input-type=module -e "import('./scripts/create-desktop-shortcut.mjs').then(()=>console.log('ok')).catch(e=>{console.error(e); process.exit(1)})"
+
+      - name: Import verify-desktop-shortcuts
+        run: node --input-type=module -e "import('./scripts/verify-desktop-shortcuts.mjs').then(()=>console.log('ok')).catch(e=>{console.error(e); process.exit(1)})"
