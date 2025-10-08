@@ -51,7 +51,6 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "extensionsToTreatAsEsm": [".ts", ".js"],
     "roots": [
       "<rootDir>/src"
     ],
