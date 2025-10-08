@@ -2,19 +2,28 @@
  * Unit tests for the video rendering pipeline orchestration
  */
 
-import { spawn } from 'child_process';
-import { render } from '../render/index.js';
+// Mock child_process.spawn using jest.unstable_mockModule for ESM compatibility
+let spawnMock;
 
-// Mock child_process.spawn
-jest.mock('child_process', () => {
-  const mockSpawn = {
+beforeAll(async () => {
+  spawnMock = {
     on: jest.fn(),
     kill: jest.fn(),
   };
-  
-  return {
-    spawn: jest.fn(() => mockSpawn),
-  };
+
+  // Mock the child_process module before importing our module
+  await jest.unstable_mockModule('child_process', () => ({
+    spawn: jest.fn(() => spawnMock),
+  }));
+});
+
+// Dynamically import the module after mocking
+let renderModule;
+let spawn;
+
+beforeAll(async () => {
+  renderModule = await import('../render/index.js');
+  spawn = (await import('child_process')).spawn;
 });
 
 describe('Render Orchestration', () => {
@@ -41,27 +50,27 @@ describe('Render Orchestration', () => {
     };
 
     beforeEach(() => {
-      require('child_process').spawn.mockReturnValue(mockSpawnInstance);
+      spawn.mockReturnValue(mockSpawnInstance);
     });
 
     test('should validate inputs and throw error when images are missing', async () => {
       const job = Object.assign({}, mockJob, { images: [] });
-      await expect(render(job)).rejects.toThrow('No images provided for rendering');
+      await expect(renderModule.render(job)).rejects.toThrow('No images provided for rendering');
     });
 
     test('should validate inputs and throw error when audio file is missing', async () => {
       const job = Object.assign({}, mockJob, { audioFile: '' });
-      await expect(render(job)).rejects.toThrow('No audio file provided for rendering');
+      await expect(renderModule.render(job)).rejects.toThrow('No audio file provided for rendering');
     });
 
     test('should validate inputs and throw error when output directory is missing', async () => {
       const job = Object.assign({}, mockJob, { outputDir: '' });
-      await expect(render(job)).rejects.toThrow('No output directory specified');
+      await expect(renderModule.render(job)).rejects.toThrow('No output directory specified');
     });
 
     test('should handle dry run mode correctly', async () => {
       const options = { dryRun: true };
-      const result = await render(mockJob, options);
+      const result = await renderModule.render(mockJob, options);
       
       expect(result).toEqual({
         outputPath: '/path/to/output/preview.mp4',
@@ -76,7 +85,7 @@ describe('Render Orchestration', () => {
 
     test('should build correct FFmpeg command for preview render', async () => {
       const options = { previewSeconds: 5 };
-      await render(mockJob, options);
+      await renderModule.render(mockJob, options);
       
       expect(spawn).toHaveBeenCalledWith('ffmpeg', expect.arrayContaining([
         '-f', 'concat', '-safe', '0', '-i', 'pipe:0',
@@ -90,7 +99,7 @@ describe('Render Orchestration', () => {
     });
 
     test('should build correct FFmpeg command for full render', async () => {
-      await render(mockJob);
+      await renderModule.render(mockJob);
       
       expect(spawn).toHaveBeenCalledWith('ffmpeg', expect.arrayContaining([
         '-f', 'concat', '-safe', '0', '-i', 'pipe:0',
@@ -114,10 +123,10 @@ describe('Render Orchestration', () => {
         kill: jest.fn(),
       };
       
-      require('child_process').spawn.mockReturnValue(mockSpawnInstanceWithTimeout);
+      spawn.mockReturnValue(mockSpawnInstanceWithTimeout);
       
       const options = { timeoutMs: 10 }; // 10ms timeout for testing
-      await expect(render(mockJob, options)).rejects.toThrow('FFmpeg execution timed out after 10ms');
+      await expect(renderModule.render(mockJob, options)).rejects.toThrow('FFmpeg execution timed out after 10ms');
     });
 
     test('should handle FFmpeg execution error', async () => {
@@ -135,9 +144,9 @@ describe('Render Orchestration', () => {
         kill: jest.fn(),
       };
       
-      require('child_process').spawn.mockReturnValue(mockSpawnInstanceWithError);
+      spawn.mockReturnValue(mockSpawnInstanceWithError);
       
-      await expect(render(mockJob)).rejects.toThrow('FFmpeg exited with code 1');
+      await expect(renderModule.render(mockJob)).rejects.toThrow('FFmpeg exited with code 1');
     });
   });
 });

@@ -1,18 +1,29 @@
-// __tests__/scripts-imports.test.ts
-// Ensures scripts can be imported by Jest without executing side effects.
+// src/__tests__/scripts-imports.test.ts
 
-describe('scripts import safety', () => {
-  test('create-desktop-shortcut can be imported and exports main', async () => {
-    // This test is primarily to ensure the module can be imported without side effects
-    // The actual functionality is tested in the behavioral tests
-    const mod = await import('../../scripts/create-desktop-shortcut.mjs');
-    expect(typeof mod.main).toBe('function');
+// This test only asserts that importing the ESM scripts does not execute side-effects
+// and that they export a main() function. No top-level jest.mock() is used.
+// For any module mocking in ESM, use jest.unstable_mockModule(...) + dynamic import.
+
+describe('desktop shortcut scripts import safety', () => {
+  const scriptCases = [
+    { name: 'create-desktop-shortcut', path: '../../scripts/create-desktop-shortcut.mjs' },
+    { name: 'verify-desktop-shortcuts', path: '../../scripts/verify-desktop-shortcuts.mjs' },
+  ];
+
+  beforeAll(() => {
+    process.env.NODE_ENV = 'test';
+    // Explicitly simulate a Jest environment so guards remain in effect
+    process.env.JEST_WORKER_ID = process.env.JEST_WORKER_ID ?? '1';
   });
 
-  test('verify-desktop-shortcuts can be imported and exports main', async () => {
-    // This test is primarily to ensure the module can be imported without side effects
-    // The actual functionality is tested in the behavioral tests
-    const mod = await import('../../scripts/verify-desktop-shortcuts.mjs');
+  afterAll(() => {
+    delete process.env.NODE_ENV;
+    delete process.env.JEST_WORKER_ID;
+  });
+
+  it.each(scriptCases)('imports %s without side effects and exposes main()', async ({ name, path }) => {
+    // IMPORTANT: Use dynamic import for ESM modules
+    const mod = await import(path);
     expect(typeof mod.main).toBe('function');
   });
 });
