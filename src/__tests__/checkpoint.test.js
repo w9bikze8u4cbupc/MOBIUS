@@ -1,11 +1,11 @@
-import { CheckpointManager } from '../render/checkpoint';
+import { CheckpointManager } from '../render/checkpoint.js';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 
 describe('CheckpointManager', () => {
-  let checkpoint: CheckpointManager;
-  let tempDir: string;
+  let checkpoint;
+  let tempDir;
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'checkpoint-test-'));
@@ -25,8 +25,8 @@ describe('CheckpointManager', () => {
     await checkpoint.initialize('test-job');
     const state = checkpoint.getState();
     expect(state).toBeDefined();
-    expect(state?.id).toBe('test-job');
-    expect(state?.stage).toBe('initialized');
+    expect(state.id).toBe('test-job');
+    expect(state.stage).toBe('initialized');
   });
 
   test('should save and load checkpoint', async () => {
@@ -39,8 +39,8 @@ describe('CheckpointManager', () => {
     
     expect(loaded).toBe(true);
     const state = newCheckpoint.getState();
-    expect(state?.stage).toBe('slideshow_mux');
-    expect(state?.progress).toBe(25);
+    expect(state.stage).toBe('slideshow_mux');
+    expect(state.progress).toBe(25);
   });
 
   test('should add artifacts', async () => {
@@ -48,9 +48,9 @@ describe('CheckpointManager', () => {
     await checkpoint.addArtifact('output', '/path/to/output.mp4', 1024);
     
     const state = checkpoint.getState();
-    expect(state?.artifacts.output).toBeDefined();
-    expect(state?.artifacts.output.path).toBe('/path/to/output.mp4');
-    expect(state?.artifacts.output.size).toBe(1024);
+    expect(state.artifacts.output).toBeDefined();
+    expect(state.artifacts.output.path).toBe('/path/to/output.mp4');
+    expect(state.artifacts.output.size).toBe(1024);
   });
 
   test('should track stage completion', async () => {
@@ -68,8 +68,8 @@ describe('CheckpointManager', () => {
     
     expect(checkpoint.isStageCompleted('completed')).toBe(true);
     const state = checkpoint.getState();
-    expect(state?.stage).toBe('completed');
-    expect(state?.progress).toBe(100);
+    expect(state.stage).toBe('completed');
+    expect(state.progress).toBe(100);
   });
 
   test('should clean up checkpoint file', async () => {

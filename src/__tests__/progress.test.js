@@ -1,7 +1,7 @@
-import { ProgressParser } from '../render/progress';
+import { ProgressParser } from '../render/progress.js';
 
 describe('ProgressParser', () => {
-  let parser: ProgressParser;
+  let parser;
 
   beforeEach(() => {
     parser = new ProgressParser();
