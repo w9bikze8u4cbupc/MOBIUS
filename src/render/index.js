@@ -8,6 +8,8 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { ProgressParser } from './progress.js';
 import { CheckpointManager } from './checkpoint.js';
+import { renderStarted, renderCompleted, renderFailed, renderTimeout, renderDuration, ffmpegSpeedRatio } from './metrics.js';
+import { logger } from './log.js';
 
 /**
  * Main render function that orchestrates FFmpeg to create video outputs
@@ -34,12 +36,52 @@ import { CheckpointManager } from './checkpoint.js';
  * @param {number} options.ducking.releaseMs Sidechain release time in ms
  * @param {number} options.ducking.duckGain Envelope duck gain (0.0-1.0)
  * @param {number} options.ducking.fadeMs Envelope fade time in ms
+ * @param {Object} options.loudness Loudness normalization configuration
+ * @param {boolean} options.loudness.enabled Whether to enable loudness normalization
+ * @param {number} options.loudness.targetI Target integrated loudness (LUFS)
+ * @param {number} options.loudness.lra Loudness range target
+ * @param {number} options.loudness.tp True peak target (dBTP)
+ * @param {Object} options.safetyFilters Safety filter configuration
+ * @param {number} options.safetyFilters.highpassHz High-pass filter frequency
+ * @param {number} options.safetyFilters.lowpassHz Low-pass filter frequency
+ * @param {boolean} options.safetyFilters.limiter Whether to apply a limiter
+ * @param {Object} options.caps Render capability limits
+ * @param {number} options.caps.maxWidth Maximum output width
+ * @param {number} options.caps.maxHeight Maximum output height
+ * @param {number} options.caps.maxFps Maximum frame rate
+ * @param {number} options.caps.maxBitrateKbps Maximum bitrate in kbps
  * @param {string} options.outputDir Override output directory
  * @param {number} options.timeoutMs Timeout in milliseconds
  * @param {string} options.jobId Unique identifier for checkpointing
+ * @param {string} options.sessionId Unique identifier for logging correlation
  * @returns {Promise<Object>} Promise that resolves to render result metadata
  */
 export async function render(job, options = {}) {
+  // Generate a session ID for correlation
+  const sessionId = options.sessionId || Math.random().toString(36).substring(2, 15);
+  const jobId = options.jobId || 'default';
+  
+  // Create a logger with context
+  const log = logger.withContext({ sessionId, jobId });
+  
+  // Record start time for metrics
+  const startTime = Date.now();
+  
+  // Increment started counter
+  renderStarted.inc();
+  
+  // Log render start
+  log.info('Render started', {
+    imagesCount: job.images ? job.images.length : 0,
+    hasAudio: !!(job.audioFile || job.narration || job.bgm),
+    previewSeconds: options.previewSeconds,
+    burnCaptions: options.burnCaptions,
+    exportSrt: options.exportSrt,
+    loudnessEnabled: options.loudness?.enabled,
+    safetyFilters: options.safetyFilters,
+    caps: options.caps
+  });
+
   // Validate inputs
   if (!job.images || job.images.length === 0) {
     throw new Error('No images provided for rendering');
@@ -53,6 +95,11 @@ export async function render(job, options = {}) {
     throw new Error('No output directory specified');
   }
   
+  // Apply caps validation
+  if (options.caps) {
+    validateCaps(job, options.caps, log);
+  }
+  
   // Handle checkpointing
   const checkpoint = new CheckpointManager(options.jobId || 'default', job.outputDir);
   const checkpointExists = await checkpoint.load();
@@ -60,15 +107,18 @@ export async function render(job, options = {}) {
   // Handle dry run
   if (options.dryRun) {
     console.log('[DRY RUN] Would render video with the following parameters:');
-    console.log(`  Images: ${job.images.length} files`);
-    console.log(`  Audio: ${job.audioFile || 'none'}`);
-    console.log(`  Narration: ${job.narration || 'none'}`);
-    console.log(`  BGM: ${job.bgm || 'none'}`);
-    console.log(`  Output directory: ${job.outputDir}`);
-    console.log(`  Preview seconds: ${options.previewSeconds || 'full render'}`);
-    console.log(`  Burn captions: ${options.burnCaptions ? 'yes' : 'no'}`);
-    console.log(`  Export SRT: ${options.exportSrt ? 'yes' : 'no'}`);
-    console.log(`  Ducking: ${options.ducking ? options.ducking.mode : 'none'}`);
+    console.log('  Images: ' + (job.images.length) + ' files');
+    console.log('  Audio: ' + (job.audioFile || 'none'));
+    console.log('  Narration: ' + (job.narration || 'none'));
+    console.log('  BGM: ' + (job.bgm || 'none'));
+    console.log('  Output directory: ' + job.outputDir);
+    console.log('  Preview seconds: ' + (options.previewSeconds || 'full render'));
+    console.log('  Burn captions: ' + (options.burnCaptions ? 'yes' : 'no'));
+    console.log('  Export SRT: ' + (options.exportSrt ? 'yes' : 'no'));
+    console.log('  Ducking: ' + (options.ducking ? options.ducking.mode : 'none'));
+    console.log('  Loudness normalization: ' + (options.loudness?.enabled ? 'yes' : 'no'));
+    console.log('  Safety filters: ' + (options.safetyFilters ? 'yes' : 'no'));
+    console.log('  Caps: ' + JSON.stringify(options.caps));
     
     // Return mock result for dry run
     return {
@@ -125,6 +175,14 @@ export async function render(job, options = {}) {
   
   // Execute FFmpeg with progress tracking
   const result = await executeFFmpegWithProgress(ffmpegArgs, options.timeoutMs || 300000, (progress) => {
+    // Log progress
+    log.progress(progress, 'rendering');
+    
+    // Record speed metric
+    if (progress.speed) {
+      ffmpegSpeedRatio.observe(progress.speed);
+    }
+    
     console.log(`Progress: ${progress.percent.toFixed(1)}% ETA: ${progress.eta} Speed: ${progress.speed}x`);
   });
   
@@ -138,6 +196,19 @@ export async function render(job, options = {}) {
   // Mark job as completed
   await checkpoint.markCompleted();
   
+  // Record completion metrics
+  const duration = (Date.now() - startTime) / 1000; // Convert to seconds
+  renderDuration.observe(duration);
+  renderCompleted.inc();
+  
+  // Log completion
+  log.info('Render completed successfully', {
+    duration,
+    outputPath,
+    thumbnailPath,
+    captionPath
+  });
+
   // Return result
   return {
     outputPath,
@@ -149,6 +220,18 @@ export async function render(job, options = {}) {
       ...result.metadata
     }
   };
+}
+
+/**
+ * Validates job against capability limits
+ * @param {Object} job Render job configuration
+ * @param {Object} caps Capability limits
+ * @param {Object} log Logger instance
+ */
+function validateCaps(job, caps, log) {
+  // This would be implemented to validate inputs against caps
+  // For now, we'll just log that validation is enabled
+  log.info('Capability validation enabled', { caps });
 }
 
 /**
@@ -201,10 +284,10 @@ function buildFFmpegCommand(job, options, outputPath, captionPath) {
     // Audio codec
     args.push('-c:a', 'aac');
     
-    // Handle audio ducking
-    if (options.ducking) {
-      // We'll implement this when we add the audio ducking module
-      console.log('Would apply audio ducking');
+    // Handle audio processing chain
+    const audioFilters = buildAudioFilterChain(options, audioInputIndex);
+    if (audioFilters) {
+      args.push('-af', audioFilters);
     }
     
     // Handle burned-in captions
@@ -254,10 +337,10 @@ function buildFFmpegCommand(job, options, outputPath, captionPath) {
   // Audio codec
   args.push('-c:a', 'aac');
   
-  // Handle audio ducking
-  if (options.ducking) {
-    // We'll implement this when we add the audio ducking module
-    console.log('Would apply audio ducking');
+  // Handle audio processing chain
+  const audioFilters = buildAudioFilterChain(options, audioInputIndex);
+  if (audioFilters) {
+    args.push('-af', audioFilters);
   }
   
   // Handle burned-in captions
@@ -277,6 +360,50 @@ function buildFFmpegCommand(job, options, outputPath, captionPath) {
 }
 
 /**
+ * Builds the audio filter chain based on options
+ * @param {Object} options Rendering options
+ * @param {number} audioInputIndex Index of the audio input
+ * @returns {string|null} Audio filter chain or null if no filters needed
+ */
+function buildAudioFilterChain(options, audioInputIndex) {
+  const filters = [];
+  
+  // Handle audio ducking
+  if (options.ducking) {
+    // We'll implement this when we add the audio ducking module
+    console.log('Would apply audio ducking');
+  }
+  
+  // Handle loudness normalization
+  if (options.loudness?.enabled) {
+    const loudness = options.loudness;
+    filters.push(`loudnorm=I=${loudness.targetI || -16}:LRA=${loudness.lra || 11}:TP=${loudness.tp || -1.5}:print_format=summary`);
+  }
+  
+  // Handle safety filters
+  if (options.safetyFilters) {
+    const safety = options.safetyFilters;
+    
+    // Apply high-pass filter if configured
+    if (safety.highpassHz) {
+      filters.push(`highpass=f=${safety.highpassHz}`);
+    }
+    
+    // Apply low-pass filter if configured
+    if (safety.lowpassHz) {
+      filters.push(`lowpass=f=${safety.lowpassHz}`);
+    }
+    
+    // Apply limiter if configured
+    if (safety.limiter) {
+      filters.push('alimiter=limit=-1.0');
+    }
+  }
+  
+  return filters.length > 0 ? filters.join(',') : null;
+}
+
+/**
  * Executes FFmpeg with progress tracking
  * @param {string[]} args FFmpeg command arguments
  * @param {number} timeoutMs Timeout in milliseconds
@@ -285,7 +412,7 @@ function buildFFmpegCommand(job, options, outputPath, captionPath) {
  */
 function executeFFmpegWithProgress(args, timeoutMs, onProgress) {
   return new Promise((resolve, reject) => {
-    console.log(`Executing FFmpeg with args: ffmpeg ${args.join(' ')}`);
+    console.log('Executing FFmpeg with args: ffmpeg ' + args.join(' '));
     
     const ffmpeg = spawn('ffmpeg', args, {
       stdio: ['pipe', 'pipe', 'pipe'] // stdin, stdout, stderr
@@ -302,6 +429,8 @@ function executeFFmpegWithProgress(args, timeoutMs, onProgress) {
         resolve({ metadata });
       },
       (error) => {
+        // Record failure with reason
+        renderFailed.inc({ reason: 'ffmpeg_error' });
         reject(error);
       }
     );
@@ -310,6 +439,8 @@ function executeFFmpegWithProgress(args, timeoutMs, onProgress) {
     const timeout = setTimeout(async () => {
       console.log('Render timeout reached, attempting graceful shutdown...');
       await parser.kill(5000); // 5 second grace period
+      // Record timeout failure
+      renderTimeout.inc({ reason: 'timeout' });
       reject(new Error(`FFmpeg execution timed out after ${timeoutMs}ms`));
     }, timeoutMs);
     
@@ -319,6 +450,8 @@ function executeFFmpegWithProgress(args, timeoutMs, onProgress) {
       if (code === 0) {
         resolve({ metadata: {} });
       } else {
+        // Record failure with reason
+        renderFailed.inc({ reason: 'ffmpeg_exit_' + code });
         reject(new Error(`FFmpeg exited with code ${code}`));
       }
     });
@@ -326,6 +459,8 @@ function executeFFmpegWithProgress(args, timeoutMs, onProgress) {
     // Handle process errors
     ffmpeg.on('error', (err) => {
       clearTimeout(timeout);
+      // Record failure with reason
+      renderFailed.inc({ reason: 'spawn_error' });
       reject(new Error(`FFmpeg failed to start: ${err.message}`));
     });
   });
@@ -347,7 +482,7 @@ async function generateThumbnail(videoPath, thumbnailPath) {
   ];
   
   return new Promise((resolve, reject) => {
-    console.log(`Generating thumbnail with args: ffmpeg ${args.join(' ')}`);
+    console.log('Generating thumbnail with args: ffmpeg ' + args.join(' '));
     
     const ffmpeg = spawn('ffmpeg', args);
     

@@ -28,7 +28,7 @@ jobs:
       - name: Ensure FFmpeg is available
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg imagemagick
           ffmpeg -version
           echo "FFmpeg location: $(which ffmpeg)"
 
@@ -63,9 +63,15 @@ jobs:
           Another subtitle line
           EOF
 
-      - name: Run 5-second preview render
+      - name: Run 5-second preview render with loudness normalization
         run: |
-          node scripts/render.js --project-id test --mode preview --dry-run
+          node scripts/render.js --project-id test --mode preview --preview-seconds 5 --loudness.enabled true
+        shell: bash
+
+      - name: Loudness probe (preview)
+        run: |
+          ffmpeg -nostats -hide_banner -i out/preview_5s.mp4 -filter_complex ebur128 -f null - 2>probe.txt || true
+          grep -E "I:\s*-1[567]\." probe.txt
         shell: bash
 
       - name: Render (dry-run) with captions + ducking
@@ -75,22 +81,34 @@ jobs:
 
       - name: Verify output files exist
         run: |
-          # In dry-run mode, we just verify the script runs without error
-          echo "Dry-run completed successfully"
+          # Check that the preview file was created
+          if [ ! -f "out/preview_5s.mp4" ]; then
+            echo "Preview file not found!"
+            ls -la out/
+            exit 1
+          fi
+          echo "Preview file created successfully"
         shell: bash
 
-      - name: Run actual 5-second preview render (if FFmpeg is working)
-        run: |
-          # Only run actual render if we want to test FFmpeg integration
-          echo "Skipping actual render in smoke test to keep it fast"
-          # node scripts/render.js --project-id test --mode preview
-        shell: bash
-
-      - name: Upload artifacts
+      - name: Upload artifacts on failure
         uses: actions/upload-artifact@v4
-        if: always()
+        if: failure()
         with:
-          name: render-preview-output
+          name: render-failure-artifacts
           path: |
             out/
             assets/
+            logs/
+            probe.txt
+          retention-days: 30
+
+      - name: Upload success artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: render-success-artifacts
+          path: |
+            out/
+            assets/
+            probe.txt
+          retention-days: 7

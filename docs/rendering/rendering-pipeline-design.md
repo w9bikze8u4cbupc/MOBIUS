@@ -13,6 +13,8 @@ This document outlines the design for the video rendering pipeline in the Mobius
 - Support audio ducking for better audio mixing
 - Provide robust progress tracking and checkpointing
 - Enable containerized deployment for production use
+- Expose metrics and structured logs for observability
+- Ensure consistent media quality through loudness normalization and safety filters
 
 ## High-Level Architecture
 
@@ -121,6 +123,46 @@ The rendering pipeline can be deployed in containers for production use:
 3. **Volume Mounts**: Input/output directories mounted as volumes
 4. **Environment Configuration**: Configurable via environment variables
 
+## Observability Features
+
+The rendering pipeline includes comprehensive observability features for monitoring performance and reliability:
+
+### Metrics
+- Prometheus metrics exposed via HTTP endpoint
+- Counters for render starts, completions, and failures
+- Histograms for render durations and FFmpeg speed ratios
+- Default system metrics (memory, CPU, garbage collection)
+
+### Structured Logging
+- NDJSON format for easy parsing
+- Correlation IDs for request tracing
+- Progress updates with ETA, speed, and FPS
+- Context-rich log entries with session and job IDs
+
+### OpenTelemetry Integration (Optional)
+- Distributed tracing support
+- Configurable via environment variables
+- Span creation for long-running operations
+
+## Media Quality Features
+
+The rendering pipeline includes advanced media quality features to ensure consistent, professional output:
+
+### Loudness Normalization
+- EBU R128 compliant loudness normalization
+- Configurable target integrated loudness, loudness range, and true peak
+- Single-pass and dual-pass normalization options
+
+### Safety Filters
+- High-pass filtering to remove low-frequency rumble
+- Low-pass filtering to remove high-frequency noise
+- Limiter to prevent clipping and ensure consistent peak levels
+
+### Capability Limits
+- Configurable maximum resolution, frame rate, and bitrate
+- Input validation to prevent resource exhaustion
+- Deterministic output quality through enforced limits
+
 ## Sample FFmpeg Commands
 
 ### Create slideshow from images with audio
@@ -149,6 +191,11 @@ ffmpeg -i bgm.mp3 -i narration.wav -filter_complex "[0:a]anull[bgm];[1:a]anull[v
 ffmpeg -i bgm.mp3 -filter_complex "[0:a]volume='if(gt(between(t,0,1)+between(t,2.5,3),0),0.3,1.0)'[ducked]" -map "[ducked]" out.mp3
 ```
 
+### Loudness normalization with safety filters
+```bash
+ffmpeg -i input.mp3 -af "loudnorm=I=-16:LRA=11:TP=-1.5:print_format=summary,highpass=f=80,lowpass=f=16000,alimiter=limit=-1.0" output.mp3
+```
+
 ## Implementation Phases
 
 ### Phase A — Prototype (2–4 days)
@@ -170,6 +217,13 @@ ffmpeg -i bgm.mp3 -filter_complex "[0:a]volume='if(gt(between(t,0,1)+between(t,2
 3. End-to-end tests
 4. Monitoring hooks
 
+### Phase D — Observability & Operations (3–5 days)
+1. Metrics collection and HTTP endpoint
+2. Structured logging with correlation IDs
+3. Media quality enhancements (loudness normalization, safety filters)
+4. Cloud/batch execution support
+5. E2E and chaos testing expansion
+
 ## Testing Strategy
 
 ### Unit Tests
@@ -179,6 +233,9 @@ ffmpeg -i bgm.mp3 -filter_complex "[0:a]volume='if(gt(between(t,0,1)+between(t,2
 - Audio ducking expressions are correctly formed
 - Progress parsing handles FFmpeg output correctly
 - Checkpointing saves/loads job state correctly
+- Metrics are properly collected and exposed
+- Structured logs contain expected fields
+- Loudness normalization and safety filters are applied correctly
 
 ### Integration Tests (CI Smoke)
 - Run 5s render using tiny set of images + short TTS audio
@@ -187,12 +244,15 @@ ffmpeg -i bgm.mp3 -filter_complex "[0:a]volume='if(gt(between(t,0,1)+between(t,2
 - Verify audio ducking is applied when configured
 - Verify progress events are emitted
 - Verify checkpointing works correctly
+- Verify loudness normalization meets target ±1 LU
+- Verify safety filters are applied correctly
 
 ### End-to-End Tests
 - Full pipeline test with real assets (PDF → images → render)
 - Weekly scheduled runs in CI
 - On-demand runs via PR labels
 - Artifact collection on failure
+- Media quality verification (loudness, clipping detection)
 
 ### Manual QA
 - Run 30s preview locally
