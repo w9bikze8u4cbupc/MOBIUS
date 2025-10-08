@@ -51,16 +51,24 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "extensionsToTreatAsEsm": [".ts"],
+    "extensionsToTreatAsEsm": [".ts", ".js"],
     "roots": [
       "<rootDir>/src"
     ],
     "testMatch": [
       "**/__tests__/**/*.ts",
-      "**/?(*.)+(spec|test).ts"
+      "**/__tests__/**/*.js",
+      "**/?(*.)+(spec|test).ts",
+      "**/?(*.)+(spec|test).js"
     ],
     "transform": {
       "^.+\\.tsx?$": [
+        "ts-jest",
+        {
+          "useESM": true
+        }
+      ],
+      "^.+\\.jsx?$": [
         "ts-jest",
         {
           "useESM": true
