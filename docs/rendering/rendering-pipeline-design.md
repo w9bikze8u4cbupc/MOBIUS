@@ -10,6 +10,7 @@ This document outlines the design for the video rendering pipeline in the Mobius
 - Support preview renders (5s, 30s) and full renders
 - Run in CI as a smoke/validation step
 - Be testable with mocked FFmpeg processes
+- Support audio ducking for better audio mixing
 
 ## High-Level Architecture
 
@@ -40,6 +41,15 @@ async render(job, options)
   - `previewSeconds`: Number of seconds for preview render (5 or 30)
   - `dryRun`: Boolean to simulate without actual rendering
   - `burnCaptions`: Boolean to burn-in captions
+  - `exportSrt`: Boolean to export SRT sidecar file
+  - `ducking`: Object with audio ducking configuration
+    - `mode`: Ducking mode ('sidechain' or 'envelope')
+    - `threshold`: Sidechain threshold
+    - `ratio`: Sidechain ratio
+    - `attackMs`: Sidechain attack time in ms
+    - `releaseMs`: Sidechain release time in ms
+    - `duckGain`: Envelope duck gain (0.0-1.0)
+    - `fadeMs`: Envelope fade time in ms
   - `outputDir`: String path for output directory
   - `timeoutMs`: Number of milliseconds before timeout
 
@@ -49,6 +59,35 @@ Promise that resolves to an object containing:
 - `thumbnailPath`: Path to the generated thumbnail
 - `captionPath`: Path to the generated SRT file
 - `metadata`: Object with duration, fps, and other metadata
+
+## Subtitles Support
+
+The rendering pipeline supports both burned-in and sidecar subtitles:
+
+1. **Burned-in Subtitles**: Subtitles are rendered directly onto the video using FFmpeg's `subtitles` filter
+2. **Sidecar SRT**: Subtitles are exported as a separate .srt file that can be used with video players
+
+### Subtitle Generation
+- Generate SRT from in-memory caption items
+- Support for pre-built SRT files
+- Proper time formatting for SRT files
+
+## Audio Ducking
+
+Two approaches to audio ducking are supported:
+
+1. **Sidechain Compression**: Uses FFmpeg's `sidechaincompress` filter to automatically reduce background music volume when narration is present
+2. **Envelope Ducking**: Manually reduce background music volume during specific time windows using a volume expression
+
+### Sidechain Compression
+- Requires both narration and background music tracks
+- Automatically adjusts music volume based on narration presence
+- Configurable threshold, ratio, attack, and release parameters
+
+### Envelope Ducking
+- Reduce music volume during caption time windows
+- Configurable duck gain and fade times
+- Works with a single audio track when time windows are provided
 
 ## Sample FFmpeg Commands
 
@@ -68,8 +107,15 @@ ffmpeg -i in.mp4 -vf "subtitles=path/to/captions.srt:force_style='Fontsize=24'" 
 ffmpeg -ss 00:00:03 -i out.mp4 -frames:v 1 -q:v 2 thumbnail.jpg
 ```
 
-### Audio ducking
-Pre-generate ducked BGM by lowering its volume where voice segments exist (using SRT timestamps).
+### Audio ducking with sidechain compression
+```
+ffmpeg -i bgm.mp3 -i narration.wav -filter_complex "[0:a]anull[bgm];[1:a]anull[vo];[bgm][vo]sidechaincompress=threshold=0.05:ratio=8:attack=5:release=50[ducked]" -map "[ducked]" out.mp3
+```
+
+### Audio ducking with envelope
+```
+ffmpeg -i bgm.mp3 -filter_complex "[0:a]volume='if(gt(between(t,0,1)+between(t,2.5,3),0),0.3,1.0)'[ducked]" -map "[ducked]" out.mp3
+```
 
 ## Implementation Phases
 
@@ -97,15 +143,20 @@ Pre-generate ducked BGM by lowering its volume where voice segments exist (using
 ### Unit Tests
 - Orchestration builds correct FFmpeg args
 - Spawn mocked and expected sequence asserted
+- Subtitle generation produces valid SRT files
+- Audio ducking expressions are correctly formed
 
 ### Integration Tests (CI Smoke)
 - Run 5s render using tiny set of images + short TTS audio
 - Assert MP4 exists and duration within ±200ms
+- Verify subtitles are burned-in or exported as sidecar
+- Verify audio ducking is applied when configured
 
 ### Manual QA
 - Run 30s preview locally
 - Verify A/V sync <200ms
 - Verify subtitles present and burn-in toggle works
+- Verify audio ducking works correctly
 
 ## Risks & Mitigations
 

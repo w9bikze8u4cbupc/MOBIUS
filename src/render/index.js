@@ -12,13 +12,26 @@ import path from 'path';
  * @param {Object} job Render job configuration
  * @param {string[]} job.images Array of image file paths
  * @param {string} job.audioFile Path to audio file
- * @param {string} job.subtitleFile Path to subtitle file (optional)
+ * @param {Object} job.captions Caption data
+ * @param {Array<{start: number, end: number, text: string}>} job.captions.items Caption items
+ * @param {string} job.captions.srtPath Prebuilt SRT file path
+ * @param {string} job.narration Path to narration audio file
+ * @param {string} job.bgm Path to background music file
  * @param {string} job.outputDir Output directory
  * @param {number} job.duration Desired duration in seconds
  * @param {Object} options Rendering options
  * @param {number} options.previewSeconds Generate a preview of specified seconds
  * @param {boolean} options.dryRun Simulate without actual rendering
  * @param {boolean} options.burnCaptions Burn-in captions instead of sidecar
+ * @param {boolean} options.exportSrt Export SRT sidecar file
+ * @param {Object} options.ducking Audio ducking configuration
+ * @param {string} options.ducking.mode Ducking mode ('sidechain' or 'envelope')
+ * @param {number} options.ducking.threshold Sidechain threshold
+ * @param {number} options.ducking.ratio Sidechain ratio
+ * @param {number} options.ducking.attackMs Sidechain attack time in ms
+ * @param {number} options.ducking.releaseMs Sidechain release time in ms
+ * @param {number} options.ducking.duckGain Envelope duck gain (0.0-1.0)
+ * @param {number} options.ducking.fadeMs Envelope fade time in ms
  * @param {string} options.outputDir Override output directory
  * @param {number} options.timeoutMs Timeout in milliseconds
  * @returns {Promise<Object>} Promise that resolves to render result metadata
@@ -29,7 +42,7 @@ export async function render(job, options = {}) {
     throw new Error('No images provided for rendering');
   }
   
-  if (!job.audioFile) {
+  if (!job.audioFile && !job.narration && !job.bgm) {
     throw new Error('No audio file provided for rendering');
   }
   
@@ -44,16 +57,20 @@ export async function render(job, options = {}) {
   if (options.dryRun) {
     console.log('[DRY RUN] Would render video with the following parameters:');
     console.log(`  Images: ${job.images.length} files`);
-    console.log(`  Audio: ${job.audioFile}`);
+    console.log(`  Audio: ${job.audioFile || 'none'}`);
+    console.log(`  Narration: ${job.narration || 'none'}`);
+    console.log(`  BGM: ${job.bgm || 'none'}`);
     console.log(`  Output directory: ${job.outputDir}`);
     console.log(`  Preview seconds: ${options.previewSeconds || 'full render'}`);
     console.log(`  Burn captions: ${options.burnCaptions ? 'yes' : 'no'}`);
+    console.log(`  Export SRT: ${options.exportSrt ? 'yes' : 'no'}`);
+    console.log(`  Ducking: ${options.ducking ? options.ducking.mode : 'none'}`);
     
     // Return mock result for dry run
     return {
       outputPath: path.join(job.outputDir, 'preview.mp4'),
       thumbnailPath: path.join(job.outputDir, 'thumbnail.jpg'),
-      captionPath: job.subtitleFile ? path.join(job.outputDir, 'captions.srt') : undefined,
+      captionPath: (job.captions || options.exportSrt) ? path.join(job.outputDir, 'captions.srt') : undefined,
       metadata: {
         duration: options.previewSeconds || 30,
         fps: 30
@@ -65,10 +82,25 @@ export async function render(job, options = {}) {
   const outputFileName = options.previewSeconds ? `preview_${options.previewSeconds}s.mp4` : 'output.mp4';
   const outputPath = path.join(job.outputDir, outputFileName);
   const thumbnailPath = path.join(job.outputDir, 'thumbnail.jpg');
-  const captionPath = job.subtitleFile ? path.join(job.outputDir, 'captions.srt') : undefined;
+  let captionPath;
+  
+  // Handle captions
+  if (job.captions) {
+    // If we need to burn captions or export SRT, ensure we have an SRT file
+    if (options.burnCaptions || options.exportSrt) {
+      if (job.captions.srtPath) {
+        // Use provided SRT file
+        captionPath = job.captions.srtPath;
+      } else if (job.captions.items && job.captions.items.length > 0) {
+        // Generate SRT file from caption items
+        // We'll implement this when we add the subtitles module
+        console.log('Would generate SRT from caption items');
+      }
+    }
+  }
   
   // Build FFmpeg command
-  const ffmpegArgs = buildFFmpegCommand(job, options, outputPath);
+  const ffmpegArgs = buildFFmpegCommand(job, options, outputPath, captionPath);
   
   // Execute FFmpeg
   await executeFFmpeg(ffmpegArgs, options.timeoutMs || 300000); // 5 minute default timeout
@@ -93,9 +125,10 @@ export async function render(job, options = {}) {
  * @param {Object} job Render job configuration
  * @param {Object} options Rendering options
  * @param {string} outputPath Path where output video will be saved
+ * @param {string} captionPath Path to caption file (if applicable)
  * @returns {string[]} Array of FFmpeg command arguments
  */
-function buildFFmpegCommand(job, options, outputPath) {
+function buildFFmpegCommand(job, options, outputPath, captionPath) {
   const args = [];
   
   // Handle preview mode
@@ -107,8 +140,23 @@ function buildFFmpegCommand(job, options, outputPath) {
     // Create concat demuxer input
     args.push('-f', 'concat', '-safe', '0', '-i', 'pipe:0');
     
-    // Add audio input
-    args.push('-i', job.audioFile);
+    // Add audio inputs
+    let audioInputIndex = 1;
+    
+    if (job.narration) {
+      args.push('-i', job.narration);
+      audioInputIndex++;
+    }
+    
+    if (job.bgm) {
+      args.push('-i', job.bgm);
+      audioInputIndex++;
+    }
+    
+    if (job.audioFile && !job.narration && !job.bgm) {
+      args.push('-i', job.audioFile);
+      audioInputIndex++;
+    }
     
     // Video codec
     args.push('-c:v', 'libx264');
@@ -118,6 +166,19 @@ function buildFFmpegCommand(job, options, outputPath) {
     
     // Audio codec
     args.push('-c:a', 'aac');
+    
+    // Handle audio ducking
+    if (options.ducking) {
+      // We'll implement this when we add the audio ducking module
+      console.log('Would apply audio ducking');
+    }
+    
+    // Handle burned-in captions
+    if (options.burnCaptions && captionPath) {
+      // Escape path for Windows
+      const escapedPath = captionPath.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "'\\\\''");
+      args.push('-vf', `subtitles='${escapedPath}':force_style='Fontsize=24'`);
+    }
     
     // Duration limit for preview
     args.push('-t', options.previewSeconds.toString());
@@ -132,8 +193,23 @@ function buildFFmpegCommand(job, options, outputPath) {
   // Create concat demuxer input
   args.push('-f', 'concat', '-safe', '0', '-i', 'pipe:0');
   
-  // Add audio input
-  args.push('-i', job.audioFile);
+  // Add audio inputs
+  let audioInputIndex = 1;
+  
+  if (job.narration) {
+    args.push('-i', job.narration);
+    audioInputIndex++;
+  }
+  
+  if (job.bgm) {
+    args.push('-i', job.bgm);
+    audioInputIndex++;
+  }
+  
+  if (job.audioFile && !job.narration && !job.bgm) {
+    args.push('-i', job.audioFile);
+    audioInputIndex++;
+  }
   
   // Video codec
   args.push('-c:v', 'libx264');
@@ -143,6 +219,19 @@ function buildFFmpegCommand(job, options, outputPath) {
   
   // Audio codec
   args.push('-c:a', 'aac');
+  
+  // Handle audio ducking
+  if (options.ducking) {
+    // We'll implement this when we add the audio ducking module
+    console.log('Would apply audio ducking');
+  }
+  
+  // Handle burned-in captions
+  if (options.burnCaptions && captionPath) {
+    // Escape path for Windows
+    const escapedPath = captionPath.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "'\\\\''");
+    args.push('-vf', `subtitles='${escapedPath}':force_style='Fontsize=24'`);
+  }
   
   // Shortest stream determines output duration
   args.push('-shortest');
