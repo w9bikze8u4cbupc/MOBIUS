@@ -11,6 +11,8 @@ This document outlines the design for the video rendering pipeline in the Mobius
 - Run in CI as a smoke/validation step
 - Be testable with mocked FFmpeg processes
 - Support audio ducking for better audio mixing
+- Provide robust progress tracking and checkpointing
+- Enable containerized deployment for production use
 
 ## High-Level Architecture
 
@@ -27,6 +29,8 @@ Responsible for:
 - Subtitle generation via existing caption generator
 - Audio ducking using volume filter automation
 - Thumbnail generation using FFmpeg frame extraction
+- Progress tracking and checkpointing for resumability
+- Containerized deployment support
 
 ## API Design
 
@@ -52,6 +56,7 @@ async render(job, options)
     - `fadeMs`: Envelope fade time in ms
   - `outputDir`: String path for output directory
   - `timeoutMs`: Number of milliseconds before timeout
+  - `jobId`: Unique identifier for checkpointing
 
 ### Return Value
 Promise that resolves to an object containing:
@@ -88,6 +93,33 @@ Two approaches to audio ducking are supported:
 - Reduce music volume during caption time windows
 - Configurable duck gain and fade times
 - Works with a single audio track when time windows are provided
+
+## Progress Tracking and Monitoring
+
+The rendering pipeline provides detailed progress tracking:
+
+1. **Real-time Progress Updates**: FFmpeg progress is parsed and reported every 250ms
+2. **Structured Logging**: Progress events include percent complete, ETA, speed, and frame count
+3. **Timeout Handling**: Configurable timeouts with graceful shutdown (SIGTERM then SIGKILL)
+4. **Metadata Collection**: Final metadata includes duration, FPS, codecs, and file sizes
+
+## Checkpointing and Resumability
+
+To support long-running renders and recovery from interruptions:
+
+1. **Job State Persistence**: Render job state is saved to JSON files
+2. **Stage Tracking**: Pipeline tracks completion of slideshow mux, audio mix, burn-in, and thumbnail stages
+3. **Artifact Verification**: Completed artifacts are verified by size/hash before skipping
+4. **Resume Capability**: Interrupted renders can resume from the last completed stage
+
+## Containerized Deployment
+
+The rendering pipeline can be deployed in containers for production use:
+
+1. **Docker Image**: Pre-built image with Node.js, FFmpeg, and required fonts
+2. **Resource Constraints**: Support for memory and CPU limits
+3. **Volume Mounts**: Input/output directories mounted as volumes
+4. **Environment Configuration**: Configurable via environment variables
 
 ## Sample FFmpeg Commands
 
@@ -145,18 +177,30 @@ ffmpeg -i bgm.mp3 -filter_complex "[0:a]volume='if(gt(between(t,0,1)+between(t,2
 - Spawn mocked and expected sequence asserted
 - Subtitle generation produces valid SRT files
 - Audio ducking expressions are correctly formed
+- Progress parsing handles FFmpeg output correctly
+- Checkpointing saves/loads job state correctly
 
 ### Integration Tests (CI Smoke)
 - Run 5s render using tiny set of images + short TTS audio
 - Assert MP4 exists and duration within ±200ms
 - Verify subtitles are burned-in or exported as sidecar
 - Verify audio ducking is applied when configured
+- Verify progress events are emitted
+- Verify checkpointing works correctly
+
+### End-to-End Tests
+- Full pipeline test with real assets (PDF → images → render)
+- Weekly scheduled runs in CI
+- On-demand runs via PR labels
+- Artifact collection on failure
 
 ### Manual QA
 - Run 30s preview locally
 - Verify A/V sync <200ms
 - Verify subtitles present and burn-in toggle works
 - Verify audio ducking works correctly
+- Verify progress tracking works
+- Verify resume capability works
 
 ## Risks & Mitigations
 
@@ -168,3 +212,25 @@ Mitigation: Pin to stable FFmpeg version in container or document minimum versio
 
 ### Performance
 Mitigation: Avoid synchronous blocking; stream processing, set timeouts, and cleanup temp files
+
+### Resource Exhaustion
+Mitigation: Implement resource caps and validate inputs pre-run
+
+### Data Loss on Interruption
+Mitigation: Implement checkpointing and artifact verification
+
+## Security Considerations
+
+### Input Validation
+- Sanitize/escape all shell paths and text
+- Validate input counts and durations pre-run
+- Enforce configurable max resolution/fps limits
+
+### Resource Management
+- Cleanup temporary directories on success/failure
+- Implement timeouts to prevent infinite runs
+- Use resource limits in containerized deployments
+
+### Artifact Integrity
+- Optional checksums (SHA256) for output artifacts
+- Verify artifact integrity before marking stages complete

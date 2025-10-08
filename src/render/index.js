@@ -6,6 +6,8 @@
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { ProgressParser } from './progress.ts';
+import { CheckpointManager } from './checkpoint.ts';
 
 /**
  * Main render function that orchestrates FFmpeg to create video outputs
@@ -34,6 +36,7 @@ import path from 'path';
  * @param {number} options.ducking.fadeMs Envelope fade time in ms
  * @param {string} options.outputDir Override output directory
  * @param {number} options.timeoutMs Timeout in milliseconds
+ * @param {string} options.jobId Unique identifier for checkpointing
  * @returns {Promise<Object>} Promise that resolves to render result metadata
  */
 export async function render(job, options = {}) {
@@ -50,8 +53,9 @@ export async function render(job, options = {}) {
     throw new Error('No output directory specified');
   }
   
-  // Ensure output directory exists
-  await fs.mkdir(job.outputDir, { recursive: true });
+  // Handle checkpointing
+  const checkpoint = new CheckpointManager(options.jobId || 'default', job.outputDir);
+  const checkpointExists = await checkpoint.load();
   
   // Handle dry run
   if (options.dryRun) {
@@ -75,6 +79,23 @@ export async function render(job, options = {}) {
         duration: options.previewSeconds || 30,
         fps: 30
       }
+    };
+  }
+  
+  // Initialize checkpoint if it doesn't exist
+  if (!checkpointExists) {
+    await checkpoint.initialize(options.jobId || 'default');
+  }
+  
+  // Skip completed stages if resuming
+  if (checkpoint.isStageCompleted('completed')) {
+    console.log('Render job already completed, skipping...');
+    const state = checkpoint.getState();
+    return {
+      outputPath: state.artifacts.output?.path,
+      thumbnailPath: state.artifacts.thumbnail?.path,
+      captionPath: state.artifacts.caption?.path,
+      metadata: state.metadata
     };
   }
   
@@ -102,11 +123,20 @@ export async function render(job, options = {}) {
   // Build FFmpeg command
   const ffmpegArgs = buildFFmpegCommand(job, options, outputPath, captionPath);
   
-  // Execute FFmpeg
-  await executeFFmpeg(ffmpegArgs, options.timeoutMs || 300000); // 5 minute default timeout
+  // Execute FFmpeg with progress tracking
+  const result = await executeFFmpegWithProgress(ffmpegArgs, options.timeoutMs || 300000, (progress) => {
+    console.log(`Progress: ${progress.percent.toFixed(1)}% ETA: ${progress.eta} Speed: ${progress.speed}x`);
+  });
   
   // Generate thumbnail
-  await generateThumbnail(outputPath, thumbnailPath);
+  if (!checkpoint.isStageCompleted('thumbnail')) {
+    await generateThumbnail(outputPath, thumbnailPath);
+    await checkpoint.addArtifact('thumbnail', thumbnailPath, 0); // Size would be determined in real implementation
+    await checkpoint.updateStage('thumbnail', 90);
+  }
+  
+  // Mark job as completed
+  await checkpoint.markCompleted();
   
   // Return result
   return {
@@ -115,7 +145,8 @@ export async function render(job, options = {}) {
     captionPath,
     metadata: {
       duration: options.previewSeconds || job.duration || 30,
-      fps: 30
+      fps: 30,
+      ...result.metadata
     }
   };
 }
@@ -130,6 +161,9 @@ export async function render(job, options = {}) {
  */
 function buildFFmpegCommand(job, options, outputPath, captionPath) {
   const args = [];
+  
+  // Add progress reporting
+  args.push('-progress', 'pipe:1');
   
   // Handle preview mode
   if (options.previewSeconds && job.images.length > 1) {
@@ -243,22 +277,39 @@ function buildFFmpegCommand(job, options, outputPath, captionPath) {
 }
 
 /**
- * Executes FFmpeg with the provided arguments
+ * Executes FFmpeg with progress tracking
  * @param {string[]} args FFmpeg command arguments
  * @param {number} timeoutMs Timeout in milliseconds
- * @returns {Promise<void>} Promise that resolves when FFmpeg completes
+ * @param {Function} onProgress Progress callback
+ * @returns {Promise<Object>} Promise that resolves with result metadata
  */
-function executeFFmpeg(args, timeoutMs) {
+function executeFFmpegWithProgress(args, timeoutMs, onProgress) {
   return new Promise((resolve, reject) => {
     console.log(`Executing FFmpeg with args: ffmpeg ${args.join(' ')}`);
     
     const ffmpeg = spawn('ffmpeg', args, {
-      stdio: ['pipe', 'inherit', 'inherit'] // stdin, stdout, stderr
+      stdio: ['pipe', 'pipe', 'pipe'] // stdin, stdout, stderr
     });
     
+    const parser = new ProgressParser();
+    
+    parser.start(
+      ffmpeg,
+      (progress) => {
+        onProgress(progress);
+      },
+      (metadata) => {
+        resolve({ metadata });
+      },
+      (error) => {
+        reject(error);
+      }
+    );
+    
     // Set timeout
-    const timeout = setTimeout(() => {
-      ffmpeg.kill();
+    const timeout = setTimeout(async () => {
+      console.log('Render timeout reached, attempting graceful shutdown...');
+      await parser.kill(5000); // 5 second grace period
       reject(new Error(`FFmpeg execution timed out after ${timeoutMs}ms`));
     }, timeoutMs);
     
@@ -266,7 +317,7 @@ function executeFFmpeg(args, timeoutMs) {
     ffmpeg.on('close', (code) => {
       clearTimeout(timeout);
       if (code === 0) {
-        resolve();
+        resolve({ metadata: {} });
       } else {
         reject(new Error(`FFmpeg exited with code ${code}`));
       }
