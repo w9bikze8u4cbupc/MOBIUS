@@ -1,21 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
 
-export interface RenderJobState {
-  id: string;
-  stage: 'initialized' | 'slideshow_mux' | 'audio_mix' | 'burn_in' | 'thumbnail' | 'completed';
-  progress: number;
-  artifacts: Record<string, { path: string; size: number; hash?: string }>;
-  timestamp: number;
-  metadata: Record<string, any>;
-}
-
 export class CheckpointManager {
-  private jobFilePath: string;
-  private state: RenderJobState | null = null;
-
-  constructor(jobId: string, outputDir: string) {
+  constructor(jobId, outputDir) {
     this.jobFilePath = path.join(outputDir, `render.job.${jobId}.json`);
+    this.state = null;
   }
 
   /**
@@ -23,7 +12,7 @@ export class CheckpointManager {
    * @param jobId Unique identifier for the job
    * @returns Promise that resolves when initialized
    */
-  async initialize(jobId: string): Promise<void> {
+  async initialize(jobId) {
     this.state = {
       id: jobId,
       stage: 'initialized',
@@ -39,7 +28,7 @@ export class CheckpointManager {
    * Load existing job state if it exists
    * @returns Promise that resolves with true if state was loaded, false otherwise
    */
-  async load(): Promise<boolean> {
+  async load() {
     try {
       const data = await fs.readFile(this.jobFilePath, 'utf8');
       this.state = JSON.parse(data);
@@ -54,7 +43,7 @@ export class CheckpointManager {
    * Save current job state
    * @returns Promise that resolves when saved
    */
-  async save(): Promise<void> {
+  async save() {
     if (!this.state) {
       throw new Error('Job not initialized');
     }
@@ -70,7 +59,7 @@ export class CheckpointManager {
    * @param progress Progress percentage
    * @returns Promise that resolves when updated
    */
-  async updateStage(stage: RenderJobState['stage'], progress: number = 0): Promise<void> {
+  async updateStage(stage, progress = 0) {
     if (!this.state) {
       throw new Error('Job not initialized');
     }
@@ -87,7 +76,7 @@ export class CheckpointManager {
    * @param size Size in bytes
    * @returns Promise that resolves when added
    */
-  async addArtifact(name: string, artifactPath: string, size: number): Promise<void> {
+  async addArtifact(name, artifactPath, size) {
     if (!this.state) {
       throw new Error('Job not initialized');
     }
@@ -103,7 +92,7 @@ export class CheckpointManager {
    * Get current job state
    * @returns Current job state or null if not initialized
    */
-  getState(): RenderJobState | null {
+  getState() {
     return this.state;
   }
 
@@ -112,10 +101,10 @@ export class CheckpointManager {
    * @param stage Stage to check
    * @returns True if stage is completed or beyond, false otherwise
    */
-  isStageCompleted(stage: RenderJobState['stage']): boolean {
+  isStageCompleted(stage) {
     if (!this.state) return false;
     
-    const stageOrder: RenderJobState['stage'][] = [
+    const stageOrder = [
       'initialized',
       'slideshow_mux',
       'audio_mix',
@@ -134,7 +123,7 @@ export class CheckpointManager {
    * Mark job as completed
    * @returns Promise that resolves when marked as completed
    */
-  async markCompleted(): Promise<void> {
+  async markCompleted() {
     if (!this.state) {
       throw new Error('Job not initialized');
     }
@@ -148,7 +137,7 @@ export class CheckpointManager {
    * Clean up checkpoint file
    * @returns Promise that resolves when cleaned up
    */
-  async cleanup(): Promise<void> {
+  async cleanup() {
     try {
       await fs.unlink(this.jobFilePath);
     } catch (error) {

@@ -6,8 +6,8 @@
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { ProgressParser } from './progress.ts';
-import { CheckpointManager } from './checkpoint.ts';
+import { ProgressParser } from './progress.js';
+import { CheckpointManager } from './checkpoint.js';
 
 /**
  * Main render function that orchestrates FFmpeg to create video outputs

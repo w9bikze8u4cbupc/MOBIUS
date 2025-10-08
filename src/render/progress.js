@@ -1,27 +1,9 @@
 import { spawn, ChildProcess } from 'child_process';
 
-export interface ProgressInfo {
-  percent: number;
-  eta: string;
-  speed: number;
-  frame: number;
-  time: string;
-}
-
-export interface RenderMetadata {
-  duration: number;
-  fps: number;
-  size: string;
-  videoCodec: string;
-  audioCodec: string;
-}
-
 export class ProgressParser {
-  private process: ChildProcess | null = null;
-  private lastProgress: ProgressInfo | null = null;
-  private startTime: number | null = null;
-
   constructor() {
+    this.process = null;
+    this.lastProgress = null;
     this.startTime = Date.now();
   }
 
@@ -32,12 +14,7 @@ export class ProgressParser {
    * @param onComplete Callback for completion
    * @param onError Callback for errors
    */
-  start(
-    process: ChildProcess,
-    onProgress: (info: ProgressInfo) => void,
-    onComplete: (metadata: RenderMetadata) => void,
-    onError: (error: Error) => void
-  ) {
+  start(process, onProgress, onComplete, onError) {
     this.process = process;
     this.lastProgress = null;
 
@@ -49,7 +26,7 @@ export class ProgressParser {
     process.on('close', (code) => {
       if (code === 0) {
         // Success - generate final metadata
-        const metadata: RenderMetadata = {
+        const metadata = {
           duration: 0, // Will be set by progress parsing
           fps: 30, // Default value
           size: 'unknown',
@@ -82,9 +59,9 @@ export class ProgressParser {
    * @param line Progress line to parse
    * @param onProgress Callback for progress updates
    */
-  private parseProgressLine(line: string, onProgress: (info: ProgressInfo) => void) {
+  parseProgressLine(line, onProgress) {
     // Parse key=value pairs
-    const pairs: Record<string, string> = {};
+    const pairs = {};
     const regex = /(\w+)=(.*)/g;
     let match;
     
@@ -94,7 +71,7 @@ export class ProgressParser {
 
     // If we have progress info, update and notify
     if (pairs.out_time_ms || pairs.frame) {
-      const info: ProgressInfo = {
+      const info = {
         percent: this.calculatePercent(pairs),
         eta: this.calculateETA(pairs),
         speed: parseFloat(pairs.speed) || 0,
@@ -112,7 +89,7 @@ export class ProgressParser {
    * @param pairs Parsed key=value pairs from FFmpeg
    * @returns Percentage complete (0-100)
    */
-  private calculatePercent(pairs: Record<string, string>): number {
+  calculatePercent(pairs) {
     // This would be implemented based on target duration vs current time
     // For now, we'll return a placeholder
     const timeMs = parseInt(pairs.out_time_ms) || 0;
@@ -124,7 +101,7 @@ export class ProgressParser {
    * @param pairs Parsed key=value pairs from FFmpeg
    * @returns ETA string
    */
-  private calculateETA(pairs: Record<string, string>): string {
+  calculateETA(pairs) {
     // This would be implemented based on current progress and speed
     // For now, we'll return a placeholder
     return '00:00:00';
@@ -134,7 +111,7 @@ export class ProgressParser {
    * Kill the process with grace period
    * @param gracePeriodMs Grace period in milliseconds before force kill
    */
-  async kill(gracePeriodMs: number = 5000): Promise<void> {
+  async kill(gracePeriodMs = 5000) {
     if (!this.process) return;
 
     return new Promise((resolve) => {
