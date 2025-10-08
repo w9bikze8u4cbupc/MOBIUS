@@ -3,7 +3,7 @@
  */
 
 import { spawn } from 'child_process';
-import { render } from '../render/index.ts';
+import { render } from '../render/index.js';
 
 // Mock child_process.spawn
 jest.mock('child_process', () => {
