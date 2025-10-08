@@ -5,7 +5,7 @@
  * Usage: node scripts/render.js --project-id X --mode preview
  */
 
-import { render } from '../src/render/index.ts';
+import { render } from '../src/render/index.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
