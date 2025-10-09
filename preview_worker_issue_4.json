@@ -1,0 +1,4 @@
+{
+  "title": "Preview Worker: Implement Job Status & API Endpoints",
+  "body": "## Description\nProvide endpoints to query job status and results.\n\n## Priority\nP0\n\n## Estimated Effort\n4-6 hours\n\n## API Endpoints\n- POST /api/preview -> existing endpoint returns 202 and jobId if accepted (or 429 if queue full).\n- GET /api/preview/:jobId/status -> { status: queued|running|success|failed, progress, artifactUrls: [], logs_url }.\n- GET /api/preview/:jobId/artifact -> stream/download artifact (auth controlled).\n\n## Acceptance Criteria\n- Endpoints implemented and documented; GET status returns 200 and correct status after enqueuing test jobs.\n\n## Labels\nfeature, phase-g, preview-worker, backend, api\n## Assignee\ndeveloper"
+}

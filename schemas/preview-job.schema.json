@@ -1,0 +1,32 @@
+{
+  "$id": "https://example.com/schemas/preview-job.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PreviewJob",
+  "type": "object",
+  "required": ["jobId", "projectId", "requestId", "previewRequest", "dryRun"],
+  "properties": {
+    "jobId": { "type": "string", "minLength": 1 },
+    "projectId": { "type": "string", "minLength": 1 },
+    "requestId": { "type": "string", "minLength": 1 },
+    "dryRun": { "type": "boolean" },
+    "priority": { "type": "string", "enum": ["low", "normal", "high"], "default": "normal" },
+    "attempts": { "type": "integer", "minimum": 0 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "previewRequest": {
+      "type": "object",
+      "required": ["steps", "assets", "audio"],
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "steps": { "type": "array", "items": { "type": "object" } },
+        "assets": { "type": "array", "items": { "type": "object" } },
+        "audio": { "type": "object" },
+        "options": { "type": "object" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
