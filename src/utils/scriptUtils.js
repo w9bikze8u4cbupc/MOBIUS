@@ -52,7 +52,7 @@ export function toSrt(chapters) {
   return lines.join('\n');
 }
 
-function formatTime(ms) {
+export function formatTime(ms) {
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   const s = Math.floor((ms % 60000) / 1000);
@@ -60,7 +60,7 @@ function formatTime(ms) {
   return `${pad(h)}:${pad(m)}:${pad(s)},${String(msPart).padStart(3, '0')}`;
 }
 
-function pad(n){ 
+export function pad(n){ 
   return String(n).padStart(2,'0'); 
 }
 

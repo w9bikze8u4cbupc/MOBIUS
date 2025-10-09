@@ -165,7 +165,7 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
-app.listen(PORT, () => {
+export const server = app.listen(PORT, () => {
   // Startup log in JSON
   console.log(JSON.stringify({
     level: 'info',

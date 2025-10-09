@@ -23,7 +23,8 @@ export function createIngestQueue({
     isSaturated: () => q.length >= maxQueue,
     submit: (fn) =>
       new Promise((resolve, reject) => {
-        if (q.length >= maxQueue) {
+        // Check if the queue is full (including running tasks)
+        if (q.length + running >= maxQueue) {
           reject(new Error('queue_saturated'));
           return;
         }

@@ -76,6 +76,9 @@
     "transform": {
       "^.+\\.(t|j)sx?$": "babel-jest"
     },
+    "transformIgnorePatterns": [
+      "node_modules/(?!(pdf-parse)/)"
+    ],
     "moduleNameMapper": {
       "^(\\.{1,2}/.*)\\.js$": "$1"
     },

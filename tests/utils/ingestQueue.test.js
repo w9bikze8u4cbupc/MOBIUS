@@ -37,8 +37,11 @@ describe('ingestQueue', () => {
     // Submit a task that takes a while
     const slowTask = queue.submit(() => new Promise(resolve => setTimeout(resolve, 1000)));
     
+    // Give the queue a moment to process
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
     // Try to submit another task, should be rejected
-    await expect(queue.submit(() => Promise.resolve())).rejects.toThrow('queue_saturated');
+    await expect(queue.submit(() => Promise.resolve('test'))).rejects.toThrow('queue_saturated');
     
     // Wait for the slow task to complete
     await slowTask;
@@ -58,7 +61,10 @@ describe('ingestQueue', () => {
     // Fill the queue
     queue.submit(() => new Promise(resolve => setTimeout(resolve, 100)));
     
+    // Give the queue a moment to process
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
     // Try to submit another task when queue is full
-    await expect(queue.submit(() => Promise.resolve())).rejects.toThrow('queue_saturated');
+    await expect(queue.submit(() => Promise.resolve('test'))).rejects.toThrow('queue_saturated');
   });
 });

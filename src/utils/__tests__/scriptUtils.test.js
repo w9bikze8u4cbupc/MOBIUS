@@ -50,8 +50,8 @@ describe('scriptUtils', () => {
     const lines = srt.split('\n');
     
     // Check that we have the right number of lines
-    // Should be: 1, time, text, blank, 2, time, text, blank, 3, time, text, blank, 4, time, text, blank
-    expect(lines.length).toBe(16);
+    // Should be: 1, time, text, blank, 2, time, text, blank, 3, time, text, blank, 4, time, text, blank, 5, time, text, blank
+    expect(lines.length).toBe(20);
     
     // Check first entry
     expect(lines[0]).toBe('1');
