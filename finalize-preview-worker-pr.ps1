@@ -34,5 +34,5 @@ Write-Host ""
 Write-Host "Ready to push and create PR!" -ForegroundColor Green
 Write-Host "Run the following commands:" -ForegroundColor Cyan
 Write-Host "  git push -u origin feat/preview-worker-k8s-final"
-Write-Host "  gh pr create --title `"k8s: add preview-worker manifests + cross-platform deployment tooling (BullMQ preview worker)`" `"
-Write-Host "    --body-file PR_BODY_PREVIEW_WORKER_COMPLETE.md --base main --head feat/preview-worker-k8s-final"
+Write-Host "Then create the PR manually through the GitHub web interface:"
+Write-Host "  https://github.com/w9bikze8u4cbupc/MOBIUS/pull/new/feat/preview-worker-k8s-final"
