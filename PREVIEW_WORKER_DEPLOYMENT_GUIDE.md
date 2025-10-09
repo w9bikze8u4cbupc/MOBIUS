@@ -7,7 +7,8 @@ This guide explains how to deploy the Preview Worker to a Kubernetes cluster wit
 - Kubernetes cluster access (kubectl configured)
 - Docker (for building images locally)
 - Registry access for pushing images
-- yq or sed (for updating image tags)
+- GitHub CLI (gh) for PR creation (optional)
+- sed, grep, or perl for image tag replacement
 
 ## Step 1: Build and Push the Container Image
 
@@ -33,33 +34,79 @@ The CI workflow will automatically build and push images on merge to main branch
 ```bash
 # Update the image tag
 ./scripts/update-preview-worker-image.sh YOUR_REGISTRY/mobius-preview-worker:1.0.0
-
-# Commit the change
-git add k8s/preview-worker/deployment.yaml
-git commit -m "chore(k8s): update preview worker image to YOUR_REGISTRY/mobius-preview-worker:1.0.0"
 ```
 
 #### PowerShell (Windows):
 ```powershell
 # Update the image tag
 .\scripts\update-preview-worker-image.ps1 -ImageTag "YOUR_REGISTRY/mobius-preview-worker:1.0.0"
+```
 
-# Commit the change
+### Manual update (cross-platform safe methods):
+
+#### Using grep and sed (Linux):
+```bash
+IMAGE="YOUR_REGISTRY/mobius-preview-worker:1.0.0"
+grep -rl "ghcr.io/your-org/mobius-preview-worker:latest" k8s/preview-worker/ \
+  | xargs -I{} sed -i "s|ghcr.io/your-org/mobius-preview-worker:latest|${IMAGE}|g" {}
+```
+
+#### Using grep and sed (macOS):
+```bash
+IMAGE="YOUR_REGISTRY/mobius-preview-worker:1.0.0"
+grep -rl "ghcr.io/your-org/mobius-preview-worker:latest" k8s/preview-worker/ \
+  | xargs -I{} sed -i '' "s|ghcr.io/your-org/mobius-preview-worker:latest|${IMAGE}|g" {}
+```
+
+#### Using Perl (cross-platform):
+```bash
+IMAGE="YOUR_REGISTRY/mobius-preview-worker:1.0.0"
+grep -rl "ghcr.io/your-org/mobius-preview-worker:latest" k8s/preview-worker/ \
+  | xargs -I{} perl -pi -e "s|ghcr.io/your-org/mobius-preview-worker:latest|${IMAGE}|g" {}
+```
+
+## Step 3: Pre-Commit Safety Checks
+
+Before committing changes, run these validation steps:
+
+```bash
+# Check what files changed
+git status
+git diff -- k8s/preview-worker/
+
+# Run tests
+npm ci
+npm run test:preview-payloads
+npm test
+
+# Run linter if present
+npm run lint --if-present
+
+# Check for accidentally committed secrets
+git diff --staged
+
+# Validate manifests syntax
+kubectl apply --dry-run=client -f k8s/preview-worker/
+```
+
+## Step 4: Commit and Create PR
+
+```bash
+# Commit the changes
 git add k8s/preview-worker/deployment.yaml
 git commit -m "chore(k8s): update preview worker image to YOUR_REGISTRY/mobius-preview-worker:1.0.0"
+
+# Push the branch
+git push origin your-branch-name
+
+# Create PR using GitHub CLI
+gh pr create --title "k8s: preview-worker manifests" \
+  --body-file PR_BODY_PREVIEW_WORKER_FINAL.md --base main --head your-branch-name
 ```
 
-### Manual update:
-Edit `k8s/preview-worker/deployment.yaml` and replace:
-```yaml
-image: ghcr.io/your-org/mobius-preview-worker:latest
-```
-with:
-```yaml
-image: YOUR_REGISTRY/mobius-preview-worker:1.0.0
-```
+If gh is not installed or authenticated, create the PR via the GitHub web UI.
 
-## Step 3: Configure Environment-Specific Settings
+## Step 5: Configure Environment-Specific Settings
 
 ### Update Redis Connection
 
@@ -77,7 +124,7 @@ kubectl create secret generic preview-worker-secrets \
   -n preview-worker
 ```
 
-## Step 4: Deploy to Staging
+## Step 6: Deploy to Staging
 
 ```bash
 # Create namespace
@@ -92,7 +139,7 @@ kubectl -n preview-worker get hpa
 kubectl -n preview-worker get servicemonitor
 ```
 
-## Step 5: Run Smoke Tests
+## Step 7: Run Smoke Tests
 
 ### Port-forward the service:
 ```bash
@@ -125,7 +172,7 @@ curl -X POST http://localhost:3000/api/preview/jobs \
   -d @preview_payload_full.json | jq
 ```
 
-## Step 6: Monitor Deployment
+## Step 8: Monitor Deployment
 
 ### Check logs:
 ```bash
@@ -145,7 +192,7 @@ curl http://localhost:3000/api/preview/jobs/<jobId>/status
 - preview_job_dryrun
 - preview_job_duration_ms
 
-## Step 7: Staged Rollout
+## Step 9: Staged Rollout
 
 1. **Staging** (replicas=1, concurrency=1) - 24-48 hours smoke tests
 2. **Canary production** - Route small % of jobs
@@ -176,3 +223,21 @@ Ensure these alerts are configured:
 The GitHub Actions workflow `.github/workflows/preview-worker-build-push.yml` will:
 1. Run tests on PRs
 2. Build and push images on merge to main
+
+## Troubleshooting
+
+### Common Issues:
+
+1. **sed/grep not found**: Install via package manager or use the Perl command above
+2. **Tests failing**: Run individual test commands to identify the specific failure
+3. **gh not installed**: Create the PR in GitHub web UI or install gh with `brew install gh` (macOS) or `apt install gh` (Ubuntu)
+4. **Permission denied**: Ensure you have proper Kubernetes RBAC permissions
+5. **Image pull errors**: Verify the image tag and registry authentication
+
+### Debugging Tips:
+
+1. Check pod logs: `kubectl -n preview-worker logs -l app=preview-worker`
+2. Describe pods: `kubectl -n preview-worker describe pods`
+3. Check events: `kubectl -n preview-worker get events`
+4. Validate config: `kubectl -n preview-worker get configmap preview-worker-config -o yaml`
+5. Validate secrets: `kubectl -n preview-worker get secret preview-worker-secrets -o yaml`
