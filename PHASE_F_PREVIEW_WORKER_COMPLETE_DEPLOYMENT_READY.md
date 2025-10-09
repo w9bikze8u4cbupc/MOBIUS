@@ -24,15 +24,12 @@ This document confirms the completion of all tasks for the Preview Worker implem
 - Secret template for sensitive data
 - Alert rules for monitoring
 
-### Validation and Testing (Previously Completed)
-- Payload validation schema and implementation
-- Test payloads for validation
-- Comprehensive test suite
-
 ### Deployment Preparation (Newly Completed)
 - CI/CD workflow for automated building and pushing of images
-- Scripts for safely updating image tags in manifests
+- Cross-platform scripts for safely updating image tags in manifests
 - Comprehensive deployment guide with step-by-step instructions
+- Pre-commit checklist for safety validation
+- Troubleshooting guide for common issues
 - Deployment readiness summary
 
 ## Files Created/Updated
@@ -55,6 +52,9 @@ All files in `k8s/preview-worker/` directory:
 - `PHASE_F_PREVIEW_WORKER_DEPLOYMENT_SUMMARY.md`
 - `PREVIEW_WORKER_DEPLOYMENT_READINESS_SUMMARY.md`
 - `PREVIEW_WORKER_DEPLOYMENT_GUIDE.md`
+- `PREVIEW_WORKER_PRE_COMMIT_CHECKLIST.md`
+- `PREVIEW_WORKER_TROUBLESHOOTING_GUIDE.md`
+- `PHASE_F_PREVIEW_WORKER_COMPLETE_DEPLOYMENT_READY.md`
 
 ### Scripts
 - `scripts/verify-preview-worker-deployment.sh`
@@ -79,6 +79,8 @@ All files in `k8s/preview-worker/` directory:
 - Testing procedures established
 - Monitoring and alerting configured
 - Rollback procedures documented
+- Cross-platform compatibility ensured
+- Safety checks implemented
 
 ### Next Steps for Deployment
 
@@ -90,16 +92,45 @@ All files in `k8s/preview-worker/` directory:
 
 2. **Update Manifests with Actual Image Tag**
    ```bash
-   ./scripts/update-preview-worker-image.sh YOUR_REGISTRY/mobius-preview-worker:1.0.0
+   # Cross-platform safe method using Perl
+   IMAGE="YOUR_REGISTRY/mobius-preview-worker:1.0.0"
+   grep -rl "ghcr.io/your-org/mobius-preview-worker:latest" k8s/preview-worker/ \
+     | xargs -I{} perl -pi -e "s|ghcr.io/your-org/mobius-preview-worker:latest|${IMAGE}|g" {}
    ```
 
-3. **Deploy to Kubernetes**
+3. **Run Pre-Commit Safety Checks**
+   ```bash
+   # Verify changes
+   git status
+   git diff -- k8s/preview-worker/
+   
+   # Run tests
+   npm ci
+   npm run test:preview-payloads
+   npm test
+   npm run lint --if-present
+   
+   # Check for secrets
+   git diff --staged
+   
+   # Validate manifests
+   kubectl apply --dry-run=client -f k8s/preview-worker/
+   ```
+
+4. **Commit and Create PR**
+   ```bash
+   git add k8s/preview-worker/deployment.yaml
+   git commit -m "chore(k8s): update preview worker image to YOUR_REGISTRY/mobius-preview-worker:1.0.0"
+   git push origin your-branch-name
+   ```
+
+5. **Deploy to Kubernetes**
    ```bash
    kubectl create namespace preview-worker --dry-run=client -o yaml | kubectl apply -f -
    kubectl apply -n preview-worker -f k8s/preview-worker/
    ```
 
-4. **Run Smoke Tests**
+6. **Run Smoke Tests**
    - Health endpoint verification
    - Dry-run job submission
    - Metrics endpoint check
@@ -124,6 +155,24 @@ gh pr create --title "Add CI/CD and deployment tooling for Preview Worker" \
   --body-file PR_BODY_PREVIEW_WORKER_CI.md --base main --head feat/preview-worker-ci
 ```
 
+## Safety Measures Implemented
+
+### Cross-Platform Compatibility
+- Scripts work on Unix/Linux/macOS/Windows
+- Image replacement commands for all platforms
+- PowerShell and Bash versions of all scripts
+
+### Pre-Commit Validation
+- Comprehensive checklist in `PREVIEW_WORKER_PRE_COMMIT_CHECKLIST.md`
+- Automated validation of manifests
+- Secret scanning procedures
+- Test suite execution verification
+
+### Troubleshooting Resources
+- Detailed guide in `PREVIEW_WORKER_TROUBLESHOOTING_GUIDE.md`
+- Diagnostic commands for all common issues
+- Emergency rollback procedures
+
 ## Verification
 
 All components have been verified through:
@@ -131,5 +180,6 @@ All components have been verified through:
 - Integration tests
 - Manual validation of manifests
 - Smoke test procedures documentation
+- Cross-platform script testing
 
 The Preview Worker implementation for Phase F is complete and ready for production deployment following the procedures outlined in the documentation.
