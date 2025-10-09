@@ -1,0 +1,6 @@
+{
+  "title": "Preview Worker — render queued chapter previews (Phase F)",
+  "body": "Implement a background worker that consumes queued preview requests (created by /api/preview) and produces a concrete preview artifact (manifest and optionally a short MP4/thumbnail).\n\nAcceptance criteria\n- Worker picks up queued preview artifacts from DATA_DIR/previews or a job queue.\n- Produces preview-manifest.json and preview.mp4 (or thumbnails).\n- Writes status file (success|failed) and logs with requestId correlation.\n- Emits metrics: preview_worker_jobs_total, preview_worker_jobs_failed_total, preview_worker_duration_ms.\n- Unit and integration tests validating outputs.\n- UI Preview triggers job and artifacts are retrievable via /api/preview/status/:jobToken.\n\nSubtasks\n- Define worker contract (input schema / output schema).\n- Implement job acquisition & locking.\n- Integrate ffmpeg/Python renderer or stub first then swap in real renderer.\n- Add status & result endpoints and metrics.\n- Add tests and CI verification.\n\nOwner: developer\nETA: 5 days\nLabels: feature, phase-f, priority-high",
+  "labels": ["feature","phase-f","priority-high"],
+  "assignee": "developer"
+}

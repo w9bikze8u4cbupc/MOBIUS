@@ -1,0 +1,6 @@
+{
+  "title": "Phase F: Image Matcher UI + Preview backend stub",
+  "head": "phase-f/preview-image-matcher",
+  "base": "staging",
+  "body": "Summary\n- Adds Image Matcher React component (drag/drop, asset library, match grid).\n- Adds Script Workbench container (ScriptEditor + ImageMatcher + PreviewPane).\n- Adds preview backend stub: POST /api/preview (validation, dry-run, artifact persisted at DATA_DIR/previews).\n- Adds metrics: preview_requests_total, preview_failures_total, preview_duration_ms.\n- Adds unit tests and verification scripts.\n\nAcceptance criteria\n- Unit tests pass (backend + client).\n- Dry-run preview writes artifact and increments metric.\n- Queue/back-pressure behavior enforced.\n- Docs updated (docs/api/preview.md and runbook)."
+}

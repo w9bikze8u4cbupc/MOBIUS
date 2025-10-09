@@ -1,0 +1,22 @@
+[Unit]
+Description=Preview Worker for Mobius Games Tutorial Generator
+After=network.target redis.service
+
+[Service]
+Type=simple
+User=mobius
+WorkingDirectory=/opt/mobius-games-tutorial-generator
+Environment=NODE_ENV=production
+Environment=REDIS_URL=redis://127.0.0.1:6379
+Environment=PREVIEW_QUEUE_NAME=preview-jobs
+Environment=PREVIEW_WORKER_CONCURRENCY=2
+Environment=DATA_DIR=/var/lib/mobius/data
+Environment=LOG_LEVEL=info
+ExecStart=/usr/bin/node src/worker/previewWorker.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

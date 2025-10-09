@@ -1,0 +1,114 @@
+name: Render Smoke Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  render-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Ensure FFmpeg is available
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg imagemagick
+          ffmpeg -version
+          echo "FFmpeg location: $(which ffmpeg)"
+
+      - name: Create sample assets directory
+        run: |
+          mkdir -p assets
+          mkdir -p out
+
+      - name: Create sample image files
+        run: |
+          # Create simple PNG files for testing
+          convert -size 1920x1080 xc:black assets/sample1.png
+          convert -size 1920x1080 xc:blue assets/sample2.png
+          convert -size 1920x1080 xc:red assets/sample3.png
+        shell: bash
+
+      - name: Create sample audio file
+        run: |
+          # Generate a short silent audio file for testing
+          ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 5 -q:a 9 -acodec libmp3lame assets/sample.mp3
+        shell: bash
+
+      - name: Create sample subtitle file
+        run: |
+          cat > assets/sample.srt << EOF
+          1
+          00:00:01,000 --> 00:00:03,000
+          Sample subtitle text
+
+          2
+          00:00:03,500 --> 00:00:05,000
+          Another subtitle line
+          EOF
+
+      - name: Run 5-second preview render with loudness normalization
+        run: |
+          node scripts/render.js --project-id test --mode preview --preview-seconds 5 --loudness.enabled true
+        shell: bash
+
+      - name: Loudness probe (preview)
+        run: |
+          ffmpeg -nostats -hide_banner -i out/preview_5s.mp4 -filter_complex ebur128 -f null - 2>probe.txt || true
+          grep -E "I:\s*-1[567]\." probe.txt
+        shell: bash
+
+      - name: Render (dry-run) with captions + ducking
+        run: |
+          node scripts/render.js --project-id ci --mode preview --dry-run --preview-seconds 5 --burn-captions
+        shell: bash
+
+      - name: Verify output files exist
+        run: |
+          # Check that the preview file was created
+          if [ ! -f "out/preview_5s.mp4" ]; then
+            echo "Preview file not found!"
+            ls -la out/
+            exit 1
+          fi
+          echo "Preview file created successfully"
+        shell: bash
+
+      - name: Upload artifacts on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: render-failure-artifacts
+          path: |
+            out/
+            assets/
+            logs/
+            probe.txt
+          retention-days: 30
+
+      - name: Upload success artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: render-success-artifacts
+          path: |
+            out/
+            assets/
+            probe.txt
+          retention-days: 7

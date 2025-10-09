@@ -1,0 +1,8 @@
+--- a/k8s/preview-worker/deployment.yaml
++++ b/k8s/preview-worker/deployment.yaml
+@@ -17,7 +17,7 @@ spec:
+       containers:
+       - name: preview-worker
+-        image: ghcr.io/your-org/mobius-preview-worker:latest
++        image: registry.example.com/mobius-preview-worker:1.0.0
+         imagePullPolicy: IfNotPresent

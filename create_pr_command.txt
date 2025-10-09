@@ -1,0 +1,12 @@
+gh pr create \
+  --base staging \
+  --head phase-f/preview-image-matcher \
+  --title "Phase F: Image Matcher UI + Preview backend stub" \
+  --body-file ./pr_body.md \
+  --label "feature" \
+  --label "phase-f" \
+  --label "needs-review" \
+  --label "ready-for-staging" \
+  --reviewer "alice-gh-handle" \
+  --reviewer "bob-gh-handle" \
+  --assignee "alice-gh-handle"

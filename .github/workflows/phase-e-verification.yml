@@ -1,0 +1,130 @@
+name: Phase E Verification
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  verify-unix:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run migration
+      run: npm run migrate:data
+      env:
+        DATA_DIR: ./data
+    
+    - name: Start server and run verification
+      run: |
+        # Start server in background
+        DATA_DIR=./data PORT=5001 npm run server &
+        SERVER_PID=$!
+        
+        # Wait for server to start
+        sleep 8
+        
+        # Run verification
+        npm run verify:unix
+        
+        # Stop server
+        kill $SERVER_PID
+      env:
+        DATA_DIR: ./data
+        PORT: 5001
+    
+    - name: Run JUnit verification
+      run: |
+        # Start server in background
+        DATA_DIR=./data PORT=5001 npm run server &
+        SERVER_PID=$!
+        
+        # Wait for server to start
+        sleep 8
+        
+        # Run JUnit verification
+        npm run verify:junit:unix
+        
+        # Stop server
+        kill $SERVER_PID
+      env:
+        DATA_DIR: ./data
+        PORT: 5001
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: unix-test-results
+        path: test-reports/
+
+  verify-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run migration
+      run: npm run migrate:data
+      env:
+        DATA_DIR: ./data
+    
+    - name: Start server and run verification
+      run: |
+        # Start server in background
+        $env:DATA_DIR = "./data"
+        $env:PORT = "5001"
+        Start-Process -NoNewWindow -FilePath "node" -ArgumentList "src/api/index.js" -PassThru
+        Start-Sleep -Seconds 8
+        
+        # Run verification
+        npm run verify:win
+        
+        # Note: Server will be terminated when PowerShell session ends
+      shell: powershell
+      env:
+        DATA_DIR: ./data
+        PORT: 5001
+    
+    - name: Run JUnit verification
+      run: |
+        # Start server in background
+        $env:DATA_DIR = "./data"
+        $env:PORT = "5001"
+        Start-Process -NoNewWindow -FilePath "node" -ArgumentList "src/api/index.js" -PassThru
+        Start-Sleep -Seconds 8
+        
+        # Run JUnit verification
+        npm run verify:junit:win
+        
+        # Note: Server will be terminated when PowerShell session ends
+      shell: powershell
+      env:
+        DATA_DIR: ./data
+        PORT: 5001
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: windows-test-results
+        path: test-reports/
