@@ -2,9 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: preview-worker
-  namespace: preview-worker
-  labels:
-    app: preview-worker
 spec:
   replicas: 1
   selector:
@@ -17,10 +14,8 @@ spec:
     spec:
       containers:
       - name: preview-worker
-        image: registry.example.com/mobius-preview-worker:1.0.0
+        image: YOUR_REGISTRY/mobius-preview-worker:ci  # Placeholder tag to satisfy CI; replace with real registry/tag before deploying
         imagePullPolicy: IfNotPresent
-        envFrom:
-        - configMapRef:
             name: preview-worker-config
         - secretRef:
             name: preview-worker-secrets
