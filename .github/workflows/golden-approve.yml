@@ -52,7 +52,8 @@ jobs:
 
       - name: Render previews (replace with your real commands)
         run: |
-          npm run render:proxy || true
+          if [ -f scripts/render-ffmpeg.mjs ]; then npm run render:proxy; else echo "Skipping render: scripts/render-ffmpeg.mjs not present"; fi
+        shell: bash
 
       - name: Generate baselines
         env:
