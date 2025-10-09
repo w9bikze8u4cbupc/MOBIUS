@@ -1,0 +1,17 @@
+# PR URLs for Phase F Rollout
+
+## Create these PRs manually on GitHub:
+
+1. Feature PR:
+   https://github.com/w9bikze8u4cbupc/MOBIUS/compare/staging...phase-f/preview-image-matcher
+
+2. CI Workflow PR:
+   https://github.com/w9bikze8u4cbupc/MOBIUS/compare/staging...ci/add-phase-f-verify-workflow
+
+## Branch URLs:
+
+1. Feature Branch:
+   https://github.com/w9bikze8u4cbupc/MOBIUS/tree/phase-f/preview-image-matcher
+
+2. CI Workflow Branch:
+   https://github.com/w9bikze8u4cbupc/MOBIUS/tree/ci/add-phase-f-verify-workflow

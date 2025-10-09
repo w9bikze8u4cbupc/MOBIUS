@@ -1,0 +1,26 @@
+{
+  "jobId": "preview-job-0002",
+  "projectId": "proj-mobius-123",
+  "requestId": "req-0002",
+  "previewRequest": {
+    "title": "How to build a Mobius demo",
+    "description": "Auto-generated preview for the 'Intro' tutorial",
+    "steps": [],
+    "assets": [],
+    "audio": {},
+    "options": {
+      "resolution": "1280x720",
+      "format": "webm",
+      "includeCaptions": false
+    },
+    "metadata": {
+      "author": "automation",
+      "tags": ["preview", "auto"]
+    }
+  },
+  "dryRun": true,
+  "priority": "normal",
+  "attempts": 0,
+  "createdAt": "2025-10-08T12:05:00.000Z",
+  "updatedAt": "2025-10-08T12:05:00.000Z"
+}

@@ -1,0 +1,4 @@
+{
+  "title": "Preview Worker: Integrate Renderer (ffmpeg / python orchestration)",
+  "body": "## Description\nIntegrate the rendering backend (existing python/ffmpeg tools) with the worker. Worker should call renderer, capture stdout/stderr logs, and return exit status.\n\n## Priority\nP0\n\n## Estimated Effort\n8-16 hours\n\n## Acceptance Criteria\n- Worker spawns renderer (python script or ffmpeg chain) with job inputs and produces final artifact (mp4 or artifact folder) in DATA_DIR.\n- For dryRun=true: renderer writes a small artifact (e.g., preview.png or preview.json) and worker returns 202 to API and stores artifact path in job result.\n- Worker sets job status to success/failure and stores logs in job output folder.\n\n## Implementation Notes\n- Use child_process.spawn with streaming logs to files. Avoid loading whole stdout into memory.\n\n## Labels\nfeature, phase-g, preview-worker, backend\n## Assignee\ndeveloper"
+}

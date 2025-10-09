@@ -1,0 +1,38 @@
+# Add this job under jobs: in your staging workflow (adjust 'needs' to match your deploy job)
+verify_phase_f:
+  name: Verify Phase F (post-deploy)
+  runs-on: ubuntu-latest
+  needs: deploy_to_staging   # adjust to your deploy job name
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: 'npm'
+
+    - name: Install root deps
+      run: npm ci
+
+    - name: Install client deps (if exists)
+      run: |
+        if [ -d "client" ]; then
+          (cd client && npm ci)
+        fi
+
+    - name: Run Phase F verification (UNIX)
+      env:
+        DATA_DIR: ./data
+        API_BASE_URL: ${{ env.STAGING_API_URL }}  # set in workflow env or repo secrets
+      run: |
+        chmod +x scripts/verify-phase-f.sh
+        ./scripts/verify-phase-f.sh
+
+    - name: Upload verification artifacts on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: phase-f-verify-logs
+        path: verification-logs/**/*
