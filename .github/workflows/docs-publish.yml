@@ -6,15 +6,9 @@ on:
       - main
       - chore/harden-preview-worker
     paths:
-      - docs/**
-      - mkdocs.yml
-      - .github/workflows/docs-publish.yml
-  workflow_dispatch:
-    inputs:
-      invalidate_cache:
-        description: Set to true to rebuild dependencies from scratch.
-        required: false
-        default: "false"
+      - "docs/**"
+      - "mkdocs.yml"
+      - ".github/workflows/docs-publish.yml"
   workflow_dispatch:
     inputs:
       invalidate_cache:
