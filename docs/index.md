@@ -47,4 +47,4 @@ The Mobius Games Tutorial Generator is a comprehensive system that:
 
 ---
 
-*Documentation site verified and deployed: 2024-12-19 21:30 UTC*
+*Documentation site verified and deployed: 2025-01-15 (workflow fixed and manual trigger enabled)*
