@@ -1,0 +1,28 @@
+TEST RULEBOOK FOR CI VERIFICATION
+=================================
+
+This is a minimal test rulebook used for CI verification purposes only.
+It contains no copyrighted content and is designed to test the ingestion pipeline.
+
+GAME COMPONENTS:
+- 1 Game Board
+- 20 Cards
+- 5 Tokens
+- 1 Rulebook (this document)
+- 2 Dice
+
+SETUP:
+1. Place the game board in the center of the table
+2. Shuffle the cards and place them face down
+3. Distribute tokens to each player
+4. Roll dice to determine first player
+
+GAMEPLAY:
+Players take turns performing actions according to the rules.
+The goal is to achieve the victory condition described in the full rulebook.
+
+END GAME:
+The game ends when a player meets the victory conditions.
+That player is declared the winner.
+
+This text is intentionally simple to verify the parsing pipeline works correctly.

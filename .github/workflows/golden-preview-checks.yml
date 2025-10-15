@@ -51,14 +51,15 @@ jobs:
         run: |
           # Replace these with your actual rendering steps
           # Use || true if some games are not always rendered
-          npm run render:proxy || true
+          if [ -f scripts/render-ffmpeg.mjs ]; then npm run render:proxy; else echo "Skipping render: scripts/render-ffmpeg.mjs not present"; fi
+        shell: bash
 
       - name: Run golden checks with JUnit
         env:
           GOLDEN_PER_OS: "1"
         run: |
           mkdir -p tests/golden/reports
-          node scripts/check_golden.js --game hanamikoji --perOs --junit "tests/golden/reports/junit-${{ runner.os }}-hanamikoji.xml"
+          node scripts/check_golden.cjs --game hanamikoji --perOs --junit "tests/golden/reports/junit-${{ runner.os }}-hanamikoji.xml"
 
       - name: Upload JUnit + debug diffs
         if: always()

@@ -1,0 +1,12 @@
+{
+  "jobId": "uuid-v4",
+  "projectId": "project-123",
+  "previewRequest": {
+    "chapterId": "chapter-1",
+    "steps": [],
+    "assets": [],
+    "audio": {}
+  },
+  "dryRun": true,
+  "requestId": "req-abc-123"
+}

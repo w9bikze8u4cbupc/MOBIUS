@@ -1,0 +1,43 @@
+From: Assistant <assistant@example.com>
+Date: Mon, 01 Jan 2024 00:00:00 +0000
+Subject: [PATCH 2/2] Add RBAC configuration for preview-worker
+
+This patch adds optional RBAC configuration for the preview-worker
+ServiceAccount with minimal namespace-scoped permissions.
+
+---
+ k8s/preview-worker/rbac.yaml | 25 +++++++++++++++++++++++++
+ 1 file changed, 25 insertions(+)
+
+diff --git a/k8s/preview-worker/rbac.yaml b/k8s/preview-worker/rbac.yaml
+new file mode 100644
+index 0000000..2345678
+--- /dev/null
++++ b/k8s/preview-worker/rbac.yaml
+@@ -0,0 +1,25 @@
++# Optional RBAC Configuration for Preview Worker
++# Only needed if the worker requires access to Kubernetes resources
++
++apiVersion: rbac.authorization.k8s.io/v1
++kind: Role
++metadata:
++  name: preview-worker-reader
++  namespace: preview-worker
++rules:
++  - apiGroups: [""]
++    resources: ["configmaps", "secrets"]
++    verbs: ["get", "list", "watch"]
++---
++apiVersion: rbac.authorization.k8s.io/v1
++kind: RoleBinding
++metadata:
++  name: preview-worker-reader-binding
++  namespace: preview-worker
++subjects:
++  - kind: ServiceAccount
++    name: preview-worker
++    namespace: preview-worker
++roleRef:
++  kind: Role
++  name: preview-worker-reader
++  apiGroup: rbac.authorization.k8s.io
