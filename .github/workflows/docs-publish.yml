@@ -1,68 +1,29 @@
 name: Publish Docs
-
 on:
   push:
     branches:
       - main
-      - chore/harden-preview-worker
     paths:
       - "docs/**"
       - "mkdocs.yml"
-      - ".github/workflows/docs-publish.yml"
-  workflow_dispatch:
-    inputs:
-      invalidate_cache:
-        description: Set to true to rebuild dependencies from scratch.
-        required: false
-        default: false
-        type: boolean
-
-permissions:
-  contents: write
-  pages: read
-  id-token: write
-
+  workflow_dispatch: {}
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Cache pip
-        if: github.event_name != 'workflow_dispatch' || github.event.inputs.invalidate_cache == false
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements-docs.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install MkDocs and plugins
+      - name: Install dependencies
         run: |
-          cat <<'EOF' > requirements-docs.txt
-          mkdocs-material==9.*
-          mkdocs-git-revision-date-localized-plugin==1.*
-          mkdocs-redirects==1.*
-          EOF
-          pip install -r requirements-docs.txt
-
+          pip install mkdocs-material
       - name: Build site
         run: mkdocs build --strict
-
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
           publish_dir: ./site
-          force_orphan: true
-          user_name: "github-actions[bot]"
-          user_email: "github-actions[bot]@users.noreply.github.com"
