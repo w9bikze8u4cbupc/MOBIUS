@@ -39,7 +39,10 @@
     "desktop:create": "node scripts/create-desktop-shortcut.mjs",
     "desktop:verify": "node scripts/verify-desktop-shortcuts.mjs",
     "security:check": "node -e \"process.platform === 'win32' ? require('child_process').execSync('powershell -ExecutionPolicy Bypass -File scripts/security-check.ps1', {stdio:'inherit'}) : require('child_process').execSync('bash scripts/security-check.sh', {stdio:'inherit'})\"",
-    "security:clean": "node -e \"process.platform === 'win32' ? require('child_process').execSync('powershell -Command \\\"Remove-Item Env:\\GITHUB_TOKEN -ErrorAction SilentlyContinue\\\"', {stdio:'inherit'}) : require('child_process').execSync('unset GITHUB_TOKEN', {stdio:'inherit'})\""
+    "security:clean": "node -e \"process.platform === 'win32' ? require('child_process').execSync('powershell -Command \\\"Remove-Item Env:\\GITHUB_TOKEN -ErrorAction SilentlyContinue\\\"', {stdio:'inherit'}) : require('child_process').execSync('unset GITHUB_TOKEN', {stdio:'inherit'})\"",
+    "docs:lint": "npm run docs:lint:markdown && npm run docs:lint:links",
+    "docs:lint:markdown": "npx markdownlint-cli2 --config .markdownlint.jsonc \"docs/**/*.{md,mdx}\" README.md",
+    "docs:lint:links": "node scripts/check-lychee.js && lychee --config lychee.toml docs README.md"
   },
   "keywords": [
     "game",
@@ -72,6 +75,7 @@
     "@vitejs/plugin-react": "^4.0.4",
     "babel-jest": "^29.7.0",
     "jest": "^29.7.0",
+    "markdownlint-cli2": "^0.18.1",
     "ts-jest": "^29.4.1",
     "ts-node": "^10.9.1"
   },

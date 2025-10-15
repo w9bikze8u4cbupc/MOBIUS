@@ -1,0 +1,52 @@
+name: Docs Quality
+
+on:
+  pull_request:
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - ".github/workflows/docs-quality.yml"
+      - "scripts/update_mkdocs_nav.py"
+      - ".markdownlint.jsonc"
+      - "lychee.toml"
+  workflow_dispatch:
+
+jobs:
+  lint-and-links:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install markdownlint-cli2
+        run: npm install --global markdownlint-cli2@0.12
+
+      - name: Lint Markdown
+        run: |
+          markdownlint-cli2 "**/*.md" --config .markdownlint.jsonc
+
+      - name: Install lychee
+        uses: lycheeverse/lychee-action@v1
+        with:
+          args: --config lychee.toml --no-progress
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build MkDocs (strict)
+        run: |
+          cat <<'EOF' > requirements-docs.txt
+          mkdocs-material==9.*
+          mkdocs-git-revision-date-localized-plugin==1.*
+          mkdocs-redirects==1.*
+          EOF
+          pip install -r requirements-docs.txt && mkdocs build --strict
