@@ -82,3 +82,8 @@ Thumbs.db
 !/data/exports/.gitkeep
 !/output/.gitkeep
 !/ffmpeg-bin/README.md
+
+# MkDocs build artifacts
+site/
+.overrides/
+.cache/

@@ -1,0 +1,80 @@
+site_name: Mobius Games Tutorial Generator
+site_description: A pipeline for generating game tutorial videos from structured game rules
+site_url: https://mobius-org.github.io/mobius-games-tutorial-generator/
+repo_url: https://github.com/mobius-org/mobius-games-tutorial-generator
+repo_name: mobius-org/mobius-games-tutorial-generator
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.action.edit
+    - content.action.view
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Overview:
+    - overview/index.md
+  - Playbooks:
+    - playbooks/index.md
+  - Automation:
+    - automation/index.md
+  - Operations:
+    - operations/index.md
+  - Onboarding:
+    - onboarding/index.md
+  - Roadmap:
+    - roadmap/index.md
+  - Appendix:
+    - appendix/index.md
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: timeago
+  - redirects:
+      redirect_maps: {}
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/mobius-org/mobius-games-tutorial-generator
+
+strict: true
