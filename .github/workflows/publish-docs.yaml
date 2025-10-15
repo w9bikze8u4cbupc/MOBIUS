@@ -1,0 +1,47 @@
+name: Publish Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/workflows/publish-docs.yaml'
+  workflow_dispatch:
+
+jobs:
+  publish-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          npm install -g docsify-cli
+
+      - name: Build documentation
+        run: |
+          # Create docs directory if it doesn't exist
+          mkdir -p docs
+          
+          # Copy all markdown files to docs directory
+          find . -name "*.md" -not -path "./docs/*" -not -path "./node_modules/*" -not -path "./.git/*" | while read file; do
+            # Create directory structure in docs
+            dir=$(dirname "$file")
+            mkdir -p "docs/$dir"
+            cp "$file" "docs/$file"
+          done
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          keep_files: true

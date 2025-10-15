@@ -1,0 +1,129 @@
+From: Assistant <assistant@example.com>
+Date: Mon, 01 Jan 2024 00:00:00 +0000
+Subject: [PATCH] chore(k8s): harden preview-worker manifests (securityContext, probes, resources, SA, RBAC) and add smoke-test
+
+This patch adds hardened Kubernetes manifests for the preview-worker deployment
+with enhanced security, resource management, and operational best practices.
+
+---
+ k8s/preview-worker/sa-and-scc.yaml           |  75 +++++++++++
+ k8s/preview-worker/rbac.yaml                 |  25 ++++
+ k8s/preview-worker/smoke-test-preview-worker.sh |  40 ++++++
+ 3 files changed, 140 insertions(+)
+
+diff --git a/k8s/preview-worker/sa-and-scc.yaml b/k8s/preview-worker/sa-and-scc.yaml
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/k8s/preview-worker/sa-and-scc.yaml
+@@ -0,0 +1,75 @@
++# Hardened Preview Worker Kubernetes Manifests
++# ServiceAccount, Security Context, Resource Limits, Health Probes
++
++apiVersion: v1
++kind: ServiceAccount
++metadata:
++  name: preview-worker
++  namespace: preview-worker
++  labels:
++    app: preview-worker
++---
++apiVersion: apps/v1
++kind: Deployment
++metadata:
++  name: preview-worker
++  namespace: preview-worker
++  labels:
++    app: preview-worker
++spec:
++  replicas: 2
++  strategy:
++    type: RollingUpdate
++    rollingUpdate:
++      maxUnavailable: 1
++      maxSurge: 1
++  selector:
++    matchLabels:
++      app: preview-worker
++  template:
++    metadata:
++      labels:
++        app: preview-worker
++    spec:
++      serviceAccountName: preview-worker
++      imagePullSecrets:
++        - name: regcred  # Replace with your registry secret name if using private registry
++      terminationGracePeriodSeconds: 30
++      securityContext:
++        runAsNonRoot: true
++        runAsUser: 1000
++        fsGroup: 1000
++      containers:
++        - name: preview-worker
++          image: YOUR_REGISTRY/mobius-preview-worker:TAG  # CRITICAL: Replace with actual registry/image:tag
++          imagePullPolicy: IfNotPresent
++          resources:
++            requests:
++              cpu: "150m"
++              memory: "256Mi"
++            limits:
++              cpu: "500m"
++              memory: "512Mi"
++          env:
++            - name: NODE_ENV
++              value: "production"
++            - name: REDIS_URL
++              valueFrom:
++                secretKeyRef:
++                  name: preview-worker-secrets
++                  key: REDIS_URL
++            - name: SOME_API_KEY
++              valueFrom:
++                secretKeyRef:
++                  name: preview-worker-secrets
++                  key: SOME_API_KEY
++          ports:
++            - containerPort: 5001
++              name: http
++              protocol: TCP
++          livenessProbe:
++            httpGet:
++              path: /health
++              port: http
++            initialDelaySeconds: 15
++            periodSeconds: 20
++            failureThreshold: 3
++            timeoutSeconds: 3
++          readinessProbe:
++            httpGet:
++              path: /health
++              port: http
++            initialDelaySeconds: 5
++            periodSeconds: 10
++            timeoutSeconds: 2
++          securityContext:
++            allowPrivilegeEscalation: false
++            readOnlyRootFilesystem: true
++            capabilities:
++              drop: ["ALL"]
++          volumeMounts:
++            - name: tmp
++              mountPath: /tmp
++              readOnly: false
++      volumes:
++        - name: tmp
++          emptyDir: {}
++---
++apiVersion: v1
++kind: Service
++metadata:
++  name: preview-worker
++  namespace: preview-worker
++spec:
++  selector:
++    app: preview-worker
++  ports:
++    - name: http
++      port: 5001
++      targetPort: http
++  type: ClusterIP

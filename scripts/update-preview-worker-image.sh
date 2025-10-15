@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # Script to update the preview worker image in Kubernetes manifests

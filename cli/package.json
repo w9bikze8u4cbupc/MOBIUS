@@ -1,0 +1,24 @@
+{
+  "name": "@mobius/deploy-cli",
+  "version": "1.0.0",
+  "description": "CLI tool for deploying Mobius Preview Worker",
+  "main": "mobius-deploy.js",
+  "bin": {
+    "mobius-deploy": "./mobius-deploy.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mobius",
+    "deploy",
+    "kubernetes",
+    "docker"
+  ],
+  "author": "Mobius Games",
+  "license": "MIT",
+  "dependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

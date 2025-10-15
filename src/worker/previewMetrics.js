@@ -1,20 +1,19 @@
 // src/worker/previewMetrics.js
 import { Metrics } from '../metrics/metrics.js';
 
-// Create metrics specific to the Preview Worker
-const previewWorkerMetrics = {
-  // Counter for various job outcomes
-  jobOutcomes: Metrics.registerCounter('preview_worker_job_outcomes_total', {
-    help: 'Total number of preview jobs by outcome',
-    labelNames: ['outcome']
-  }),
-  
-  // Histogram for job duration
-  jobDuration: Metrics.registerHistogram('preview_worker_job_duration_seconds', {
-    help: 'Duration of preview job processing in seconds',
-    buckets: [0.1, 0.5, 1, 2, 5, 10, 30, 60]
-  })
-};
+// Simple tracking without using the Metrics registry pattern
+const jobOutcomes = new Map();
+const jobDurations = [];
+
+// Helper functions to track metrics
+function trackJobOutcome(outcome) {
+  const count = jobOutcomes.get(outcome) || 0;
+  jobOutcomes.set(outcome, count + 1);
+}
+
+function trackJobDuration(duration) {
+  jobDurations.push(duration);
+}
 
 /**
  * Record a job outcome
@@ -22,9 +21,9 @@ const previewWorkerMetrics = {
  * @param {number} duration - Duration of the job in seconds
  */
 export function recordJobCompletion(outcome, duration) {
-  previewWorkerMetrics.jobOutcomes.inc({ outcome });
+  trackJobOutcome(outcome);
   if (duration > 0) {
-    previewWorkerMetrics.jobDuration.observe(duration);
+    trackJobDuration(duration);
   }
 }
 
@@ -49,5 +48,8 @@ export function updateActiveJobs(count) {
  * @returns {Object} Metrics object
  */
 export function getPreviewWorkerMetrics() {
-  return previewWorkerMetrics;
+  return {
+    jobOutcomes: Array.from(jobOutcomes.entries()),
+    jobDurations
+  };
 }

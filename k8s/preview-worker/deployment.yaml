@@ -16,6 +16,8 @@ spec:
       - name: preview-worker
         image: YOUR_REGISTRY/mobius-preview-worker:ci  # Placeholder tag to satisfy CI; replace with real registry/tag before deploying
         imagePullPolicy: IfNotPresent
+        envFrom:
+        - configMapRef:
             name: preview-worker-config
         - secretRef:
             name: preview-worker-secrets

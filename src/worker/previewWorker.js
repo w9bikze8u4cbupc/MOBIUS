@@ -1,5 +1,5 @@
 // src/worker/previewWorker.js
-import { Worker, Queue, QueueScheduler } from 'bullmq';
+import pkg from 'bullmq';
 import IORedis from 'ioredis';
 import { validatePayload } from '../../scripts/validatePreviewPayload.js'; // adjust path
 import { renderPreview } from './jobHandlers/renderPreview.js';
@@ -9,16 +9,23 @@ import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
+const { Worker, Queue } = pkg;
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const connection = new IORedis(process.env.REDIS_URL || 'redis://127.0.0.1:6379');
+// Configure Redis connection for BullMQ
+const connection = new IORedis({
+  host: process.env.REDIS_HOST || '127.0.0.1',
+  port: process.env.REDIS_PORT || 6379,
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false
+});
+
 const QUEUE_NAME = process.env.PREVIEW_QUEUE_NAME || 'preview-jobs';
 const CONCURRENCY = Number(process.env.PREVIEW_WORKER_CONCURRENCY || 2);
 
-// ensure delayed/retry timestamps are managed
-new QueueScheduler(QUEUE_NAME, { connection });
-
+// Create queue instance
 export const queue = new Queue(QUEUE_NAME, { connection });
 
 const worker = new Worker(
