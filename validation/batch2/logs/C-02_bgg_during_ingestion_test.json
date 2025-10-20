@@ -1,0 +1,8 @@
+{
+  "test": "C-02: Fetch BGG metadata during ingestion",
+  "timestamp": "2025-10-20T16:28:22.663Z",
+  "result": {
+    "status": 0,
+    "error": "fetch failed"
+  }
+}

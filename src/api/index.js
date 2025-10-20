@@ -14,6 +14,9 @@ import { performIngestion } from './handlers/performIngestion.js';
 import { runJanitor } from '../jobs/janitor.js';
 import { previewChapterHandler } from './handlers/previewChapter.js';
 
+// Import the ingest API router
+import ingestApiRouter from './ingest.js';
+
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 5001;
 
@@ -72,8 +75,13 @@ const upload = multer({
 const ingestQueue = createIngestQueue();
 
 // Health & metrics
-app.use('/', healthRouter);
-app.use('/', previewRouter);
+app.use('/health', healthRouter);
+app.use('/preview', previewRouter);
+app.use('/summarize', (await import('./summarize.js')).default);
+app.use('/tts', (await import('./tts.js')).default);
+
+// Mount the ingest API router
+app.use('/api/ingest', ingestApiRouter);
 
 // Preview endpoint
 app.post(

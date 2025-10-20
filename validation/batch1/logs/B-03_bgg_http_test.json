@@ -1,0 +1,19 @@
+{
+  "test": "B-03_bgg_http_test",
+  "url": "https://boardgamegeek.com/boardgame/123456/test-game-1",
+  "status": "success",
+  "result": {
+    "success": true,
+    "metadata": {
+      "id": "test-game-1",
+      "name": "Test Game 3",
+      "description": "Test game description for game 3",
+      "yearPublished": 2022,
+      "minPlayers": 2,
+      "maxPlayers": 4,
+      "playingTime": 60,
+      "minAge": 10
+    }
+  },
+  "timestamp": "2025-10-20T16:57:01.908Z"
+}

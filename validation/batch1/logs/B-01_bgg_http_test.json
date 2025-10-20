@@ -1,0 +1,19 @@
+{
+  "test": "B-01_bgg_http_test",
+  "url": "https://boardgamegeek.com/boardgame/13/catan",
+  "status": "success",
+  "result": {
+    "success": true,
+    "metadata": {
+      "id": "catan",
+      "name": "Test Game 1",
+      "description": "Test game description for game 1",
+      "yearPublished": 2020,
+      "minPlayers": 2,
+      "maxPlayers": 4,
+      "playingTime": 60,
+      "minAge": 10
+    }
+  },
+  "timestamp": "2025-10-20T16:57:01.896Z"
+}

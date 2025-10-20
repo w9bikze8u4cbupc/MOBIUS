@@ -60,8 +60,8 @@ router.post('/ingest', upload.single('file'), async (req, res) => {
     const pdfPath = req.file.path;
     console.log(`[${requestId}] PDF uploaded to: ${pdfPath}`);
     
-    // Extract text from PDF
-    console.log(`[${requestId}] Extracting text from PDF`);
+    // Extract text and images from PDF
+    console.log(`[${requestId}] Extracting text and images from PDF`);
     const pdfResult = await ingestPdf(pdfPath);
     
     // Generate storyboard
@@ -80,9 +80,13 @@ router.post('/ingest', upload.single('file'), async (req, res) => {
     
     const projectId = stmt.run(
       req.file.originalname,
-      JSON.stringify({ source: 'pdf', pages: pdfResult.parsedPages.length }),
+      JSON.stringify({ 
+        source: 'pdf', 
+        pages: pdfResult.parsedPages.length,
+        images: pdfResult.images.length // Store number of extracted images
+      }),
       JSON.stringify(storyboard.scenes),
-      JSON.stringify([]),
+      JSON.stringify(pdfResult.images), // Store extracted images
       null,
       null
     ).lastInsertRowid;
@@ -94,12 +98,43 @@ router.post('/ingest', upload.single('file'), async (req, res) => {
       projectId: projectId,
       fileName: req.file.originalname,
       pages: pdfResult.parsedPages.length,
+      images: pdfResult.images.length,
       scenes: storyboard.scenes.length,
       requestId: requestId
     });
     
   } catch (error) {
     console.error('Ingestion error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+/**
+ * Fetch BGG metadata by ID or URL (GET endpoint)
+ */
+router.get('/bgg', async (req, res) => {
+  try {
+    const { url } = req.query;
+    
+    if (!url) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'BGG URL is required as query parameter' 
+      });
+    }
+    
+    const metadata = await fetchBggMetadata(url);
+    
+    res.json({
+      success: true,
+      metadata: metadata
+    });
+    
+  } catch (error) {
+    console.error('BGG fetch error:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message 
