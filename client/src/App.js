@@ -3,6 +3,7 @@ import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.entry";
+import OperatorTelemetryPanel from "./components/OperatorTelemetryPanel";
 
 // Configure PDF.js worker
 GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -526,6 +527,7 @@ function App() {
   return (
     <div style={{ maxWidth: 800, margin: "40px auto", fontFamily: "sans-serif", padding: 20 }}>
       <h1>Board Game Tutorial Generator</h1>
+      <OperatorTelemetryPanel />
 
       {/* --- Input Controls --- */}
       <div style={{ marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 20 }}>
