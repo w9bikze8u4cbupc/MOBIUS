@@ -73,6 +73,11 @@ All files in `k8s/preview-worker/` directory:
 
 ✅ **READY FOR PRODUCTION DEPLOYMENT**
 
+### OPS1 Evidence Continuity Directives
+- Preserve the documented **720/1000 readiness score** by attaching rerun logs for every OPS1 verification cycle and filing them with the original Phase F record.
+- When swapping placeholder assets (images, secrets, or manifests), document the before/after identifiers in the OPS1 ledger to keep the readiness snapshot traceable end-to-end.
+- Store signed rerun artifacts, placeholder substitution receipts, and OPS1 approvals in immutable storage (object lock or WORM vault) with retention that exceeds the recalibration window.
+
 ### Prerequisites Met
 - All Kubernetes manifests finalized with default values
 - Container image build process defined

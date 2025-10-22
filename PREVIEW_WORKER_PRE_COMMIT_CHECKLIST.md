@@ -59,6 +59,9 @@ kubectl apply --dry-run=client -f k8s/preview-worker/
 - [ ] README files updated if needed
 - [ ] Comments in code are clear and accurate
 - [ ] No placeholder text remains in documentation
+- [ ] Documentation-only testing protocol completed:
+  - [ ] Run `npm run docs:dry-run` (or equivalent automation) and attach log to PR **or**
+  - [ ] File a waiver entry in the OPS1 evidence ledger with link to supporting artifacts
 
 ## 🚀 Commit and PR Preparation
 

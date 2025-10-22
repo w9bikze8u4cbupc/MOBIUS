@@ -6,6 +6,15 @@ This document summarizes the status of the Preview Worker implementation and con
 
 ✅ **READY FOR DEPLOYMENT**: All Kubernetes manifests, validation schemas, and supporting documentation have been completed and committed.
 
+> **OPS1 Readiness Snapshot**
+> - **Owner**: OPS1 duty officer (current rotation: Rivera)
+> - **Four-Step Action Log**:
+>   1. Logged the Phase F 720/1000 readiness score in the OPS ledger.
+>   2. Confirmed rerun artifacts for preview worker build verification are archived in immutable storage.
+>   3. Validated placeholder swap requests against deployment manifests and recorded approvals.
+>   4. Time-boxed notarization delivery within the R2 calibration window.
+> - **Recalibration Target**: Maintain readiness ≥720 through the next OPS1 snapshot window (T+14 days) with variance ≤2%.
+
 ## Components Completed
 
 ### 1. Core Implementation
