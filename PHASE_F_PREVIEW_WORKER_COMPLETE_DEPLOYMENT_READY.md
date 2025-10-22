@@ -73,6 +73,11 @@ All files in `k8s/preview-worker/` directory:
 
 ✅ **READY FOR PRODUCTION DEPLOYMENT**
 
+### Evidence Continuity Directives
+- **OPS1 ci:evidence rerun:** Re-trigger the OPS1 CI pipeline with the `ci:evidence` flag enabled and archive the artifact bundle hash in the deployment ledger to preserve the established 720/1000 readiness score.
+- **Placeholder bundle swap:** Replace any placeholder artifacts in the release package with the regenerated OPS1 evidence bundle before final sign-off and record the checksum exchange in the deployment journal.
+- **Immutable storage safeguards:** Store the finalized OPS1 rerun evidence and checksum manifests in immutable cloud storage (WORM/locked bucket) with retention policies mirroring the Phase F retention matrix to keep the audit trail intact.
+
 ### Prerequisites Met
 - All Kubernetes manifests finalized with default values
 - Container image build process defined

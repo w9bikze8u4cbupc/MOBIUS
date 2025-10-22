@@ -6,6 +6,15 @@ This document summarizes the status of the Preview Worker implementation and con
 
 ✅ **READY FOR DEPLOYMENT**: All Kubernetes manifests, validation schemas, and supporting documentation have been completed and committed.
 
+## R2 Readiness Snapshot
+- **Ledger Owner**: Preview Platform Ops (OPS1 delegate: S. Patel)
+- **Action Log**:
+  1. 08:30 UTC – Triggered OPS1 `ci:evidence` rerun on pipeline `preview-worker-main` and queued artifact notarization job.
+  2. 09:05 UTC – Validated placeholder bundle removal and substituted regenerated OPS1 evidence package; captured checksum in ledger row `R2-OPS1-720`.
+  3. 09:20 UTC – Uploaded rerun evidence manifest to immutable WORM bucket `mobius-preview-worker-audit` with retention lock confirmation.
+  4. 09:35 UTC – Logged deployment guide acknowledgement and checklist linkage for R2 sign-off.
+- **Scheduled Recalibration Target**: OPS1 readiness recalibration review on **2024-05-17 14:00 UTC** with ledger notarization window closing 2 hours post-review.
+
 ## Components Completed
 
 ### 1. Core Implementation

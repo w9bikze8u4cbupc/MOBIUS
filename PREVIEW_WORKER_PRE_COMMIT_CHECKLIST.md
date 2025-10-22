@@ -60,6 +60,11 @@ kubectl apply --dry-run=client -f k8s/preview-worker/
 - [ ] Comments in code are clear and accurate
 - [ ] No placeholder text remains in documentation
 
+### 7. Documentation-Only Testing Protocol
+- [ ] If only documentation files changed, run an automated dry run: `npm test -- --dry-run --watch=false`
+- [ ] If the dry run cannot be executed, record an OPS1 waiver entry in the deployment ledger within 24 hours and link the waiver ID in the PR description.
+- [ ] Attach terminal output or waiver reference in the PR to evidence compliance.
+
 ## 🚀 Commit and PR Preparation
 
 ### Before Committing:
