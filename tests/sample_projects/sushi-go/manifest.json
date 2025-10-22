@@ -1,0 +1,18 @@
+{
+  "projectId": "sushi-go-r2",
+  "title": "Sushi Go! Tutorial - Streaming QC",
+  "preset": "streaming-midform",
+  "assets": [
+    { "type": "script", "path": "script.md", "checksum": "sha256:bb77mock" },
+    { "type": "audio", "path": "audio/mixdown.wav", "notes": "Pre-QC mix at -20 LUFS" }
+  ],
+  "audioQc": {
+    "preset": "streaming-midform",
+    "targetLufs": -18,
+    "peakLimitDb": -1.5,
+    "latestJsonReport": "artifacts/qc/sushi-go/latest.json",
+    "latestMarkdownReport": "artifacts/qc/sushi-go/latest.md",
+    "expectedFollowUp": "Re-run normalization after registry patch R2-04"
+  },
+  "notes": "Streaming preset intentionally runs hot to validate corrective action messaging."
+}

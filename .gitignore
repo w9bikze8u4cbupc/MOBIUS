@@ -50,6 +50,7 @@ tmp/
 temp/
 tmp.*
 *.tmp
+ci-artifacts/
 
 # Coverage data
 coverage/

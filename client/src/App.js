@@ -3,6 +3,8 @@ import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.entry";
+import OperatorControls from "./components/OperatorControls";
+import { getPresetOptions, getPresetDetails } from "./operatorRegistry";
 
 // Configure PDF.js worker
 GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -79,10 +81,22 @@ function App() {
   const fileInputRef = useRef(); // Ref for the hidden file input
 
   // State for displaying translation status/errors
-  const [translationStatus, setTranslationStatus] = useState({
-    isTranslating: false,
-    error: null, // Stores translation-specific errors/warnings from backend
-  });
+  const [translationStatus, setTranslationStatus] = useState({
+    isTranslating: false,
+    error: null, // Stores translation-specific errors/warnings from backend
+  });
+
+  // Operator registry scaffolding
+  const presetOptions = React.useMemo(() => getPresetOptions(), []);
+  const defaultPreset = presetOptions[0]?.value || "";
+  const [selectedPreset, setSelectedPreset] = useState(defaultPreset);
+  const [operatorProfile, setOperatorProfile] = useState(() =>
+    defaultPreset ? getPresetDetails(defaultPreset) : null
+  );
+
+  useEffect(() => {
+    setOperatorProfile(selectedPreset ? getPresetDetails(selectedPreset) : null);
+  }, [selectedPreset]);
 
 
   // --- Effects ---
@@ -523,11 +537,11 @@ function App() {
 
 
   // --- Rendered Output (JSX) ---
-  return (
-    <div style={{ maxWidth: 800, margin: "40px auto", fontFamily: "sans-serif", padding: 20 }}>
-      <h1>Board Game Tutorial Generator</h1>
+  return (
+    <div style={{ maxWidth: 800, margin: "40px auto", fontFamily: "sans-serif", padding: 20 }}>
+      <h1>Board Game Tutorial Generator</h1>
 
-      {/* --- Input Controls --- */}
+      {/* --- Input Controls --- */}
       <div style={{ marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 20 }}>
         {/* Language Select */}
         <div>
@@ -601,11 +615,18 @@ function App() {
             />
           ))}
         </div>
-      </div>
+      </div>
 
-      {/* File Upload Area */}
-      <div
-        onDragEnter={handleDrag}
+      <OperatorControls
+        presets={presetOptions}
+        selectedPreset={selectedPreset}
+        onPresetChange={setSelectedPreset}
+        profile={operatorProfile}
+      />
+
+      {/* File Upload Area */}
+      <div
+        onDragEnter={handleDrag}
         onDragOver={handleDrag}
         onDragLeave={handleDrag}
         onDrop={handleDrop}

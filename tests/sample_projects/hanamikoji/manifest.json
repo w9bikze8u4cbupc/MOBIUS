@@ -1,0 +1,17 @@
+{
+  "projectId": "hanamikoji-r2",
+  "title": "Hanamikoji Tutorial - Phase R2 Baseline",
+  "preset": "broadcast-longform",
+  "assets": [
+    { "type": "script", "path": "script.md", "checksum": "sha256:a1c2baseline" },
+    { "type": "audio", "path": "audio/final_mix.wav", "notes": "Normalized to -24 LUFS" }
+  ],
+  "audioQc": {
+    "preset": "broadcast-longform",
+    "targetLufs": -24,
+    "peakLimitDb": -1.0,
+    "latestJsonReport": "artifacts/qc/hanamikoji/latest.json",
+    "latestMarkdownReport": "artifacts/qc/hanamikoji/latest.md"
+  },
+  "notes": "Ready for the first full-length validation run as soon as audio QC integration lands."
+}
