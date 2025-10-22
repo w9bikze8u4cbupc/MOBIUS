@@ -3,12 +3,13 @@ import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.entry";
+import OperatorTelemetryPanel from "./components/OperatorTelemetryPanel";
 
 // Configure PDF.js worker
 GlobalWorkerOptions.workerSrc = pdfWorker;
 
 // Backend URL
-const BACKEND_URL = "http://localhost:5001";
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:5001";
 
 // Updated VOICE_OPTIONS array with the specified ElevenLabs voices
 const VOICE_OPTIONS = [
@@ -523,11 +524,12 @@ function App() {
 
 
   // --- Rendered Output (JSX) ---
-  return (
-    <div style={{ maxWidth: 800, margin: "40px auto", fontFamily: "sans-serif", padding: 20 }}>
-      <h1>Board Game Tutorial Generator</h1>
+  return (
+    <div style={{ maxWidth: 800, margin: "40px auto", fontFamily: "sans-serif", padding: 20 }}>
+      <h1>Board Game Tutorial Generator</h1>
+      <OperatorTelemetryPanel orchestratorUrl={`${BACKEND_URL}/orchestrator/telemetry`} />
 
-      {/* --- Input Controls --- */}
+      {/* --- Input Controls --- */}
       <div style={{ marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 20 }}>
         {/* Language Select */}
         <div>
