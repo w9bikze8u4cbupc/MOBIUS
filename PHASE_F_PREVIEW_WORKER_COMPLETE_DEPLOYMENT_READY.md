@@ -6,6 +6,13 @@ This document confirms the completion of all tasks for the Preview Worker implem
 
 ✅ **COMPLETE AND DEPLOYMENT READY**: All components of the Preview Worker have been implemented, tested, and documented.
 
+### Evidence Continuity Actions (Post R2 Close-Out)
+
+- **OPS1 Evidence Refresh**: `Morgan Lee` to execute `npm run ci:evidence` from the managed OPS1 workstation, preserving full console transcripts and a signed checksum manifest for each artifact.
+- **Placeholder Swap**: Replace `phase_r2_docs_stub.zip` with the notarized export (`phase_r2_docs_vFINAL_<date>.zip` + `.sha256`) before requesting QC uplift.
+- **Ledger & Completion Notice Hooks**: Attach the OPS1 evidence bundle to both the readiness ledger and completion notice, tagging the remediation as in-progress until QC validation raises the score.
+- **Audit Safeguard**: Maintain immutable storage references and refuse sign-off without checksum verification logged in the ledger.
+
 ## Summary of All Work Completed
 
 ### Core Implementation (Previously Completed)

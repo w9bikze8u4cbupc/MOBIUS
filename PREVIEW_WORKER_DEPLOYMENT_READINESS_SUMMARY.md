@@ -6,6 +6,18 @@ This document summarizes the status of the Preview Worker implementation and con
 
 ✅ **READY FOR DEPLOYMENT**: All Kubernetes manifests, validation schemas, and supporting documentation have been completed and committed.
 
+### Readiness Ledger Snapshot (R2 Close-Out)
+
+- **Score Maintained**: `720 / 1000` pending QC approval of the final evidence artifacts.
+- **Owner (OPS1 Workstation)**: `Morgan Lee` will re-run `npm run ci:evidence` on OPS1, recording canonical CLI output plus SHA-256 checksums for every regenerated artifact.
+- **Remediation Note**: Placeholder bundle `phase_r2_docs_stub.zip` remains referenced until the verified export package is delivered alongside its checksum receipt.
+- **Action Log**:
+  1. Execute the evidence workflow on OPS1, capturing an environment fingerprint (host tag, git commit, timestamp) in the command transcript.
+  2. Persist raw logs under `evidence/ops1/ci-evidence-run.log` and emit `SHA256SUMS.txt` covering all produced bundles.
+  3. Attach both files to the readiness ledger entry and cross-link them from the completion notice once uploaded to immutable storage.
+  4. Replace the placeholder archive with `phase_r2_docs_vFINAL_<date>.zip` and publish `phase_r2_docs_vFINAL_<date>.zip.sha256` for integrity validation.
+- **Scheduled Recalibration**: Ledger uplift session booked immediately after OPS1/OPS2 close-out with a target score of ≥820/1000. The interim score of 720/1000 remains frozen until QC verification is logged.
+
 ## Components Completed
 
 ### 1. Core Implementation

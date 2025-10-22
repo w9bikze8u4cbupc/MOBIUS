@@ -108,4 +108,8 @@ Before finalizing the PR:
 - [ ] Documentation is complete
 - [ ] PR body is ready
 
+### Documentation-Only Change Protocol
+- [ ] Schedule or record an explicit waiver for `npm test` (dry run required even when only docs change).
+- [ ] Capture execution output or waiver note in the readiness ledger within 24 hours of doc merge.
+
 Once this checklist is complete, you're ready to create the PR.
