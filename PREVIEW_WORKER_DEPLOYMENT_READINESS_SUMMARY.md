@@ -128,4 +128,13 @@ git push origin feat/preview-worker-ci
 # Create PR to merge into main
 ```
 
+## Readiness Delta Register
+
+| Dependency / Metric | Owner | Risk Level | Next Action | Status |
+| --- | --- | --- | --- | --- |
+| OPS1 evidence replacement | OPS1 | High – evidence unavailable for audits | Execute [OPS1 Playbook](docs/ops1_evidence_replacement_playbook.md) once access is granted | Pending external delivery |
+| OPS2 sanitization restoration | OPS2 | High – sanitized fixtures not restored | Follow [OPS2 Blueprint](OPS2_SANITIZATION_RESTORATION_BLUEPRINT.md) after OPS1 handoff | Pending external delivery |
+| Shared security tokens | Security | High – runbooks blocked without credentials | Issue shared tokens to OPS1/OPS2 and confirm distribution | Pending external delivery |
+| Telemetry latency delta (<5%) | OPS1/OPS2 | Watch – requires post-execution validation | Capture metrics in operator logs and update register | Monitoring |
+
 The Preview Worker is fully implemented and ready for production deployment following the steps outlined above.

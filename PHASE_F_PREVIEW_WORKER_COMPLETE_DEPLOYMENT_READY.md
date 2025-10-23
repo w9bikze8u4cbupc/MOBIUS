@@ -136,6 +136,16 @@ All files in `k8s/preview-worker/` directory:
    - Metrics endpoint check
    - HPA and ServiceMonitor verification
 
+### Outstanding External Actions
+
+The deployment package is complete, but production activation remains blocked on external operations:
+
+- **OPS1 Evidence Replacement** – Awaiting execution of the [OPS1 Evidence Replacement Playbook](docs/ops1_evidence_replacement_playbook.md).
+- **OPS2 Sanitization Restoration** – Pending delivery of the [OPS2 Sanitization Restoration Blueprint](OPS2_SANITIZATION_RESTORATION_BLUEPRINT.md).
+- **Security Token Issuance** – External Security team must release shared credentials to unblock OPS1/OPS2 runbooks.
+
+All three items are tracked in the readiness delta register and must be closed before final cutover.
+
 ## Staged Rollout Plan
 
 1. **Staging** (replicas=1, concurrency=1) - 24-48 hours smoke tests
