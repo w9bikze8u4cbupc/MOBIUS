@@ -128,4 +128,11 @@ git push origin feat/preview-worker-ci
 # Create PR to merge into main
 ```
 
+## Readiness Delta Register
+| Metric Slice | Points at Risk | Blocking Dependency | In-Repo Owner | External Owner | Notes |
+| --- | --- | --- | --- | --- | --- |
+| OPS1 evidence integrity | 3 | Completion of OPS1 Evidence Replacement Playbook | Readiness lead | OPS1 operations team | Awaiting notarization transcript and ledger update confirmation. |
+| OPS2 sanitization restoration | 4 | Execution of OPS2 sanitization handoff checklist | Readiness lead | OPS2 engineering | Pending DOMPurify merge and regression harness evidence. |
+| Governance cadence | 2 | Compliance-approved cadence update | Program management | Governance office | Requires external scheduling approval before checkpoint unlock. |
+
 The Preview Worker is fully implemented and ready for production deployment following the steps outlined above.

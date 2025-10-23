@@ -73,6 +73,11 @@ All files in `k8s/preview-worker/` directory:
 
 ✅ **READY FOR PRODUCTION DEPLOYMENT**
 
+## Outstanding External Actions
+- **OPS1 evidence integrity remediation** – Status: *Awaiting external execution*. Refer to the [OPS1 Evidence Replacement Playbook](docs/ops1_evidence_replacement_playbook.md) for the required artifact swap, notarization, and ledger updates.
+- **OPS2 sanitization restoration** – Status: *Awaiting external execution*. Track handoff details in the [OPS2 Sanitization Restoration Blueprint](OPS2_SANITIZATION_RESTORATION_BLUEPRINT.md).
+- **Governance cadence update** – Status: *Awaiting external execution*. Coordination continues through the Phase R3 readiness forums until compliance finalizes the calendar.
+
 ### Prerequisites Met
 - All Kubernetes manifests finalized with default values
 - Container image build process defined
