@@ -18,6 +18,18 @@ The Preview Worker implementation for Phase F is complete and ready for deployme
 ✅ **COMPLETE**: Troubleshooting guide
 ✅ **COMPLETE**: Enhanced PR body with cross-platform instructions
 
+## Outstanding External Actions
+
+The Phase F deployment record now tracks external dependencies that must complete before the final readiness uplift. All items are mirrored in the Readiness Delta Register for transparency.
+
+| Action | Owner | Tracking Reference | Status |
+| --- | --- | --- | --- |
+| OPS1 evidence replacement | OPS1 duty pod | ServiceNow `CHG-48271` | Pending execution window |
+| OPS2 sanitization restoration | OPS2 restoration team | ServiceNow `CHG-48304` | Awaiting sanitized dataset delivery |
+| Shared token release | Security liaison | Incident `SEC-5432` | Pending closure |
+
+Updates to these actions must be logged both here and in `PREVIEW_WORKER_DEPLOYMENT_READINESS_SUMMARY.md` to keep stakeholders aligned on cross-team handoffs.
+
 ## Next Steps
 
 The deployment preparation work has been completed in the `feat/preview-worker-ci` branch. To proceed with deployment:

@@ -4,7 +4,20 @@ This document summarizes the status of the Preview Worker implementation and con
 
 ## Current Status
 
-✅ **READY FOR DEPLOYMENT**: All Kubernetes manifests, validation schemas, and supporting documentation have been completed and committed.
+⚠️ **CONDITIONAL READINESS**: Core deliverables are complete, but external dependencies remain open. The readiness ledger is currently **720 / 1000** pending OPS1 evidence replacement, OPS2 sanitization restoration, and Security's shared token release. Progress is tracked in the Readiness Delta Register and will lift the score automatically once notarized evidence is ingested.
+
+### Readiness Delta Register (Live)
+
+| Item | Owner | Dependency | Status | Next Check-in |
+| --- | --- | --- | --- | --- |
+| OPS1 evidence replacement | OPS1 duty pod | ServiceNow `CHG-48271` | Scheduled | Awaiting execution confirmation |
+| OPS2 sanitization restoration | OPS2 restoration team | ServiceNow `CHG-48304` | Blocked on sanitized dataset handoff | Daily readiness stand-up |
+| Shared token release | Security liaison | Incident `SEC-5432` | Pending | Security readiness poll (48h cadence) |
+
+**Next Execution Orders**
+- Distribute the OPS1 playbook and OPS2 blueprint to their respective coordinators and the Security liaison; record acknowledgements in the delta register.
+- Schedule readiness stand-up agenda slots to capture status polls directly into the register.
+- Prepare evidence ingestion hooks so notarization transcripts, sanitization reports, and token release proof can be committed immediately upon receipt.
 
 ## Components Completed
 
