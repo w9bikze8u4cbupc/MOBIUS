@@ -1,0 +1,54 @@
+# Adventure Quest - Board Game Rules
+
+## Game Overview
+Adventure Quest is an exciting board game for 2-4 players, ages 10 and up. Embark on a thrilling journey through mystical lands, battle fierce monsters, and collect powerful artifacts to become the ultimate adventurer!
+
+## Components
+- 1 Game Board
+- 4 Player Tokens
+- 60 Adventure Cards
+- 30 Monster Cards
+- 20 Treasure Tokens
+- 4 Character Sheets
+- 2 Six-Sided Dice
+
+## Objective
+Be the first player to collect 5 Treasure Tokens and return to the Village Center.
+
+## Setup
+1. Place the game board in the center of the table.
+2. Each player chooses a character token and places it on the Village Center space.
+3. Shuffle the Adventure and Monster cards separately and place them face-down.
+4. Place Treasure Tokens in a pile near the board.
+
+## Game Flow
+### On Your Turn:
+1. Roll both dice and move your token that many spaces.
+2. Follow the instructions for the space you land on:
+   - **Forest**: Draw an Adventure Card
+   - **Mountain**: Draw a Monster Card
+   - **Treasure Chest**: Collect 1 Treasure Token
+   - **Village Center**: If you have 5 Treasure Tokens, you win!
+
+### Adventure Cards
+These cards present challenges, puzzles, or opportunities. Some require skill checks using dice rolls.
+
+### Monster Cards
+When you draw a Monster Card, you must defeat the monster through combat. Roll dice to determine success.
+
+## Combat Rules
+1. The player rolls 2 dice.
+2. Add your character's strength bonus.
+3. If the total equals or exceeds the monster's difficulty, you win.
+4. If you lose, you lose 1 Treasure Token.
+
+## Winning the Game
+The first player to collect 5 Treasure Tokens and return to the Village Center wins the game!
+
+## Advanced Rules
+For experienced players, add the following rules:
+- **Magic Spells**: Players can cast spells once per game
+- **Allies**: Players can form temporary alliances
+- **Traps**: Some spaces trigger trap cards
+
+Enjoy your Adventure Quest!

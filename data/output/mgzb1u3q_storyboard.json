@@ -1,0 +1,69 @@
+{
+  "storyboard": {
+    "id": "storyboard-mgzb1u3q",
+    "generatedAt": "2025-10-20T15:43:25.094Z",
+    "chapters": [
+      {
+        "id": "chapter-1",
+        "title": "Chapter 1",
+        "chunks": [
+          {
+            "pageNumber": 1,
+            "text": "Test Board Game\nRulebook\nContents & Setup\n1 Game board\n50 Cards\n4 Player boards\n100 Tokens\n6 Dice\nObject of the Game\nThe goal is to collect the most points by the end of the game.",
+            "confidence": 1,
+            "source": "pdf-parse"
+          }
+        ],
+        "steps": [
+          {
+            "id": "step-1",
+            "text": "Test Board Game",
+            "type": "sentence"
+          },
+          {
+            "id": "step-2",
+            "text": "Rulebook",
+            "type": "sentence"
+          },
+          {
+            "id": "step-3",
+            "text": "Contents & Setup",
+            "type": "sentence"
+          },
+          {
+            "id": "step-4",
+            "text": "1 Game board",
+            "type": "sentence"
+          },
+          {
+            "id": "step-5",
+            "text": "50 Cards",
+            "type": "sentence"
+          }
+        ],
+        "meta": {
+          "chunkCount": 1,
+          "wordCount": 37
+        }
+      }
+    ],
+    "bgg": null,
+    "meta": {
+      "totalChapters": 1,
+      "totalChunks": 1,
+      "tocDetected": true
+    }
+  },
+  "bgg": null,
+  "summary": {
+    "pages": 1,
+    "chunks": 1,
+    "tocDetected": true,
+    "flags": {
+      "pagesWithLowTextRatio": [
+        1
+      ],
+      "componentsDetected": false
+    }
+  }
+}
