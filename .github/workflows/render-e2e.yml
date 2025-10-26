@@ -1,0 +1,122 @@
+name: Render E2E Test
+
+on:
+  schedule:
+    # Run weekly on Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: 'Run E2E test'
+        required: false
+        default: 'false'
+  pull_request:
+    branches:
+      - main
+    types: [labeled]
+    
+# Only run on PR label or manual dispatch
+jobs:
+  e2e-test:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_e2e == 'true') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-e2e'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Ensure FFmpeg is available
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version
+
+      - name: Create test assets directory
+        run: |
+          mkdir -p assets
+          mkdir -p out
+
+      - name: Create sample image files
+        run: |
+          # Create simple PNG files for testing
+          convert -size 1920x1080 xc:black assets/sample1.png
+          convert -size 1920x1080 xc:blue assets/sample2.png
+          convert -size 1920x1080 xc:red assets/sample3.png
+
+      - name: Create sample audio file
+        run: |
+          # Generate a short silent audio file for testing
+          ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=stereo -t 5 -q:a 9 -acodec libmp3lame assets/sample.mp3
+
+      - name: Create sample caption file
+        run: |
+          cat > assets/sample.srt << EOF
+          1
+          00:00:01,000 --> 00:00:03,000
+          Sample subtitle text
+
+          2
+          00:00:03,500 --> 00:00:05,000
+          Another subtitle line
+          EOF
+
+      - name: Run 5-second E2E render
+        run: |
+          node scripts/render.js --project-id e2e-test --mode preview --preview-seconds 5 --job-id e2e-test-run
+        shell: bash
+
+      - name: Verify output files exist
+        run: |
+          if [ ! -f "out/preview_5s.mp4" ]; then
+            echo "ERROR: Output video file not found"
+            ls -la out/
+            exit 1
+          fi
+          
+          if [ ! -f "out/thumbnail.jpg" ]; then
+            echo "ERROR: Thumbnail file not found"
+            ls -la out/
+            exit 1
+          fi
+          
+          echo "All output files found successfully"
+
+      - name: Check video properties
+        run: |
+          # Verify video duration is approximately 5 seconds
+          duration=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 out/preview_5s.mp4)
+          echo "Video duration: $duration seconds"
+          
+          # Check if duration is within acceptable range (±0.2 seconds)
+          if (( $(echo "$duration < 4.8 || $duration > 5.2" | bc -l) )); then
+            echo "ERROR: Video duration is not within expected range (4.8-5.2 seconds)"
+            exit 1
+          fi
+
+      - name: Archive artifacts on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-test-failure-${{ github.run_id }}
+          path: |
+            out/
+            assets/
+            logs/
+          retention-days: 7
+
+      - name: Archive artifacts on success
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: e2e-test-success-${{ github.run_id }}
+          path: |
+            out/
+          retention-days: 3

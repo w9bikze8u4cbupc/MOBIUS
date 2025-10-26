@@ -1,0 +1,19 @@
+# PR URLs for Phase F Rollout
+
+## Pull Requests:
+
+1. Feature PR (#167):
+   URL: https://github.com/w9bikze8u4cbupc/MOBIUS/pull/167
+   Branch: [phase-f/preview-image-matcher](https://github.com/w9bikze8u4cbupc/MOBIUS/tree/phase-f/preview-image-matcher)
+   Description: [phase_f_feature_pr_description.md](phase_f_feature_pr_description.md)
+
+2. CI Workflow PR (#168):
+   URL: https://github.com/w9bikze8u4cbupc/MOBIUS/pull/168
+   Branch: [ci/add-phase-f-verify-workflow](https://github.com/w9bikze8u4cbupc/MOBIUS/tree/ci/add-phase-f-verify-workflow)
+   Description: [phase_f_ci_pr_description.md](phase_f_ci_pr_description.md)
+
+## Supporting Documents:
+
+- [Deployment Plan](PHASE-F-DEPLOYMENT-PLAN.md)
+- [Implementation Summary](PHASE-F-IMPLEMENTATION-SUMMARY.md)
+- [Verification Results](GITHUB_WORKFLOW_RUN_RESULTS.md)

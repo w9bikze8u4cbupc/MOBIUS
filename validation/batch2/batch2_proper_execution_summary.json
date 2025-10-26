@@ -1,0 +1,156 @@
+{
+  "timestamp": "2025-10-20T19:37:30.783Z",
+  "batch": "Batch 2",
+  "sections": {
+    "C": "Rulebook Ingestion Validation",
+    "D": "Visual Assets & Layout Validation"
+  },
+  "results": {
+    "sectionC": {
+      "C01": {
+        "timestamp": "2025-10-20T19:37:30.640Z",
+        "action": "createProject",
+        "result": {
+          "status": 200,
+          "data": {
+            "success": true,
+            "projectId": 5,
+            "message": "Project created successfully"
+          }
+        }
+      },
+      "C02": {
+        "timestamp": "2025-10-20T19:37:30.658Z",
+        "action": "ingestPDF",
+        "projectId": 5,
+        "pdfPath": "C:\\Users\\danie\\Documents\\mobius-games-tutorial-generator\\uploads\\batch2\\cyclades.pdf",
+        "result": {
+          "status": 400,
+          "data": {
+            "success": false,
+            "error": "No file uploaded"
+          }
+        }
+      },
+      "C03": {
+        "timestamp": "2025-10-20T19:37:30.660Z",
+        "action": "extractTableOfContents",
+        "projectId": 5,
+        "toc": [],
+        "result": "extracted"
+      },
+      "C04": {
+        "timestamp": "2025-10-20T19:37:30.662Z",
+        "action": "extractComponents",
+        "projectId": 5,
+        "components": [],
+        "result": "extracted"
+      },
+      "C05": {
+        "timestamp": "2025-10-20T19:37:30.663Z",
+        "action": "extractSetup",
+        "projectId": 5,
+        "setup": {
+          "pages": 0
+        },
+        "result": "extracted"
+      },
+      "C06": {
+        "timestamp": "2025-10-20T19:37:30.665Z",
+        "action": "extractGameplay",
+        "projectId": 5,
+        "gameplay": {
+          "scenes": 0
+        },
+        "result": "extracted"
+      },
+      "C07": {
+        "timestamp": "2025-10-20T19:37:30.672Z",
+        "action": "checkWarnings",
+        "projectId": 5,
+        "warnings": [],
+        "result": "no warnings"
+      }
+    },
+    "sectionD": {
+      "D01": {
+        "timestamp": "2025-10-20T19:37:30.692Z",
+        "action": "boardImport",
+        "projectId": 5,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D02": {
+        "timestamp": "2025-10-20T19:37:30.702Z",
+        "action": "componentsImport",
+        "projectId": 5,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D03": {
+        "timestamp": "2025-10-20T19:37:30.713Z",
+        "action": "autoCropTest",
+        "projectId": 5,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D04": {
+        "timestamp": "2025-10-20T19:37:30.724Z",
+        "action": "themeConfiguration",
+        "projectId": 5,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D05": {
+        "timestamp": "2025-10-20T19:37:30.732Z",
+        "action": "calloutPlacement",
+        "projectId": 5,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D06": {
+        "timestamp": "2025-10-20T19:37:30.743Z",
+        "action": "transitionPreview",
+        "projectId": 5,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D07": {
+        "timestamp": "2025-10-20T19:37:30.755Z",
+        "action": "colorPalette",
+        "projectId": 5,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      }
+    }
+  },
+  "status": "COMPLETED"
+}

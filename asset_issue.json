@@ -1,0 +1,6 @@
+{
+  "title": "Asset uploads & hashed storage (Phase F)",
+  "body": "Implement server-side asset upload endpoints and hashed storage under DATA_DIR/assets. Use content-hash (sha256) for canonical filenames and dedupe. Generate thumbnails on upload and expose listing endpoints.\n\nAcceptance criteria\n- POST /api/projects/:id/assets accepts uploads, validates MIME/size.\n- Stores file under DATA_DIR/assets/<hash>/<original.ext> and generates thumb.jpg.\n- GET /api/projects/:id/assets returns asset list with previewUrl, dimensions, mime type.\n- Duplicate uploads return existing assetId (dedupe).\n- Unit & integration tests for hashing, dedupe, and thumbnail generation.\n\nSubtasks\n- Endpoint & validations\n- Hash-based store, thumbnail generation (sharp)\n- Asset metadata store (JSON or SQLite)\n- Client integration for the asset library\n\nOwner: developer\nETA: 3 days\nLabels: feature, phase-f, ux",
+  "labels": ["feature","phase-f","ux"],
+  "assignee": "developer"
+}

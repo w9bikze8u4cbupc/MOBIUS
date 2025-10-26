@@ -1,0 +1,214 @@
+#!/usr/bin/env node
+
+/**
+ * API Validation Harness for Mobius Tutorial Generator
+ * 
+ * This script provides programmatic access to UI-driven flows through direct API calls,
+ * allowing validation of functionality that would normally require UI interaction.
+ */
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Config
+const API_BASE_URL = process.env.MOBIUS_API_URL || 'http://localhost:5001';
+const PROJECTS_DB_PATH = path.join(__dirname, '..', '..', 'data', 'projects.db');
+
+console.log('API Validation Harness for Mobius Tutorial Generator');
+console.log(`API Base URL: ${API_BASE_URL}`);
+console.log(`Projects DB Path: ${PROJECTS_DB_PATH}`);
+console.log('---');
+
+// Utility functions
+async function apiCall(endpoint, options = {}) {
+  const url = `${API_BASE_URL}${endpoint}`;
+  console.log(`Making API call to: ${url}`);
+  
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      ...options
+    });
+    
+    const data = await response.json();
+    console.log(`Response status: ${response.status}`);
+    return { status: response.status, data };
+  } catch (error) {
+    console.error(`API call failed: ${error.message}`);
+    return { status: 0, error: error.message };
+  }
+}
+
+function readDatabase() {
+  try {
+    // Simple check if DB file exists
+    const exists = fs.existsSync(PROJECTS_DB_PATH);
+    console.log(`Database file exists: ${exists}`);
+    return exists;
+  } catch (error) {
+    console.error(`Database read error: ${error.message}`);
+    return false;
+  }
+}
+
+// API Harness Functions
+
+/**
+ * Create a new project
+ */
+async function createProject(projectData) {
+  console.log('\n=== Creating Project ===');
+  const payload = {
+    name: projectData.name || `Test Project ${Date.now()}`,
+    metadata: projectData.metadata || {},
+    components: projectData.components || [],
+    images: projectData.images || [],
+    script: projectData.script || null,
+    audio: projectData.audio || null
+  };
+  
+  return await apiCall('/api/projects', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+/**
+ * Update project metadata (simulate UI edits/overrides)
+ */
+async function updateProjectMetadata(projectId, metadataUpdates) {
+  console.log('\n=== Updating Project Metadata ===');
+  const payload = {
+    metadata: metadataUpdates
+  };
+  
+  return await apiCall(`/api/projects/${projectId}/metadata`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+/**
+ * Simulate "Save" action for a project
+ */
+async function saveProject(projectId) {
+  console.log('\n=== Saving Project ===');
+  return await apiCall(`/api/projects/${projectId}/save`, {
+    method: 'POST'
+  });
+}
+
+/**
+ * Ingest a PDF file
+ */
+async function ingestPDF(filePath) {
+  console.log('\n=== Ingesting PDF ===');
+  
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    console.error(`File not found: ${filePath}`);
+    return { status: 0, error: 'File not found' };
+  }
+  
+  // For this harness, we'll just test the endpoint availability
+  // In a real implementation, we would upload the file
+  return await apiCall('/api/ingest', {
+    method: 'POST'
+  });
+}
+
+/**
+ * Fetch BGG metadata
+ */
+async function fetchBGGMetadata(bggIdOrUrl) {
+  console.log('\n=== Fetching BGG Metadata ===');
+  const payload = { bggIdOrUrl };
+  
+  return await apiCall('/api/bgg', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+/**
+ * Upload visual assets
+ */
+async function uploadAssets(files) {
+  console.log('\n=== Uploading Assets ===');
+  // This would typically involve multipart form data
+  // For this harness, we'll just test the endpoint
+  return await apiCall('/api/assets', {
+    method: 'POST'
+  });
+}
+
+/**
+ * Validate auto-crop results
+ */
+async function validateAutoCrop(assetId) {
+  console.log('\n=== Validating Auto-Crop ===');
+  return await apiCall(`/api/assets/${assetId}/crop/validate`, {
+    method: 'GET'
+  });
+}
+
+/**
+ * Apply themes and layouts
+ */
+async function applyTheme(projectId, themeData) {
+  console.log('\n=== Applying Theme ===');
+  const payload = { theme: themeData };
+  
+  return await apiCall(`/api/projects/${projectId}/theme`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+// Main execution
+async function main() {
+  console.log('Starting API Validation Harness...\n');
+  
+  // Check database accessibility
+  console.log('Checking database accessibility...');
+  readDatabase();
+  
+  // Test BGG endpoint with the specified Catan URL
+  console.log('\nTesting BGG endpoint with Catan URL...');
+  const bggResult = await fetchBGGMetadata('https://boardgamegeek.com/boardgame/13/catan');
+  console.log('BGG Result:', JSON.stringify(bggResult, null, 2));
+  
+  // Test PDF ingestion endpoint
+  console.log('\nTesting PDF ingestion endpoint...');
+  const ingestResult = await ingestPDF('./sample.pdf');
+  console.log('Ingest Result:', JSON.stringify(ingestResult, null, 2));
+  
+  console.log('\nAPI Validation Harness execution completed.');
+  return { bggResult, ingestResult };
+}
+
+// Export functions for programmatic use
+export {
+  createProject,
+  updateProjectMetadata,
+  saveProject,
+  ingestPDF,
+  fetchBGGMetadata,
+  uploadAssets,
+  validateAutoCrop,
+  applyTheme,
+  apiCall,
+  readDatabase
+};
+
+// Run if called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(console.error);
+}

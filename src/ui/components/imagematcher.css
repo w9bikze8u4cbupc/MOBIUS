@@ -1,0 +1,181 @@
+.image-matcher {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.image-matcher header {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.image-matcher header h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.image-matcher header p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.matcher-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.asset-library {
+  width: 300px;
+  padding: 1rem;
+  border-right: 1px solid #e5e7eb;
+  overflow-y: auto;
+}
+
+.asset-library h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.asset-library ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.asset-card {
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.25rem;
+  cursor: move;
+  background: white;
+}
+
+.asset-card figure {
+  margin: 0 0 0.5rem 0;
+}
+
+.asset-card img {
+  width: 100%;
+  height: auto;
+  border-radius: 0.25rem;
+}
+
+.asset-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+}
+
+.asset-name {
+  font-weight: 500;
+}
+
+.asset-size {
+  color: #6b7280;
+}
+
+.match-grid {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.match-chapter {
+  margin-bottom: 2rem;
+}
+
+.match-chapter h4 {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.match-chapter ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.match-slot {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.25rem;
+  background: white;
+}
+
+.slot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.step-title {
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.remove {
+  padding: 0.25rem 0.5rem;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.remove:hover {
+  background: #dc2626;
+}
+
+.slot-canvas {
+  min-height: 120px;
+  border: 2px dashed #d1d5db;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s;
+}
+
+.slot-canvas:hover {
+  border-color: #9ca3af;
+}
+
+.slot-canvas.filled {
+  border-style: solid;
+}
+
+.slot-canvas img {
+  max-width: 100%;
+  max-height: 100px;
+}
+
+.placeholder {
+  color: #9ca3af;
+  font-size: 0.875rem;
+}
+
+.status {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.status.loading {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status.error {
+  background: #fee2e2;
+  color: #b91c1c;
+}

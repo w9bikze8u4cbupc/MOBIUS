@@ -1,0 +1,4 @@
+{
+  "title": "Preview Worker: Implement Queue & Concurrency Controls",
+  "body": "## Description\nConfigure concurrency and queue length, exposing env vars PREVIEW_MAX_CONCURRENCY (default 1) and PREVIEW_QUEUE_MAX (default 20).\n\n## Priority\nP0\n\n## Estimated Effort\n4-6 hours\n\n## Acceptance Criteria\n- Worker respects PREVIEW_MAX_CONCURRENCY and does not process more than N jobs in parallel.\n- When queue length > PREVIEW_QUEUE_MAX, new preview creation API returns 429 with helpful message.\n- Queue length gauge metric preview_worker_queue_size is exported.\n\n## Implementation Notes\n- For BullMQ: queue.pause()/resume for backpressure or reject new enqueues.\n\n## Labels\nfeature, phase-g, preview-worker, backend\n## Assignee\ndeveloper"
+}

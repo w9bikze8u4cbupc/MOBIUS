@@ -1,0 +1,15 @@
+{
+  "projectId": 16,
+  "theme": "custom",
+  "colorPalette": {
+    "primary": "#FF5733",
+    "secondary": "#33FF57",
+    "accent": "#3357FF"
+  },
+  "layout": {
+    "grid": "12-column",
+    "spacing": "medium",
+    "alignment": "center"
+  },
+  "savedAt": "2025-10-21T10:49:35.159Z"
+}

@@ -1,0 +1,10 @@
+diff --git a/k8s/preview-worker/deployment.yaml b/k8s/preview-worker/deployment.yaml
+index 1234567..89abcde 100644
+--- a/k8s/preview-worker/deployment.yaml
++++ b/k8s/preview-worker/deployment.yaml
+@@ -15,7 +15,7 @@ spec:
+       containers:
+       - name: preview-worker
+-        image: ghcr.io/your-org/mobius-preview-worker:latest
++        image: YOUR_REGISTRY/mobius-preview-worker:TAG
+         imagePullPolicy: IfNotPresent

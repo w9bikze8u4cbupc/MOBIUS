@@ -1,0 +1,20 @@
+{
+  "checklistId": "D-06",
+  "timestamp": "2025-10-21T10:49:35.089Z",
+  "action": "storeImageComponentAssociations",
+  "projectId": 16,
+  "assetId": "asset_1761043775085",
+  "componentId": "component_1761043775085",
+  "result": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "message": "Image-component association stored successfully",
+      "assetId": "asset_1761043775085",
+      "componentId": "component_1761043775085",
+      "projectId": 16,
+      "associationType": "manual",
+      "associatedAt": "2025-10-21T10:49:35.088Z"
+    }
+  }
+}

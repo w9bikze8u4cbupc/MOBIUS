@@ -1,0 +1,62 @@
+From: Assistant <assistant@example.com>
+Date: Mon, 01 Jan 2024 00:00:00 +0000
+Subject: [PATCH 3/3] Add comprehensive smoke test script for preview-worker
+
+This patch adds a comprehensive smoke test script that validates
+the deployment, health checks, and basic functionality.
+
+---
+ k8s/preview-worker/smoke-test-preview-worker.sh | 40 ++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 40 insertions(+)
+
+diff --git a/k8s/preview-worker/smoke-test-preview-worker.sh b/k8s/preview-worker/smoke-test-preview-worker.sh
+new file mode 100644
+index 0000000..3456789
+--- /dev/null
++++ b/k8s/preview-worker/smoke-test-preview-worker.sh
+@@ -0,0 +1,40 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++NAMESPACE=preview-worker
++DEPLOYMENT=preview-worker
++PORT=5001
++LOCAL_PORT=5001
++
++echo "Ensure namespace exists"
+kubectl create namespace "${NAMESPACE}" 2>/dev/null || true
++
+echo "Applying manifests (dry-run client)"
+kubectl apply --dry-run=client -f k8s/preview-worker/
++
+echo "Applying manifests to cluster"
+kubectl apply -f k8s/preview-worker/ -n "${NAMESPACE}"
++
+echo "Waiting for rollout"
+kubectl -n "${NAMESPACE}" rollout status deployment/"${DEPLOYMENT}" --timeout=180s
++
+echo "Get first pod"
++POD=$(kubectl -n "${NAMESPACE}" get pods -l app="${DEPLOYMENT}" -o jsonpath='{.items[0].metadata.name}')
+kubectl -n "${NAMESPACE}" port-forward "${POD}" ${LOCAL_PORT}:${PORT} >/dev/null 2>&1 &
+PF_PID=$!
+sleep 2
++
+echo "Health check (http://localhost:${LOCAL_PORT}/health)"
+if curl -sSf -m 5 http://localhost:${LOCAL_PORT}/health; then
+  echo "Health check OK"
+else
+  echo "Health check failed; printing last 200 log lines"
+  kubectl -n "${NAMESPACE}" logs "${POD}" --tail=200
+  kill ${PF_PID} || true
+  exit 1
+fi
++
+echo "Optional test request (adjust endpoint if needed)"
+if curl -s -X POST -H "Content-Type: application/json" -d '{"test":"ping"}' http://localhost:${LOCAL_PORT}/api/v1/test 2>/dev/null | grep -i ok; then
+  echo "Test endpoint responded OK"
+else
+  echo "No test endpoint responded OK (this is OK if your worker has no HTTP test route)"
+fi
++
+kill ${PF_PID} || true
+echo "Smoke test complete"

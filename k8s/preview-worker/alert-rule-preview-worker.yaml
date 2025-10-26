@@ -1,0 +1,11 @@
+groups:
+- name: preview-worker.rules
+  rules:
+  - alert: PreviewJobHighFailureRate
+    expr: rate(preview_job_failed[5m]) / clamp_min(rate(preview_job_started[5m]), 1) > 0.1
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "High preview job failure rate"
+      description: "More than 10% of preview jobs are failing over the last 5m."

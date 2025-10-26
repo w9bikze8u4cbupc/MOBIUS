@@ -1,0 +1,71 @@
+name: Deploy Preview Worker to Kubernetes
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      rollback:
+        description: 'Rollback to previous version'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_DATA }}" | base64 --decode > ~/.kube/config
+
+      - name: Update manifests with image tag
+        if: ${{ !inputs.rollback }}
+        run: |
+          # Get the latest image tag
+          IMAGE_TAG=$(echo "ghcr.io/${{ github.repository_owner }}/mobius-preview-worker:${GITHUB_SHA::7}")
+          echo "Using image tag: $IMAGE_TAG"
+          
+          # Update manifests
+          find k8s/preview-worker -type f \( -name "*.yaml" -o -name "*.yml" \) -exec sed -i.bak \
+            -e "s|YOUR_REGISTRY/mobius-preview-worker:ci|$IMAGE_TAG|g" \
+            -e "s|ghcr.io/mobius-org/mobius-preview-worker:1.0.0|$IMAGE_TAG|g" {} \;
+          
+          # Remove backup files
+          find k8s/preview-worker -type f -name "*.bak" -delete
+
+      - name: Deploy to Kubernetes
+        if: ${{ !inputs.rollback }}
+        run: |
+          kubectl apply -f k8s/preview-worker/ -n preview-worker
+          kubectl rollout status deployment/preview-worker -n preview-worker --timeout=300s
+
+      - name: Rollback deployment
+        if: ${{ inputs.rollback }}
+        run: |
+          echo "Rolling back deployment..."
+          kubectl rollout undo deployment/preview-worker -n preview-worker
+
+      - name: Run smoke tests
+        if: ${{ !inputs.rollback }}
+        run: |
+          kubectl run --rm -i --restart=Never smoke-test --image=curlimages/curl --command -- sh -c \
+            "curl -fsS http://preview-worker.preview-worker.svc.cluster.local/healthz || exit 1"

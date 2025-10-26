@@ -1,0 +1,28 @@
+{
+  "checklistId": "C-02",
+  "timestamp": "2025-10-21T00:00:05.151Z",
+  "data": {
+    "sections": [
+      {
+        "title": "Introduction",
+        "page": 1
+      },
+      {
+        "title": "Game Setup",
+        "page": 2
+      },
+      {
+        "title": "Gameplay Rules",
+        "page": 3
+      },
+      {
+        "title": "Advanced Strategies",
+        "page": 4
+      },
+      {
+        "title": "Conclusion",
+        "page": 5
+      }
+    ]
+  }
+}

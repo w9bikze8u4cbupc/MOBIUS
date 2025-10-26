@@ -1,0 +1,14 @@
+{
+  "jobId": "preview-job-0001",
+  "projectId": "proj-mobius-123",
+  "requestId": "req-0001",
+  "previewRequest": {
+    "title": "Tutorial Preview - Minimal",
+    "steps": [],
+    "assets": [],
+    "audio": {},
+    "metadata": {}
+  },
+  "dryRun": true,
+  "createdAt": "2025-10-08T12:00:00.000Z"
+}

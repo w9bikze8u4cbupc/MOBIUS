@@ -1,0 +1,28 @@
+# Prometheus alert rules for Mobius Rendering Pipeline
+groups:
+- name: mobius-rendering
+  interval: 30s
+  rules:
+  - alert: RenderErrorSpike
+    expr: (increase(mobius_render_failed_total[5m]) / ignoring() clamp_min(increase(mobius_render_started_total[5m]), 1)) > 0.05
+    for: 5m
+    labels: { severity: page }
+    annotations:
+      summary: "Mobius render failures >5% over 5m"
+      description: "Failure ratio: {{ $value | printf \"%.2f\" }}"
+
+  - alert: RenderTimeoutSpike
+    expr: (sum(increase(mobius_render_failed_total{reason="timeout"}[10m])) / clamp_min(sum(increase(mobius_render_started_total[10m])),1)) > 0.01
+    for: 10m
+    labels: { severity: page }
+    annotations:
+      summary: "Render timeouts >1% over 10m"
+      description: "Timeouts increased beyond SLO."
+
+  - alert: RenderDurationP95Exceeded
+    expr: histogram_quantile(0.95, sum by (le, mode) (rate(mobius_render_duration_seconds_bucket[10m]))) > on(mode) (0 + (mode == "preview") * 45 + (mode == "full") * 1800)
+    for: 15m
+    labels: { severity: ticket }
+    annotations:
+      summary: "P95 render duration exceeded budget"
+      description: "Mode: {{ $labels.mode }} P95 > budget"

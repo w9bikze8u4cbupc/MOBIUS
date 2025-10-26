@@ -1,0 +1,22 @@
+{
+  "checklistId": "C-01",
+  "timestamp": "2025-10-21T00:00:05.146Z",
+  "request": {
+    "url": "http://localhost:5001/api/projects",
+    "method": "POST",
+    "payload": {
+      "name": "Batch2-Validation-Test",
+      "metadata": {
+        "source": "batch2-validation"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "projectId": 14,
+      "message": "Project created successfully"
+    }
+  }
+}

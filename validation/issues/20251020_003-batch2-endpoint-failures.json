@@ -1,0 +1,139 @@
+{
+  "issueId": "20251020_003",
+  "title": "Batch 2 Endpoint Failures",
+  "description": "Multiple endpoints required for Batch 2 validation were missing or inaccessible",
+  "timestamp": "2025-10-20T18:30:00Z",
+  "batch": "Batch 2",
+  "sectionsAffected": ["C", "D"],
+  "failures": [
+    {
+      "checklistId": "C-01",
+      "endpoint": "/api/ingest",
+      "method": "POST",
+      "expected": "200 OK with project creation response",
+      "actual": "500 Internal Server Error due to OCR dependency issues",
+      "request": {
+        "url": "http://localhost:5001/api/ingest",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "projectName": "Test Rulebook Ingestion",
+          "language": "en-US"
+        }
+      },
+      "response": {
+        "status": 500,
+        "body": {
+          "success": false,
+          "error": "No tesseract binary found and tesseract.js not working. OCR unavailable."
+        }
+      }
+    },
+    {
+      "checklistId": "D-01",
+      "endpoint": "/api/assets",
+      "method": "POST",
+      "expected": "200 OK with asset upload response",
+      "actual": "404 Not Found",
+      "request": {
+        "url": "http://localhost:5001/api/assets",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "projectId": "1",
+          "assets": ["test-image.jpg"]
+        }
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": "Cannot POST /api/assets"
+        }
+      }
+    },
+    {
+      "checklistId": "D-02",
+      "endpoint": "/api/assets/{id}/crop/validate",
+      "method": "GET",
+      "expected": "200 OK with crop validation data",
+      "actual": "404 Not Found",
+      "request": {
+        "url": "http://localhost:5001/api/assets/asset123/crop/validate",
+        "method": "GET"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": "Cannot GET /api/assets/asset123/crop/validate"
+        }
+      }
+    },
+    {
+      "checklistId": "D-03",
+      "endpoint": "/api/projects/{id}/theme",
+      "method": "POST",
+      "expected": "200 OK with theme application confirmation",
+      "actual": "404 Not Found",
+      "request": {
+        "url": "http://localhost:5001/api/projects/1/theme",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "theme": {
+            "name": "dark",
+            "colors": {
+              "primary": "#000000",
+              "secondary": "#333333"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": "Cannot POST /api/projects/1/theme"
+        }
+      }
+    },
+    {
+      "checklistId": "C-02",
+      "endpoint": "/api/projects/{id}/save",
+      "method": "POST",
+      "expected": "200 OK with save confirmation",
+      "actual": "404 Not Found",
+      "request": {
+        "url": "http://localhost:5001/api/projects/1/save",
+        "method": "POST"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "error": "Cannot POST /api/projects/1/save"
+        }
+      }
+    }
+  ],
+  "rootCause": "Missing API endpoints for asset management, theme application, and project saving. OCR dependency issues preventing PDF ingestion.",
+  "remediation": [
+    "Implement missing /api/assets endpoints for asset upload and crop validation",
+    "Implement missing /api/projects/{id}/theme endpoint for theme application",
+    "Implement missing /api/projects/{id}/save endpoint for project saving",
+    "Fix OCR dependency issues in PDF ingestion pipeline",
+    "Verify all endpoints are properly mounted in src/api/index.js"
+  ],
+  "status": "OPEN",
+  "priority": "HIGH",
+  "assignedTo": "Development Team",
+  "nextSteps": [
+    "Deploy fixed endpoints to development environment",
+    "Re-run Batch 2 validation with actual endpoints",
+    "Verify all 404 errors are resolved",
+    "Complete evidence capture for all checklist items"
+  ]
+}

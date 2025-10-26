@@ -1,0 +1,192 @@
+site_name: Mobius Games Tutorial Generator
+site_description: A pipeline for generating game tutorial videos from structured game
+  rules
+site_url: https://mobius-org.github.io/mobius-games-tutorial-generator/
+repo_url: https://github.com/mobius-org/mobius-games-tutorial-generator
+repo_name: mobius-org/mobius-games-tutorial-generator
+edit_uri: edit/main/docs/
+theme:
+  name: material
+  palette:
+  - scheme: default
+    primary: blue
+    accent: blue
+    toggle:
+      icon: material/brightness-7
+      name: Switch to dark mode
+  - scheme: slate
+    primary: blue
+    accent: blue
+    toggle:
+      icon: material/brightness-4
+      name: Switch to light mode
+  features:
+  - navigation.instant
+  - navigation.tracking
+  - navigation.tabs
+  - navigation.sections
+  - navigation.expand
+  - navigation.path
+  - navigation.top
+  - navigation.indexes
+  - toc.follow
+  - search.highlight
+  - search.suggest
+  - search.share
+  - content.action.edit
+  - content.action.view
+  - content.code.copy
+  - content.code.annotate
+  - content.tabs.link
+nav:
+- Home: index.md
+- Overview:
+  - Overview: overview/index.md
+  - Biweekly Review Template: overview/biweekly-review-template.md
+  - Complete Preview Worker Implementation: overview/complete-preview-worker-implementation.md
+  - Complete: overview/complete.md
+  - Create Preview Worker Pr: overview/create-preview-worker-pr.md
+  - Deployment Documentation Summary: overview/deployment-documentation-summary.md
+  - Deployment Enhancements Summary: overview/deployment-enhancements-summary.md
+  - Final Deployment Infrastructure Summary: overview/final-deployment-infrastructure-summary.md
+  - Implementation Summary: overview/implementation-summary.md
+  - Ingestion Pipeline Artifacts Summary: overview/ingestion-pipeline-artifacts-summary.md
+  - Merge Complete Summary: overview/merge-complete-summary.md
+  - Next Steps Summary: overview/next-steps-summary.md
+  - Phase E Artifacts Summary: overview/phase-e-artifacts-summary.md
+  - Phase E Enhancements Summary: overview/phase-e-enhancements-summary.md
+  - Phase E Summary: overview/phase-e-summary.md
+  - Phase F Deployment Infrastructure Summary: overview/phase-f-deployment-infrastructure-summary.md
+  - Phase F Implementation Summary: overview/phase-f-implementation-summary.md
+  - Phase F Preview Worker Complete Deployment Ready: overview/phase-f-preview-worker-complete-deployment-ready.md
+  - Phase F Preview Worker Complete: overview/phase-f-preview-worker-complete.md
+  - Phase F Preview Worker Deployment Ready: overview/phase-f-preview-worker-deployment-ready.md
+  - Phase F Preview Worker Deployment Summary: overview/phase-f-preview-worker-deployment-summary.md
+  - Phase F Progress Summary: overview/phase-f-progress-summary.md
+  - Preview Payload Validation Summary: overview/preview-payload-validation-summary.md
+  - Preview Worker Artifacts Summary: overview/preview-worker-artifacts-summary.md
+  - Preview Worker Deployment Readiness Summary: overview/preview-worker-deployment-readiness-summary.md
+  - Preview Worker Deployment Summary: overview/preview-worker-deployment-summary.md
+  - Preview Worker Enhancements Summary: overview/preview-worker-enhancements-summary.md
+  - Preview Worker Final Manifests Summary: overview/preview-worker-final-manifests-summary.md
+  - Preview Worker Implementation Summary: overview/preview-worker-implementation-summary.md
+  - Preview Worker Pr Prep Complete: overview/preview-worker-pr-prep-complete.md
+  - Preview Worker Subtasks: overview/preview-worker-subtasks.md
+- Playbooks:
+  - Playbooks: playbooks/index.md
+  - Build And Deploy Guide: playbooks/build-and-deploy-guide.md
+  - Ci Workflow Pr Body: playbooks/ci-workflow-pr-body.md
+  - Cli Deployment Tool: playbooks/cli-deployment-tool.md
+  - Complete Deployment Checklist: playbooks/complete-deployment-checklist.md
+  - Complete Setup Guide: playbooks/complete-setup-guide.md
+  - Cross Platform Deployment Scripts: playbooks/cross-platform-deployment-scripts.md
+  - Deployment Checklist: playbooks/deployment-checklist.md
+  - Deployment Maintenance Playbook: playbooks/deployment-maintenance-playbook.md
+  - Deployment Metrics Dashboard: playbooks/deployment-metrics-dashboard.md
+  - Final Deployment Summary: playbooks/final-deployment-summary.md
+  - Github Token Permissions Checklist: playbooks/github-token-permissions-checklist.md
+  - Hardened Deployment Guide: playbooks/hardened-deployment-guide.md
+  - Infrastructure Deployment Guide: playbooks/infrastructure-deployment-guide.md
+  - Merge Checklist Preview Worker: playbooks/merge-checklist-preview-worker.md
+  - Monitoring And Rollback: playbooks/monitoring-and-rollback.md
+  - Monitoring Deployment Guide: playbooks/monitoring-deployment-guide.md
+  - Ongoing Maintenance Guide: playbooks/ongoing-maintenance-guide.md
+  - Operational Runbook: playbooks/operational-runbook.md
+  - Pr Reviewer Checklist: playbooks/pr-reviewer-checklist.md
+  - Preview Runbook Snippet: playbooks/preview-runbook-snippet.md
+  - Preview Worker Complete Deployment Package: playbooks/preview-worker-complete-deployment-package.md
+  - Preview Worker Deployment Checklist: playbooks/preview-worker-deployment-checklist.md
+  - Preview Worker Deployment Guide: playbooks/preview-worker-deployment-guide.md
+  - Preview Worker Deployment Prep Complete: playbooks/preview-worker-deployment-prep-complete.md
+  - Preview Worker Development Guide: playbooks/preview-worker-development-guide.md
+  - Preview Worker Finalization Guide: playbooks/preview-worker-finalization-guide.md
+  - Preview Worker Pre Commit Checklist: playbooks/preview-worker-pre-commit-checklist.md
+  - Preview Worker Troubleshooting Guide: playbooks/preview-worker-troubleshooting-guide.md
+  - Quick Reference Guide: playbooks/quick-reference-guide.md
+  - Quick Start Deployment: playbooks/quick-start-deployment.md
+  - Reviewer Checklist: playbooks/reviewer-checklist.md
+  - Runbook Preview: playbooks/runbook-preview.md
+  - Runbook: playbooks/runbook.md
+  - Smoke Tests: playbooks/smoke-tests.md
+  - Team Onboarding Guide: playbooks/team-onboarding-guide.md
+  - Team Training Guide: playbooks/team-training-guide.md
+  - Token And Review Checklists: playbooks/token-and-review-checklists.md
+  - Windows Deployment Guide: playbooks/windows-deployment-guide.md
+- Automation:
+  - Automation: automation/index.md
+  - Ci Cd Finalization Guide: automation/ci-cd-finalization-guide.md
+  - Ci Failure Analysis: automation/ci-failure-analysis.md
+  - Ci Fixes Summary: automation/ci-fixes-summary.md
+  - Ci Runs Triage: automation/ci-runs-triage.md
+  - Ci Troubleshooting Guide: automation/ci-troubleshooting-guide.md
+  - Cli Usage Examples: automation/cli-usage-examples.md
+  - Feature Pr Body: automation/feature-pr-body.md
+  - Pr Body Preview Worker Ci: automation/pr-body-preview-worker-ci.md
+  - Pr Body Preview Worker Complete: automation/pr-body-preview-worker-complete.md
+  - Pr Body Preview Worker Final Enhanced: automation/pr-body-preview-worker-final-enhanced.md
+  - Pr Body Preview Worker Final: automation/pr-body-preview-worker-final.md
+  - Pr Body Preview Worker: automation/pr-body-preview-worker.md
+  - Pr Body: automation/pr-body.md
+  - Preview Payload Validation: automation/preview-payload-validation.md
+- Operations:
+  - Operations: operations/index.md
+  - Asset Uploads Issue: operations/asset-uploads-issue.md
+  - Container: operations/container.md
+  - Github Token Setup: operations/github-token-setup.md
+  - Issue Asset Uploads: operations/issue-asset-uploads.md
+  - Issue Export Packaging: operations/issue-export-packaging.md
+  - Issue Packaging: operations/issue-packaging.md
+  - Issue Preview Worker: operations/issue-preview-worker.md
+  - Issue Templates: operations/issue-templates.md
+  - Media Quality: operations/media-quality.md
+  - Monitoring And Alerting: operations/monitoring-and-alerting.md
+  - Observability: operations/observability.md
+  - Packaging Issue: operations/packaging-issue.md
+  - Preview Worker Issue: operations/preview-worker-issue.md
+  - Preview: operations/preview.md
+  - Rendering Pipeline Design: operations/rendering-pipeline-design.md
+  - Yolov8 Weights: operations/yolov8-weights.md
+- Onboarding:
+  - Onboarding: onboarding/index.md
+  - Contribute: onboarding/contribute.md
+  - Training Schedule: onboarding/training-schedule.md
+- Roadmap:
+  - Roadmap: roadmap/index.md
+  - Execution Instructions: roadmap/execution-instructions.md
+  - Execution Options: roadmap/execution-options.md
+  - Execution Plan Summary: roadmap/execution-plan-summary.md
+  - Execution Readiness Summary: roadmap/execution-readiness-summary.md
+  - Immediate Actions Completed: roadmap/immediate-actions-completed.md
+  - Phase F Rollout Execution Plan: roadmap/phase-f-rollout-execution-plan.md
+  - Phase F Rollout Status: roadmap/phase-f-rollout-status.md
+  - Rollout Plan Preview Worker: roadmap/rollout-plan-preview-worker.md
+  - Stricter Protection Rollback Plan: roadmap/stricter-protection-rollback-plan.md
+- Appendix:
+  - Appendix: appendix/index.md
+  - Changelog: appendix/changelog.md
+plugins:
+- search
+- git-revision-date-localized:
+    enable_creation_date: true
+    type: timeago
+- redirects:
+    redirect_maps: {}
+markdown_extensions:
+- admonition
+- pymdownx.details
+- pymdownx.superfences
+- pymdownx.tabbed:
+    alternate_style: true
+- pymdownx.highlight:
+    anchor_linenums: true
+- pymdownx.inlinehilite
+- pymdownx.snippets
+- attr_list
+- md_in_html
+- toc:
+    permalink: true
+extra:
+  social:
+  - icon: fontawesome/brands/github
+    link: https://github.com/mobius-org/mobius-games-tutorial-generator
+strict: true

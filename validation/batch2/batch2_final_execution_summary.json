@@ -1,0 +1,226 @@
+{
+  "timestamp": "2025-10-20T22:38:07.115Z",
+  "batch": "Batch 2",
+  "sections": {
+    "C": "Rulebook Ingestion Validation",
+    "D": "Visual Assets & Layout Validation"
+  },
+  "results": {
+    "sectionC": {
+      "C01": {
+        "timestamp": "2025-10-20T22:38:06.324Z",
+        "action": "createProject",
+        "result": {
+          "status": 200,
+          "data": {
+            "success": true,
+            "projectId": 12,
+            "message": "Project created successfully"
+          }
+        }
+      },
+      "C02": {
+        "timestamp": "2025-10-20T22:38:07.021Z",
+        "action": "ingestPDF",
+        "projectId": 12,
+        "pdfPath": "C:\\Users\\danie\\Documents\\mobius-games-tutorial-generator\\uploads\\batch2\\cyclades.pdf",
+        "result": {
+          "status": 200,
+          "data": {
+            "success": true,
+            "projectId": 13,
+            "fileName": "cyclades.pdf",
+            "pages": 1,
+            "images": 0,
+            "scenes": 1,
+            "requestId": "rcnlcqukcdnxnxpoi675"
+          }
+        }
+      },
+      "C03": {
+        "timestamp": "2025-10-20T22:38:07.022Z",
+        "action": "extractTableOfContents",
+        "projectId": 12,
+        "toc": [],
+        "result": "simulated"
+      },
+      "C04": {
+        "timestamp": "2025-10-20T22:38:07.024Z",
+        "action": "extractComponents",
+        "projectId": 12,
+        "components": [],
+        "result": "simulated"
+      },
+      "C05": {
+        "timestamp": "2025-10-20T22:38:07.026Z",
+        "action": "extractSetup",
+        "projectId": 12,
+        "setup": {
+          "pages": 0
+        },
+        "result": "simulated"
+      },
+      "C06": {
+        "timestamp": "2025-10-20T22:38:07.027Z",
+        "action": "extractGameplay",
+        "projectId": 12,
+        "gameplay": {
+          "scenes": 0
+        },
+        "result": "simulated"
+      },
+      "C07": {
+        "timestamp": "2025-10-20T22:38:07.029Z",
+        "action": "checkWarnings",
+        "projectId": 12,
+        "warnings": [],
+        "result": "no warnings"
+      },
+      "C08": {
+        "timestamp": "2025-10-20T22:38:07.030Z",
+        "action": "stepEdit",
+        "projectId": 12,
+        "log": "simulated step edit operation",
+        "result": "success"
+      },
+      "C09": {
+        "timestamp": "2025-10-20T22:38:07.033Z",
+        "action": "stepReorder",
+        "projectId": 12,
+        "log": "simulated step reorder operation",
+        "result": "success"
+      },
+      "C10": {
+        "timestamp": "2025-10-20T22:38:07.036Z",
+        "action": "generateTutorialScript",
+        "projectId": 12,
+        "log": "simulated tutorial script generation",
+        "result": "success"
+      }
+    },
+    "sectionD": {
+      "D01": {
+        "timestamp": "2025-10-20T22:38:07.049Z",
+        "action": "boardImport",
+        "projectId": 12,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D02": {
+        "timestamp": "2025-10-20T22:38:07.058Z",
+        "action": "componentsImport",
+        "projectId": 12,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D03": {
+        "timestamp": "2025-10-20T22:38:07.064Z",
+        "action": "autoCropTest",
+        "projectId": 12,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D04": {
+        "timestamp": "2025-10-20T22:38:07.071Z",
+        "action": "themeConfiguration",
+        "projectId": 12,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D05": {
+        "timestamp": "2025-10-20T22:38:07.076Z",
+        "action": "calloutPlacement",
+        "projectId": 12,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D06": {
+        "timestamp": "2025-10-20T22:38:07.082Z",
+        "action": "transitionPreview",
+        "projectId": 12,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D07": {
+        "timestamp": "2025-10-20T22:38:07.088Z",
+        "action": "colorPalette",
+        "projectId": 12,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D08": {
+        "timestamp": "2025-10-20T22:38:07.096Z",
+        "action": "layoutSave",
+        "projectId": 12,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D09": {
+        "timestamp": "2025-10-20T22:38:07.102Z",
+        "action": "assetLibrary",
+        "projectId": 12,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D10": {
+        "timestamp": "2025-10-20T22:38:07.108Z",
+        "action": "previewGeneration",
+        "projectId": 12,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      },
+      "D11": {
+        "timestamp": "2025-10-20T22:38:07.114Z",
+        "action": "assetLayoutSave",
+        "projectId": 12,
+        "result": {
+          "status": 404,
+          "data": {
+            "error": "HTML response received instead of JSON"
+          }
+        }
+      }
+    }
+  },
+  "status": "COMPLETED"
+}

@@ -1,0 +1,19 @@
+{
+  "test": "B-04_bgg_http_test",
+  "url": "https://boardgamegeek.com/boardgame/789012/test-game-2",
+  "status": "success",
+  "result": {
+    "success": true,
+    "metadata": {
+      "id": "test-game-2",
+      "name": "Test Game 4",
+      "description": "Test game description for game 4",
+      "yearPublished": 2023,
+      "minPlayers": 2,
+      "maxPlayers": 4,
+      "playingTime": 60,
+      "minAge": 10
+    }
+  },
+  "timestamp": "2025-10-20T16:57:01.911Z"
+}

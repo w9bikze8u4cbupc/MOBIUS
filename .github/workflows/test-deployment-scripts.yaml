@@ -1,0 +1,41 @@
+name: Test Deployment Scripts
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/test-verification-scripts.ps1'
+      - 'scripts/test-verification-scripts.sh'
+      - '.github/workflows/test-deployment-scripts.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'scripts/test-verification-scripts.ps1'
+      - 'scripts/test-verification-scripts.sh'
+      - '.github/workflows/test-deployment-scripts.yaml'
+  workflow_dispatch:
+
+jobs:
+  test-powershell-scripts:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run PowerShell script tests
+        run: |
+          .\scripts\test-verification-scripts.ps1
+        shell: powershell
+
+  test-bash-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run bash script tests
+        run: |
+          chmod +x scripts/test-verification-scripts.sh
+          ./scripts/test-verification-scripts.sh

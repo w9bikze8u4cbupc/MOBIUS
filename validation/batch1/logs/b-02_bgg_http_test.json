@@ -1,0 +1,19 @@
+{
+  "test": "B-02_bgg_http_test",
+  "url": "https://boardgamegeek.com/boardgame/148228/kingdom-builder",
+  "status": "success",
+  "result": {
+    "success": true,
+    "metadata": {
+      "id": "kingdom-builder",
+      "name": "Test Game 2",
+      "description": "Test game description for game 2",
+      "yearPublished": 2021,
+      "minPlayers": 2,
+      "maxPlayers": 4,
+      "playingTime": 60,
+      "minAge": 10
+    }
+  },
+  "timestamp": "2025-10-20T16:57:01.906Z"
+}

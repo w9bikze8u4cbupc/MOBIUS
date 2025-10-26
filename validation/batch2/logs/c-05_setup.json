@@ -1,0 +1,13 @@
+{
+  "checklistId": "C-05",
+  "timestamp": "2025-10-21T00:00:05.198Z",
+  "data": {
+    "columns": 2,
+    "formatting": [
+      "bold",
+      "italic",
+      "lists"
+    ],
+    "complexity": "medium"
+  }
+}

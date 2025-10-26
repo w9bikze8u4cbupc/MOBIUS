@@ -1,0 +1,32 @@
+{
+  "checklistId": "D-03",
+  "timestamp": "2025-10-21T00:00:05.287Z",
+  "request": {
+    "url": "http://localhost:5001/api/projects/14/theme",
+    "method": "POST",
+    "payload": {
+      "theme": {
+        "name": "dark",
+        "colors": {
+          "primary": "#000000",
+          "secondary": "#333333"
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "message": "Theme applied successfully",
+      "projectId": "14",
+      "theme": {
+        "name": "dark",
+        "colors": {
+          "primary": "#000000",
+          "secondary": "#333333"
+        }
+      }
+    }
+  }
+}

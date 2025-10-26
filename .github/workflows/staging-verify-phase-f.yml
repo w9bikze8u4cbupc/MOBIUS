@@ -1,0 +1,79 @@
+name: Staging: Verify Phase F
+
+on:
+  workflow_dispatch:
+
+env:
+  DATA_DIR: ./data
+  NODE_VERSION: 18
+
+jobs:
+  verify_phase_f_unix:
+    name: Verify Phase F (Linux)
+    runs-on: ubuntu-latest
+    needs: deploy_to_staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install root deps
+        run: npm ci
+
+      - name: Install client deps (if present)
+        run: |
+          if [ -d "client" ]; then (cd client && npm ci); fi
+
+      - name: Run Phase F verification script
+        env:
+          API_BASE_URL: ${{ secrets.STAGING_API_URL }}
+          DATA_DIR: ${{ env.DATA_DIR }}
+        run: |
+          chmod +x scripts/verify-phase-f.sh
+          ./scripts/verify-phase-f.sh
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-f-verify-logs-linux
+          path: verification-logs/**/*
+  
+  verify_phase_f_windows:
+    name: Verify Phase F (Windows)
+    runs-on: windows-latest
+    needs: deploy_to_staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install root deps
+        run: npm ci
+
+      - name: Install client deps (if present)
+        run: |
+          if (Test-Path client) { Push-Location client; npm ci; Pop-Location }
+
+      - name: Run Phase F verification (PowerShell)
+        env:
+          API_BASE_URL: ${{ secrets.STAGING_API_URL }}
+          DATA_DIR: ${{ env.DATA_DIR }}
+        run: |
+          powershell -ExecutionPolicy ByPass -File .\scripts\verify-phase-f.ps1
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-f-verify-logs-windows
+          path: verification-logs/**/*

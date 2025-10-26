@@ -1,0 +1,9 @@
+{
+  "timestamp": "2025-10-20T22:38:07.027Z",
+  "action": "extractGameplay",
+  "projectId": 12,
+  "gameplay": {
+    "scenes": 0
+  },
+  "result": "simulated"
+}

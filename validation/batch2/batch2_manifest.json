@@ -1,0 +1,262 @@
+{
+  "batch": "Batch 2",
+  "sections": {
+    "C": "Rulebook Ingestion Validation",
+    "D": "Visual Assets & Layout Validation"
+  },
+  "validationTimestamp": "2025-10-21T10:58:26.900Z",
+  "totalChecklistItems": 21,
+  "completedItems": 21,
+  "status": "COMPLETE",
+  "logFiles": [
+    {
+      "id": "C-01",
+      "file": "C-01_pdf_upload.json",
+      "path": "validation/batch2/logs/C-01_pdf_upload.json",
+      "description": "Validation log for C-01",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.165Z",
+      "checksum": "513cb6541544024cd24094bdd69a36af5934380a4d37121d1ed0dd58ea0cb1b1",
+      "size": 444
+    },
+    {
+      "id": "C-02",
+      "file": "C-02_ingestion_result.json",
+      "path": "validation/batch2/logs/C-02_ingestion_result.json",
+      "description": "Validation log for C-02",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.165Z",
+      "checksum": "767b1af6824e444af6571bcbac7c1076c727eb188d8a30bbfb302a31377c1295",
+      "size": 455
+    },
+    {
+      "id": "C-03",
+      "file": "C-03_table_of_contents.json",
+      "path": "validation/batch2/logs/C-03_table_of_contents.json",
+      "description": "Validation log for C-03",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.165Z",
+      "checksum": "8d896ad8179bfbcf065b759711ca355a9f26c2e6ddd314d2c2bffed82daf1110",
+      "size": 190
+    },
+    {
+      "id": "C-04",
+      "file": "C-04_components.json",
+      "path": "validation/batch2/logs/C-04_components.json",
+      "description": "Validation log for C-04",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.165Z",
+      "checksum": "a48b7ebc64e0258dc8c0bd6afc862660ee08826087cc4d00d74056f571004a49",
+      "size": 139
+    },
+    {
+      "id": "C-05",
+      "file": "C-05_setup.json",
+      "path": "validation/batch2/logs/C-05_setup.json",
+      "description": "Validation log for C-05",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.165Z",
+      "checksum": "db93e6591c31998bcb9f9aca18badcb8580a68f3069e4ce3cfaf23cc3e884f23",
+      "size": 203
+    },
+    {
+      "id": "C-06",
+      "file": "C-06_gameplay.json",
+      "path": "validation/batch2/logs/C-06_gameplay.json",
+      "description": "Validation log for C-06",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.165Z",
+      "checksum": "25b4a212bdbf715518a47a72b6483ae46b4b8c706850d0395c1b7524c5b54ab2",
+      "size": 157
+    },
+    {
+      "id": "C-07",
+      "file": "C-07_warnings.json",
+      "path": "validation/batch2/logs/C-07_warnings.json",
+      "description": "Validation log for C-07",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.165Z",
+      "checksum": "885dd7e8f2f2168b748ed514760593a3bf040635a56b4698cd6b9890bffaa079",
+      "size": 138
+    },
+    {
+      "id": "C-08",
+      "file": "C-08_step_edit.log",
+      "path": "validation/batch2/logs/C-08_step_edit.log",
+      "description": "Validation log for C-08",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.165Z",
+      "checksum": "208b783bb6924402ef248bf603b2c1c0da57fd6788739c9269d5884f70bb6640",
+      "size": 7336
+    },
+    {
+      "id": "C-09",
+      "file": "C-09_step_reorder.log",
+      "path": "validation/batch2/logs/C-09_step_reorder.log",
+      "description": "Validation log for C-09",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.165Z",
+      "checksum": "685b85a8c60f1bb4fda38dc80a4e44894587be72cc1699bd696ac7cfc59ab2d8",
+      "size": 555
+    },
+    {
+      "id": "C-10",
+      "file": "C-10_tutorial_script.log",
+      "path": "validation/batch2/logs/C-10_tutorial_script.log",
+      "description": "Validation log for C-10",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.165Z",
+      "checksum": "425c03f33a1cf49513f3699c5b1f268fc9f4513606b2fa9e4d02c38401766495",
+      "size": 7342
+    },
+    {
+      "id": "D-01",
+      "file": "D-01_board_import.json",
+      "path": "validation/batch2/logs/D-01_board_import.json",
+      "description": "Validation log for D-01",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.166Z",
+      "checksum": "8eea973d6450875df34b588f5264b6d460c2b808f09ba836e3c5dbffb8199aee",
+      "size": 621
+    },
+    {
+      "id": "D-02",
+      "file": "D-02_components_import.json",
+      "path": "validation/batch2/logs/D-02_components_import.json",
+      "description": "Validation log for D-02",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.166Z",
+      "checksum": "7ec4db811422a5373bbebe29ddc3ceeca758b004435f52d1db5d1e8422d31f27",
+      "size": 551
+    },
+    {
+      "id": "D-03",
+      "file": "D-03_autocrop_test.json",
+      "path": "validation/batch2/logs/D-03_autocrop_test.json",
+      "description": "Validation log for D-03",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.166Z",
+      "checksum": "a49b269d120ae61c160b920088c7348eb039df52784a54dbaf470f6958255f06",
+      "size": 636
+    },
+    {
+      "id": "D-04",
+      "file": "D-04_theme_configuration.json",
+      "path": "validation/batch2/logs/D-04_theme_configuration.json",
+      "description": "Validation log for D-04",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.166Z",
+      "checksum": "40d09f462a9dfddf624882d6d69b9820aa5221b3a0a02d52804322d03d04dfde",
+      "size": 367
+    },
+    {
+      "id": "D-05",
+      "file": "D-05_callout_placement.json",
+      "path": "validation/batch2/logs/D-05_callout_placement.json",
+      "description": "Validation log for D-05",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.166Z",
+      "checksum": "9fd6dd9ced78e3ddd3c1d16ab72b3754237060d31024ef5e5b79bb04ec1736c7",
+      "size": 209
+    },
+    {
+      "id": "D-06",
+      "file": "D-06_transition_preview.json",
+      "path": "validation/batch2/logs/D-06_transition_preview.json",
+      "description": "Validation log for D-06",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.166Z",
+      "checksum": "9ddb849b9b5a9d9fe3aeadfea785b425f9087dce4569add55461cceebf8d104b",
+      "size": 560
+    },
+    {
+      "id": "D-07",
+      "file": "D-07_color_palette.json",
+      "path": "validation/batch2/logs/D-07_color_palette.json",
+      "description": "Validation log for D-07",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.166Z",
+      "checksum": "f54f27c1a4c23639e64143f28f06cd4ee2e2d67278a47080a32c9c6655aa4878",
+      "size": 530
+    },
+    {
+      "id": "D-08",
+      "file": "D-08_layout_save.json",
+      "path": "validation/batch2/logs/D-08_layout_save.json",
+      "description": "Validation log for D-08",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.166Z",
+      "checksum": "3949f4587ae86eaade150b72ba119a2fa208b8e59f12340ab9633b4a7d65450c",
+      "size": 726
+    },
+    {
+      "id": "D-09",
+      "file": "D-09_asset_library.json",
+      "path": "validation/batch2/logs/D-09_asset_library.json",
+      "description": "Validation log for D-09",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.166Z",
+      "checksum": "099fcec59a3c354684d61000b19560fd3043edc4dcbd644027c6f93afb01604a",
+      "size": 352
+    },
+    {
+      "id": "D-10",
+      "file": "D-10_preview_generation.json",
+      "path": "validation/batch2/logs/D-10_preview_generation.json",
+      "description": "Validation log for D-10",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.166Z",
+      "checksum": "2661e983b2028d3fb5eaef3aa331b296f9a1f208dd621ffb39fd5d48ad968b63",
+      "size": 645
+    },
+    {
+      "id": "D-11",
+      "file": "D-11_asset_layout_save.json",
+      "path": "validation/batch2/logs/D-11_asset_layout_save.json",
+      "description": "Validation log for D-11",
+      "status": "PASSED",
+      "timestamp": "2025-10-21T10:49:35.166Z",
+      "checksum": "08d713d6a1524d5b3f2eba37b25aefc319bb38648e00a389b1552085c6dd33e2",
+      "size": 433
+    }
+  ],
+  "artifactFiles": [
+    {
+      "file": "cropped-image-result.json",
+      "path": "validation/batch2/artifacts/cropped-image-result.json",
+      "description": "Artifact file cropped-image-result.json",
+      "timestamp": "2025-10-21T10:49:35.166Z",
+      "checksum": "c2a1c73df3f0abff59e9654770016007248e265a0425bf70aca0cb87c09bd3f1",
+      "size": 288
+    },
+    {
+      "file": "db-snapshot.json",
+      "path": "validation/batch2/artifacts/db-snapshot.json",
+      "description": "Artifact file db-snapshot.json",
+      "timestamp": "2025-10-21T10:49:35.166Z",
+      "checksum": "94f95e8612b604e255472638bd5092a7b858aa1b3c0298ec168af6a3044f288d",
+      "size": 396
+    },
+    {
+      "file": "layout-config.json",
+      "path": "validation/batch2/artifacts/layout-config.json",
+      "description": "Artifact file layout-config.json",
+      "timestamp": "2025-10-21T10:49:35.166Z",
+      "checksum": "5fdd4e016d40396ca27520588c13cb934e8aca2707ed6d5695cfcd744593e26d",
+      "size": 281
+    }
+  ],
+  "archive": {
+    "file": "logs_updated.zip",
+    "path": "validation/batch2/logs_updated.zip",
+    "size": 10519,
+    "checksum": "119a5c21562eda841af24e794251500fb2c7f93ac3833b01529e21513ac7deca",
+    "timestamp": "2025-10-21T10:58:26.897Z"
+  },
+  "validationSummary": {
+    "passed": 21,
+    "failed": 0,
+    "blocked": 0,
+    "total": 21
+  }
+}

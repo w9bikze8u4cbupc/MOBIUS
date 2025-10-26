@@ -1,0 +1,75 @@
+# Hardened Preview Worker Kubernetes Manifests
+# ServiceAccount, Security Context, Resource Limits, Health Probes
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: preview-worker
+  namespace: preview-worker
+  labels:
+    app: preview-worker
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: preview-worker
+  namespace: preview-worker
+  labels:
+    app: preview-worker
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: preview-worker
+  template:
+    metadata:
+      labels:
+        app: preview-worker
+    spec:
+      serviceAccountName: preview-worker
+      imagePullSecrets:
+        - name: regcred  # Replace with your registry secret name if using private registry
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: preview-worker
+          image: YOUR_REGISTRY/mobius-preview-worker:TAG  # CRITICAL: Replace with actual registry/image:tag
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: preview-worker-secrets
+                  key: REDIS_URL
+            - name: SOME_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: preview-worker-secrets
+                  key: SOME_API_KEY
+          ports:
+            - containerPort: 5001
+              name: http
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20

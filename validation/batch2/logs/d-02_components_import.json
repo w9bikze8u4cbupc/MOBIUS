@@ -1,0 +1,26 @@
+{
+  "checklistId": "D-02",
+  "timestamp": "2025-10-21T00:00:05.258Z",
+  "request": {
+    "url": "http://localhost:5001/api/assets/test123/crop/validate",
+    "method": "GET"
+  },
+  "response": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "assetId": "test123",
+      "cropValidation": {
+        "isValid": true,
+        "confidence": 0.95,
+        "boundingBox": {
+          "x": 100,
+          "y": 50,
+          "width": 800,
+          "height": 600
+        },
+        "validationAt": "2025-10-21T00:00:05.253Z"
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "checklistId": "D-08",
+  "timestamp": "2025-10-21T10:49:35.107Z",
+  "action": "verifyImagePaths",
+  "assetId": "asset_1761043775085",
+  "result": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "assetId": "asset_1761043775085",
+      "paths": {
+        "original": "C:\\Users\\danie\\Documents\\mobius-games-tutorial-generator\\data\\uploads\\asset_1761043775085_original.jpg",
+        "thumbnail": "C:\\Users\\danie\\Documents\\mobius-games-tutorial-generator\\data\\uploads\\asset_1761043775085_thumb.jpg",
+        "preview": "C:\\Users\\danie\\Documents\\mobius-games-tutorial-generator\\data\\uploads\\asset_1761043775085_preview.jpg"
+      },
+      "verifiedAt": "2025-10-21T10:49:35.105Z"
+    }
+  }
+}

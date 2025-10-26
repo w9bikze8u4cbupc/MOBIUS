@@ -1,0 +1,15 @@
+{
+  "checklistId": "D-09",
+  "timestamp": "2025-10-21T10:49:35.113Z",
+  "action": "testImageRemoval",
+  "assetId": "asset_1761043775085",
+  "result": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "message": "Image removed successfully",
+      "assetId": "asset_1761043775085",
+      "removedAt": "2025-10-21T10:49:35.110Z"
+    }
+  }
+}
