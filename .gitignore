@@ -82,3 +82,14 @@ Thumbs.db
 !/data/exports/.gitkeep
 !/output/.gitkeep
 !/ffmpeg-bin/README.md
+
+# Ingest service runtime data
+/data/projects/
+/data/uploads/
+
+# Python virtual environments and wheel caches
+/services/ingest-py/.venv/
+/services/ingest-py/wheelhouse/
+
+# Gateway dependencies
+/apps/api-gateway/node_modules/
