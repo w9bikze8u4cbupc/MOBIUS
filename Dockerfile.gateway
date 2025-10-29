@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1.7
+FROM node:20-slim
+
+WORKDIR /app
+
+COPY apps/api-gateway/package*.json ./
+RUN npm install --omit=dev
+
+COPY apps/api-gateway .
+
+ENV NODE_ENV=production \
+    PORT=5001 \
+    FASTAPI_URL=http://ingest:8000
+
+EXPOSE 5001
+
+CMD ["npm", "start"]

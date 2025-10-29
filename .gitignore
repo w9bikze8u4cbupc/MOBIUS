@@ -82,3 +82,6 @@ Thumbs.db
 !/data/exports/.gitkeep
 !/output/.gitkeep
 !/ffmpeg-bin/README.md
+
+# Allow environment templates
+!**/.env.example
