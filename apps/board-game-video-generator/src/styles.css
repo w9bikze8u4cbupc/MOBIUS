@@ -1,0 +1,139 @@
+:root {
+  color-scheme: light dark;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: #101418;
+  color: #f6f8fa;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.main-container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.section {
+  background: #1f2933;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.section h2 {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.section p {
+  margin-top: 4px;
+  color: #cbd5f5;
+}
+
+input[type='text'],
+input[type='url'],
+input[type='file'],
+textarea {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #111827;
+  color: #f9fafb;
+  margin-bottom: 12px;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+button.primary {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-weight: 600;
+  color: #fff;
+  transition: opacity 0.2s ease;
+}
+
+button.secondary {
+  background: transparent;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-weight: 600;
+  color: #e2e8f0;
+  transition: opacity 0.2s ease;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status-toasts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.status-toast {
+  border-radius: 8px;
+  padding: 12px 16px;
+  background: rgba(148, 163, 184, 0.2);
+  border-left: 4px solid #38bdf8;
+}
+
+.status-toast.error {
+  border-left-color: #f87171;
+  background: rgba(248, 113, 113, 0.15);
+}
+
+.status-toast.success {
+  border-left-color: #34d399;
+  background: rgba(52, 211, 153, 0.15);
+}
+
+.segment-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+
+.segment-table th,
+.segment-table td {
+  border: 1px solid #334155;
+  padding: 10px;
+  text-align: left;
+}
+
+.segment-table th {
+  background: #0f172a;
+}
+
+.download-link {
+  margin-top: 12px;
+  font-weight: 600;
+}

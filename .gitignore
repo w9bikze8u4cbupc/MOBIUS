@@ -82,3 +82,8 @@ Thumbs.db
 !/data/exports/.gitkeep
 !/output/.gitkeep
 !/ffmpeg-bin/README.md
+
+# Ingest runtime artifacts
+services/ingest-py/data/projects/
+services/ingest-py/data/exports/*.zip
+services/ingest-py/data/exports/*.json
