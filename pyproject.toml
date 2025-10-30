@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=65"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mobius-gateway"
+version = "0.1.0"
+description = "Export gateway for serving zip archives"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi==0.103.2",
+    "pydantic==1.10.13",
+    "starlette==0.27.0",
+    "uvicorn[standard]==0.23.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "httpx>=0.25",
+]
+
+[project.scripts]
+gateway-serve = "services.gateway.cli:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+addopts = "-q"
