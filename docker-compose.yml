@@ -1,0 +1,17 @@
+version: "3.9"
+services:
+  gateway:
+    build: .
+    environment:
+      - EXPORTS_DIR=/app/exports
+      - LOG_DIR=/app/logs
+      - MOBIUS_API_KEY=change-me
+      - RL_ENABLE=1
+      - RL_BURST=120
+      - RL_RATE_PER_SEC=2
+      - MOBIUS_METRICS_PUBLIC=0
+    volumes:
+      - ./exports:/app/exports:ro
+      - ./logs:/app/logs
+    ports:
+      - "8000:8000"
