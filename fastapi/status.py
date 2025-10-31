@@ -1,0 +1,6 @@
+"""HTTP status codes used by the FastAPI stub."""
+
+HTTP_200_OK = 200
+HTTP_304_NOT_MODIFIED = 304
+HTTP_401_UNAUTHORIZED = 401
+HTTP_404_NOT_FOUND = 404
