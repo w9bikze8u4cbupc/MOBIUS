@@ -192,6 +192,25 @@ curl http://localhost:3000/api/preview/jobs/<jobId>/status
 - preview_job_dryrun
 - preview_job_duration_ms
 
+## Gateway Deployment Quick Start
+
+The MOBIUS gateway front-ends the preview exports and should be deployed alongside the worker. Use the following environment variables to configure runtime behaviour:
+
+- `EXPORTS_DIR` — absolute path mounted inside the container that exposes the rendered assets (default: `/app/exports`).
+- `GATEWAY_STRONG_ETAG` — set to `true` to enable strong content hashes; defaults to weak ETags when omitted.
+- `GATEWAY_API_KEY` — shared secret expected in the `X-Mobius-Key` header for every request.
+
+To launch the gateway locally with Docker Compose:
+
+```bash
+docker-compose up -d gateway
+```
+
+Health and cache validation endpoints:
+
+- `GET /healthz` — returns `{ "status": "ok", "mode": "strong"|"weak" }` and requires the `X-Mobius-Key` header.
+- `GET /exports/<file>` — serves cached assets with `ETag` and `Last-Modified` headers; send `If-None-Match`/`If-Modified-Since` to verify `304 Not Modified` behaviour.
+
 ## Step 9: Staged Rollout
 
 1. **Staging** (replicas=1, concurrency=1) - 24-48 hours smoke tests

@@ -183,3 +183,12 @@ All components have been verified through:
 - Cross-platform script testing
 
 The Preview Worker implementation for Phase F is complete and ready for production deployment following the procedures outlined in the documentation.
+
+## Gateway F2+F3 Summary
+
+- Introduced a FastAPI-based gateway (`src/gateway/app.py`) that enforces API key authentication, robust export path validation, and standards-compliant cache headers (`ETag`, `Last-Modified`).
+- Added automated regression coverage in `tests/test_gateway_cache.py` to guarantee conditional GET/HEAD behaviour and traversal hardening.
+- Implemented structured audit logging with daily rotation via `AuditMiddleware`, persisting to `logs/gateway_access.jsonl`.
+- Delivered containerization assets (`src/gateway/Dockerfile.gateway`, `docker-compose.yml`) for reproducible deployments with strong ETag defaults and export volume mounts.
+- Expanded CI (`.github/workflows/ci.yml`) to install Python dependencies and execute the gateway test suite on every platform.
+

@@ -1,0 +1,13 @@
+version: "3.9"
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: src/gateway/Dockerfile.gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - GATEWAY_STRONG_ETAG=true
+      - GATEWAY_API_KEY=${GATEWAY_API_KEY:-}
+    volumes:
+      - ./exports:/app/exports:ro
