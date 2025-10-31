@@ -82,3 +82,9 @@ Thumbs.db
 !/data/exports/.gitkeep
 !/output/.gitkeep
 !/ffmpeg-bin/README.md
+# Python gateway artifacts
+.wheelhouse/
+.uv/
+exports/
+logs/
+
