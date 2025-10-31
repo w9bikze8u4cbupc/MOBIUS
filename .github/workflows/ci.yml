@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -24,20 +26,69 @@ jobs:
         run: npm ci
         working-directory: client
 
-      - name: Ensure FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v2
-
-      - name: Install Python (Unix)
-        if: runner.os != 'Windows'
-        uses: actions/setup-python@v4
+      - name: Setup Python
+        id: setup-python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install Python (Windows)
-        if: runner.os == 'Windows'
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v1
+
+      - name: Cache wheelhouse
+        id: wheelhouse-cache
+        uses: actions/cache@v4
+        with:
+          path: .wheelhouse
+          key: wheelhouse-${{ runner.os }}-py${{ steps.setup-python.outputs.python-version || '3.10' }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            wheelhouse-${{ runner.os }}-py${{ steps.setup-python.outputs.python-version || '3.10' }}-
+
+      - name: Build wheelhouse (Unix)
+        if: runner.os != 'Windows' && steps.wheelhouse-cache.outputs.cache-hit != 'true'
+        shell: bash
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
+          mkdir -p .wheelhouse
+          if ! python -m pip wheel --wheel-dir .wheelhouse -r requirements.txt; then
+            uv pip wheel --wheel-dir .wheelhouse -r requirements.txt
+          fi
+
+      - name: Build wheelhouse (Windows)
+        if: runner.os == 'Windows' && steps.wheelhouse-cache.outputs.cache-hit != 'true'
         shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install --upgrade pip
+          if (-not (Test-Path '.\\.wheelhouse')) {
+            New-Item -ItemType Directory -Path '.\\.wheelhouse' | Out-Null
+          }
+          try {
+            python -m pip wheel --wheel-dir .wheelhouse -r requirements.txt
+          }
+          catch {
+            uv pip wheel --wheel-dir .wheelhouse -r requirements.txt
+          }
+
+      - name: Install Python deps (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install --no-index --find-links=.wheelhouse -r requirements.txt
+
+      - name: Install Python deps (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install --upgrade pip
+          python -m pip install --no-index --find-links=.wheelhouse -r requirements.txt
+
+      - name: Ensure FFmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v2
 
       - name: Build
         run: npm run build --if-present
