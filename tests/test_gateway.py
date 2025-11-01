@@ -15,6 +15,16 @@ from gateway import GatewayApplication
 
 
 def make_zip(path, name: str = "sample.zip") -> Tuple[str, bytes]:
+    """
+    Create a ZIP archive containing a single file "hello.txt" with the contents "hello world" at the given directory path.
+    
+    Parameters:
+        path (pathlib.Path | os.PathLike): Directory where the ZIP file will be created.
+        name (str): Filename for the ZIP archive (default "sample.zip").
+    
+    Returns:
+        tuple[str, bytes]: A tuple of the created ZIP file path as a string and the ZIP file's raw bytes.
+    """
     import zipfile
 
     zip_path = path / name
@@ -24,6 +34,21 @@ def make_zip(path, name: str = "sample.zip") -> Tuple[str, bytes]:
 
 
 def make_environ(path: str, method: str, headers: Dict[str, str] | None = None) -> Dict[str, object]:
+    """
+    Construct a WSGI environment dictionary for testing a request to the application.
+    
+    Parameters:
+        path (str): The PATH_INFO value for the request (request path).
+        method (str): The HTTP request method (e.g., "GET", "HEAD", "POST").
+        headers (Dict[str, str] | None): Optional mapping of HTTP header names to values.
+            Header names will be converted to WSGI/CGI style keys by uppercasing,
+            replacing '-' with '_' and prefixing with 'HTTP_' (for example,
+            'X-Auth-Token' -> 'HTTP_X_AUTH_TOKEN').
+    
+    Returns:
+        Dict[str, object]: A WSGI environ dictionary populated with testing defaults,
+        PATH_INFO, REQUEST_METHOD, an empty QUERY_STRING, and a wsgi.input stream.
+    """
     environ: Dict[str, object] = {}
     setup_testing_defaults(environ)
     environ["PATH_INFO"] = path
@@ -38,10 +63,36 @@ def make_environ(path: str, method: str, headers: Dict[str, str] | None = None) 
 
 
 def run_request(app: GatewayApplication, path: str, *, method: str = "GET", headers: Dict[str, str] | None = None):
+    """
+    Execute a WSGI request against the given GatewayApplication and collect the response status, headers, and body.
+    
+    Parameters:
+        app (GatewayApplication): The WSGI application to invoke.
+        path (str): Request path (will be placed into PATH_INFO).
+        method (str, optional): HTTP method to use. Defaults to "GET".
+        headers (Dict[str, str] | None, optional): Additional request headers to include (mapped to HTTP_<NAME> in the environ).
+    
+    Returns:
+        tuple:
+            status (str): HTTP status string returned by the application (e.g. "200 OK").
+            headers (List[Tuple[str, str]]): Response headers as a list of (name, value) tuples.
+            body (bytes): Aggregated response body.
+    """
     environ = make_environ(path, method, headers)
     captured: Dict[str, object] = {}
 
     def start_response(status: str, response_headers: Iterable[Tuple[str, str]], exc_info=None):
+        """
+        WSGI start_response callable used by tests to capture the response status and headers.
+        
+        Parameters:
+            status (str): HTTP status string (e.g. "200 OK").
+            response_headers (Iterable[Tuple[str, str]]): Iterable of (header-name, header-value) tuples.
+            exc_info (Optional[tuple]): Optional exception info as supplied by the WSGI server in error cases.
+        
+        Side effects:
+            Stores the provided status under captured["status"] and the headers as a list under captured["headers"].
+        """
         captured["status"] = status
         captured["headers"] = list(response_headers)
 
@@ -56,10 +107,28 @@ def run_request(app: GatewayApplication, path: str, *, method: str = "GET", head
 
 
 def header_map(headers: Iterable[Tuple[str, str]]):
+    """
+    Convert an iterable of (name, value) header pairs into a dictionary mapping names to values.
+    
+    Parameters:
+        headers (Iterable[Tuple[str, str]]): An iterable of 2-tuples representing header name and header value. If the same header name appears multiple times, the last occurrence wins.
+    
+    Returns:
+        dict: A dictionary where keys are header names and values are the corresponding header values.
+    """
     return {k: v for k, v in headers}
 
 
 def authorized_headers(key: str) -> Dict[str, str]:
+    """
+    Create an authorization header mapping using the X-Mobius-Key header.
+    
+    Parameters:
+    	key (str): Secret key value to set as the X-Mobius-Key header.
+    
+    Returns:
+    	headers (Dict[str, str]): Dictionary with a single "X-Mobius-Key" entry set to `key`.
+    """
     return {"X-Mobius-Key": key}
 
 
@@ -187,6 +256,11 @@ def test_authorization_required(tmp_path):
 
 
 def test_healthz_requires_key_by_default(tmp_path):
+    """
+    Checks that the /healthz endpoint requires an authorization key by default.
+    
+    Asserts that an unauthenticated request receives a 401 Unauthorized response, and that a request with a valid X-Mobius-Key returns 200 OK with body "ok".
+    """
     app = GatewayApplication(tmp_path, "secret")
     status, _, _ = run_request(app, "/healthz")
     assert status == "401 Unauthorized"
@@ -251,4 +325,3 @@ def test_non_zip_extension_rejected(tmp_path):
         headers=authorized_headers("secret"),
     )
     assert status == "404 Not Found"
-
