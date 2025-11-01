@@ -33,6 +33,19 @@ AuditStorageLike = Union[AuditStorage, Path, str]
 
 
 def _resolve_storage(storage: Optional[AuditStorageLike], audit_path: Optional[Union[str, Path]]) -> AuditStorage:
+    """
+    Resolve an AuditStorage instance from a flexible storage specification.
+    
+    Parameters:
+        storage: Either an existing AuditStorage-like object, a filesystem path (str or Path) to a JSONL storage file, or None to use the default storage.
+        audit_path: Optional path used to build the default storage when `storage` is None.
+    
+    Returns:
+        An AuditStorage instance corresponding to the provided specification.
+    
+    Raises:
+        TypeError: If `storage` is not None, not a str/Path, and does not expose an `append` method.
+    """
     if storage is None:
         return build_default_storage(audit_path)
     if isinstance(storage, (str, Path)):
@@ -48,10 +61,31 @@ def _build_audit_logger(
     audit_path: Optional[Union[str, Path]],
     signer_secret: Optional[str],
 ) -> AuditLogger:
+    """
+    Builds and returns an AuditLogger configured with the provided storage and optional signer.
+    
+    Parameters:
+        storage (Optional[AuditStorageLike]): An existing AuditStorage instance, or a Path/str pointing to a storage location. If None, a default storage is created using audit_path.
+        audit_path (Optional[Union[str, Path]]): Filesystem path used to construct a default JSONL storage when storage is None.
+        signer_secret (Optional[str]): Secret used to create a DigestSigner for signing audit entries; if None, no signer is attached.
+    
+    Returns:
+        AuditLogger: An AuditLogger wired to the resolved storage and optional signer; it is configured to emit digest verification and CDN event callbacks.
+    """
     resolved_storage = _resolve_storage(storage, audit_path)
     signer = DigestSigner(signer_secret) if signer_secret else None
 
     def _on_digest(record: Mapping[str, Any]) -> None:
+        """
+        Emit a digest verification audit record derived from a mapping of fields.
+        
+        Parameters:
+            record (Mapping[str, Any]): Mapping containing audit fields. Recognized keys:
+                - "artifact_id": optional identifier included as `attributes["artifact_id"]` if present.
+                - "status": verification status; defaults to `"unknown"` if missing.
+                - "artifact_kind": artifact type; defaults to `"unknown"` if missing.
+                - "source": event source; defaults to `"gateway"` if missing.
+        """
         artifact_id = record.get("artifact_id")
         attributes = {"artifact_id": artifact_id} if artifact_id else None
         record_digest_verification(
@@ -62,6 +96,14 @@ def _build_audit_logger(
         )
 
     def _on_cdn(record: Mapping[str, Any]) -> None:
+        """
+        Emit a CDN transfer audit event extracted from the given record.
+        
+        Parameters:
+            record (Mapping[str, Any]): Mapping containing CDN event fields; expected keys include
+                "provider", "cache_status", "status_code", and optionally "artifact_id". When
+                present, "artifact_id" is included as an attribute on the emitted event.
+        """
         artifact_id = record.get("artifact_id")
         attributes = {"artifact_id": artifact_id} if artifact_id else None
         record_cdn_event(
@@ -88,14 +130,47 @@ class ObservabilityMiddleware:
         *,
         audit_logger: AuditLogger,
     ) -> None:
+        """
+        Wraps a WSGI application with request instrumentation and stores the audit logger for emitting audit records.
+        
+        Parameters:
+            app (Callable[..., Iterable[bytes]]): A WSGI application callable (expects `environ` and `start_response`) that yields response byte chunks.
+            audit_logger (AuditLogger): Audit logger used to record request-level and artifact audit events.
+        """
         self._app = instrument_wsgi_app(app)
         self.audit_logger = audit_logger
 
     def __call__(self, environ: Mapping[str, Any], start_response: Callable[..., Any]):  # type: ignore[override]
+        """
+        WSGI middleware entry point that delegates the request to the wrapped app, captures the response status and duration, and records a request audit after the response completes.
+        
+        Parameters:
+            environ (Mapping[str, Any]): WSGI environment mapping for the request.
+            start_response (Callable[..., Any]): WSGI start_response callable.
+        
+        Returns:
+            Iterator[bytes]: An iterator that yields response body chunks as bytes.
+        
+        Notes:
+            The audit record is written after the response iterable is exhausted. Failures while writing the audit are logged and do not affect the response.
+        """
         start = perf_counter()
         status_holder = {"code": 500}
 
         def _start_response(status: str, headers: Iterable[tuple[str, str]], exc_info=None):  # type: ignore[override]
+            """
+            Wraps the original WSGI start_response to capture and store the numeric HTTP status code.
+            
+            Parses the numeric status code from the provided WSGI `status` string and, if successful, stores it in `status_holder["code"]`. Delegates to the original `start_response` and returns its result.
+            
+            Parameters:
+                status (str): The WSGI status string, e.g. "200 OK".
+                headers (Iterable[tuple[str, str]]): The response headers.
+                exc_info (Optional[tuple]): Optional exception info passed through to the original `start_response`.
+            
+            Returns:
+                The value returned by the wrapped `start_response` call.
+            """
             try:
                 status_holder["code"] = int(status.split(" ", 1)[0])
             except (ValueError, IndexError):
@@ -105,6 +180,14 @@ class ObservabilityMiddleware:
         iterable = self._app(environ, _start_response)
 
         def _iterate() -> Iterator[bytes]:
+            """
+            Yield response body chunks produced by the wrapped WSGI application and, after iteration completes, close the underlying iterable (if supported) and write a request audit record.
+            
+            This generator measures the request duration in milliseconds, attempts to log a request audit via self.audit_logger with method, path, status_code, duration_ms, request_id, client_ip, and user_agent, and suppresses any exceptions raised during auditing so they do not affect the response flow.
+            
+            Returns:
+                Iterator[bytes]: An iterator that yields response body chunks as bytes.
+            """
             nonlocal iterable
             try:
                 for chunk in iterable:
@@ -140,6 +223,18 @@ class ObservabilityMiddleware:
         artifact_kind: str,
         extra: Optional[Mapping[str, Any]] = None,
     ) -> None:
+        """
+        Emit an audit record for a digest verification event.
+        
+        Parameters:
+            artifact_id (str): Identifier of the artifact being verified.
+            expected_digest (str): The expected digest value for the artifact.
+            observed_digest (str): The digest value observed during verification.
+            status (str): Outcome of the verification (for example, 'success' or 'failure').
+            source (str): Origin or component that performed the verification.
+            artifact_kind (str): Kind or category of the artifact (for example, 'package' or 'image').
+            extra (Optional[Mapping[str, Any]]): Optional additional attributes to attach to the audit record.
+        """
         self.audit_logger.log_digest_verification(
             artifact_id=artifact_id,
             expected_digest=expected_digest,
@@ -159,6 +254,16 @@ class ObservabilityMiddleware:
         status_code: int,
         extra: Optional[Mapping[str, Any]] = None,
     ) -> None:
+        """
+        Emit an audit record describing a CDN transfer for a specific artifact.
+        
+        Parameters:
+            artifact_id (str): Identifier of the artifact involved in the transfer.
+            provider (str): CDN provider name or identifier.
+            cache_status (str): Cache outcome reported by the CDN (for example "HIT", "MISS", "BYPASS").
+            status_code (int): HTTP status code returned by the CDN for the transfer request.
+            extra (Optional[Mapping[str, Any]]): Optional additional attributes to include with the audit record.
+        """
         self.audit_logger.log_cdn_transfer(
             artifact_id=artifact_id,
             provider=provider,
@@ -174,10 +279,29 @@ if BaseHTTPMiddleware is not None:
         """Starlette middleware wiring audit logging for FastAPI apps."""
 
         def __init__(self, app: Any, audit_logger: AuditLogger):
+            """
+            Initialize the middleware with the underlying ASGI/Starlette app and an AuditLogger used to record request audits.
+            
+            Parameters:
+                app: The ASGI or Starlette application instance to wrap.
+                audit_logger: AuditLogger instance used to write request audit records.
+            """
             super().__init__(app)
             self.audit_logger = audit_logger
 
         async def dispatch(self, request, call_next):  # type: ignore[override]
+            """
+            Record the incoming FastAPI request for auditing, then return the downstream response.
+            
+            Measures request duration in milliseconds and writes a request audit record containing method, path, status_code, duration_ms, request_id, client_ip, and user_agent. Failures during auditing are caught and logged; the original response is returned unchanged.
+            
+            Parameters:
+                request: The incoming Starlette/FastAPI request object.
+                call_next: Callable that when awaited produces the response from the next ASGI handler.
+            
+            Returns:
+                The response produced by `call_next`.
+            """
             start = perf_counter()
             response = await call_next(request)
             duration_ms = int((perf_counter() - start) * 1000)
@@ -214,7 +338,27 @@ def create_observability_middleware(
     otlp_timeout: Optional[int] = None,
     resource_attributes: Optional[Mapping[str, Any]] = None,
 ) -> ObservabilityMiddleware:
-    """Instantiate the WSGI observability middleware for the given app."""
+    """
+    Create and return a WSGI ObservabilityMiddleware configured for the given app.
+    
+    Initializes telemetry (Prometheus/OTLP) according to the provided options and builds an AuditLogger used by the middleware.
+    
+    Parameters:
+        app (Callable[..., Iterable[bytes]]): The WSGI application to wrap.
+        service_name (str): Service name used for telemetry and metrics.
+        audit_storage (Optional[AuditStorageLike]): Storage instance or path (or None to use default) for audit records.
+        audit_path (Optional[Union[str, Path]]): Filesystem path used to build a default audit storage when `audit_storage` is None.
+        signer_secret (Optional[str]): Secret used to create a DigestSigner for audit records; if None, signing is disabled.
+        enable_prometheus (bool): Whether to enable Prometheus metrics exposition.
+        enable_otlp (bool): Whether to enable OTLP export for traces/metrics.
+        otlp_endpoint (Optional[str]): OTLP collector endpoint URL when OTLP is enabled.
+        otlp_headers (Optional[Mapping[str, str]]): Additional headers to include when communicating with the OTLP endpoint.
+        otlp_timeout (Optional[int]): Timeout (seconds) for OTLP exporter requests.
+        resource_attributes (Optional[Mapping[str, Any]]): Additional resource attributes to attach to telemetry.
+    
+    Returns:
+        ObservabilityMiddleware: A middleware instance that wraps the provided WSGI app and emits audit logs and telemetry.
+    """
 
     init_metrics(
         service_name=service_name,
@@ -249,7 +393,25 @@ def configure_fastapi_observability(
     otlp_timeout: Optional[int] = None,
     resource_attributes: Optional[Mapping[str, Any]] = None,
 ) -> AuditLogger:
-    """Configure FastAPI observability instrumentation and return the audit logger."""
+    """
+    Configure observability for a FastAPI app and return an AuditLogger for audit events.
+    
+    Parameters:
+        app (Any): FastAPI application instance to instrument.
+        service_name (str): Logical service name used for telemetry and metrics.
+        audit_storage (Optional[AuditStorageLike]): Storage backend, path, or storage instance for audit records.
+        audit_path (Optional[Union[str, Path]]): Filesystem path used to build a default audit storage when `audit_storage` is not provided.
+        signer_secret (Optional[str]): Secret used to create a DigestSigner for signed audit records.
+        enable_prometheus (bool): Whether to enable Prometheus metrics exposition.
+        enable_otlp (bool): Whether to enable OTLP (OpenTelemetry) export.
+        otlp_endpoint (Optional[str]): OTLP collector endpoint URL when OTLP is enabled.
+        otlp_headers (Optional[Mapping[str, str]]): Additional headers to send to the OTLP endpoint.
+        otlp_timeout (Optional[int]): Timeout in seconds for OTLP export requests.
+        resource_attributes (Optional[Mapping[str, Any]]): Additional resource attributes attached to telemetry.
+    
+    Returns:
+        AuditLogger: Configured audit logger used by the application.
+    """
 
     init_metrics(
         service_name=service_name,
