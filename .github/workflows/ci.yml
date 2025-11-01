@@ -39,6 +39,15 @@ jobs:
           python -m pip install --upgrade pip
         shell: pwsh
 
+      - name: Configure observability for CI
+        shell: bash
+        run: |
+          echo "GATEWAY_OTLP_ENABLED=0" >> $GITHUB_ENV
+          echo "GATEWAY_PROMETHEUS_ENABLED=1" >> $GITHUB_ENV
+          echo "GATEWAY_PROMETHEUS_PORT=9464" >> $GITHUB_ENV
+          echo "GATEWAY_AUDIT_PATH=${GITHUB_WORKSPACE}/.artifacts/audit/audit.jsonl" >> $GITHUB_ENV
+          mkdir -p .artifacts/audit
+
       - name: Build
         run: npm run build --if-present
         working-directory: client
