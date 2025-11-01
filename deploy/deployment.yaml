@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mobius-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mobius-gateway
+  template:
+    metadata:
+      labels:
+        app: mobius-gateway
+    spec:
+      containers:
+        - name: gateway
+          image: ghcr.io/mobius/gateway:latest
+          env:
+            - name: MOBIUS_API_KEY_STORE
+              value: /var/lib/mobius/security/api_keys.json
+            - name: MOBIUS_API_KEY_ROTATION_INTERVAL
+              value: "30d"
+            - name: MOBIUS_API_KEY_GRACE_PERIOD
+              value: "2h"
+            - name: MOBIUS_RATE_LIMITS
+              value: "GET:/health=60/60,POST:/save-project=30/60,POST:/api/explain-chunk=90/60"
+            - name: MOBIUS_SECURITY_HEADERS
+              value: "Strict-Transport-Security:max-age=63072000; includeSubDomains,X-Content-Type-Options:nosniff,X-Frame-Options:DENY,Referrer-Policy:no-referrer"
+            - name: MOBIUS_CORS_ALLOWED_ORIGINS
+              value: "https://mobius.example.com,https://studio.mobius.example"
+          volumeMounts:
+            - name: api-key-store
+              mountPath: /var/lib/mobius/security
+      volumes:
+        - name: api-key-store
+          persistentVolumeClaim:
+            claimName: mobius-security-pvc
