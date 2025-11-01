@@ -31,9 +31,26 @@ class AppResponse:
 
     @property
     def status_code(self) -> int:
+        """
+        Return the numeric HTTP status code parsed from the instance's status string.
+        
+        The method extracts the leading integer from a status line like "200 OK" and returns it.
+        
+        Returns:
+            int: The HTTP status code parsed from `self.status`.
+        """
         return int(self.status.split()[0])
 
     def header(self, name: str) -> str | None:
+        """
+        Retrieve the most-recent value for a header name, matching case-insensitively.
+        
+        Parameters:
+            name (str): Header name to look up.
+        
+        Returns:
+            value (str | None): The last header value with the given name, or `None` if not present.
+        """
         for key, value in reversed(self.headers):
             if key.lower() == name.lower():
                 return value
@@ -45,6 +62,17 @@ def call_app(
     method: str = "GET",
     headers: Dict[str, str] | None = None,
 ) -> AppResponse:
+    """
+    Invoke the WSGI application with a constructed environ and capture its response.
+    
+    Parameters:
+        path (str): Request PATH_INFO to call the application with.
+        method (str): HTTP method to use (defaults to "GET").
+        headers (Dict[str, str] | None): Optional mapping of HTTP header names to values; each entry is added to the WSGI environ as "HTTP_<NAME>" (hyphens replaced with underscores and uppercased).
+    
+    Returns:
+        AppResponse: Captured response including status string, list of (header, value) tuples, and the full response body bytes.
+    """
     environ: Dict[str, object] = {
         "REQUEST_METHOD": method,
         "SCRIPT_NAME": "",
@@ -70,6 +98,17 @@ def call_app(
     body: List[bytes] = []
 
     def start_response(status: str, response_headers: List[Tuple[str, str]], exc_info=None):
+        """
+        Capture the WSGI response status and headers and return a write callback that appends to the response body.
+        
+        Parameters:
+            status (str): HTTP status line (e.g., "200 OK") to record.
+            response_headers (List[Tuple[str, str]]): Iterable of header (name, value) pairs to record.
+            exc_info (Optional[tuple]): Optional exception info per WSGI specification; not used by this implementation.
+        
+        Returns:
+            Callable[[bytes], None]: A write function that appends byte chunks to the response body list.
+        """
         captured["status"] = status
         captured["headers"] = list(response_headers)
         return body.append
@@ -92,10 +131,31 @@ def call_app(
 
 @pytest.fixture()
 def export_dir(tmp_path: Path) -> Path:
+    """
+    Provide a temporary directory path to be used as the exports root in tests.
+    
+    Returns:
+        Path: A pathlib.Path pointing to a temporary directory provided by pytest's tmp_path fixture.
+    """
     return tmp_path
 
 
 def _create_zip(path: Path, *, file_name: str, contents: bytes = b"payload") -> Path:
+    """
+    Create a ZIP archive containing a single entry named "data.bin" and return its path.
+    
+    The created archive will contain exactly one file, "data.bin", with the provided contents.
+    The archive's filesystem modification time is normalized to a deterministic value to produce stable headers
+    (e.g., for tests that assert Last-Modified or ETag values).
+    
+    Parameters:
+        path (Path): Directory where the archive will be written.
+        file_name (str): Name of the ZIP file to create (e.g., "archive.zip").
+        contents (bytes): Bytes to write into the "data.bin" entry. Defaults to b"payload".
+    
+    Returns:
+        Path: The full path to the created ZIP archive.
+    """
     archive_path = path / file_name
     with zipfile.ZipFile(archive_path, "w") as zf:
         zf.writestr("data.bin", contents)
@@ -106,6 +166,15 @@ def _create_zip(path: Path, *, file_name: str, contents: bytes = b"payload") -> 
 
 
 def _auth_header(key: str) -> Dict[str, str]:
+    """
+    Create an HTTP header mapping containing the X-Mobius-Key authentication header.
+    
+    Parameters:
+        key (str): The API key value to use for the X-Mobius-Key header.
+    
+    Returns:
+        headers (Dict[str, str]): A dictionary with the single header "X-Mobius-Key" set to the provided key.
+    """
     return {"X-Mobius-Key": key}
 
 
