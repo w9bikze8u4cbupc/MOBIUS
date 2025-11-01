@@ -24,6 +24,14 @@ DEFAULT_STORAGE_PATH = Path(os.getenv("MOBIUS_API_KEY_STORE", "var/security/api_
 
 
 def configure_logging() -> logging.Logger:
+    """
+    Configure root logging to write INFO-level messages to both stdout and an audit log file and return the named audit logger.
+    
+    Ensures the directory for the audit log (controlled by the MOBIUS_AUDIT_LOG environment variable, default "logs/audit.log") exists, configures the root logger with a timestamped format and two handlers (stream and file), and returns the logger named "mobius.audit".
+    
+    Returns:
+        logging.Logger: Logger instance named "mobius.audit".
+    """
     log_path = Path(os.getenv("MOBIUS_AUDIT_LOG", "logs/audit.log"))
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
@@ -35,6 +43,14 @@ def configure_logging() -> logging.Logger:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """
+    Create and configure an ArgumentParser for Mobius API key management.
+    
+    The parser includes a '--store' option (defaulting to DEFAULT_STORAGE_PATH) to specify the API key storage file and requires a subcommand for the specific API key operation. Subcommands for managing API keys are registered on the parser.
+    
+    Returns:
+        argparse.ArgumentParser: A configured argument parser for the CLI.
+    """
     parser = argparse.ArgumentParser(description="Mobius API key management")
     parser.add_argument(
         "--store",
@@ -48,6 +64,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """
+    Parse command-line arguments, execute the requested API key operation, and record audit information.
+    
+    If the operation returns a key record and the parsed arguments include a `label`, an audit entry is written and the created key identifier and secret are printed to stdout.
+    
+    Parameters:
+        argv (list[str] | None): Optional list of argument strings to parse; if `None`, the process's command-line arguments are used.
+    
+    Returns:
+        int: `0` on success, `1` if an `APIKeyRotationError` occurred.
+    """
     parser = build_parser()
     args = parser.parse_args(argv)
     audit_logger = configure_logging()
