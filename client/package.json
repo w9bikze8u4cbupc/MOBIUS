@@ -17,8 +17,11 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "npm run test:rendering && npm run test:accessibility && react-scripts build",
     "test": "react-scripts test",
+    "test:rendering": "node scripts/prepare-audit-directory.cjs && CI=true react-scripts test --watchAll=false --testPathPattern=dual-language --json --outputFile audit-reports/dual-language.json",
+    "test:accessibility": "node scripts/prepare-audit-directory.cjs && CI=true react-scripts test --watchAll=false --testPathPattern=accessibility --json --outputFile audit-reports/accessibility.json",
+    "audit:report": "node scripts/compile-audit-report.cjs",
     "eject": "react-scripts eject"
   },
   "browser": {

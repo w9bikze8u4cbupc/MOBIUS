@@ -1,0 +1,42 @@
+{
+  "name": "mobius-preview-staging",
+  "main": "worker.js",
+  "routes": [
+    {
+      "pattern": "preview.staging.mobius.games/*"
+    }
+  ],
+  "kv_namespaces": [],
+  "observability": {
+    "headers": {
+      "X-Mobius-Cache-Key": "${hash(url.pathname)}",
+      "X-Mobius-Cache-Status": "${cf.cacheStatus}",
+      "X-Mobius-Edge": "${cf.colo}"
+    },
+    "webhooks": [
+      {
+        "url": "https://preview.mobius.games/api/observability/cdn",
+        "payload": {
+          "cdn": "cloudflare",
+          "cacheStatus": "${cf.cacheStatus}",
+          "url": "${request.url}",
+          "edge": "${cf.colo}",
+          "timestamp": "${Date.now}",
+          "cacheKey": "${hash(request.url.pathname)}"
+        }
+      }
+    ]
+  },
+  "cache": {
+    "cacheEverything": true,
+    "cacheKey": {
+      "includeHost": true,
+      "includeProtocol": false,
+      "headers": [],
+      "query": {
+        "exclude": ["utm_*", "ref", "previewToken"]
+      }
+    },
+    "ttl": 900
+  }
+}

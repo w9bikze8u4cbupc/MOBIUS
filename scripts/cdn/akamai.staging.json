@@ -1,0 +1,91 @@
+{
+  "name": "mobius-preview-staging",
+  "rules": [
+    {
+      "name": "Normalize Cache Key",
+      "behaviors": [
+        {
+          "name": "cacheKey",
+          "options": {
+            "honorOrigin": false,
+            "query": {
+              "transform": "REMOVE_VALUES",
+              "parameters": [
+                "utm_*",
+                "ref",
+                "previewToken"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staging Cache",
+      "behaviors": [
+        {
+          "name": "caching",
+          "options": {
+            "tieredDistribution": "ENABLED",
+            "defaultForward": "CACHEABLE",
+            "defaultTtl": 900
+          }
+        }
+      ]
+    },
+    {
+      "name": "Observability Headers",
+      "behaviors": [
+        {
+          "name": "modifyOutgoingResponseHeader",
+          "options": {
+            "action": "APPEND",
+            "standardHeaderName": "X-Mobius-Cache-Key",
+            "headerValue": "${PMUSER:MOBIUS_CACHE_KEY}"
+          }
+        },
+        {
+          "name": "modifyOutgoingResponseHeader",
+          "options": {
+            "action": "APPEND",
+            "standardHeaderName": "X-Mobius-Cache-Status",
+            "headerValue": "${CACHE_HIT_STATUS}"
+          }
+        },
+        {
+          "name": "modifyOutgoingResponseHeader",
+          "options": {
+            "action": "APPEND",
+            "standardHeaderName": "X-Mobius-Edge",
+            "headerValue": "${EDGE_HOSTNAME}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Observability Webhook",
+      "behaviors": [
+        {
+          "name": "dataStream",
+          "options": {
+            "streamId": "mobius-preview",
+            "collectors": [
+              {
+                "endpoint": "https://preview.mobius.games/api/observability/cdn",
+                "format": "JSON",
+                "payload": {
+                  "cdn": "akamai",
+                  "cacheStatus": "${CACHE_HIT_STATUS}",
+                  "edge": "${EDGE_HOSTNAME}",
+                  "cacheKey": "${PMUSER:MOBIUS_CACHE_KEY}",
+                  "url": "${REQUEST_PATH}",
+                  "timestamp": "${EPOCH_TIME}"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

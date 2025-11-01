@@ -19,6 +19,10 @@ import { explainChunkWithAI } from './aiUtils.js';
 import { extractTextFromPDF } from './pdfUtils.js';
 import { extractComponentsFromText } from './utils.js';
 import { extractComponentsWithAI } from './aiUtils.js';
+import previewAuth from './previewAuth.js';
+const { getPreviewTokens, validatePreviewToken } = previewAuth;
+import cdnMetrics from '../observability/cdnMetrics.js';
+const { getCdnMetricsSnapshot, recordCdnMetric } = cdnMetrics;
 import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
@@ -76,12 +80,34 @@ console.warn = function (...args) {
   originalWarn.apply(console, args);
 };
 
-// --- Simple API Key Middleware (Development Mode) ---  
-app.use((req, res, next) => {  
-  // TODO: Implement proper session-based authentication  
-  // For now, skip API key validation in development  
-  console.log(`${req.method} ${req.path} - API key validation skipped`);  
-  next();  
+// --- Preview Token Middleware ---
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/preview')) {
+    next();
+    return;
+  }
+
+  const candidate = req.headers['x-preview-token'] || req.query.previewToken;
+  if (!candidate || !validatePreviewToken(candidate)) {
+    console.warn(`Preview token rejected for ${req.path}`);
+    return res.status(401).json({ error: 'Invalid or expired preview token' });
+  }
+
+  next();
+});
+
+app.get('/api/auth/preview-tokens', (req, res) => {
+  const tokens = getPreviewTokens();
+  res.json({ tokens });
+});
+
+app.post('/api/observability/cdn', (req, res) => {
+  const sample = recordCdnMetric(req.body || {});
+  res.status(202).json({ status: 'accepted', sample });
+});
+
+app.get('/api/observability/cdn', (req, res) => {
+  res.json(getCdnMetricsSnapshot());
 });
 
 

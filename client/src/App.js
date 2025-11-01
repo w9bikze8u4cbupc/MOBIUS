@@ -3,6 +3,9 @@ import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.entry";
+import { useAuth } from "./auth/AuthContext";
+import { usePreviewGuard } from "./auth/usePreviewGuard";
+import { addBreadcrumb } from "./telemetry/breadcrumbs";
 
 // Configure PDF.js worker
 GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -52,10 +55,10 @@ function splitMarkdownSections(markdown) {
 
 
 function App() {
-  // --- State Variables ---
-  const [file, setFile] = useState(null);
-  const [rulebookText, setRulebookText] = useState("");
-  const [language, setLanguage] = useState("english");
+  // --- State Variables ---
+  const [file, setFile] = useState(null);
+  const [rulebookText, setRulebookText] = useState("");
+  const [language, setLanguage] = useState("english");
   const [voice, setVoice] = useState(""); // Stores ElevenLabs voice ID
   const [gameName, setGameName] = useState("");
   const [metadata, setMetadata] = useState({
@@ -79,22 +82,30 @@ function App() {
   const fileInputRef = useRef(); // Ref for the hidden file input
 
   // State for displaying translation status/errors
-  const [translationStatus, setTranslationStatus] = useState({
-    isTranslating: false,
-    error: null, // Stores translation-specific errors/warnings from backend
-  });
+  const [translationStatus, setTranslationStatus] = useState({
+    isTranslating: false,
+    error: null, // Stores translation-specific errors/warnings from backend
+  });
+
+  const { status: authStatus, error: authError } = useAuth();
+  const { previewRoute, previewLocked, requestAccess } = usePreviewGuard();
 
 
   // --- Effects ---
   // Effect to set default voice based on language
-  useEffect(() => {
-    const voices = getLanguageVoices(language);
-    if (voices.length > 0) {
-      setVoice(voices[0].id);
-    } else {
-      setVoice(""); // Clear voice if no voices for language
-    }
-  }, [language]); // Rerun when language changes
+  useEffect(() => {
+    const voices = getLanguageVoices(language);
+    if (voices.length > 0) {
+      setVoice(voices[0].id);
+    } else {
+      setVoice(""); // Clear voice if no voices for language
+    }
+    addBreadcrumb({
+      category: "i18n",
+      message: "Language preference updated",
+      data: { language },
+    });
+  }, [language]); // Rerun when language changes
 
   // Effect to update editedSummary when summary changes (after generation)
   useEffect(() => {
@@ -143,11 +154,16 @@ function App() {
 
   // --- File Handling ---
   // Process a file (either from drag/drop or file input)
-  const handleFile = async (file) => {
-    // Reset relevant state variables before processing new file
-    setFile(file);
-    // Suggest game name from file name (clean up extension and separators)
-    const name = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
+  const handleFile = async (file) => {
+    // Reset relevant state variables before processing new file
+    setFile(file);
+    addBreadcrumb({
+      category: "upload",
+      message: "Rulebook file selected",
+      data: { name: file?.name },
+    });
+    // Suggest game name from file name (clean up extension and separators)
+    const name = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
     setGameName(name);
     setRulebookText("");
     setSummary("");
@@ -523,9 +539,47 @@ function App() {
 
 
   // --- Rendered Output (JSX) ---
-  return (
-    <div style={{ maxWidth: 800, margin: "40px auto", fontFamily: "sans-serif", padding: 20 }}>
-      <h1>Board Game Tutorial Generator</h1>
+  return (
+    <>
+      {previewLocked && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          style={{
+            background: "#fff3cd",
+            border: "1px solid #ffeeba",
+            borderRadius: 8,
+            padding: 16,
+            margin: "16px auto",
+            maxWidth: 800,
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>Preview access required</h2>
+          <p>
+            This preview route is protected. Refresh your preview credentials to continue. Current
+            status: <strong>{authStatus}</strong>
+          </p>
+          {authError && (
+            <p style={{ color: "#9f2c00" }}>Authentication error: {authError}</p>
+          )}
+          <button
+            type="button"
+            onClick={requestAccess}
+            style={{
+              backgroundColor: "#1976d2",
+              color: "#fff",
+              border: "none",
+              borderRadius: 4,
+              padding: "8px 16px",
+              cursor: "pointer",
+            }}
+          >
+            Refresh access token
+          </button>
+        </div>
+      )}
+      <div style={{ maxWidth: 800, margin: "40px auto", fontFamily: "sans-serif", padding: 20 }}>
+        <h1>Board Game Tutorial Generator</h1>
 
       {/* --- Input Controls --- */}
       <div style={{ marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 20 }}>
@@ -847,8 +901,9 @@ function App() {
           <b>Backend:</b> <code>{BACKEND_URL}</code>
         </div>
       </footer>
-    </div>
-  );
+      </div>
+    </>
+  );
 }
 
 export default App;
