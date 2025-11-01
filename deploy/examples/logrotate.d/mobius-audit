@@ -1,0 +1,14 @@
+# Rotate MOBIUS gateway audit logs daily or when exceeding 200 MB.
+/var/log/mobius/audit.jsonl {
+    daily
+    rotate 30
+    compress
+    missingok
+    notifempty
+    maxsize 200M
+    create 0640 mobius mobius
+    sharedscripts
+    postrotate
+        systemctl reload mobius-gateway.service >/dev/null 2>&1 || true
+    endscript
+}

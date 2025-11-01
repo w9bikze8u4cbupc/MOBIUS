@@ -1,0 +1,35 @@
+# Cloudflare/Akamai edge rule examples to protect /metrics.
+#
+# Cloudflare transform rule:
+#   - Restrict to specific source IP ranges
+#   - Require custom header for additional verification
+#
+# Akamai property manager snippet:
+#   - Uses edge hostname access control and forward auth header
+
+cloudflare_ruleset:
+  description: "Restrict MOBIUS metrics"
+  expression: "(http.request.uri.path eq \"/metrics\")"
+  action: block
+  except:
+    - expression: "ip.src in {10.0.0.0/8 192.168.0.0/16}"
+    - expression: "http.request.headers[\"x-metrics-token\"] eq \"expected-token\""
+
+akamai_match_rule:
+  name: "Protect MOBIUS metrics"
+  matches:
+    - type: path
+      value: "/metrics"
+  behaviors:
+    - name: deny
+      options:
+        allowDeny: deny
+        useHeaders: true
+        allowedIPs:
+          - 10.0.0.0/8
+          - 192.168.0.0/16
+    - name: modifyOutgoingRequestHeader
+      options:
+        headerName: X-Metrics-Token
+        action: SET
+        value: expected-token
