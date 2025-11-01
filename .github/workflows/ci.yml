@@ -20,6 +20,11 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
       - name: Install deps
         run: npm ci
         working-directory: client
@@ -27,17 +32,10 @@ jobs:
       - name: Ensure FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2
 
-      - name: Install Python (Unix)
-        if: runner.os != 'Windows'
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install Python (Windows)
-        if: runner.os == 'Windows'
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-        shell: pwsh
+          python -m pip install -r requirements-dev.txt
 
       - name: Build
         run: npm run build --if-present
@@ -51,6 +49,10 @@ jobs:
         run: npm test -- --ci --reporters=default
         working-directory: client
         continue-on-error: false
+
+      - name: Pytest with coverage
+        run: |
+          pytest --cov=src --cov-report=xml --cov-report=term
 
       - name: Render preview
         run: |
@@ -101,3 +103,11 @@ jobs:
           path: |
             artifacts/**
             out/preview_with_audio.mp4
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-coverage-${{ matrix.os }}
+          path: |
+            coverage.xml

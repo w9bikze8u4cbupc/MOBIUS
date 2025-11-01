@@ -1,0 +1,51 @@
+name: Nightly Smoke Tests
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  nightly-smoke:
+    name: Nightly smoke ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Run CLI pipeline flow
+        run: npm run test-pipeline
+
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: client
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: client
+
+      - name: Frontend tests
+        run: npm test -- --watch=false --passWithNoTests
+        working-directory: client
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-smoke-${{ matrix.os }}
+          path: |
+            out/**
+          if-no-files-found: ignore
+
