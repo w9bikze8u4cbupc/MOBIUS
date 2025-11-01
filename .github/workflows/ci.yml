@@ -10,6 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.9', '3.10', '3.11']
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -27,17 +28,91 @@ jobs:
       - name: Ensure FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2
 
-      - name: Install Python (Unix)
-        if: runner.os != 'Windows'
-        uses: actions/setup-python@v4
+      - name: Set up Python
+        id: setup-python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
+          check-latest: true
 
-      - name: Install Python (Windows)
-        if: runner.os == 'Windows'
+      - name: Normalize Python version (major.minor)
+        id: pyver
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
+          PY_FULL="${{ steps.setup-python.outputs.python-version }}"
+          PY_MM="$(PY_FULL="$PY_FULL" python - <<'PY'
+import os
+import sys
+v = os.environ.get("PY_FULL")
+print(".".join((v or sys.version.split()[0]).split(".")[:2]))
+PY
+)"
+          echo "mm=${PY_MM}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Check if requirements.txt is effectively empty
+        id: reqs
+        shell: bash
+        run: |
+          if [ ! -f requirements.txt ] || ! grep -E '^[[:space:]]*[^#[:space:]]' requirements.txt >/dev/null; then
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "empty=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore wheelhouse cache
+        id: wheelhouse-cache
+        uses: actions/cache@v4
+        with:
+          path: .wheelhouse
+          key: >
+            wheelhouse-${{ runner.os }}-py${{ steps.pyver.outputs.mm }}-${{ hashFiles('requirements.txt', 'requirements-*.txt', 'pyproject.toml', 'uv.lock', 'poetry.lock', 'pip-tools.lock') }}
+          restore-keys: |
+            wheelhouse-${{ runner.os }}-py${{ steps.pyver.outputs.mm }}-
+            wheelhouse-${{ runner.os }}-
+
+      - name: Build wheelhouse (Unix)
+        if: runner.os != 'Windows' && steps.wheelhouse-cache.outputs.cache-hit != 'true' && steps.reqs.outputs.empty != 'true'
+        shell: bash
+        run: |
+          mkdir -p .wheelhouse
+          python -m pip install -U pip wheel
+          set -e
+          if ! python -m pip wheel -r requirements.txt -w .wheelhouse; then
+            echo "pip wheel failed; falling back to uv" >&2
+            uv pip wheel --wheel-dir .wheelhouse --requirement requirements.txt
+          fi
+
+      - name: Build wheelhouse (Windows)
+        if: runner.os == 'Windows' && steps.wheelhouse-cache.outputs.cache-hit != 'true' && steps.reqs.outputs.empty != 'true'
         shell: pwsh
+        run: |
+          if (-not (Test-Path '.wheelhouse')) { New-Item -ItemType Directory -Path .wheelhouse | Out-Null }
+          python -m pip install --upgrade pip wheel
+          try {
+            python -m pip wheel -r requirements.txt -w .wheelhouse
+          } catch {
+            Write-Host "pip wheel failed; falling back to uv" -ForegroundColor Yellow
+            uv pip wheel --wheel-dir .wheelhouse --requirement requirements.txt
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "uv pip wheel also failed" -ForegroundColor Red
+              exit 1
+            }
+          }
+
+      - name: Offline install from wheelhouse (Unix)
+        if: runner.os != 'Windows' && steps.reqs.outputs.empty != 'true'
+        shell: bash
+        run: |
+          python -m pip install --no-index --find-links .wheelhouse -r requirements.txt
+
+      - name: Offline install from wheelhouse (Windows)
+        if: runner.os == 'Windows' && steps.reqs.outputs.empty != 'true'
+        shell: pwsh
+        run: |
+          python -m pip install --no-index --find-links .wheelhouse -r requirements.txt
 
       - name: Build
         run: npm run build --if-present
@@ -97,7 +172,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: qa-${{ matrix.os }}
+          name: qa-${{ matrix.os }}-py${{ matrix.python-version }}
           path: |
             artifacts/**
             out/preview_with_audio.mp4
