@@ -14,6 +14,19 @@ from gateway import GatewayApplication, GatewayConfig
 
 
 def _make_app(tmp_path: Path, **overrides) -> Tuple[GatewayApplication, Path]:
+    """
+    Create a GatewayApplication and a writable `exports` directory under the provided temporary path.
+    
+    Parameters:
+    	tmp_path (Path): Temporary directory under which an `exports` subdirectory will be created or reused.
+    	overrides (dict): Optional configuration overrides. Supported keys:
+    		- "cache_mode": cache mode to set on the GatewayConfig (default "revalidate").
+    		- "version": optional version string to set on the GatewayConfig.
+    		- "health_public": bool to mark the health endpoint public (default False).
+    
+    Returns:
+    	tuple: A tuple (app, exports_root) where `app` is a GatewayApplication instantiated with the constructed GatewayConfig and `exports_root` is the Path to the created `exports` directory.
+    """
     exports_root = tmp_path / "exports"
     exports_root.mkdir(exist_ok=True)
     config = GatewayConfig(
@@ -32,6 +45,20 @@ def _request(
     path: str,
     headers: Optional[Dict[str, str]] = None,
 ):
+    """
+    Create a WSGI test request against the given application and return the captured response.
+    
+    Parameters:
+        method (str): HTTP method to use (e.g., "GET", "HEAD").
+        path (str): Request path (PATH_INFO) to send to the application.
+        headers (Optional[Dict[str, str]]): Additional HTTP headers to include; keys are header names and values are header values.
+    
+    Returns:
+        tuple: A 3-tuple (status, header_map, body) where:
+            - status (str): The HTTP status line returned by the app (e.g., "200 OK").
+            - header_map (Dict[str, str]): Mapping of response header names to their values.
+            - body (bytes): Full response body as bytes.
+    """
     headers = headers or {}
     environ: Dict[str, str] = {}
     from wsgiref.util import setup_testing_defaults
@@ -48,6 +75,13 @@ def _request(
     captured: Dict[str, object] = {}
 
     def start_response(status: str, response_headers: Iterable[Tuple[str, str]]):
+        """
+        WSGI start_response callback that captures the response status and headers into the enclosing `captured` mapping.
+        
+        Parameters:
+            status (str): HTTP status string (e.g. "200 OK").
+            response_headers (Iterable[Tuple[str, str]]): Iterable of (header-name, header-value) pairs.
+        """
         captured["status"] = status
         captured["headers"] = list(response_headers)
 
@@ -60,6 +94,14 @@ def _request(
 
 
 def _write_file(path: Path, data: bytes, mtime: float) -> None:
+    """
+    Write binary data to a file and set its modification and access times.
+    
+    Parameters:
+        path (Path): Filesystem path to write the data to; parent directories must exist.
+        data (bytes): Binary content to write to the file.
+        mtime (float): Timestamp in seconds since the epoch to set as both the file's modification and access time.
+    """
     path.write_bytes(data)
     os.utime(path, (mtime, mtime))
 
@@ -183,6 +225,11 @@ def test_if_modified_since_returns_304(tmp_path):
 
 
 def test_digest_endpoint_returns_manifest(tmp_path):
+    """
+    Verifies the SHA-256 digest endpoint returns a standard manifest and correct headers for a UTF-8 filename.
+    
+    Creates an artifact named with UTF-8 characters, requests its `.sha256` endpoint, and asserts the response body contains the `"<hex-digest>  <filename>\n"` manifest, Content-Type `text/plain; charset=utf-8`, Content-Length matching the body, an ETag equal to the digest (quoted), and a Content-Disposition containing the UTF-8 encoded filename.
+    """
     app, root = _make_app(tmp_path)
     artifact = root / "unicode_demo.zip"
     payload = "dátå".encode("utf-8")
