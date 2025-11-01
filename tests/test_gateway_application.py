@@ -17,6 +17,23 @@ def _call_app(
     path: str,
     headers: Dict[str, str] | None = None,
 ) -> Tuple[str, Dict[str, str], bytes]:
+    """
+    Make a WSGI request to the provided GatewayApplication and collect the full response.
+    
+    Parameters:
+        app (GatewayApplication): The WSGI application to invoke.
+        method (str): HTTP method to use (e.g., "GET", "HEAD").
+        path (str): Request path to set as PATH_INFO.
+        headers (Dict[str, str] | None): Optional mapping of HTTP header names to values;
+            names will be normalized to WSGI environ keys (prefixed with "HTTP_" and
+            uppercased with '-' replaced by '_').
+    
+    Returns:
+        Tuple[str, Dict[str, str], bytes]: A tuple (status, headers, body) where
+            status is the HTTP status string (e.g., "200 OK"),
+            headers is a dict of response headers,
+            and body is the full response body as bytes.
+    """
     environ = {
         "REQUEST_METHOD": method,
         "PATH_INFO": path,
@@ -43,10 +60,26 @@ def _call_app(
     body_chunks: list[bytes] = []
 
     def start_response(status: str, header_list: Iterable[Tuple[str, str]]):
+        """
+        Capture the WSGI response status and headers and return a write callable to collect body chunks.
+        
+        Parameters:
+            status (str): WSGI status string (e.g. "200 OK").
+            header_list (Iterable[Tuple[str, str]]): Sequence of header (name, value) pairs to append to the response headers.
+        
+        Returns:
+            write (Callable[[bytes], None]): A callable that accepts a bytes chunk and appends it to the captured body chunks.
+        """
         status_holder["status"] = status
         response_headers.extend(header_list)
 
         def write(chunk: bytes):
+            """
+            Append a bytes chunk to the captured response body chunks.
+            
+            Parameters:
+                chunk (bytes): A portion of the response body to append to the collector.
+            """
             body_chunks.append(chunk)
 
         return write
@@ -70,6 +103,15 @@ def _call_app(
 
 @pytest.fixture()
 def artifact_root(tmp_path):
+    """
+    Create and return an "exports" subdirectory inside the provided temporary path.
+    
+    Parameters:
+        tmp_path (pathlib.Path): Base temporary directory (typically provided by pytest).
+    
+    Returns:
+        pathlib.Path: Path to the newly created "exports" directory.
+    """
     exports = tmp_path / "exports"
     exports.mkdir()
     return exports
@@ -77,6 +119,19 @@ def artifact_root(tmp_path):
 
 @pytest.fixture()
 def sample_file(artifact_root):
+    """
+    Create a sample ZIP file with deterministic metadata for tests.
+    
+    Creates a file named "データ.zip" in the given artifact_root with fixed contents,
+    sets a deterministic Last-Modified timestamp for stable test assertions, and
+    returns the file path, the raw payload bytes, and the SHA-256 hex digest of the payload.
+    
+    Parameters:
+        artifact_root (pathlib.Path): Directory in which to create the sample file.
+    
+    Returns:
+        tuple[pathlib.Path, bytes, str]: (path to the created file, payload bytes, SHA-256 hex digest)
+    """
     filename = "データ.zip"
     path = artifact_root / filename
     payload = b"content-of-export"
@@ -90,6 +145,16 @@ def sample_file(artifact_root):
 
 
 def _app(root, **kwargs) -> GatewayApplication:
+    """
+    Create a GatewayApplication configured for tests.
+    
+    Parameters:
+        root (str | pathlib.Path): Filesystem path used as the application's artifact root.
+        **kwargs: Additional GatewayApplication configuration options forwarded unchanged (e.g., cache_mode, health_public).
+    
+    Returns:
+        GatewayApplication: Instance configured with api_key="secret" and version="1.2.3", with `root` and any provided kwargs applied.
+    """
     return GatewayApplication(root, api_key="secret", version="1.2.3", **kwargs)
 
 
@@ -132,6 +197,14 @@ def test_head_returns_headers_without_body(sample_file):
 
 
 def test_conditional_get_with_etag(sample_file):
+    """
+    Verifies that a conditional GET with a matching ETag returns 304 Not Modified and no body.
+    
+    Performs an initial GET to obtain the resource's ETag, then issues a GET with that ETag in If-None-Match and asserts the response status is "304 Not Modified", the response body is empty, and the ETag header remains the same.
+    
+    Parameters:
+        sample_file: a fixture tuple (path, payload, digest) representing the exported file; `digest` is the SHA-256 hex used for the resource ETag.
+    """
     path, _, digest = sample_file
     app = _app(path.parent)
     status, headers, _ = _call_app(
@@ -157,6 +230,12 @@ def test_conditional_get_with_etag(sample_file):
 
 
 def test_conditional_get_with_last_modified(sample_file):
+    """
+    Verifies that a conditional GET using the resource's Last-Modified header returns 304 Not Modified and an empty body when the resource is unmodified.
+    
+    Parameters:
+        sample_file (tuple): Fixture producing (path, payload, digest) for a test export file; the test uses the file's Last-Modified header to perform the conditional request.
+    """
     path, _, _ = sample_file
     app = _app(path.parent)
     status, headers, _ = _call_app(
@@ -259,5 +338,4 @@ def test_health_requires_key_by_default(artifact_root):
     app = GatewayApplication(artifact_root, api_key="secret")
     status, _, _ = _call_app(app, "GET", "/healthz")
     assert status == "401 Unauthorized"
-
 
