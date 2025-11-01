@@ -19,12 +19,34 @@ _metrics_app = create_prometheus_wsgi_app()
 
 
 def _parse_bool(value: Optional[str], default: bool) -> bool:
+    """
+    Parse a string into a boolean using common truthy representations.
+    
+    Parameters:
+        value (Optional[str]): The string to interpret as a boolean. If `None`, `default` is used.
+        default (bool): The fallback boolean returned when `value` is `None`.
+    
+    Returns:
+        bool: `True` if `value` (case-insensitive) is one of "1", "true", "yes", or "on"; `False` otherwise.
+    """
     if value is None:
         return default
     return value.lower() in {"1", "true", "yes", "on"}
 
 
 def _parse_json_dict(value: Optional[str]) -> Optional[dict[str, str]]:
+    """
+    Parse a JSON string into a dict of strings or return None if the input is empty or invalid.
+    
+    Parameters:
+        value (Optional[str]): JSON-encoded object where keys and values will be coerced to strings.
+    
+    Returns:
+        Optional[dict[str, str]]: A dictionary with keys and values converted to strings if parsing succeeds; `None` if `value` is falsy, not valid JSON, or not a JSON object.
+    
+    Notes:
+        Logs a warning when the value is invalid JSON or when the parsed JSON is not an object.
+    """
     if not value:
         return None
     try:
@@ -39,6 +61,15 @@ def _parse_json_dict(value: Optional[str]) -> Optional[dict[str, str]]:
 
 
 def _parse_int(value: Optional[str]) -> Optional[int]:
+    """
+    Parse a string as an integer, returning None for missing or invalid values.
+    
+    Parameters:
+        value (Optional[str]): The string to parse; None or empty string are treated as missing.
+    
+    Returns:
+        Optional[int]: The parsed integer, or None if the input is None, an empty string, or not a valid integer.
+    """
     if value is None or value == "":
         return None
     try:
@@ -49,6 +80,22 @@ def _parse_int(value: Optional[str]) -> Optional[int]:
 
 
 def _core_wsgi_app(environ: Mapping[str, Any], start_response: Callable[..., Iterable[bytes]]):
+    """
+    WSGI application handling metrics, health checks, digest verification requests, and a 404 fallback.
+    
+    Routes:
+    - /metrics: forwards the request to the Prometheus metrics WSGI app.
+    - /healthz (GET): returns HTTP 200 with JSON {"status": "ok"} and Cache-Control: no-store.
+    - /digests/verify (POST): accepts a JSON payload containing artifact_id, expected_digest, observed_digest, and optional cdn_* fields; logs a digest verification event and an optional CDN transfer event, then returns HTTP 200 with a JSON body summarizing the verification (fields: status, artifact_id, expected_digest, observed_digest).
+    - any other path/method: returns HTTP 404 with JSON {"error": "not found", "path": "<requested path>"}.
+    
+    Parameters:
+        environ (Mapping[str, Any]): WSGI environment mapping for the request.
+        start_response (Callable[..., Iterable[bytes]]): WSGI start_response callable used to begin the HTTP response.
+    
+    Returns:
+        An iterable of bytes containing the JSON-encoded response body.
+    """
     method = environ.get("REQUEST_METHOD", "GET")
     path = environ.get("PATH_INFO", "/")
 
@@ -162,6 +209,18 @@ def emit_digest_verification(
     artifact_kind: str,
     extra: Optional[dict[str, str]] = None,
 ) -> None:
+    """
+    Emit an observability event describing the verification of an artifact digest.
+    
+    Parameters:
+        artifact_id (str): Identifier of the artifact being verified; use a stable identifier when available.
+        expected_digest (str): The digest value that was expected.
+        observed_digest (str): The digest value that was observed.
+        status (str): Verification outcome (e.g., "success" or "failure").
+        source (str): Origin of the verification event (for example, "api" or "cdn").
+        artifact_kind (str): Kind or category of the artifact (for example, "artifact" or "package").
+        extra (Optional[dict[str, str]]): Additional metadata to attach to the event.
+    """
     observability.log_digest_verification(
         artifact_id=artifact_id,
         expected_digest=expected_digest,
@@ -181,6 +240,16 @@ def emit_cdn_transfer(
     status_code: int,
     extra: Optional[dict[str, str]] = None,
 ) -> None:
+    """
+    Emit a CDN transfer event to the observability pipeline.
+    
+    Parameters:
+        artifact_id (str): Identifier of the artifact involved in the transfer.
+        provider (str): CDN provider name.
+        cache_status (str): Cache outcome (e.g., "hit", "miss").
+        status_code (int): HTTP status code observed from the CDN.
+        extra (Optional[dict[str, str]]): Additional metadata to include with the event.
+    """
     observability.log_cdn_transfer(
         artifact_id=artifact_id,
         provider=provider,
