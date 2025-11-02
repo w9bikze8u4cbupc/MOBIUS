@@ -64,6 +64,34 @@ if (!OUTPUT_DIR || typeof OUTPUT_DIR !== 'string') {
 
 console.log('Starting server...');
 
+app.get('/livez', (_req, res) => {
+  res
+    .type('text/plain')
+    .set('Cache-Control', 'no-store')
+    .send('ok');
+});
+
+app.get('/healthz', async (_req, res) => {
+  try {
+    await fsPromises.access(OUTPUT_DIR);
+    const redisClient = globalThis.redis;
+    if (redisClient && typeof redisClient.ping === 'function') {
+      await redisClient.ping();
+    }
+    res
+      .type('text/plain')
+      .set('Cache-Control', 'no-store')
+      .send('ok');
+  } catch (err) {
+    console.warn('Health probe failed:', err);
+    res
+      .status(503)
+      .type('text/plain')
+      .set('Cache-Control', 'no-store')
+      .send('degraded');
+  }
+});
+
 // Optional: Suppress specific warnings
 const originalWarn = console.warn;
 console.warn = function (...args) {
