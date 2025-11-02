@@ -32,15 +32,20 @@
     "video",
     "generator",
     "rules"
-  ],
-  "author": "Mobius Games",
-  "license": "MIT",
-  "dependencies": {
-    "typescript": "^5.0.0"
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^18.0.0",
+    "ajv": "^8.17.1",
+    "js-yaml": "^4.1.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.1",
+    "ts-node": "^10.9.1"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@types/node": "^18.0.0",
+    "ajv": "^8.17.1",
+    "js-yaml": "^4.1.0",
     "jest": "^29.7.0",
     "ts-jest": "^29.4.1",
     "ts-node": "^10.9.1"
