@@ -10,7 +10,7 @@ import * as pdfToImg from 'pdf-to-img';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execFile } from 'child_process';
-import { ensureDir } from 'fs-extra'; // If you use fs-extra for directory creation  
+import { ensureDir } from 'fs-extra'; // If you use fs-extra for directory creation
 import sharp from 'sharp'; // For image processing
 import { dirname } from 'path';
 import { XMLParser } from 'fast-xml-parser';
@@ -35,6 +35,34 @@ const app = express();
 const port = process.env.PORT || 5001;
 const bggMetadataCache = new Map();
 
+function createRateLimiter({ windowMs, max, retryMessage = 'Too many requests' }) {
+  const buckets = new Map();
+  return (req, res, next) => {
+    const now = Date.now();
+    const key = req.ip || req.headers['x-forwarded-for'] || 'global';
+    const entry = buckets.get(key) || { count: 0, resetAt: now + windowMs };
+
+    if (now > entry.resetAt) {
+      entry.count = 0;
+      entry.resetAt = now + windowMs;
+    }
+
+    entry.count += 1;
+    buckets.set(key, entry);
+
+    if (entry.count > max) {
+      const retryAfterSeconds = Math.ceil((entry.resetAt - now) / 1000);
+      res.set('Retry-After', String(retryAfterSeconds));
+      return res.status(429).json({ error: retryMessage });
+    }
+
+    return next();
+  };
+}
+
+const aiLimiter = createRateLimiter({ windowMs: 60_000, max: 30 });
+const writeLimiter = createRateLimiter({ windowMs: 60_000, max: 12 });
+
 
 // Fix for __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -46,7 +74,8 @@ app.use(cors({
   origin: 'http://localhost:3000',
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use('/static', express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -76,18 +105,39 @@ console.warn = function (...args) {
   originalWarn.apply(console, args);
 };
 
-// --- Simple API Key Middleware (Development Mode) ---  
-app.use((req, res, next) => {  
-  // TODO: Implement proper session-based authentication  
-  // For now, skip API key validation in development  
-  console.log(`${req.method} ${req.path} - API key validation skipped`);  
-  next();  
+// --- Simple API Key Middleware ---
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY || '';
+app.use((req, res, next) => {
+  if (!ADMIN_API_KEY) {
+    // Preserve existing behaviour when no API key is configured (e.g. local dev)
+    console.log(`${req.method} ${req.path} - API key validation skipped`);
+    return next();
+  }
+
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+
+  if (req.method === 'GET' && (req.path.startsWith('/static') || req.path.startsWith('/uploads'))) {
+    return next();
+  }
+
+  const apiKey = req.headers['x-api-key'];
+  if (typeof apiKey !== 'string' || apiKey.trim() === '') {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (apiKey !== ADMIN_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  return next();
 });
 
 
 
 // --- API Endpoint for Explaining Text Chunks ---
-app.post('/api/explain-chunk', async (req, res) => {  
+app.post('/api/explain-chunk', aiLimiter, async (req, res) => {
   try {  
     const { chunk, language } = req.body;  
     if (!chunk) {  
@@ -104,7 +154,7 @@ app.post('/api/explain-chunk', async (req, res) => {
 });
 
 // --- Save Project Endpoint ---
-app.post('/save-project', (req, res) => {
+app.post('/save-project', writeLimiter, (req, res) => {
   const { name, metadata, components, images, script, audio } = req.body;
 
   db.run(

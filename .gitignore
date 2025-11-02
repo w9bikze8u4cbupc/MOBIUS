@@ -82,3 +82,7 @@ Thumbs.db
 !/data/exports/.gitkeep
 !/output/.gitkeep
 !/ffmpeg-bin/README.md
+
+# Frontend audit artefacts
+client/audit-reports/
+client/docs/frontend-audit-summary.md
