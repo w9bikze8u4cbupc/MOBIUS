@@ -46,17 +46,41 @@
     "ts-node": "^10.9.1"
   },
   "jest": {
-    "preset": "ts-jest",
+    "preset": "ts-jest/presets/default-esm",
     "testEnvironment": "node",
+    "globals": {
+      "ts-jest": {
+        "useESM": true,
+        "tsconfig": {
+          "allowJs": true,
+          "esModuleInterop": true,
+          "module": "esnext",
+          "moduleResolution": "node",
+          "target": "es2020"
+        }
+      }
+    },
+    "transform": {
+      "^.+\\.[tj]s$": [
+        "ts-jest",
+        {
+          "useESM": true,
+          "tsconfig": {
+            "allowJs": true,
+            "esModuleInterop": true,
+            "module": "esnext",
+            "moduleResolution": "node",
+            "target": "es2020"
+          }
+        }
+      ]
+    },
     "roots": [
       "<rootDir>/src"
     ],
     "testMatch": [
       "**/__tests__/**/*.ts",
       "**/?(*.)+(spec|test).ts"
-    ],
-    "transform": {
-      "^.+\\.tsx?$": "ts-jest"
-    }
+    ]
   }
 }

@@ -23,8 +23,42 @@ import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
+import { createRequire } from 'node:module';
 
+const require = createRequire(import.meta.url);
+const registerProbeRoutes = require('./probesRoutes.cjs');
 
+let metricsRegister = null;
+try {
+  const promClientModule = await import('prom-client');
+  const promClient = promClientModule.default ?? promClientModule;
+  metricsRegister = new promClient.Registry();
+  if (typeof promClient.collectDefaultMetrics === 'function') {
+    promClient.collectDefaultMetrics({ register: metricsRegister });
+  }
+} catch (err) {
+  if (err?.code !== 'ERR_MODULE_NOT_FOUND' && err?.code !== 'MODULE_NOT_FOUND') {
+    console.warn('Prometheus metrics disabled due to initialization error:', err);
+  } else {
+    console.warn('Prometheus metrics disabled: optional prom-client dependency not available.');
+  }
+}
+
+const serviceState = {
+  healthy: true,
+  ready: true
+};
+
+export const setServiceState = (overrides = {}) => {
+  if (Object.prototype.hasOwnProperty.call(overrides, 'healthy')) {
+    serviceState.healthy = Boolean(overrides.healthy);
+  }
+  if (Object.prototype.hasOwnProperty.call(overrides, 'ready')) {
+    serviceState.ready = Boolean(overrides.ready);
+  }
+};
+
+export const getServiceState = () => ({ ...serviceState });
 
 dotenv.config();
 console.log('Loaded OpenAI key:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
@@ -32,7 +66,7 @@ console.log('Loaded OpenAI key:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
 console.log('API file loaded!');
 
 const app = express();
-const port = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5001;
 const bggMetadataCache = new Map();
 
 
@@ -51,7 +85,7 @@ app.use('/static', express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- API Configuration ---
-const BACKEND_URL = `http://localhost:${port}`;
+const BACKEND_URL = `http://localhost:${PORT}`;
 const IMAGE_EXTRACTOR_API_KEY = process.env.IMAGE_EXTRACTOR_API_KEY;
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -2820,8 +2854,16 @@ app.get('/load-project/:id', (req, res) => {
   );
 });
 
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
+registerProbeRoutes(app, {
+  getServiceState: () => serviceState,
+  getMetricsRegister: () => metricsRegister
+});
+
+if (process.env.NODE_ENV !== 'test' && !process.env.JEST_WORKER_ID) {
+  app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
-});
+  });
+}
+
+export default app;
