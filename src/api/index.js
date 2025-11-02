@@ -19,6 +19,7 @@ import { explainChunkWithAI } from './aiUtils.js';
 import { extractTextFromPDF } from './pdfUtils.js';
 import { extractComponentsFromText } from './utils.js';
 import { extractComponentsWithAI } from './aiUtils.js';
+import { recordCdnMetric, getCdnMetricsSnapshot, setMetricsRedisClient } from './observability/cdnMetricsStore.js';
 import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
@@ -35,6 +36,28 @@ const app = express();
 const port = process.env.PORT || 5001;
 const bggMetadataCache = new Map();
 
+let redis;
+setMetricsRedisClient(undefined);
+
+(async () => {
+  try {
+    const redisModule = await import('ioredis');
+    const RedisCtor = redisModule?.default ?? redisModule;
+    if (RedisCtor && process.env.REDIS_URL) {
+      redis = new RedisCtor(process.env.REDIS_URL);
+      redis.on('error', (err) => console.error('Redis connection error:', err));
+      setMetricsRedisClient(redis);
+    } else {
+      setMetricsRedisClient(undefined);
+      if (!process.env.REDIS_URL) {
+        console.warn('REDIS_URL not set; CDN metrics mirroring disabled');
+      }
+    }
+  } catch (error) {
+    setMetricsRedisClient(undefined);
+    console.warn('ioredis not available; CDN metrics mirroring disabled:', error?.message ?? error);
+  }
+})();
 
 // Fix for __dirname in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -63,6 +86,25 @@ if (!OUTPUT_DIR || typeof OUTPUT_DIR !== 'string') {
 }
 
 console.log('Starting server...');
+
+app.get('/livez', (_req, res) => {
+  res.type('text/plain').set('Cache-Control', 'no-store').send('ok');
+});
+
+const healthHandler = async (_req, res) => {
+  try {
+    await fsPromises.access(OUTPUT_DIR);
+    if (redis && typeof redis.ping === 'function') {
+      await redis.ping();
+    }
+    res.type('text/plain').set('Cache-Control', 'no-store').send('ok');
+  } catch (err) {
+    res.status(503).type('text/plain').set('Cache-Control', 'no-store').send('degraded');
+  }
+};
+
+app.get('/healthz', healthHandler);
+app.get('/readyz', healthHandler);
 
 // Optional: Suppress specific warnings
 const originalWarn = console.warn;
@@ -2818,6 +2860,19 @@ app.get('/load-project/:id', (req, res) => {
       }
     }
   );
+});
+
+app.post('/api/observability/cdn', (req, res) => {
+  try {
+    const entry = recordCdnMetric(req.body ?? {});
+    res.status(202).json(entry);
+  } catch (error) {
+    res.status(400).json({ error: error.message || 'Invalid CDN metric payload' });
+  }
+});
+
+app.get('/api/observability/cdn', (_req, res) => {
+  res.json(getCdnMetricsSnapshot());
 });
 
 const PORT = process.env.PORT || 5001;

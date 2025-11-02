@@ -58,5 +58,9 @@
     "transform": {
       "^.+\\.tsx?$": "ts-jest"
     }
+  },
+  "optionalDependencies": {
+    "ioredis": "^5.4.1",
+    "prom-client": "^15.1.3"
   }
 }
