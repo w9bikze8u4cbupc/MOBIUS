@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import db from './db.js';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import OpenAI from 'openai';
@@ -23,6 +24,7 @@ import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
+import cdnMetricsStore from './observability/cdnMetricsStore.js';
 
 
 
@@ -40,13 +42,15 @@ const bggMetadataCache = new Map();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const execFilePromise = promisify(execFile);
+const { recordCdnMetric, getCdnMetricsSnapshot } = cdnMetricsStore;
 
 // CORS configuration - MUST be before other middleware/routes
 app.use(cors({
   origin: 'http://localhost:3000',
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false }));
 app.use('/static', express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -77,11 +81,124 @@ console.warn = function (...args) {
 };
 
 // --- Simple API Key Middleware (Development Mode) ---  
-app.use((req, res, next) => {  
-  // TODO: Implement proper session-based authentication  
-  // For now, skip API key validation in development  
-  console.log(`${req.method} ${req.path} - API key validation skipped`);  
-  next();  
+app.use((req, res, next) => {
+  // TODO: Implement proper session-based authentication
+  // For now, skip API key validation in development
+  console.log(`${req.method} ${req.path} - API key validation skipped`);
+  next();
+});
+
+const PREVIEW_TOKEN_TTL_MS = 5 * 60 * 1000;
+const MAX_PREVIEW_TOKENS = 100;
+const STATIC_PREVIEW_TOKEN = (process.env.PREVIEW_TOKEN_SECRET || process.env.PREVIEW_TOKEN || '').trim();
+const previewTokenStore = new Map();
+
+function cleanupExpiredPreviewTokens() {
+  const now = Date.now();
+  for (const [token, expiresAt] of previewTokenStore.entries()) {
+    if (expiresAt <= now) {
+      previewTokenStore.delete(token);
+    }
+  }
+}
+
+function issuePreviewToken() {
+  cleanupExpiredPreviewTokens();
+  const raw = crypto.randomBytes(32).toString('base64');
+  const token = raw.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  const expiresAt = Date.now() + PREVIEW_TOKEN_TTL_MS;
+  previewTokenStore.set(token, expiresAt);
+
+  if (previewTokenStore.size > MAX_PREVIEW_TOKENS) {
+    const oldestKey = previewTokenStore.keys().next().value;
+    if (oldestKey) {
+      previewTokenStore.delete(oldestKey);
+    }
+  }
+
+  return { token, expiresAt };
+}
+
+function timingSafeMatch(candidate, expected) {
+  if (!candidate || !expected) {
+    return false;
+  }
+  const candidateBuffer = Buffer.from(candidate);
+  const expectedBuffer = Buffer.from(expected);
+  if (candidateBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+  try {
+    return crypto.timingSafeEqual(candidateBuffer, expectedBuffer);
+  } catch (err) {
+    console.warn('Preview token comparison failed:', err.message);
+    return false;
+  }
+}
+
+function validatePreviewToken(candidate) {
+  cleanupExpiredPreviewTokens();
+  if (typeof candidate !== 'string' || candidate.trim().length === 0) {
+    return false;
+  }
+  const trimmed = candidate.trim();
+  if (STATIC_PREVIEW_TOKEN && timingSafeMatch(trimmed, STATIC_PREVIEW_TOKEN)) {
+    return true;
+  }
+  const expiresAt = previewTokenStore.get(trimmed);
+  if (!expiresAt) {
+    return false;
+  }
+  if (expiresAt <= Date.now()) {
+    previewTokenStore.delete(trimmed);
+    return false;
+  }
+  return true;
+}
+
+app.post('/api/preview/token', (req, res) => {
+  const { token, expiresAt } = issuePreviewToken();
+  res.json({ token, expiresAt: new Date(expiresAt).toISOString() });
+});
+
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/preview')) {
+    return next();
+  }
+
+  res.append('Vary', 'Authorization, X-Preview-Token');
+
+  if (req.method === 'OPTIONS' || req.method === 'HEAD') {
+    return next();
+  }
+
+  const headerToken = req.headers['x-preview-token'];
+  const queryToken = req.query.previewToken;
+  const candidate = Array.isArray(headerToken)
+    ? headerToken[0]
+    : headerToken || (Array.isArray(queryToken) ? queryToken[0] : queryToken);
+
+  if (!candidate || !validatePreviewToken(String(candidate))) {
+    console.warn(`Preview token rejected for ${req.path}`);
+    return res.status(401).json({ error: 'Invalid or expired preview token' });
+  }
+
+  return next();
+});
+
+app.post('/api/observability/cdn', (req, res) => {
+  try {
+    const event = recordCdnMetric(req.body);
+    res.status(202).json({ status: 'accepted', event });
+  } catch (err) {
+    console.error('Failed to record CDN metric:', err);
+    res.status(400).json({ error: err.message || 'Invalid CDN metric payload' });
+  }
+});
+
+app.get('/api/observability/cdn', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(getCdnMetricsSnapshot());
 });
 
 

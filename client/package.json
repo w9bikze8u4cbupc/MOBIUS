@@ -17,14 +17,17 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "npm run test:rendering && npm run test:accessibility && react-scripts build",
     "test": "react-scripts test",
+    "test:rendering": "react-scripts test --watchAll=false --passWithNoTests --testPathPattern=rendering",
+    "test:accessibility": "react-scripts test --watchAll=false --passWithNoTests --testPathPattern=accessibility",
+    "audit:report": "node scripts/compile-audit-report.cjs",
     "eject": "react-scripts eject"
   },
   "browser": {
-  "fs": false,
-  "path": false,
-  "os": false
+    "fs": false,
+    "path": false,
+    "os": false
   },
   "eslintConfig": {
     "extends": [
