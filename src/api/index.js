@@ -22,7 +22,102 @@ import { extractComponentsWithAI } from './aiUtils.js';
 import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
-import { promisify } from 'node:util';
+import { TextEncoder, promisify } from 'node:util';
+import { recordCdnMetric, getCdnMetricsSnapshot } from './observability/cdnMetricsStore.js';
+
+let promClient = null;
+let metricsRegister = null;
+let httpRequestsCounter = null;
+(async () => {
+  try {
+    const mod = await import('prom-client');
+    promClient = mod.default ?? mod;
+    metricsRegister = new promClient.Registry();
+    promClient.collectDefaultMetrics({ register: metricsRegister });
+    httpRequestsCounter = new promClient.Counter({
+      name: 'http_requests_total',
+      help: 'Total HTTP requests processed by the API',
+      labelNames: ['method', 'route', 'code'],
+    });
+    metricsRegister.registerMetric(httpRequestsCounter);
+  } catch (err) {
+    console.warn('Prometheus metrics disabled:', err?.message ?? err);
+  }
+})();
+
+let RedisClient = null;
+let redis = null;
+(async () => {
+  if (!process.env.REDIS_URL) return;
+  try {
+    const mod = await import('ioredis');
+    RedisClient = mod.default ?? mod;
+    redis = new RedisClient(process.env.REDIS_URL);
+    redis.on('error', (err) => {
+      console.error('Redis connection error:', err);
+    });
+  } catch (err) {
+    console.warn('Redis disabled:', err?.message ?? err);
+  }
+})();
+
+const PREVIEW_TOKEN_TTL_MS = Number(process.env.PREVIEW_TOKEN_TTL_SECONDS || 300) * 1000;
+const STATIC_PREVIEW_TOKEN = process.env.STATIC_PREVIEW_TOKEN || '';
+const previewTokenStore = new Map();
+
+function cleanupExpiredPreviewTokens() {
+  const now = Date.now();
+  for (const [token, expiresAt] of previewTokenStore.entries()) {
+    if (expiresAt <= now) {
+      previewTokenStore.delete(token);
+    }
+  }
+}
+
+async function issuePreviewToken() {
+  const crypto = await import('node:crypto');
+  const raw = crypto.randomBytes(32).toString('base64');
+  const token = raw.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  const expiresAt = Date.now() + PREVIEW_TOKEN_TTL_MS;
+  if (redis) {
+    await redis.set(`preview:${token}`, '1', 'PX', PREVIEW_TOKEN_TTL_MS);
+  } else {
+    cleanupExpiredPreviewTokens();
+    previewTokenStore.set(token, expiresAt);
+  }
+  return { token, expiresAt };
+}
+
+function timingSafeMatch(candidate, expected) {
+  if (!candidate || !expected) return false;
+  const enc = new TextEncoder();
+  const a = enc.encode(candidate);
+  const b = enc.encode(expected);
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    result |= a[i] ^ b[i];
+  }
+  return result === 0;
+}
+
+function validatePreviewToken(candidate) {
+  if (typeof candidate !== 'string' || candidate.trim().length === 0) {
+    return false;
+  }
+  const trimmed = candidate.trim();
+  if (STATIC_PREVIEW_TOKEN && timingSafeMatch(trimmed, STATIC_PREVIEW_TOKEN)) {
+    return true;
+  }
+  cleanupExpiredPreviewTokens();
+  const expiresAt = previewTokenStore.get(trimmed);
+  if (!expiresAt) return false;
+  if (expiresAt <= Date.now()) {
+    previewTokenStore.delete(trimmed);
+    return false;
+  }
+  return true;
+}
 
 
 
@@ -77,11 +172,100 @@ console.warn = function (...args) {
 };
 
 // --- Simple API Key Middleware (Development Mode) ---  
-app.use((req, res, next) => {  
-  // TODO: Implement proper session-based authentication  
-  // For now, skip API key validation in development  
-  console.log(`${req.method} ${req.path} - API key validation skipped`);  
-  next();  
+app.use((req, res, next) => {
+  // TODO: Implement proper session-based authentication
+  // For now, skip API key validation in development
+  console.log(`${req.method} ${req.path} - API key validation skipped`);
+  next();
+});
+
+app.use((req, res, next) => {
+  if (!httpRequestsCounter) return next();
+  const route = req.route?.path || req.path;
+  res.on('finish', () => {
+    try {
+      httpRequestsCounter.inc({
+        method: req.method,
+        route,
+        code: String(res.statusCode),
+      });
+    } catch (err) {
+      console.warn('Failed to record Prometheus metric:', err);
+    }
+  });
+  next();
+});
+
+app.get('/livez', (_req, res) => {
+  res
+    .type('text/plain')
+    .set('Cache-Control', 'no-store')
+    .send('ok');
+});
+
+app.get('/readyz', async (_req, res) => {
+  try {
+    await fsPromises.access(OUTPUT_DIR);
+    if (redis) {
+      await redis.ping();
+    }
+    res
+      .type('text/plain')
+      .set('Cache-Control', 'no-store')
+      .send('ok');
+  } catch (err) {
+    console.warn('Readiness probe failed:', err);
+    res
+      .status(503)
+      .type('text/plain')
+      .set('Cache-Control', 'no-store')
+      .send('degraded');
+  }
+});
+
+app.get('/metrics', async (_req, res) => {
+  if (!metricsRegister) {
+    return res
+      .status(503)
+      .type('text/plain')
+      .set('Cache-Control', 'no-store')
+      .send('metrics unavailable');
+  }
+  res.set('Content-Type', metricsRegister.contentType);
+  res.send(await metricsRegister.metrics());
+});
+
+app.use(async (req, res, next) => {
+  if (!req.path.startsWith('/preview')) return next();
+  res.append('Vary', 'Authorization, X-Preview-Token');
+  if (req.method === 'OPTIONS' || req.method === 'HEAD') return next();
+
+  const headerToken = req.headers['x-preview-token'];
+  const queryToken = req.query.previewToken;
+  const candidate = Array.isArray(headerToken)
+    ? headerToken[0]
+    : headerToken || (Array.isArray(queryToken) ? queryToken[0] : queryToken);
+
+  let ok = false;
+  if (candidate) {
+    const value = String(candidate);
+    if (redis) {
+      try {
+        ok = Boolean(await redis.get(`preview:${value}`));
+      } catch (err) {
+        console.warn('Redis preview token lookup failed:', err);
+      }
+    } else {
+      ok = validatePreviewToken(value);
+    }
+  }
+
+  if (!ok) {
+    console.warn(`Preview token rejected for ${req.path}`);
+    return res.status(401).json({ error: 'Invalid or expired preview token' });
+  }
+
+  return next();
 });
 
 
@@ -2821,7 +3005,28 @@ app.get('/load-project/:id', (req, res) => {
 });
 
 const PORT = process.env.PORT || 5001;
+
+app.post('/api/observability/cdn', (req, res) => {
+  try {
+    const entry = recordCdnMetric(req.body || {});
+    res.status(201).json(entry);
+  } catch (err) {
+    console.error('Failed to record CDN metric:', err);
+    res.status(500).json({ error: 'Unable to record CDN metric' });
+  }
+});
+
+app.get('/api/observability/cdn', async (_req, res) => {
+  try {
+    const snapshot = await getCdnMetricsSnapshot();
+    res.json(snapshot);
+  } catch (err) {
+    console.error('Failed to fetch CDN metrics:', err);
+    res.status(500).json({ error: 'Unable to fetch CDN metrics' });
+  }
+});
+
 app.listen(PORT, () => {
-    console.log(`🚀 Server is running on port ${PORT}`);
-    console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
+  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
 });
