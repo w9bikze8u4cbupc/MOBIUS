@@ -10,7 +10,7 @@ import * as pdfToImg from 'pdf-to-img';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execFile } from 'child_process';
-import { ensureDir } from 'fs-extra'; // If you use fs-extra for directory creation  
+import { ensureDir } from 'fs-extra'; // If you use fs-extra for directory creation
 import sharp from 'sharp'; // For image processing
 import { dirname } from 'path';
 import { XMLParser } from 'fast-xml-parser';
@@ -23,6 +23,11 @@ import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
+import {
+  getCdnMetricsSnapshot,
+  recordCdnEvent,
+  setMetricsRedisClient,
+} from './observability/cdnMetricsStore.js';
 
 
 
@@ -34,6 +39,49 @@ console.log('API file loaded!');
 const app = express();
 const port = process.env.PORT || 5001;
 const bggMetadataCache = new Map();
+
+let redis = null;
+
+async function initializeRedis() {
+  const redisUrl = process.env.REDIS_URL || process.env.REDIS_HOST;
+  if (!redisUrl) {
+    console.log('Redis URL not configured; skipping Redis initialization for CDN metrics.');
+    return;
+  }
+
+  try {
+    const redisModule = await import('ioredis');
+    const Redis = redisModule.default ?? redisModule;
+    const client = new Redis(redisUrl, {
+      lazyConnect: true,
+      maxRetriesPerRequest: 2,
+    });
+
+    client.on('error', err => {
+      console.error('Redis client error:', err);
+    });
+
+    if (typeof client.connect === 'function') {
+      await client.connect();
+    }
+
+    await client.ping();
+    redis = client;
+    setMetricsRedisClient(client);
+    console.log('Connected to Redis for CDN metrics mirroring.');
+  } catch (error) {
+    if (error?.code === 'ERR_MODULE_NOT_FOUND' || error?.code === 'MODULE_NOT_FOUND') {
+      console.warn('ioredis is not installed; CDN metrics Redis mirroring disabled.');
+      return;
+    }
+
+    console.warn('Failed to initialize Redis; continuing without Redis metrics mirroring.', error);
+  }
+}
+
+initializeRedis().catch(err => {
+  console.error('Unexpected error during Redis initialization:', err);
+});
 
 
 // Fix for __dirname in ESM
@@ -59,8 +107,40 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(__dirname, 'uploads', 'MobiusGames');
 if (!OUTPUT_DIR || typeof OUTPUT_DIR !== 'string') {
   console.error('Invalid OUTPUT_DIR configuration');
-  process.exit(1);  
+  process.exit(1);
 }
+
+app.get('/livez', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+app.get('/healthz', async (_req, res) => {
+  const checks = {};
+
+  try {
+    await fsPromises.access(OUTPUT_DIR, fs.constants.R_OK);
+    checks.exportDir = { status: 'ok', path: OUTPUT_DIR };
+  } catch (error) {
+    checks.exportDir = { status: 'error', message: error.message };
+    return res.status(503).json({ status: 'degraded', checks });
+  }
+
+  if (redis && typeof redis.ping === 'function') {
+    try {
+      await redis.ping();
+      checks.redis = { status: 'ok' };
+    } catch (error) {
+      checks.redis = { status: 'error', message: error.message };
+      return res.status(503).json({ status: 'degraded', checks });
+    }
+  }
+
+  return res.status(200).json({ status: 'ok', checks });
+});
+
+app.get('/readyz', async (_req, res) => {
+  return res.redirect(307, '/healthz');
+});
 
 console.log('Starting server...');
 
@@ -76,18 +156,32 @@ console.warn = function (...args) {
   originalWarn.apply(console, args);
 };
 
-// --- Simple API Key Middleware (Development Mode) ---  
-app.use((req, res, next) => {  
-  // TODO: Implement proper session-based authentication  
-  // For now, skip API key validation in development  
-  console.log(`${req.method} ${req.path} - API key validation skipped`);  
-  next();  
+// --- Simple API Key Middleware (Development Mode) ---
+app.use((req, res, next) => {
+  // TODO: Implement proper session-based authentication
+  // For now, skip API key validation in development
+  console.log(`${req.method} ${req.path} - API key validation skipped`);
+  next();
+});
+
+app.post('/api/observability/cdn', async (req, res) => {
+  try {
+    const snapshot = await recordCdnEvent(req.body ?? {});
+    res.status(202).json(snapshot);
+  } catch (error) {
+    console.error('Error ingesting CDN observability payload:', error);
+    res.status(400).json({ error: error.message ?? 'Invalid CDN observability payload' });
+  }
+});
+
+app.get('/api/observability/cdn', (_req, res) => {
+  res.json(getCdnMetricsSnapshot());
 });
 
 
 
 // --- API Endpoint for Explaining Text Chunks ---
-app.post('/api/explain-chunk', async (req, res) => {  
+app.post('/api/explain-chunk', async (req, res) => {
   try {  
     const { chunk, language } = req.body;  
     if (!chunk) {  
