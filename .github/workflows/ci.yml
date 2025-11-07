@@ -53,15 +53,23 @@ jobs:
         continue-on-error: false
 
       - name: Render preview
-        run: |
-          mkdir -p out artifacts
-          npm run render:preview # <- replace with your preview command
-        working-directory: client
         shell: bash
+        run: |
+          # Always render from repo root for consistent paths
+          mkdir -p client/out out artifacts
+          npm --prefix client run render:preview
+          # Normalise to a single canonical filename used by downstream QA
+          if [ -f client/out/preview.mp4 ]; then
+            cp client/out/preview.mp4 out/preview_with_audio.mp4
+          elif [ -f client/out/preview_with_audio.mp4 ]; then
+            cp client/out/preview_with_audio.mp4 out/preview_with_audio.mp4
+          else
+            echo "No preview output found in client/out"; exit 2
+          fi
 
       - name: Audio ebur128
         run: |
-          ffmpeg -hide_banner -nostats -i out/preview_with_audio.mp4 -filter_complex ebur128 -f null - 2> artifacts/preview_with_audio_ebur128.txt
+          ffmpeg -hide_banner -nostats -i out/preview_with_audio.mp4 -filter_complex ebur128=peak=true -f null - 2> artifacts/preview_with_audio_ebur128.txt
         shell: bash
 
       - name: Capture provenance (Unix)
