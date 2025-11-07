@@ -20,7 +20,10 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install deps
+      - name: Install deps (root)
+        run: npm ci
+
+      - name: Install deps (client)
         run: npm ci
         working-directory: client
 
@@ -55,8 +58,9 @@ jobs:
       - name: Render preview
         run: |
           mkdir -p out artifacts
-          npm run render:preview # <- replace with your preview command
-        working-directory: client
+          npm run render:preview
+          # Normalize the preview name so downstream audio/container steps consume a consistent path.
+          cp out/preview.mp4 out/preview_with_audio.mp4
         shell: bash
 
       - name: Audio ebur128
