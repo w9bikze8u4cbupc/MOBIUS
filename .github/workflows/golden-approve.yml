@@ -57,7 +57,7 @@ jobs:
       - name: Generate baselines
         env:
           GAMES: ${{ github.event.inputs.games }}
-          PER_OS: ${{ github.event.inputs.perOs }}
+          PER_OS: "${{ github.event.inputs.perOs }}"
         run: |
           node -e "const { execSync } = require('child_process'); const games=(process.env.GAMES||'').split(',').map(s=>s.trim()).filter(Boolean); const perOs = String(process.env.PER_OS) === 'true'; const flag = perOs ? '--perOs' : ''; for(const g of games){ console.log('Approving baseline for', g); execSync(\`node scripts/generate_golden.js --game \"\${g}\" \${flag}\`, {stdio:'inherit'}); }"
 
