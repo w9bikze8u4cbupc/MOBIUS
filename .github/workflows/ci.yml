@@ -71,7 +71,7 @@ jobs:
           if [ ! -f out/preview_with_audio.mp4 ]; then
             mkdir -p out
             ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=black:s=1280x720:d=6 \
-                   -f lavfi -i sine=f=1000:b=4:d=6 -shortest \
+                   -f lavfi -i sine=f=1000:d=6 -shortest \
                    -c:v libx264 -pix_fmt yuv420p -r 30 -c:a aac -b:a 128k out/preview_with_audio.mp4
           fi
         shell: bash
