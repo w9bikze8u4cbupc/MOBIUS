@@ -59,13 +59,14 @@ the corresponding CI log.
 
 ## Acceptance / Verification Notes
 
-- Schema validation runs before the summary step, so a failed check prevents any
-  metrics from being published.
-- The PR UI always displays the JSON payload inside a fenced block, keeping the
-  artifact human-readable while automation can still consume the
-  `preview_audio_metrics.json` file.
+- Schema validation runs on both Unix/macOS and Windows before the summary
+  step, so any failure stops the pipeline from publishing metrics and surfaces
+  the error in CI logs.
+- The PR UI always displays the JSON payload inside a fenced block with exactly
+  the two KPIs, while automation continues to consume the stable
+  `preview_audio_metrics.json` artifact.
 - Artifact naming, retention policy, and concurrency behavior remain unchanged
-  from the legacy pipeline.
+  from the legacy pipeline, so downstream integrations do not require updates.
 
 ## Failure Modes and Responses
 
