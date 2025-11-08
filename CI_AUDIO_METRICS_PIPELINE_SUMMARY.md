@@ -11,7 +11,8 @@ automation and humans see the same results regardless of environment.
    asset.
 2. **Emit `preview_audio_metrics.json`** with the current KPI contract.
 3. **Validate the schema** on Unix/macOS (Bash) and Windows (PowerShell) before
-   any summary is rendered.
+   any summary is rendered. A failure on either platform halts the workflow and
+   surfaces the validation error in CI logs.
 4. **Publish the PR summary** with a fenced JSON block so reviewers can skim the
    metrics directly in the GitHub UI.
 
@@ -40,6 +41,8 @@ the PR summary:
   and exits early on any mismatch.
 - **Windows (PowerShell)**: Uses native JSON parsing to enforce the identical
   contract, guaranteeing parity with the Unix path.
+- Validation gates the summary step on both operating systems; the pipeline
+  never renders a PR summary if either platform reports a contract violation.
 
 Any validation failure blocks the summary step and the job surfaces the error in
 the corresponding CI log.
