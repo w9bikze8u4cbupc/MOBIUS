@@ -2,7 +2,11 @@ name: CI
 
 on:
   push:
+    paths-ignore:
+      - '**/*.md'
   pull_request:
+    paths-ignore:
+      - '**/*.md'
 
 jobs:
   build-and-qa:
@@ -54,14 +58,23 @@ jobs:
 
       - name: Render preview
         run: |
-          mkdir -p out artifacts
-          npm run render:preview # <- replace with your preview command
-        working-directory: client
+          mkdir -p client/out out artifacts
+          npm --prefix client run render:preview
+          if [ -f client/out/preview.mp4 ]; then
+            cp client/out/preview.mp4 out/preview_with_audio.mp4
+          elif [ -f client/out/preview_with_audio.mp4 ]; then
+            cp client/out/preview_with_audio.mp4 out/preview_with_audio.mp4
+          else
+            echo "No preview output found in client/out"
+            exit 2
+          fi
         shell: bash
 
       - name: Audio ebur128
         run: |
-          ffmpeg -hide_banner -nostats -i out/preview_with_audio.mp4 -filter_complex ebur128 -f null - 2> artifacts/preview_with_audio_ebur128.txt
+          ffmpeg -hide_banner -nostats -i out/preview_with_audio.mp4 \
+            -filter_complex ebur128=peak=true -f null - \
+            2> artifacts/preview_with_audio_ebur128.txt
         shell: bash
 
       - name: Capture provenance (Unix)
@@ -71,8 +84,8 @@ jobs:
 
       - name: Capture provenance (Windows)
         if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/capture_provenance.ps1 artifacts out/preview_with_audio.mp4
-        shell: cmd
+        run: ./scripts/capture_provenance.ps1 artifacts out/preview_with_audio.mp4
+        shell: pwsh
 
       - name: Audio gates (Unix)
         if: runner.os != 'Windows'
@@ -81,8 +94,8 @@ jobs:
 
       - name: Audio gates (Windows)
         if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/check_audio_compliance.ps1 artifacts/preview_with_audio_ebur128.txt
-        shell: cmd
+        run: ./scripts/check_audio_compliance.ps1 artifacts/preview_with_audio_ebur128.txt
+        shell: pwsh
 
       - name: Container gates (Unix)
         if: runner.os != 'Windows'
@@ -91,8 +104,8 @@ jobs:
 
       - name: Container gates (Windows)
         if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/check_container.ps1 artifacts/preview_ffprobe.json
-        shell: cmd
+        run: ./scripts/check_container.ps1 artifacts/preview_ffprobe.json
+        shell: pwsh
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
