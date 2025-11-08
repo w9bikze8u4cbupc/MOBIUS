@@ -13,6 +13,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install (root)
+        run: npm ci
+
+      - name: Run unit tests (root)
+        run: npm test --workspaces=false
+
+      - name: Install (client)
+        run: npm ci
+        working-directory: client
+
+      - name: Run unit tests (client)
+        run: npm test -- --watchAll=false
+        working-directory: client
+
   build-and-qa:
     strategy:
       fail-fast: false
