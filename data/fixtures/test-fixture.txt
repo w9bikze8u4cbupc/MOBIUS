@@ -1,0 +1,2 @@
+This is a test fixture for the ingestion pipeline.
+It contains minimal content to verify the end-to-end flow.

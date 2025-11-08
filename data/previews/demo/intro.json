@@ -1,0 +1,18 @@
+{
+  "projectId": "demo",
+  "chapterId": "intro",
+  "chapter": {
+    "title": "Intro",
+    "steps": [
+      {
+        "id": "s1",
+        "title": "Welcome",
+        "body": "Let us begin!"
+      }
+    ]
+  },
+  "requestedAt": "2025-10-08T18:09:35.041Z",
+  "dryRun": true,
+  "jobToken": "8df99d2d-401e-4756-8e0c-6336b741eaf0",
+  "status": "dry_run"
+}

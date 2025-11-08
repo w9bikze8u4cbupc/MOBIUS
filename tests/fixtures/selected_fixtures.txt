@@ -1,0 +1,16 @@
+Use these uploaded PDFs as CI/local fixtures for the ingestion POC (do NOT commit copyrighted PDFs to a public repo).
+
+Preferred initial fixtures (private/internal repo):
+- Wingspan.Rules.en.pdf
+- The-Isle-of-Cats.pdf
+
+Optional additional fixtures (for later iterations):
+- f9-the-castles-of-burgundy-rulebook.pdf
+- Hanamikoji.pdf
+- ABYSS.pdf
+- Jaipur.pdf
+- a5-viticulture-essential-edition-rulebook.pdf
+
+Notes:
+- For public/open-source builds, replace with synthetic or redacted fixtures.
+- If CI needs OCR tests, run them in a Docker job that has tesseract & pdftoppm installed.

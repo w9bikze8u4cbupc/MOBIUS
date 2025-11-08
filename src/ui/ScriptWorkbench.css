@@ -1,0 +1,120 @@
+.script-workbench {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.workbench-header {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: white;
+}
+
+.workbench-header h1 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.workbench-header .subtitle {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.toolbar {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.toolbar button {
+  padding: 0.5rem 1rem;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.toolbar button:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.875rem;
+}
+
+.status .saving {
+  color: #059669;
+  background: #d1fae5;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.status .dirty {
+  color: #d97706;
+  background: #fef3c7;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.status .clean {
+  color: #059669;
+  background: #d1fae5;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.status .error {
+  color: #b91c1c;
+  background: #fee2e2;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.workbench-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 300px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.script-pane {
+  grid-column: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  border-right: 1px solid #e5e7eb;
+}
+
+.matcher-pane {
+  grid-column: 2;
+  overflow-y: auto;
+  padding: 1rem;
+  border-right: 1px solid #e5e7eb;
+}
+
+.preview-pane {
+  grid-column: 3;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.preview-pane h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.preview-pane p {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
