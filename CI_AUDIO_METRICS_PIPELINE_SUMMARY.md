@@ -1,23 +1,72 @@
-# Audio Metrics Pipeline Enhancements
+# CI Audio Metrics Pipeline Summary
 
-## Key Enhancements
-- **Cross-OS validation**: Added schema checks on both Unix and Windows to ensure `preview_audio_metrics.json` always contains `integrated_lufs` and `true_peak_dbfs`.
-- **Windows parity**: Introduced a PowerShell summary step so the preview audio KPIs appear in PR summaries across all runners.
-- **Defensive coverage**: Each runner now verifies metrics integrity before summarizing, reducing false positives and ensuring QA completeness.
+The CI audio metrics pipeline converts the EBUR128 analyzer output into a
+reviewer-friendly summary while enforcing a strict, cross-platform KPI
+contract. The workflow is symmetric across Unix/macOS and Windows runners so
+automation and humans see the same results regardless of environment.
 
-## Summary for Next Session
-The CI workflow now guarantees consistent loudness metrics validation and presentation across all platforms:
-- Both schema validation and summary rendering occur symmetrically on Unix and Windows.
-- Any missing key in `preview_audio_metrics.json` fails the validation step immediately.
-- Reviewers can see the formatted metrics directly in the GitHub UI, without digging into artifacts.
+## Pipeline Flow
+
+1. **Parse EBUR128 output** to obtain loudness measurements for the preview
+   asset.
+2. **Emit `preview_audio_metrics.json`** with the current KPI contract.
+3. **Validate the schema** on Unix/macOS (Bash) and Windows (PowerShell) before
+   any summary is rendered.
+4. **Publish the PR summary** with a fenced JSON block so reviewers can skim the
+   metrics directly in the GitHub UI.
+
+## KPI Contract
+
+`preview_audio_metrics.json` must contain exactly these metrics:
+
+- `integrated_lufs`
+- `true_peak_dbfs`
+
+Quick reference example:
+
+```json
+{
+  "integrated_lufs": -16.8,
+  "true_peak_dbfs": -0.9
+}
+```
+
+## Cross-Platform Schema Validation
+
+Both operating system families perform the same validation prior to rendering
+the PR summary:
+
+- **Unix/macOS (Bash)**: `jq`-based check ensures the JSON contains both keys
+  and exits early on any mismatch.
+- **Windows (PowerShell)**: Uses native JSON parsing to enforce the identical
+  contract, guaranteeing parity with the Unix path.
+
+Any validation failure blocks the summary step and the job surfaces the error in
+the corresponding CI log.
+
+## PR Summary Rendering
+
+- Metrics appear in the PR as a fenced JSON block for readability.
+- The artifact remains machine-readable for downstream automation.
+- Reviewers no longer need to download CI artifacts for loudness checks.
 
 ## QA Quick-Check
-- Both **Validate audio metrics** steps pass on all runners.
-- JSON summaries display properly fenced (```json … ``` ) on all platforms.
-- Loudness and true-peak data remain consistent across OS outputs.
 
-## Optional Future Polish
-- Integrate a small metrics trend collector (persist the last five run values) for regression tracking.
-- Add a schema version tag (e.g., `"schema_version": 1`) to future-proof the JSON artifact.
+- Confirm both **Validate audio metrics** steps succeed on Unix and Windows.
+- Verify the PR comment renders the fenced JSON with the two KPI keys.
+- Spot-check that loudness and true-peak values match across runners for the
+  same build.
 
-The CI hardening loop is now complete—everything from synthetic preview creation to metrics validation is deterministic, resilient, and audit-ready.
+## Failure Modes and Responses
+
+| Condition | Pipeline behavior |
+| --- | --- |
+| Missing `integrated_lufs` or `true_peak_dbfs` | Validation step fails and the PR summary is skipped. |
+| Empty or malformed EBUR128 output | Pipeline surfaces the parser failure and blocks downstream jobs. |
+| Summary step runs after a validation failure | Job exits with a clear error note; no stale metrics are published. |
+
+## Optional Future Enhancements
+
+- Add a lightweight trend collector (e.g., retain the last five runs) to help
+  catch regressions.
+- Introduce a `"schema_version"` field once the KPI contract expands.
