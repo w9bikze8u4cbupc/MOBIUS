@@ -57,6 +57,16 @@ the corresponding CI log.
 - Spot-check that loudness and true-peak values match across runners for the
   same build.
 
+## Acceptance / Verification Notes
+
+- Schema validation runs before the summary step, so a failed check prevents any
+  metrics from being published.
+- The PR UI always displays the JSON payload inside a fenced block, keeping the
+  artifact human-readable while automation can still consume the
+  `preview_audio_metrics.json` file.
+- Artifact naming, retention policy, and concurrency behavior remain unchanged
+  from the legacy pipeline.
+
 ## Failure Modes and Responses
 
 | Condition | Pipeline behavior |
