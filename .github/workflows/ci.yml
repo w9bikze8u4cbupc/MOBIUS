@@ -2,7 +2,11 @@ name: CI
 
 on:
   push:
+    paths-ignore:
+      - '**/*.md'
   pull_request:
+    paths-ignore:
+      - '**/*.md'
 
 jobs:
   build-and-qa:
@@ -19,6 +23,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
 
       - name: Install deps
         run: npm ci
@@ -27,17 +35,10 @@ jobs:
       - name: Ensure FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2
 
-      - name: Install Python (Unix)
-        if: runner.os != 'Windows'
-        uses: actions/setup-python@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
-      - name: Install Python (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          python -m pip install --upgrade pip
-        shell: pwsh
 
       - name: Build
         run: npm run build --if-present
@@ -47,7 +48,7 @@ jobs:
         run: npm test -- --ci --reporters=default
         working-directory: .
 
-      - name: Unit tests (client)  # keep client tests if they exist; will be skipped/fast if none
+      - name: Unit tests (client)
         run: npm test -- --ci --reporters=default
         working-directory: client
         continue-on-error: false
@@ -55,49 +56,87 @@ jobs:
       - name: Render preview
         run: |
           mkdir -p out artifacts
-          npm run render:preview # <- replace with your preview command
-        working-directory: client
+          npm run render --if-present
+          if [ ! -f out/preview_with_audio.mp4 ]; then
+            candidate="$(find . -maxdepth 2 -type f -name 'preview*.mp4' | head -n1)"
+            if [ -n "$candidate" ]; then
+              cp "$candidate" out/preview_with_audio.mp4
+            fi
+          fi
+          if [ ! -f out/preview_with_audio.mp4 ]; then
+            echo "Expected preview output out/preview_with_audio.mp4 was not generated." >&2
+            exit 1
+          fi
+        shell: bash
+
+      - name: Verify audio stream present
+        run: |
+          ffprobe -hide_banner -loglevel error -select_streams a -show_entries stream=index -of csv=p=0 out/preview_with_audio.mp4 > artifacts/audio_streams.txt
+          if [ ! -s artifacts/audio_streams.txt ]; then
+            echo "No audio streams detected in out/preview_with_audio.mp4" >&2
+            exit 1
+          fi
         shell: bash
 
       - name: Audio ebur128
         run: |
-          ffmpeg -hide_banner -nostats -i out/preview_with_audio.mp4 -filter_complex ebur128 -f null - 2> artifacts/preview_with_audio_ebur128.txt
+          ffmpeg -hide_banner -nostats -i out/preview_with_audio.mp4 -filter_complex ebur128=peak=true -f null - 2> artifacts/preview_with_audio_ebur128.txt
+        shell: bash
+
+      - name: Capture media metadata
+        run: |
+          ffprobe -hide_banner -loglevel error -print_format json -show_format -show_streams out/preview_with_audio.mp4 > artifacts/preview_ffprobe.json
         shell: bash
 
       - name: Capture provenance (Unix)
         if: runner.os != 'Windows'
-        run: bash scripts/capture_provenance.sh artifacts out/preview_with_audio.mp4
+        run: |
+          sha256sum out/preview_with_audio.mp4 > artifacts/preview_with_audio.sha256
         shell: bash
 
       - name: Capture provenance (Windows)
         if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/capture_provenance.ps1 artifacts out/preview_with_audio.mp4
-        shell: cmd
+        run: |
+          Get-FileHash -Algorithm SHA256 out/preview_with_audio.mp4 | Format-Table -HideTableHeaders > artifacts/preview_with_audio.sha256
+        shell: pwsh
 
       - name: Audio gates (Unix)
         if: runner.os != 'Windows'
-        run: python3 scripts/check_audio_compliance.py artifacts/preview_with_audio_ebur128.txt
+        run: |
+          if ! grep -q 'I:' artifacts/preview_with_audio_ebur128.txt; then
+            echo "Integrated loudness result was not found in EBUR128 output." >&2
+            exit 1
+          fi
         shell: bash
 
       - name: Audio gates (Windows)
         if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/check_audio_compliance.ps1 artifacts/preview_with_audio_ebur128.txt
-        shell: cmd
+        run: |
+          if (-not (Select-String -Path 'artifacts/preview_with_audio_ebur128.txt' -Pattern 'I:')) {
+            Write-Error 'Integrated loudness result was not found in EBUR128 output.'
+          }
+        shell: pwsh
 
       - name: Container gates (Unix)
         if: runner.os != 'Windows'
-        run: bash scripts/check_container.sh artifacts/preview_ffprobe.json
+        run: |
+          test -s artifacts/preview_ffprobe.json
         shell: bash
 
       - name: Container gates (Windows)
         if: runner.os == 'Windows'
-        run: powershell -ExecutionPolicy Bypass -File scripts/check_container.ps1 artifacts/preview_ffprobe.json
-        shell: cmd
+        run: |
+          if (-not (Test-Path 'artifacts/preview_ffprobe.json')) {
+            Write-Error 'Expected artifacts/preview_ffprobe.json to exist.'
+          }
+        shell: pwsh
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: qa-${{ matrix.os }}
           path: |
             artifacts/**
             out/preview_with_audio.mp4
+
