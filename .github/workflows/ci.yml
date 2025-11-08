@@ -8,6 +8,10 @@ on:
     paths-ignore:
       - '**/*.md'
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-qa:
     strategy:
@@ -128,6 +132,45 @@ jobs:
           }
           if (-not (Select-String -Path 'artifacts/preview_with_audio_ebur128.txt' -Pattern 'TP:')) {
             Write-Error 'True-peak result was not found in EBUR128 output.'
+          }
+        shell: pwsh
+
+      - name: Extract EBUR128 metrics (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          python - <<'PY'
+          import json
+          import pathlib
+          import re
+
+          metrics_path = pathlib.Path('artifacts/preview_audio_metrics.json')
+          log_text = pathlib.Path('artifacts/preview_with_audio_ebur128.txt').read_text(encoding='utf-8')
+
+          integrated = re.search(r'I:\s*(-?\d+(?:\.\d+)?)', log_text)
+          true_peak = re.search(r'TP:\s*(-?\d+(?:\.\d+)?)', log_text)
+
+          if integrated and true_peak:
+              payload = {
+                  'integrated_lufs': float(integrated.group(1)),
+                  'true_peak_dbfs': float(true_peak.group(1)),
+              }
+              metrics_path.write_text(json.dumps(payload, separators=(',', ':')), encoding='utf-8')
+          PY
+        shell: bash
+
+      - name: Extract EBUR128 metrics (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $logText = Get-Content 'artifacts/preview_with_audio_ebur128.txt' -Raw
+          $integratedMatch = [regex]::Match($logText, 'I:\s*(-?\d+(?:\.\d+)?)')
+          $truePeakMatch = [regex]::Match($logText, 'TP:\s*(-?\d+(?:\.\d+)?)')
+          if ($integratedMatch.Success -and $truePeakMatch.Success) {
+            $payload = [ordered]@{
+              integrated_lufs = [double]$integratedMatch.Groups[1].Value
+              true_peak_dbfs = [double]$truePeakMatch.Groups[1].Value
+            }
+            $json = $payload | ConvertTo-Json -Compress
+            Set-Content -Path 'artifacts/preview_audio_metrics.json' -Value $json -Encoding utf8
           }
         shell: pwsh
 
