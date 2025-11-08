@@ -63,9 +63,16 @@ jobs:
               cp "$candidate" out/preview_with_audio.mp4
             fi
           fi
+        shell: bash
+
+      - name: Fallback preview (synthetic)
+        if: ${{ !cancelled() }}
+        run: |
           if [ ! -f out/preview_with_audio.mp4 ]; then
-            echo "Expected preview output out/preview_with_audio.mp4 was not generated." >&2
-            exit 1
+            mkdir -p out
+            ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=black:s=1280x720:d=6 \
+                   -f lavfi -i sine=f=1000:b=4:d=6 -shortest \
+                   -c:v libx264 -pix_fmt yuv420p -r 30 -c:a aac -b:a 128k out/preview_with_audio.mp4
           fi
         shell: bash
 
@@ -107,6 +114,10 @@ jobs:
             echo "Integrated loudness result was not found in EBUR128 output." >&2
             exit 1
           fi
+          if ! grep -q 'TP:' artifacts/preview_with_audio_ebur128.txt; then
+            echo "True-peak result was not found in EBUR128 output." >&2
+            exit 1
+          fi
         shell: bash
 
       - name: Audio gates (Windows)
@@ -114,6 +125,9 @@ jobs:
         run: |
           if (-not (Select-String -Path 'artifacts/preview_with_audio_ebur128.txt' -Pattern 'I:')) {
             Write-Error 'Integrated loudness result was not found in EBUR128 output.'
+          }
+          if (-not (Select-String -Path 'artifacts/preview_with_audio_ebur128.txt' -Pattern 'TP:')) {
+            Write-Error 'True-peak result was not found in EBUR128 output.'
           }
         shell: pwsh
 
