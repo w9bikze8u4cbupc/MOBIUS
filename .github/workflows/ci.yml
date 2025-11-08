@@ -174,6 +174,28 @@ jobs:
           }
         shell: pwsh
 
+      - name: Validate audio metrics (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          if [ -f artifacts/preview_audio_metrics.json ]; then
+            python -c "import json; d=json.load(open('artifacts/preview_audio_metrics.json'));\
+assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio metric keys'"
+          fi
+        shell: bash
+
+      - name: Validate audio metrics (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          if (Test-Path 'artifacts/preview_audio_metrics.json') {
+            $json = Get-Content 'artifacts/preview_audio_metrics.json' -Raw | ConvertFrom-Json
+            $hasIntegrated = $json.PSObject.Properties.Name -contains 'integrated_lufs'
+            $hasTruePeak = $json.PSObject.Properties.Name -contains 'true_peak_dbfs'
+            if (-not ($hasIntegrated -and $hasTruePeak)) {
+              Write-Error 'Missing expected audio metric keys in artifacts/preview_audio_metrics.json.'
+            }
+          }
+        shell: pwsh
+
       - name: Summarize audio metrics
         if: always() && runner.os != 'Windows'
         run: |
@@ -186,6 +208,20 @@ jobs:
             echo 'Metrics not generated in this run.' >> "$GITHUB_STEP_SUMMARY"
           fi
         shell: bash
+
+      - name: Summarize audio metrics (Windows)
+        if: always() && runner.os == 'Windows'
+        run: |
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '### Preview Audio Metrics'
+          if (Test-Path 'artifacts/preview_audio_metrics.json') {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```json'
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value (Get-Content 'artifacts/preview_audio_metrics.json' -Raw)
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
+          }
+          else {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value 'Metrics not generated in this run.'
+          }
+        shell: pwsh
 
       - name: Container gates (Unix)
         if: runner.os != 'Windows'
