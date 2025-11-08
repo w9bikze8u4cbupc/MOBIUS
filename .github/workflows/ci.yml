@@ -175,13 +175,15 @@ jobs:
         shell: pwsh
 
       - name: Summarize audio metrics
-        if: always()
+        if: always() && runner.os != 'Windows'
         run: |
           echo '### Preview Audio Metrics' >> "$GITHUB_STEP_SUMMARY"
           if [ -f artifacts/preview_audio_metrics.json ]; then
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
             cat artifacts/preview_audio_metrics.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
           else
-            echo '{"note":"metrics not generated"}' >> "$GITHUB_STEP_SUMMARY"
+            echo 'Metrics not generated in this run.' >> "$GITHUB_STEP_SUMMARY"
           fi
         shell: bash
 
