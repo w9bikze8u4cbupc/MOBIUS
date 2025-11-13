@@ -1,0 +1,15 @@
+{
+  "version": "1.0.3",
+  "name": "Authoritative Rendering Contract",
+  "validation": {
+    "ssim": {
+      "min": 0.95,
+      "perPlatform": {
+        "windows": { "min": 0.95 },
+        "macos": { "min": 0.95 },
+        "linux": { "min": 0.95 }
+      }
+    },
+    "masks": []
+  }
+}
