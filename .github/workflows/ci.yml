@@ -247,3 +247,42 @@ assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio
             out/preview_with_audio.mp4
           retention-days: 7
 
+
+  packaging-validation:
+    needs: [build-and-qa]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+
+      - name: Install deps (root)
+        run: npm ci
+
+      - name: Ensure FFmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v2
+
+      - name: Validate container.json packaging contract
+        run: |
+          mkdir -p out/junit
+          node scripts/validate_container.cjs \
+            --container out/container.json \
+            --junit out/junit/packaging-contract.junit.xml
+
+      - name: Upload packaging junit and manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-packaging
+          path: |
+            out/junit/packaging-contract.junit.xml
+            out/container.json
+          if-no-files-found: error

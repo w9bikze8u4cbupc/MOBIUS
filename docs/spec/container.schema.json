@@ -1,0 +1,235 @@
+{
+  "$id": "https://mobius.lesjeux/container.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MOBIUS Render Container Manifest",
+  "type": "object",
+  "required": ["project", "arc", "tools", "env", "media"],
+  "additionalProperties": false,
+  "properties": {
+    "project": {
+      "type": "object",
+      "required": ["id", "game", "os", "mode", "timestamp"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "game": { "type": "string", "minLength": 1 },
+        "os": {
+          "type": "string",
+          "enum": ["windows", "macos", "linux"]
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["preview", "full"]
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "arc": {
+      "type": "object",
+      "required": ["version", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "required": ["ffmpeg", "ffprobe"],
+      "additionalProperties": false,
+      "properties": {
+        "ffmpeg": {
+          "type": "object",
+          "required": ["version"],
+          "additionalProperties": false,
+          "properties": {
+            "version": { "type": "string", "minLength": 1 }
+          }
+        },
+        "ffprobe": {
+          "type": "object",
+          "required": ["version"],
+          "additionalProperties": false,
+          "properties": {
+            "version": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "env": {
+      "type": "object",
+      "required": ["node", "npm", "git", "os"],
+      "additionalProperties": false,
+      "properties": {
+        "node": {
+          "type": "object",
+          "required": ["version"],
+          "additionalProperties": false,
+          "properties": {
+            "version": { "type": "string", "minLength": 1 }
+          }
+        },
+        "npm": {
+          "type": "object",
+          "required": ["version"],
+          "additionalProperties": false,
+          "properties": {
+            "version": { "type": "string", "minLength": 1 }
+          }
+        },
+        "git": {
+          "type": "object",
+          "required": ["version", "branch", "commit"],
+          "additionalProperties": false,
+          "properties": {
+            "version": { "type": "string", "minLength": 1 },
+            "branch": { "type": "string", "minLength": 1 },
+            "commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{7,40}$"
+            }
+          }
+        },
+        "os": {
+          "type": "object",
+          "required": ["name", "platform", "release", "arch"],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "enum": ["Windows", "macOS", "Linux"]
+            },
+            "platform": {
+              "type": "string",
+              "enum": ["win32", "darwin", "linux"]
+            },
+            "release": { "type": "string", "minLength": 1 },
+            "arch": {
+              "type": "string",
+              "enum": ["x64", "arm64"]
+            }
+          }
+        }
+      }
+    },
+    "media": {
+      "type": "object",
+      "required": ["video", "audio"],
+      "additionalProperties": false,
+      "properties": {
+        "video": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "codec",
+              "width",
+              "height",
+              "fps",
+              "bitrateKbps",
+              "durationSec",
+              "pixFmt",
+              "sar",
+              "sha256"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "codec": {
+                "type": "string",
+                "enum": ["h264", "h265", "vp9", "av1"]
+              },
+              "width": { "type": "integer", "minimum": 16 },
+              "height": { "type": "integer", "minimum": 16 },
+              "fps": { "type": "number", "exclusiveMinimum": 0 },
+              "bitrateKbps": { "type": "number", "exclusiveMinimum": 0 },
+              "durationSec": { "type": "number", "exclusiveMinimum": 0 },
+              "pixFmt": { "type": "string", "minLength": 1 },
+              "sar": {
+                "type": "string",
+                "pattern": "^[0-9]+:[0-9]+$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{64}$"
+              }
+            }
+          }
+        },
+        "audio": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "sampleRate",
+              "channels",
+              "lufsIntegrated",
+              "truePeakDbtp",
+              "durationSec",
+              "sha256"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "sampleRate": {
+                "type": "integer",
+                "enum": [44100, 48000]
+              },
+              "channels": { "type": "integer", "minimum": 1 },
+              "lufsIntegrated": { "type": "number" },
+              "truePeakDbtp": { "type": "number" },
+              "durationSec": { "type": "number", "exclusiveMinimum": 0 },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{64}$"
+              }
+            }
+          }
+        },
+        "captions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "language", "sha256"],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "language": { "type": "string", "minLength": 2 },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{64}$"
+              }
+            }
+          }
+        },
+        "images": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "width", "height", "sha256"],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "width": { "type": "integer", "minimum": 16 },
+              "height": { "type": "integer", "minimum": 16 },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{64}$"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

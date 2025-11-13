@@ -24,7 +24,8 @@
     "golden:check:junit": "node scripts/check_golden.js --junit tests/golden/reports/junit.xml",
     "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\"",
     "desktop:create": "node scripts/create-desktop-shortcut.mjs",
-    "desktop:verify": "node scripts/verify-desktop-shortcuts.mjs"
+    "desktop:verify": "node scripts/verify-desktop-shortcuts.mjs",
+    "packaging:validate": "node scripts/validate_container.cjs --container out/container.json --junit out/junit/packaging-contract.junit.xml"
   },
   "keywords": [
     "game",
