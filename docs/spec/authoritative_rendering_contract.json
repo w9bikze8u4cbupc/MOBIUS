@@ -1,0 +1,66 @@
+{
+  "$schema": "https://mobius.dev/schemas/arc/v1.json",
+  "version": "1.0.1",
+  "metadata": {
+    "name": "Authoritative Rendering Contract",
+    "description": "Canonical rendering requirements for MOBIUS cross-platform outputs.",
+    "owners": ["Rendering Governance Group"],
+    "lastUpdated": "2024-07-01"
+  },
+  "video": {
+    "resolution": {
+      "width": 1920,
+      "height": 1080
+    },
+    "fps": 30,
+    "pixFmt": "yuv420p",
+    "sar": "1:1",
+    "colorSpace": "bt709"
+  },
+  "audio": {
+    "sampleRate": 48000,
+    "channels": 2,
+    "target_lufs": -16.0,
+    "true_peak_ceiling": -1.0
+  },
+  "extraction": {
+    "method": "exact",
+    "frameCountTolerancePct": 0.5
+  },
+  "validation": {
+    "ssim": {
+      "min": 0.95,
+      "softPass": 0.92
+    },
+    "masks": [],
+    "artifacts": [
+      "ffprobe.json",
+      "frames",
+      "ssim.log",
+      "junit.xml",
+      "container.json"
+    ]
+  },
+  "platforms": {
+    "windows": {
+      "ffmpeg": "6.x",
+      "hardwareAcceleration": "disabled",
+      "notes": "Use GitHub hosted runner with software rendering"
+    },
+    "macos": {
+      "ffmpeg": "6.x (homebrew)",
+      "hardwareAcceleration": "disabled",
+      "notes": "Run on Apple Silicon with Rosetta disabled"
+    },
+    "linux": {
+      "ffmpeg": "6.x",
+      "hardwareAcceleration": "disabled",
+      "notes": "Use mobius-rendering Docker image"
+    }
+  },
+  "governance": {
+    "baselineLabel": "rendering-baseline-update",
+    "rfcLabel": "rendering-rfc",
+    "requiredApprovals": 2
+  }
+}
