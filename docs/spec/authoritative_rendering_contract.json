@@ -1,0 +1,29 @@
+{
+  "arcVersion": "1.0.2",
+  "validation": {
+    "ssim": {
+      "min": 0.95
+    },
+    "masks": [
+      {
+        "name": "timer-region",
+        "type": "rect",
+        "rect": { "x": 1600, "y": 40, "width": 280, "height": 100 },
+        "platform": "any",
+        "frames": "all"
+      },
+      {
+        "name": "fade-overlay",
+        "type": "poly",
+        "points": [
+          [0, 0],
+          [1920, 0],
+          [1920, 200],
+          [0, 200]
+        ],
+        "platform": "macos",
+        "frames": { "start": 0, "end": 90 }
+      }
+    ]
+  }
+}
