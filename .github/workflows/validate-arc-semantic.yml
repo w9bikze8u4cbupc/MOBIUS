@@ -1,0 +1,29 @@
+# .github/workflows/validate-arc-semantic.yml
+#
+# Runs semantic validation for the Authoritative Rendering Contract (ARC)
+# whenever ARC or the semantic validator script changes. This complements
+# the existing structural validator workflow.
+
+name: validate-arc-semantic
+
+on:
+  pull_request:
+    paths:
+      - "docs/spec/authoritative_rendering_contract.json"
+      - "scripts/validate_arc_semantic.mjs"
+
+jobs:
+  semantic-arc-validation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run ARC semantic validator
+        run: node scripts/validate_arc_semantic.mjs
