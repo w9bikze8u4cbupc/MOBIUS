@@ -58,7 +58,7 @@ The following documents are authoritative for rendering and MUST remain in sync:
    → Enforces cross-platform metadata, frame extraction, and SSIM checks.
 
 4. **Consistency Check Script**  
-   `scripts/check_rendering_consistency.cjs`  
+   `scripts/check_rendering_consistency.mjs`
    → Implements the standards as executable checks, emitting JUnit + artifacts.
 
 If any of these change, the others MUST be reconciled in the same PR or via an explicitly linked RFC PR chain.
@@ -109,7 +109,7 @@ Rendering changes are classified as follows:
 
 ### 4.1 Low Risk
 
-- Refactoring `scripts/check_rendering_consistency.cjs` without changing thresholds or invariants.
+- Refactoring `scripts/check_rendering_consistency.mjs` without changing thresholds or invariants.
 - Adding logs or additional CI artifacts (e.g., extra debug JSON).
 - Documentation-only changes that **do not** touch numeric targets or invariants.
 
@@ -166,7 +166,7 @@ The RFC can live in `docs/rfc/rendering/RFC-XXXX.md` or an equivalent path, refe
 - **Rendering Owner** (or delegate) MUST approve any PR that:
   - Touches `docs/ops/rendering_consistency_standards.md`,
   - Modifies `.github/workflows/rendering-consistency.yml`,
-  - Alters `scripts/check_rendering_consistency.cjs`,
+  - Alters `scripts/check_rendering_consistency.mjs`,
   - Changes `docs/ops/ci_audio_metrics_pipeline.md`.
 
 - **CI/Infra Owner** MUST approve any PR that:

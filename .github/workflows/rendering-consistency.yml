@@ -38,7 +38,7 @@ jobs:
 
       - name: Run rendering consistency check
         run: |
-          node scripts/check_rendering_consistency.cjs \
+          node scripts/check_rendering_consistency.mjs \
             --game sushi-go \
             --platform ${{ runner.os }} \
             --output-dir consistency_out

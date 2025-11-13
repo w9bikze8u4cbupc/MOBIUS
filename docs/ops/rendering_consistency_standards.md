@@ -10,12 +10,12 @@ Key workflow behaviors:
 
 - Installs dependencies with `npm ci`.
 - Prints environment context including ffmpeg and Node versions.
-- Runs `scripts/check_rendering_consistency.cjs` with platform-aware arguments.
+- Runs `scripts/check_rendering_consistency.mjs` with platform-aware arguments.
 - Uploads the `consistency_out` directory as an artifact for post-run inspection.
 
 ## Rendering Consistency Script
 
-The `scripts/check_rendering_consistency.cjs` script performs the following sequence:
+The `scripts/check_rendering_consistency.mjs` script performs the following sequence:
 
 1. Renders a five-second preview for the requested project.
 2. Captures ffprobe metadata and validates resolution (1920×1080), pixel format (`yuv420p`), and sample aspect ratio (`1:1`).
