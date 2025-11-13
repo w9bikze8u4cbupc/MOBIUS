@@ -1,0 +1,30 @@
+{
+  "version": "1.0.0",
+  "video": {
+    "width": 1920,
+    "height": 1080,
+    "pixelFormat": "yuv420p",
+    "sampleAspectRatio": "1:1",
+    "frameRate": 30,
+    "allowedFrameRates": [
+      "30",
+      "30/1",
+      "30000/1001"
+    ],
+    "previewSeconds": 5
+  },
+  "audio": {
+    "sampleRate": 48000,
+    "channels": 2,
+    "targetLufs": -16.0,
+    "truePeakCeiling": -1.0,
+    "toleranceLufs": 0.5,
+    "toleranceTruePeakDb": 0.5,
+    "requireEbur128Probe": true,
+    "requireTruePeakProbe": true
+  },
+  "ssim": {
+    "pass": 0.95,
+    "softPass": 0.92
+  }
+}
