@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "video": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "pixFmt": "yuv420p",
+    "sar": "1:1",
+    "acceptableAvgFrameRates": ["30", "30/1", "30000/1001"]
+  },
+  "audio": {
+    "sampleRate": 48000,
+    "channels": 2,
+    "targetLufs": -14,
+    "truePeakCeiling": -1
+  },
+  "extraction": {
+    "method": "ffmpeg",
+    "frameCountTolerancePct": 1
+  },
+  "validation": {
+    "ssim": {
+      "min": 0.92
+    }
+  }
+}
