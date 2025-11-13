@@ -1,0 +1,50 @@
+name: Rendering Consistency
+
+on:
+  pull_request:
+    paths:
+      - "src/render/**"
+      - "scripts/**"
+      - "docs/ops/rendering_consistency_standards.md"
+      - ".github/workflows/rendering-consistency.yml"
+
+jobs:
+  consistency:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Print environment
+        run: |
+          echo "OS: ${{ runner.os }}"
+          ffmpeg -version || true
+          node -v
+          npm -v
+
+      - name: Run rendering consistency check
+        run: |
+          node scripts/check_rendering_consistency.cjs \
+            --game sushi-go \
+            --platform ${{ runner.os }} \
+            --output-dir consistency_out
+
+      - name: Upload consistency artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendering-${{ runner.os }}
+          path: consistency_out/**
