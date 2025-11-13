@@ -1,0 +1,94 @@
+{
+  "version": "1.0",
+  "description": "Authoritative Rendering Contract (ARC) — the single canonical rendering, audio, and validation specification for all MOBIUS pipelines.",
+
+  "video": {
+    "resolution": { "width": 1920, "height": 1080 },
+    "fps": {
+      "output_fps": 30,
+      "accepted_avg_frame_rate": ["30", "30/1", "30000/1001"]
+    },
+    "codec": "libx264",
+    "container": "mp4",
+    "pix_fmt": "yuv420p",
+    "sar": "1:1",
+    "colorspace": "bt709",
+    "color_range": "tv",
+    "bitrate": {
+      "mode": "vbr",
+      "target_kbps": 8000,
+      "min_kbps": 6000,
+      "max_kbps": 12000,
+      "bufsize_kbps": 16000
+    }
+  },
+
+  "audio": {
+    "sample_rate": 48000,
+    "channels": 2,
+    "lufs": {
+      "target": -16.0,
+      "tolerance": 0.5
+    },
+    "true_peak_dbfs": {
+      "ceiling": -1.0,
+      "absolute_max": -0.8
+    },
+    "metrics_schema": {
+      "required_fields": ["integrated_lufs", "true_peak_dbfs"],
+      "allow_extra_fields": false
+    }
+  },
+
+  "extraction": {
+    "frame_extractor_fps": 30,
+    "preview_5s_expected_frames": { "min": 149, "max": 151 },
+    "commands": {
+      "extract_frames": "ffmpeg -i \"<input>\" -vf fps=30 \"<frames_dir>/%05d.png\"",
+      "probe": "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate,r_frame_rate,pix_fmt,sample_aspect_ratio -of json \"<video>\""
+    }
+  },
+
+  "golden_tests": {
+    "ssim": {
+      "pass": 0.95,
+      "soft_pass": 0.92,
+      "fail": 0.92
+    },
+    "placeholder_bytes_min": 200,
+    "required_artifacts": [
+      "ffprobe.json",
+      "frames/",
+      "ssim.log",
+      "junit.xml",
+      "container.json"
+    ]
+  },
+
+  "ci_requirements": {
+    "platforms": ["ubuntu-latest", "macos-latest", "windows-latest"],
+    "ffmpeg_version": "6.x",
+    "node_version": "20.x",
+    "npm_version": "10.x"
+  },
+
+  "governance": {
+    "requires_rfc_if_changing": [
+      "video.resolution",
+      "video.fps.output_fps",
+      "video.pix_fmt",
+      "video.sar",
+      "audio.lufs.target",
+      "audio.true_peak_dbfs.ceiling",
+      "golden_tests.ssim.pass",
+      "golden_tests.ssim.soft_pass",
+      "extraction.preview_5s_expected_frames"
+    ],
+    "rfc_label": "rendering:rfc",
+    "risk_levels": {
+      "low": "Docs or logs only",
+      "medium": "Non-breaking FFmpeg flags, no output change",
+      "high": "Any change to invariants, baselines, or thresholds"
+    }
+  }
+}
