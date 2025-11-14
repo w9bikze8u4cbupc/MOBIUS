@@ -247,3 +247,68 @@ assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio
             out/preview_with_audio.mp4
           retention-days: 7
 
+  packaging-validation:
+    needs: [build-and-qa]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Packaging validation
+        run: |
+          if npm run | grep -q 'packaging:validate'; then
+            if [ -f out/container.json ]; then
+              npm run packaging:validate
+            else
+              echo "Skipping packaging validation: out/container.json not present"
+            fi
+          else
+            echo "No packaging:validate script defined; skipping"
+          fi
+
+  orchestration-consistency:
+    needs: [packaging-validation]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Check multi-render orchestration consistency
+        run: |
+          mkdir -p out/junit
+          node scripts/check_orchestration_consistency.cjs \
+            --container out/preview/container.json \
+            --container out/full/container.json \
+            --junit out/junit/orchestration-contract.junit.xml
+
+      - name: Upload orchestration junit and manifests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-orchestration
+          path: |
+            out/junit/orchestration-contract.junit.xml
+            out/preview/container.json
+            out/full/container.json
+          if-no-files-found: error
+
