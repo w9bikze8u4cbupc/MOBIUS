@@ -247,3 +247,46 @@ assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio
             out/preview_with_audio.mp4
           retention-days: 7
 
+  ingestion-governance:
+    name: Ingestion Governance (Phase E1)
+    runs-on: ${{ matrix.os }}
+    needs: []
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Prepare ingestion fixture
+        run: |
+          mkdir -p tests/fixtures/ingestion
+          # TODO: Replace with the real ingestion CLI invocation.
+          # For now this placeholder ensures the directory exists so CI plumbing works.
+        shell: bash
+
+      - name: Validate ingestion contract
+        run: |
+          mkdir -p out/junit
+          node scripts/check_ingestion.cjs \
+            --input tests/fixtures/ingestion/sample_ingestion.json \
+            --contract docs/spec/ingestion_contract.json \
+            --junit out/junit/ingestion-contract-${{ matrix.os }}.xml
+        shell: bash
+
+      - name: Upload ingestion JUnit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingestion-contract-junit-${{ matrix.os }}
+          path: out/junit/ingestion-contract-${{ matrix.os }}.xml
+
