@@ -1,0 +1,37 @@
+{
+  "version": "E2.0.0",
+  "timing": {
+    "frameQuantumMs": 166,
+    "defaultSceneDurationMs": 5000,
+    "defaultMotionDurationMs": 1000
+  },
+  "motions": {
+    "allowed": [
+      "fade-in",
+      "slide-left",
+      "slide-right",
+      "zoom-on-component",
+      "highlight-pulse"
+    ],
+    "defaults": {
+      "easing": "linear"
+    }
+  },
+  "overlays": {
+    "max": 4,
+    "requireHashes": true
+  },
+  "scenes": {
+    "requiredFields": [
+      "id",
+      "sourceId",
+      "durationMs",
+      "motion",
+      "assets"
+    ],
+    "idPrefix": "scene-"
+  },
+  "assets": {
+    "requiredHashes": true
+  }
+}

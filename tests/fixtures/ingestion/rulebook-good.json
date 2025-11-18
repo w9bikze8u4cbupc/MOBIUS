@@ -1,0 +1,35 @@
+{
+  "documentId": "hanamikoji-rulebook",
+  "metadata": {
+    "title": "Hanamikoji",
+    "gameId": "hanamikoji",
+    "source": "fixtures/rulebook-good.pdf"
+  },
+  "pages": [
+    {
+      "number": 1,
+      "blocks": [
+        { "text": "HANAMIKOJI", "fontSize": 30, "x": 100, "y": 40 },
+        { "text": "Setup", "fontSize": 24, "x": 100, "y": 120 },
+        { "text": "Shuffle the favor cards and place them face down.", "fontSize": 12, "x": 100, "y": 150 }
+      ]
+    },
+    {
+      "number": 2,
+      "blocks": [
+        { "text": "Gameplay", "fontSize": 24, "x": 100, "y": 40 },
+        { "text": "Each round players perform four actions.", "fontSize": 12, "x": 100, "y": 80 },
+        { "text": "Action I", "fontSize": 18, "x": 100, "y": 140 },
+        { "text": "Keep one card hidden.", "fontSize": 12, "x": 100, "y": 170 }
+      ]
+    }
+  ],
+  "bgg": {
+    "name": "Hanamikoji",
+    "minPlayers": 2,
+    "maxPlayers": 2,
+    "playTime": 20,
+    "mechanics": ["Hand Management", "Set Collection"],
+    "ignored": "this field is removed"
+  }
+}
