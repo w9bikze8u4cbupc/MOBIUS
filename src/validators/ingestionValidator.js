@@ -1,7 +1,6 @@
-const fs = require('fs');
-const path = require('path');
+const { loadIngestionContract } = require('../ingestion/contract');
 
-const contract = JSON.parse(fs.readFileSync(path.join(__dirname, '../../docs/spec/ingestion_contract.json'), 'utf-8'));
+const contract = loadIngestionContract();
 
 function validateIngestionManifest(manifest) {
   const errors = [];

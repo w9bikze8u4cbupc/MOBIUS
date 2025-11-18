@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const { loadContract } = require('./pdf');
+const { loadIngestionContract } = require('./contract');
 
-const contract = loadContract();
+const contract = loadIngestionContract();
 
 function readFixture(gameId) {
   const fixturePath = path.join(__dirname, `../../tests/fixtures/ingestion/bgg-${gameId}.json`);
