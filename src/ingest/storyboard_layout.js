@@ -1,139 +1,114 @@
-const { snapToFrame } = require('./storyboard_timing');
+// src/ingest/storyboard_layout.js
+// Standard layout patterns for MOBIUS storyboards (normalized coordinates).
 
-const SAFE_AREA = {
-  left: 0.05,
-  top: 0.05,
-  right: 0.95,
-  bottom: 0.95
-};
+const SAFE_MARGIN = 0.05;
 
-const LAYERS = {
-  background: 0,
-  board: 5,
-  components: 10,
-  overlays: 20,
-  pointers: 30
-};
+/**
+ * Intro/end card layout: text box centered, optional logo area at top.
+ */
+function buildIntroOverlay(titleText) {
+  const width = 0.8;
+  const height = 0.25;
 
-const OVERLAY_SLOTS = {
-  top: {
-    x: SAFE_AREA.left,
-    y: SAFE_AREA.top,
-    width: SAFE_AREA.right - SAFE_AREA.left,
-    height: 0.2
-  },
-  center: {
-    x: SAFE_AREA.left,
-    y: 0.4,
-    width: SAFE_AREA.right - SAFE_AREA.left,
-    height: 0.25
-  },
-  bottom: {
-    x: SAFE_AREA.left,
-    y: SAFE_AREA.bottom - 0.22,
-    width: SAFE_AREA.right - SAFE_AREA.left,
-    height: 0.18
-  }
-};
-
-function overlayPlacementForSlot(slot = 'top') {
-  return OVERLAY_SLOTS[slot] || OVERLAY_SLOTS.top;
-}
-
-function createOverlay({ id, text, role, durationSec, slot = 'top', startSec = 0 }) {
-  const placement = overlayPlacementForSlot(slot);
-  const snappedStart = snapToFrame(startSec);
-  const snappedEnd = snapToFrame(snappedStart + durationSec);
   return {
-    id,
-    role,
-    text,
-    placement,
-    startSec: snappedStart,
-    endSec: snappedEnd
+    id: "overlay-intro-title",
+    text: titleText || "",
+    placement: {
+      x: 0.5 - width / 2,
+      y: 0.5 - height / 2,
+      width,
+      height
+    },
+    startSec: 0,
+    endSec: 0 // filled in by caller
   };
 }
 
+/**
+ * Simple setup-step overlay at the top safe area.
+ */
+function buildStepOverlay(stepId, text, durationSec) {
+  const margin = SAFE_MARGIN;
+  const height = 0.25;
+
+  return {
+    id: `overlay-${stepId}`,
+    text: text || "",
+    placement: {
+      x: margin,
+      y: margin,
+      width: 1 - 2 * margin,
+      height
+    },
+    startSec: 0,
+    endSec: durationSec
+  };
+}
+
+/**
+ * Simple grid layout for components near the bottom of the frame.
+ */
 function normalizeComponentId(value) {
   if (typeof value === 'string') return value;
   if (value && typeof value === 'object' && value.id) return value.id;
   return null;
 }
 
-function buildComponentGrid(componentIds) {
-  const ids = Array.isArray(componentIds)
-    ? componentIds.map((value) => normalizeComponentId(value)).filter(Boolean)
-    : [];
+function buildComponentVisuals(componentIds) {
+  if (!Array.isArray(componentIds) || componentIds.length === 0) {
+    return [];
+  }
+
+  const ids = componentIds
+    .map((value) => normalizeComponentId(value))
+    .filter(Boolean);
   if (!ids.length) {
-    return { visuals: [], layout: null };
+    return [];
   }
 
-  const maxColumns = 3;
-  const columns = Math.min(maxColumns, Math.max(1, Math.ceil(Math.sqrt(ids.length))));
-  const rows = Math.ceil(ids.length / columns);
-  const safeWidth = SAFE_AREA.right - SAFE_AREA.left;
-  const safeHeight = Math.min(0.4, SAFE_AREA.bottom - SAFE_AREA.top);
-  const regionTop = Math.min(0.55, SAFE_AREA.bottom - safeHeight);
-  const cellWidth = (safeWidth / columns) * 0.9;
-  const cellHeight = (safeHeight / rows) * 0.8;
   const visuals = [];
-  const cells = [];
+  const maxPerRow = 3;
+  const rows = Math.ceil(ids.length / maxPerRow);
+  const rowHeight = 0.2;
+  const totalHeight = rowHeight * rows;
+  const bottomY = 1 - totalHeight - SAFE_MARGIN;
 
-  ids.forEach((componentId, index) => {
-    const row = Math.floor(index / columns);
-    const col = index % columns;
-    const x = SAFE_AREA.left + col * (safeWidth / columns) + (safeWidth / columns - cellWidth) / 2;
-    const y = regionTop + row * (safeHeight / rows) + (safeHeight / rows - cellHeight) / 2;
-    const placement = { x, y, width: cellWidth, height: cellHeight };
+  let index = 0;
+  for (let row = 0; row < rows; row++) {
+    const y = bottomY + row * rowHeight;
+    const rowCount = Math.min(maxPerRow, ids.length - index);
+    const width = 0.8 / rowCount;
+    const xStart = 0.1;
 
-    visuals.push({
-      id: `visual-component-${componentId}-${index}`,
-      assetId: componentId,
-      placement,
-      layer: LAYERS.components,
-      motions: [
-        {
-          type: 'fade',
-          easing: 'linear',
-          startSec: 0,
-          endSec: 0.5
-        }
-      ]
-    });
+    for (let col = 0; col < rowCount; col++) {
+      if (index >= ids.length) {
+        break;
+      }
+      const componentId = ids[index];
+      const x = xStart + col * width;
+      const id = `visual-component-${componentId}`;
 
-    cells.push({ componentId, placement });
-  });
+      visuals.push({
+        id,
+        assetId: componentId,
+        placement: {
+          x,
+          y,
+          width: width * 0.9,
+          height: rowHeight * 0.8
+        },
+        layer: 10 // components
+      });
 
-  return {
-    visuals,
-    layout: {
-      type: 'grid',
-      rows,
-      columns,
-      regionTop,
-      regionHeight: safeHeight,
-      safeArea: SAFE_AREA,
-      cells
+      index += 1;
     }
-  };
-}
-
-function isWithinSafeArea(placement) {
-  if (!placement) return true;
-  const { x, y, width, height } = placement;
-  if ([x, y, width, height].some((v) => typeof v !== 'number')) {
-    return false;
   }
-  const withinX = x >= SAFE_AREA.left && x + width <= SAFE_AREA.right;
-  const withinY = y >= SAFE_AREA.top && y + height <= SAFE_AREA.bottom;
-  return withinX && withinY;
+
+  return visuals;
 }
 
 module.exports = {
-  SAFE_AREA,
-  LAYERS,
-  createOverlay,
-  buildComponentGrid,
-  overlayPlacementForSlot,
-  isWithinSafeArea
+  buildIntroOverlay,
+  buildStepOverlay,
+  buildComponentVisuals
 };

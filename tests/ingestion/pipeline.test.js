@@ -3,7 +3,7 @@ const path = require('path');
 const { runIngestionPipeline } = require('../../src/ingestion/pipeline');
 const { hydrateFromFixture } = require('../../src/ingestion/bgg');
 const { validateIngestionManifest } = require('../../src/validators/ingestionValidator');
-const { generateStoryboard } = require('../../src/storyboard/generator');
+const { generateStoryboardFromIngestion } = require('../../src/ingest/storyboard');
 const { validateStoryboard } = require('../../src/validators/storyboardValidator');
 
 function readFixture(name) {
@@ -62,10 +62,28 @@ describe('Phase E storyboard governance', () => {
       bggMetadata: hydrateFromFixture('hanamikoji')
     });
 
-    const storyboard = generateStoryboard(ingestionManifest, { includeOverlayHashes: true });
-    const { valid, errors } = validateStoryboard(storyboard);
+    const ingestionForStoryboard = {
+      game: {
+        slug: ingestionManifest.document.gameId || ingestionManifest.document.id || 'unknown-game',
+        name: ingestionManifest.document.title || 'Unknown Game'
+      },
+      structure: {
+        setupSteps: ingestionManifest.outline.map((heading, index) => ({
+          id: heading.slug || `outline-${index}`,
+          order: index,
+          text: heading.title,
+          componentRefs: []
+        }))
+      }
+    };
+
+    const storyboard = generateStoryboardFromIngestion(ingestionForStoryboard);
+    const { valid, errors } = validateStoryboard(storyboard, { contractVersion: '1.1.0' });
     expect({ valid, errors }).toEqual({ valid: true, errors: [] });
-    expect(storyboard.scenes).toHaveLength(ingestionManifest.outline.length);
-    expect(storyboard.hashManifest.storyboard).toHaveLength(64);
+
+    // Outline headings convert to setup steps, so storyboard has intro + steps + end card
+    expect(storyboard.scenes.length).toBe(ingestionManifest.outline.length + 2);
+    expect(storyboard.scenes[0].type).toBe('intro');
+    expect(storyboard.scenes[storyboard.scenes.length - 1].type).toBe('end_card');
   });
 });

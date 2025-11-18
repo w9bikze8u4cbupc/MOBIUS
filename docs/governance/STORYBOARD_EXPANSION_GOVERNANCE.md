@@ -1,111 +1,175 @@
-# MOBIUS Storyboard Governance — Phase E3 Expansion
+# MOBIUS Storyboard Expansion Governance (Phase E3)
 
-Status: Active
-Version: 1.1.0
-Scope: Storyboard generator, validation tooling, CI contracts
+Version: 1.1.0  
+Status: Active  
+Scope: Scene typology, timing rules, motion macros, layout patterns
 
 ---
 
-## 1. Goal
+## 1. Purpose
 
-Phase E3 extends the deterministic storyboard layer.  Rendering (Phase F2–F6)
-is already stable, so leverage now comes from upstream story quality.  This
-document defines the governed rules that every storyboard (and the generator
-that emits it) MUST follow.
+Phase E3 extends storyboard governance to cover:
+
+- A richer set of scene types (intro, components overview, setup steps, turns, scoring, outro).
+- Deterministic timing normalized to a fixed increment.
+- Motion macros that compose allowed primitives.
+- Standard layout patterns for board, components, and overlays.
+- Scene linking for downstream orchestration (e.g., GENESIS).
+
+This builds on the base rules in `STORYBOARD_GOVERNANCE.md` and updates the
+contract to version `1.1.0`.
+
+---
 
 ## 2. Scene Typology
 
-Seven scene types are now governed.  Every scene MUST declare a `type` field
-with one of the following values and satisfy the associated structure:
+The following scene types are recognized:
 
-| Scene type            | Required elements                                                                 | Allowed motion macros                                 | Duration heuristic |
-|----------------------|-------------------------------------------------------------------------------------|--------------------------------------------------------|--------------------|
-| `intro`              | Brand/title overlay, optional logo visual                                          | `focus_zoom`, `highlight_pulse`                        | 4–8 seconds        |
-| `components_overview`| Component grid + summary overlay                                                    | `pan_to_component`, `focus_zoom`, `highlight_pulse`    | 5–10 seconds       |
-| `setup_step`         | Step overlay, component callouts                                                    | `pan_to_component`, `highlight_pulse`                  | 3–8 seconds        |
-| `turn_flow`          | Phase overlay, optional component focus                                            | `focus_zoom`, `pan_to_component`                       | 4–9 seconds        |
-| `scoring_summary`    | Summary overlay, optional score tracker visual                                     | `focus_zoom`, `highlight_pulse`                        | 4–9 seconds        |
-| `transition`         | Lower-third transition overlay only                                                | Fade-in/out only                                       | 1–3 seconds        |
-| `end_card`           | CTA overlay + brand footer                                                          | `highlight_pulse`, `focus_zoom` (logo only)            | 4–7 seconds        |
+- `intro` — title card, logo, quick hook.
+- `components_overview` — overview of key components or setup layout.
+- `setup_step` — one scene per setup step (or grouped by section).
+- `turn_flow` — explanation of a representative turn or round.
+- `scoring_summary` — end-of-game scoring explanation.
+- `end_card` — CTA and branding.
+- `transition` — short, mostly visual bridge between topics.
 
-Each scene MUST include `segmentId`, `durationSec`, `prevSceneId`, `nextSceneId`
-and deterministic `index` ordering.  Links MUST be contiguous to support future
-GENESIS reasoning.
+Every scene MUST declare:
 
-## 3. Motion Primitives
+- `type`: one of the above.
+- `segmentId`: the logical script segment driving this scene.
+- `durationSec`: positive, governed duration.
+- `index`: scene order, starting at 0 and strictly increasing.
 
-The motion system is now macro-based.  Storyboard authors use only the
-following macros, which deterministically expand to governed primitives
-(`fade`, `slide`, `zoom`, `pulse`) with constrained easing functions
-(`linear`, `easeInOutCubic`, `easeOutQuad`).
+---
 
-- `focus_zoom(assetId, targetRect, dur)` → zoom primitive scoped to the asset
-- `pan_to_component(componentId, dur)` → slide primitive from current frame
-  center to the component's normalized coordinates
-- `highlight_pulse(assetId, dur)` → pulse primitive (opacity/scale) for callout
-  emphasis
+## 3. Timing & Duration Governance
 
-No other motion descriptions are permitted.  Macro inputs are deterministic and
-snapped to the storyboard timing grid.
+All time-based values MUST be deterministic and snapped to a fixed increment:
 
-## 4. Timing Governance
+- Increment: `1/6` second (`~0.1667`).
+- Allowed values:
+  - `durationSec` in `[1.0, 20.0]`.
+  - `startSec` and `endSec` within `[0, durationSec]`.
 
-- All `durationSec`, `startSec`, and `endSec` values MUST be snapped to
-  increments of 1/6s (0.1666667s).
-- Scene durations are derived from narration text length plus explicit weights
-  for complexity.
-- Transition scenes observe a 1–3 second clamp; other scenes clamp to
-  2–15 seconds depending on the type.
-- Narration-provided durations take precedence but are still snapped.
+Duration rules:
 
-## 5. Layout Governance
+- Intro (`intro`): default `3–6` seconds based on title length.
+- Setup steps (`setup_step`): base duration + per-word increment, clamped and snapped.
+- Outro (`end_card`): typically `4–8` seconds, enough to display CTA.
 
-Component visuals use a deterministic grid:
+The generator MUST:
 
-- Safe area margins: 5% on all sides.
-- Auto-detect number of components, up to three columns before creating new
-  rows.
-- Grid occupies the lower 40% of the frame, never breaching the safe area.
-- Layer stack:
-  - Background assets: layer `0`
-  - Board / play surface: `5`
-  - Components: `10`
-  - Overlays: `20`
-  - Pointers/highlights: `30`
+- Compute raw durations from input text or narration length.
+- Clamp to min/max.
+- Snap to the increment.
 
-Overlays are normalized rectangles within the safe area (top for titles,
-bottom for brand/CTA).  No element may breach `[0, 1]` normalized coordinates.
+---
 
-## 6. Intro / Outro
+## 4. Layout Patterns
 
-Two deterministic scenes are always emitted:
+Coordinates are normalized in [0, 1]. The safe area excludes 5% margins:
 
-1. **Intro**: brand sting with title overlay and optional logo visual.
-2. **End card**: CTA overlay ("Subscribe" or product CTA) with brand footer,
-   plus governed fade-out.
+- Safe area:
+  - `x ∈ [0.05, 0.95]`
+  - `y ∈ [0.05, 0.95]`
 
-## 7. Scene Linking
+Standard patterns:
 
-Storyboard scenes now include `prevSceneId` and `nextSceneId` fields.  The
-storyboard generator MUST ensure:
+1. **Intro / End Card:**
+   - Logo/image centered near top third.
+   - Title text box centered.
 
-- Sorted `index` values (0…N-1)
-- First scene has `prevSceneId = null`
-- Last scene has `nextSceneId = null`
-- All intermediate scenes link bidirectionally to their neighbors
+2. **Setup Step:**
+   - Text overlay at top (width 80–90% of frame).
+   - Components laid out in rows near bottom.
 
-Missing links are contract violations.
+3. **Components Overview:**
+   - Grid layout of key components; optional board background.
 
-## 8. Validation & CI
+Overlay constraints:
 
-Four JUnit reports enforce Phase E3 determinism:
+- Overlays MUST be within safe area.
+- Overlays SHOULD not exceed 2 lines for typical 16:9 layout.
 
-- `storyboard-scenes-contract.xml`
-- `storyboard-motion-contract.xml`
-- `storyboard-layout-contract.xml`
-- `storyboard-timing-contract.xml`
+---
 
-`scripts/check_storyboard.cjs` now emits these reports (plus an aggregated
-legacy report) and supports validating both `1.0.0` and `1.1.0` contracts.
-These reports run inside the `phase-e-governance` CI job to guarantee
-Storyboard determinism before Phase F pipelines execute.
+## 5. Motion Macros
+
+Motion primitives remain:
+
+- `fade`
+- `slide`
+- `zoom`
+- `pulse`
+
+Phase E3 defines macro patterns that map to these primitives:
+
+- `highlight_component`:
+  - `fade` from 0 → 1 over first 0.5–1.0s.
+- `focus_zoom`:
+  - `zoom` from 1.0 → `1.2–1.4` around a given anchor.
+- `soft_slide_in`:
+  - `slide` from off-screen to final placement with `easeInOutCubic`.
+
+Generators MUST:
+
+- Use only allowed primitives.
+- Restrict easing to:
+  - `linear`
+  - `easeInOutCubic`
+  - `easeOutQuad`
+
+The macros themselves are not serialized in the contract; only their primitive
+realization is stored.
+
+---
+
+## 6. Scene Linking
+
+Each scene MAY declare:
+
+- `prevSceneId`: ID of the previous scene or `null`.
+- `nextSceneId`: ID of the next scene or `null`.
+
+Governance rules:
+
+- First scene: `prevSceneId = null`.
+- Last scene: `nextSceneId = null`.
+- All other scenes: both fields set to valid scene IDs.
+
+This enables downstream engines to traverse the storyboard deterministically.
+
+---
+
+## 7. Contract Versioning
+
+The storyboard contract is bumped to `1.1.0`:
+
+- New fields:
+  - `prevSceneId`, `nextSceneId`.
+  - Expanded `type` enum.
+- Additional validation around:
+  - Safe area layout constraints (soft warnings).
+  - Timing normalization.
+
+Generators MUST set:
+
+- `storyboardContractVersion = "1.1.0"`
+
+Validators MUST reject:
+
+- Payloads with older versions when CI expects `1.1.0`.
+
+---
+
+## 8. CI Enforcement
+
+The Phase E governance job MUST:
+
+1. Produce a storyboard using the current generator.
+2. Validate it against `storyboard_contract_v1.1.0.json` via `check_storyboard.cjs`.
+3. Emit a JUnit report `storyboard-contract-[os].xml`.
+
+Any contract violation MUST fail CI.
+
+---
