@@ -1,0 +1,41 @@
+{
+  "audioMixingContractVersion": "1.0.0",
+  "sampleRate": 48000,
+  "voice": [
+    {
+      "id": "narration-1",
+      "file": "voice/narration-1.wav",
+      "durationSec": 5.2,
+      "startSec": 0.0,
+      "endSec": 5.2,
+      "lufsIntegrated": -18.0,
+      "truePeakDbtp": -3.0
+    },
+    {
+      "id": "narration-2",
+      "file": "voice/narration-2.wav",
+      "durationSec": 4.6,
+      "startSec": 5.32,
+      "endSec": 9.92,
+      "lufsIntegrated": -18.0,
+      "truePeakDbtp": -3.0
+    }
+  ],
+  "backgroundMusic": {
+    "file": "bgm/track.wav",
+    "lufsIntegrated": -26.0,
+    "durationSec": 120,
+    "entrySec": 0.0
+  },
+  "ducking": {
+    "mode": "envelope",
+    "attackSec": 0.15,
+    "releaseSec": 0.35,
+    "dipDb": -10
+  },
+  "mix": {
+    "lufsIntegrated": -16.0,
+    "truePeakDbtp": -2.0,
+    "durationSec": 10.5
+  }
+}

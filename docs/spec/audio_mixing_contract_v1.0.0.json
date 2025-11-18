@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "audioMixingContractVersion": "1.0.0",
+  "type": "object",
+  "required": [
+    "audioMixingContractVersion",
+    "voice",
+    "backgroundMusic",
+    "ducking",
+    "mix",
+    "sampleRate"
+  ],
+  "properties": {
+    "audioMixingContractVersion": { "type": "string", "const": "1.0.0" },
+    "sampleRate": { "type": "number", "enum": [48000] },
+    "voice": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "file",
+          "durationSec",
+          "lufsIntegrated",
+          "truePeakDbtp",
+          "startSec",
+          "endSec"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "file": { "type": "string" },
+          "durationSec": { "type": "number" },
+          "lufsIntegrated": { "type": "number" },
+          "truePeakDbtp": { "type": "number" },
+          "startSec": { "type": "number" },
+          "endSec": { "type": "number" }
+        }
+      }
+    },
+    "backgroundMusic": {
+      "type": "object",
+      "required": ["file", "lufsIntegrated", "durationSec"],
+      "properties": {
+        "file": { "type": "string" },
+        "lufsIntegrated": { "type": "number" },
+        "durationSec": { "type": "number" },
+        "entrySec": { "type": "number" }
+      }
+    },
+    "ducking": {
+      "type": "object",
+      "required": ["mode", "attackSec", "releaseSec", "dipDb"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["none", "sidechain", "envelope"] },
+        "attackSec": { "type": "number" },
+        "releaseSec": { "type": "number" },
+        "dipDb": { "type": "number" }
+      }
+    },
+    "mix": {
+      "type": "object",
+      "required": ["lufsIntegrated", "truePeakDbtp", "durationSec"],
+      "properties": {
+        "lufsIntegrated": { "type": "number" },
+        "truePeakDbtp": { "type": "number" },
+        "durationSec": { "type": "number" }
+      }
+    },
+    "envelopes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "startSec", "endSec", "value"],
+        "properties": {
+          "type": { "type": "string" },
+          "startSec": { "type": "number" },
+          "endSec": { "type": "number" },
+          "value": { "type": "number" }
+        }
+      }
+    }
+  }
+}

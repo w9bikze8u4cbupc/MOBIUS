@@ -17,6 +17,7 @@ jobs:
     needs:
       - phase-e-governance
       - subtitle-governance
+      - audio-mixing-governance
     strategy:
       fail-fast: false
       matrix:
@@ -328,4 +329,7 @@ assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio
 
   subtitle-governance:
     uses: ./.github/workflows/phase-f7-subtitle-governance.yml
+
+  audio-mixing-governance:
+    uses: ./.github/workflows/phase-f8-audio-mixing-governance.yml
 
