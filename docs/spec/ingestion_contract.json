@@ -1,40 +1,221 @@
 {
-  "version": "E1.0.0",
-  "hashing": {
-    "algorithm": "sha256"
-  },
-  "headingRules": {
-    "fontSizeThreshold": 18,
-    "levels": [
-      { "minSize": 28, "level": 1 },
-      { "minSize": 22, "level": 2 },
-      { "minSize": 18, "level": 3 }
-    ],
-    "slugMaxLength": 64,
-    "coordinatePrecision": 3
-  },
-  "toc": {
-    "allowedGaps": 1,
-    "maxDepth": 3
-  },
-  "ocr": {
-    "confidenceFloor": 0.72,
-    "maxFallbacksPerDocument": 16
-  },
-  "components": {
-    "allowedTypes": ["card", "phase", "setup", "turn"],
-    "minConfidence": 0.8
-  },
-  "metadata": {
-    "requiredFields": ["title", "gameId", "source"],
-    "bgg": {
-      "allowedFields": ["name", "minPlayers", "maxPlayers", "playTime", "mechanics"]
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "contractName": "mobius-ingestion-contract",
+  "contractVersion": "1.0.0",
+  "description": "Governing contract for MOBIUS ingestion outputs (Phase E1).",
+  "type": "object",
+  "required": ["ingestionContractVersion", "game", "rulebook", "text", "structure", "diagnostics"],
+  "properties": {
+    "ingestionContractVersion": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Version of the ingestion contract used to produce this payload."
+    },
+    "game": {
+      "type": "object",
+      "required": ["slug", "name", "languagesSupported", "sources"],
+      "properties": {
+        "slug": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "languagesSupported": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "bgg": {
+          "type": "object",
+          "required": ["metadataStatus"],
+          "properties": {
+            "metadataStatus": {
+              "type": "string",
+              "enum": ["ok", "warning", "error", "not_requested"]
+            },
+            "id": { "type": ["integer", "null"] },
+            "url": { "type": ["string", "null"] },
+            "title": { "type": ["string", "null"] },
+            "yearPublished": { "type": ["integer", "null"] },
+            "designers": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "minPlayers": { "type": ["integer", "null"] },
+            "maxPlayers": { "type": ["integer", "null"] },
+            "minPlaytime": { "type": ["integer", "null"] },
+            "maxPlaytime": { "type": ["integer", "null"] }
+          },
+          "additionalProperties": true
+        },
+        "sources": {
+          "type": "object",
+          "required": ["bggUrl", "manualEntry"],
+          "properties": {
+            "bggUrl": { "type": ["string", "null"] },
+            "manualEntry": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "rulebook": {
+      "type": "object",
+      "required": ["filename", "pages", "sha256"],
+      "properties": {
+        "filename": { "type": "string", "minLength": 1 },
+        "pages": { "type": "integer", "minimum": 1 },
+        "sha256": { "type": "string", "minLength": 32 },
+        "language": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "text": {
+      "type": "object",
+      "required": ["full", "pages", "sha256"],
+      "properties": {
+        "full": { "type": "string", "minLength": 1 },
+        "pages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["page", "text"],
+            "properties": {
+              "page": { "type": "integer", "minimum": 1 },
+              "text": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "sha256": { "type": "string", "minLength": 32 }
+      },
+      "additionalProperties": false
+    },
+    "structure": {
+      "type": "object",
+      "required": ["headings", "components", "setupSteps", "phases"],
+      "properties": {
+        "headings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "page", "text", "level"],
+            "properties": {
+              "id": { "type": "string" },
+              "page": { "type": "integer", "minimum": 1 },
+              "text": { "type": "string" },
+              "level": { "type": "integer", "minimum": 1, "maximum": 6 },
+              "y": { "type": ["number", "null"] }
+            },
+            "additionalProperties": false
+          }
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "quantity"],
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "quantity": { "type": "integer", "minimum": 1 },
+              "category": { "type": ["string", "null"] },
+              "perPlayer": { "type": ["boolean", "null"] },
+              "pageRefs": {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 1 }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "setupSteps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "order", "text"],
+            "properties": {
+              "id": { "type": "string" },
+              "order": { "type": "integer", "minimum": 0 },
+              "text": { "type": "string" },
+              "componentRefs": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "pageRefs": {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 1 }
+              },
+              "pauseCue": { "type": ["boolean", "null"] }
+            },
+            "additionalProperties": false
+          }
+        },
+        "phases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "order", "name"],
+            "properties": {
+              "id": { "type": "string" },
+              "order": { "type": "integer", "minimum": 0 },
+              "name": { "type": "string" },
+              "rounds": { "type": ["integer", "null"] },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["order", "text"],
+                  "properties": {
+                    "order": { "type": "integer", "minimum": 0 },
+                    "text": { "type": "string" },
+                    "componentRefs": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "diagnostics": {
+      "type": "object",
+      "required": ["warnings", "errors", "parser", "ocr"],
+      "properties": {
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "errors": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "parser": {
+          "type": "object",
+          "required": ["engine"],
+          "properties": {
+            "engine": { "type": "string" },
+            "version": { "type": ["string", "null"] }
+          },
+          "additionalProperties": true
+        },
+        "ocr": {
+          "type": "object",
+          "required": ["used"],
+          "properties": {
+            "used": { "type": "boolean" },
+            "reason": { "type": ["string", "null"] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": true
     }
   },
-  "timing": {
-    "manifestGranularityMs": 10
-  },
-  "outline": {
-    "requireHeadingPerScene": true
-  }
+  "additionalProperties": false
 }

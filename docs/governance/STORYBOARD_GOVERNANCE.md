@@ -13,7 +13,7 @@ Phase E upgrades the storyboard generator from heuristics to a contract-driven s
 - `scripts/check_storyboard.cjs` emits CI-friendly output and optional JUnit.
 
 ## Pipeline Integration
-`src/storyboard/generator.js` consumes the ingestion manifest + storyboard contract to produce `storyboard_manifest.json`.  The generator:
+`src/storyboard/generator.js` consumes the Phase E1 ingestion payload (see `docs/governance/INGESTION_GOVERNANCE.md` and `docs/spec/ingestion_contract.json`) alongside the storyboard contract to produce `storyboard_manifest.json`.  The generator:
 1. Hydrates motion primitives defined in the contract.
 2. Aligns each scene to a canonical ingestion outline entry.
 3. Produces a storyboard hash manifest so downstream rendering can assert determinism before Phase F begins.

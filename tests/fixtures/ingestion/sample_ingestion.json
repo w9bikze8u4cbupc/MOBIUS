@@ -1,0 +1,68 @@
+{
+  "ingestionContractVersion": "1.0.0",
+  "game": {
+    "slug": "sample-game",
+    "name": "Sample Game",
+    "languagesSupported": ["en"],
+    "bgg": {
+      "metadataStatus": "not_requested",
+      "id": null,
+      "url": null,
+      "title": null,
+      "yearPublished": null,
+      "designers": []
+    },
+    "sources": {
+      "bggUrl": null,
+      "manualEntry": true
+    }
+  },
+  "rulebook": {
+    "filename": "sample.pdf",
+    "pages": 4,
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "language": "en"
+  },
+  "text": {
+    "full": "Sample rulebook text spanning multiple pages.",
+    "pages": [
+      { "page": 1, "text": "Page 1" },
+      { "page": 2, "text": "Page 2" }
+    ],
+    "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "structure": {
+    "headings": [
+      { "id": "h1", "page": 1, "text": "Introduction", "level": 1, "y": null }
+    ],
+    "components": [
+      { "id": "c1", "name": "Cards", "quantity": 52, "category": "deck", "perPlayer": null, "pageRefs": [1] }
+    ],
+    "setupSteps": [
+      { "id": "s1", "order": 0, "text": "Shuffle the deck.", "componentRefs": ["c1"], "pageRefs": [2], "pauseCue": null }
+    ],
+    "phases": [
+      {
+        "id": "p1",
+        "order": 0,
+        "name": "Play",
+        "rounds": null,
+        "steps": [
+          { "order": 0, "text": "Draw a card.", "componentRefs": ["c1"] }
+        ]
+      }
+    ]
+  },
+  "diagnostics": {
+    "warnings": [],
+    "errors": [],
+    "parser": {
+      "engine": "sample-parser",
+      "version": "0.1.0"
+    },
+    "ocr": {
+      "used": false,
+      "reason": null
+    }
+  }
+}
