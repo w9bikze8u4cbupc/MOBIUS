@@ -1,0 +1,23 @@
+{
+  "motionContractVersion": "1.0.0",
+  "motions": [
+    {
+      "id": "motion-1",
+      "visualId": "visual-hero",
+      "type": "fade",
+      "startSec": 0,
+      "endSec": 0.5,
+      "easing": "easeInOutSine",
+      "params": { "from": 0, "to": 1 }
+    },
+    {
+      "id": "motion-2",
+      "visualId": "visual-hero",
+      "type": "slide",
+      "startSec": 0.5,
+      "endSec": 1,
+      "easing": "linear",
+      "params": { "direction": "up", "distance": 0.1 }
+    }
+  ]
+}

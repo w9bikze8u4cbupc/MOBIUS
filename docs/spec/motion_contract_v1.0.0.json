@@ -1,0 +1,51 @@
+{
+  "motionContractVersion": "1.0.0",
+  "required": ["motionContractVersion", "motions"],
+  "properties": {
+    "motionContractVersion": { "type": "string", "const": "1.0.0" },
+    "motions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "visualId",
+          "type",
+          "startSec",
+          "endSec",
+          "easing",
+          "params"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "visualId": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": [
+              "fade",
+              "slide",
+              "zoom",
+              "pulse",
+              "highlight",
+              "focus_zoom",
+              "soft_slide_in"
+            ]
+          },
+          "startSec": { "type": "number" },
+          "endSec": { "type": "number" },
+          "easing": {
+            "type": "string",
+            "enum": [
+              "linear",
+              "easeInOutCubic",
+              "easeOutQuad",
+              "easeInQuad",
+              "easeInOutSine"
+            ]
+          },
+          "params": { "type": "object" }
+        }
+      }
+    }
+  }
+}
