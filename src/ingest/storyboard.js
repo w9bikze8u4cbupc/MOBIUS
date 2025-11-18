@@ -1,153 +1,269 @@
-// src/ingest/storyboard.js
-// Phase E2: Governed Storyboard Generator
-//
-// This module converts an ingestion result (Phase E1) plus minimal
-// configuration into a storyboard JSON object that conforms to
-// docs/spec/storyboard_contract.json.
-//
-// Assumptions:
-// - Ingestion result matches ingestion_contract.json (E1).
-// - scriptSegments are derived upstream (or we fall back to simple
-//   "pseudo segments" aligned with setup steps + phases).
+const { buildComponentGrid, createOverlay } = require('./storyboard_layout');
+const { calculateSceneDuration, calculateTransitionDuration, snapToFrame } = require('./storyboard_timing');
+const { focusZoomMacro, panToComponentMacro, highlightPulseMacro, attachMotions } = require('./storyboard_motion');
 
-/**
- * @typedef {Object} StoryboardOptions
- * @property {number} [width]  - Render width (default: 1920)
- * @property {number} [height] - Render height (default: 1080)
- * @property {number} [fps]    - Frames per second (default: 30)
- * @property {number} [baseStepDuration] - Base seconds per step (default: 4)
- * @property {number} [perWordDuration]  - Additional seconds per word (default: 0.15)
- */
+const STORYBOARD_VERSION = '1.1.0';
 
-/**
- * Round a number to the nearest multiple of `increment`.
- * @param {number} value
- * @param {number} increment
- * @returns {number}
- */
-function roundToIncrement(value, increment) {
-  if (!Number.isFinite(value)) return 0;
-  return Math.round(value / increment) * increment;
+function normalizeOverlayDurations(overlays, durationSec) {
+  const clampedEnd = snapToFrame(durationSec);
+  return overlays.map((overlay) => ({
+    ...overlay,
+    endSec: Math.min(overlay.endSec, clampedEnd)
+  }));
 }
 
-/**
- * Compute a deterministic scene duration from text length.
- * Applies clamping and rounding to a governed increment (1/6s).
- * @param {string} text
- * @param {StoryboardOptions} opts
- * @returns {number}
- */
-function computeSceneDuration(text, opts = {}) {
-  const base = opts.baseStepDuration ?? 4;
-  const perWord = opts.perWordDuration ?? 0.15;
-  const increment = 1 / 6; // ~0.1667s
-
-  const words = typeof text === 'string' && text.trim().length > 0
-    ? text.trim().split(/\s+/).length
-    : 0;
-
-  const raw = base + perWord * words;
-  const clamped = Math.max(2, Math.min(15, raw));
-  return roundToIncrement(clamped, increment);
-}
-
-/**
- * Simple component → visual placement strategy using normalized coordinates.
- * We place up to 3 component visuals in a row at the bottom of the frame.
- *
- * @param {string[]} componentIds
- * @returns {Array<{ id: string, assetId: string, placement: {x:number,y:number,width:number,height:number}, layer: number, motion?: object }>}
- */
-function buildComponentVisuals(componentIds) {
-  if (!Array.isArray(componentIds) || componentIds.length === 0) {
-    return [];
-  }
-
-  const visuals = [];
-  const maxPerRow = 3;
-  const rows = Math.ceil(componentIds.length / maxPerRow);
-  const rowHeight = 0.2;
-  const totalHeight = rowHeight * rows;
-  const bottomY = 1 - totalHeight - 0.05; // 5% bottom margin
-
-  let index = 0;
-  for (let row = 0; row < rows; row += 1) {
-    const y = bottomY + row * rowHeight;
-    const rowCount = Math.min(maxPerRow, componentIds.length - index);
-    const width = 0.8 / rowCount; // leave 10% left/right margin
-    const xStart = 0.1;
-
-    for (let col = 0; col < rowCount; col += 1) {
-      const rawComponent = componentIds[index];
-      const componentId = typeof rawComponent === 'string' ? rawComponent : rawComponent?.id ?? `component-${index}`;
-      const x = xStart + col * width;
-      const id = `visual-component-${componentId}`;
-
-      visuals.push({
-        id,
-        assetId: componentId, // assetIds are expected to match component IDs or mapped upstream
-        placement: {
-          x,
-          y,
-          width: width * 0.9,
-          height: rowHeight * 0.8
-        },
-        layer: 10, // above board/base visuals
-        motion: {
-          type: 'fade',
-          startSec: 0,
-          endSec: 0.5,
-          easing: 'easeInOutCubic',
-          from: 0,
-          to: 1
-        }
-      });
-
-      index += 1;
-    }
-  }
-
-  return visuals;
-}
-
-/**
- * Build overlays for a given setup step (or generic scene) as a simple text box.
- *
- * @param {string} stepId
- * @param {string} text
- * @param {number} durationSec
- * @returns {Array<{ id: string, text: string, placement: {x:number,y:number,width:number,height:number}, startSec: number, endSec: number }>}
- */
-function buildTextOverlays(stepId, text, durationSec) {
-  const margin = 0.08; // 8% margin
-  const height = 0.25; // overlay box height
-
-  const overlay = {
-    id: `overlay-${stepId}`,
-    text: text || '',
-    placement: {
-      x: margin,
-      y: margin,
-      width: 1 - 2 * margin,
-      height
-    },
-    startSec: 0,
-    endSec: durationSec
+function appendScene(scenes, scene) {
+  const prev = scenes[scenes.length - 1];
+  const enriched = {
+    ...scene,
+    index: scenes.length,
+    prevSceneId: prev ? prev.id : null,
+    nextSceneId: null
   };
-
-  return [overlay];
+  if (prev) {
+    prev.nextSceneId = enriched.id;
+  }
+  scenes.push(enriched);
 }
 
-/**
- * Generate storyboard scenes from an ingestion result.
- *
- * For now, we focus on setup steps and treat each as a "setup" scene.
- * Phases/turns can be added as additional scenes later.
- *
- * @param {object} ingestion IngestionResult matching ingestion_contract.json
- * @param {StoryboardOptions} [options]
- * @returns {object} Storyboard matching storyboard_contract.json
- */
+function createIntroScene(ingestion) {
+  const gameName = ingestion.game?.name || 'this game';
+  const text = `Welcome to MOBIUS. Learn how to play ${gameName}.`;
+  const durationSec = calculateSceneDuration({ text, minSec: 4, maxSec: 8 });
+  const overlays = normalizeOverlayDurations([
+    createOverlay({
+      id: 'overlay-intro-title',
+      role: 'title',
+      text: `How to play ${gameName}`,
+      durationSec,
+      slot: 'top'
+    }),
+    createOverlay({
+      id: 'overlay-intro-brand',
+      role: 'brand',
+      text: 'MOBIUS Tutorials',
+      durationSec: Math.min(durationSec, 3),
+      slot: 'bottom',
+      startSec: Math.max(0, durationSec - 3)
+    })
+  ], durationSec);
+
+  return {
+    id: 'scene-intro',
+    segmentId: 'segment-intro',
+    type: 'intro',
+    durationSec,
+    overlays,
+    visuals: []
+  };
+}
+
+function createComponentsScene(components) {
+  if (!components?.length) {
+    return null;
+  }
+
+  const componentIds = components.map((component) => component.id || component.name).filter(Boolean);
+  const summaryText = `Components: ${componentIds.slice(0, 5).join(', ')}${componentIds.length > 5 ? '…' : ''}`;
+  const durationSec = calculateSceneDuration({
+    text: summaryText,
+    minSec: 5,
+    maxSec: 10,
+    complexityWeight: Math.max(1, componentIds.length / 5)
+  });
+  const { visuals, layout } = buildComponentGrid(componentIds);
+
+  if (visuals.length) {
+    visuals[0] = attachMotions(visuals[0], [
+      focusZoomMacro({ assetId: visuals[0].assetId, targetRect: visuals[0].placement, durationSec: 1.5 })
+    ]);
+  }
+
+  const overlays = normalizeOverlayDurations([
+    createOverlay({
+      id: 'overlay-components-summary',
+      role: 'summary',
+      text: summaryText,
+      durationSec,
+      slot: 'top'
+    })
+  ], durationSec);
+
+  return {
+    id: 'scene-components-overview',
+    segmentId: 'segment-components-overview',
+    type: 'components_overview',
+    durationSec,
+    overlays,
+    visuals,
+    componentLayout: layout
+  };
+}
+
+function createSetupScenes(setupSteps) {
+  const scenes = [];
+  const steps = Array.isArray(setupSteps) ? setupSteps : [];
+  steps.forEach((step, index) => {
+    const stepId = step.id || `setup-${index}`;
+    const text = step.text || `Complete step ${index + 1}.`;
+    const durationSec = calculateSceneDuration({ text, minSec: 3, maxSec: 8 });
+    const { visuals } = buildComponentGrid(step.componentRefs);
+
+    if (visuals.length) {
+      visuals[0] = attachMotions(visuals[0], [
+        panToComponentMacro({ componentId: visuals[0].assetId, placement: visuals[0].placement, durationSec: 1.2 }),
+        highlightPulseMacro({ assetId: visuals[0].assetId, durationSec: 1 })
+      ]);
+    }
+
+    const overlays = normalizeOverlayDurations([
+      createOverlay({
+        id: `overlay-setup-${stepId}`,
+        role: 'step',
+        text,
+        durationSec,
+        slot: 'center'
+      })
+    ], durationSec);
+
+    scenes.push({
+      id: `scene-setup-${stepId}`,
+      segmentId: stepId,
+      type: 'setup_step',
+      durationSec,
+      overlays,
+      visuals
+    });
+  });
+  return scenes;
+}
+
+function createPhaseScenes(phases) {
+  const scenes = [];
+  const list = Array.isArray(phases) ? phases : [];
+  list.forEach((phase, index) => {
+    const phaseId = phase.id || `phase-${index}`;
+    const stepTexts = (phase.steps || []).map((step, idx) => `${idx + 1}. ${step.text || 'Play action.'}`);
+    const text = [phase.name || `Phase ${index + 1}`, ...stepTexts].join(' ');
+    const durationSec = calculateSceneDuration({ text, minSec: 4, maxSec: 9, complexityWeight: Math.max(1, stepTexts.length / 2) });
+    const componentRefs = (phase.steps || []).flatMap((step) => step.componentRefs || []);
+    const { visuals } = buildComponentGrid(componentRefs);
+
+    if (visuals.length) {
+      const lastVisual = visuals[visuals.length - 1];
+      visuals[visuals.length - 1] = attachMotions(lastVisual, [
+        focusZoomMacro({ assetId: lastVisual.assetId, targetRect: lastVisual.placement, durationSec: 1.5 })
+      ]);
+    }
+
+    const overlays = normalizeOverlayDurations([
+      createOverlay({
+        id: `overlay-phase-${phaseId}`,
+        role: 'phase',
+        text,
+        durationSec,
+        slot: 'top'
+      })
+    ], durationSec);
+
+    scenes.push({
+      id: `scene-phase-${phaseId}`,
+      segmentId: phaseId,
+      type: 'turn_flow',
+      durationSec,
+      overlays,
+      visuals
+    });
+  });
+  return scenes;
+}
+
+function createScoringScene(ingestion) {
+  const gameName = ingestion.game?.name || 'this game';
+  const text = `Score points in ${gameName} by following the objectives listed in the rulebook.`;
+  const durationSec = calculateSceneDuration({ text, minSec: 4, maxSec: 9 });
+  const overlays = normalizeOverlayDurations([
+    createOverlay({
+      id: 'overlay-scoring-summary',
+      role: 'summary',
+      text,
+      durationSec,
+      slot: 'center'
+    })
+  ], durationSec);
+
+  return {
+    id: 'scene-scoring-summary',
+    segmentId: 'segment-scoring',
+    type: 'scoring_summary',
+    durationSec,
+    overlays,
+    visuals: []
+  };
+}
+
+function createEndCardScene(ingestion) {
+  const gameName = ingestion.game?.name || 'this game';
+  const cta = `Ready to master ${gameName}? Subscribe for more MOBIUS tutorials.`;
+  const durationSec = calculateSceneDuration({ text: cta, minSec: 4, maxSec: 7 });
+  const overlays = normalizeOverlayDurations([
+    createOverlay({
+      id: 'overlay-end-cta',
+      role: 'cta',
+      text: cta,
+      durationSec,
+      slot: 'center'
+    }),
+    createOverlay({
+      id: 'overlay-end-brand',
+      role: 'brand',
+      text: 'MOBIUS • subscribe & share',
+      durationSec: Math.min(durationSec, 3),
+      slot: 'bottom',
+      startSec: durationSec - Math.min(durationSec, 3)
+    })
+  ], durationSec);
+
+  return {
+    id: 'scene-end-card',
+    segmentId: 'segment-end',
+    type: 'end_card',
+    durationSec,
+    overlays,
+    visuals: []
+  };
+}
+
+function createTransitionScene(id, text) {
+  const durationSec = calculateTransitionDuration();
+  const overlays = normalizeOverlayDurations([
+    createOverlay({
+      id: `${id}-overlay`,
+      role: 'transition',
+      text,
+      durationSec,
+      slot: 'bottom'
+    })
+  ], durationSec);
+
+  return {
+    id,
+    segmentId: id,
+    type: 'transition',
+    durationSec,
+    overlays,
+    visuals: []
+  };
+}
+
+function insertSectionScenes(scenes, sectionScenes, transitionLabel) {
+  if (!sectionScenes.length) return;
+  if (scenes.length) {
+    appendScene(scenes, createTransitionScene(`scene-transition-${scenes.length}`, `Next: ${transitionLabel}`));
+  }
+  sectionScenes.forEach((scene) => appendScene(scenes, scene));
+}
+
 function generateStoryboardFromIngestion(ingestion, options = {}) {
   if (!ingestion || typeof ingestion !== 'object') {
     throw new Error('generateStoryboardFromIngestion: ingestion payload is required');
@@ -161,51 +277,27 @@ function generateStoryboardFromIngestion(ingestion, options = {}) {
   const gameName = ingestion.game?.name || 'Unknown Game';
 
   const scenes = [];
-  let sceneIndex = 0;
 
-  const setupSteps = Array.isArray(ingestion.structure?.setupSteps)
-    ? ingestion.structure.setupSteps
-    : [];
+  appendScene(scenes, createIntroScene(ingestion));
 
-  for (const step of setupSteps) {
-    const stepId = step.id || `setup-${sceneIndex}`;
-    const text = step.text || '';
-    const componentRefs = Array.isArray(step.componentRefs) ? step.componentRefs : [];
-
-    const durationSec = computeSceneDuration(text, options);
-
-    const scene = {
-      id: `scene-setup-${stepId}`,
-      index: sceneIndex,
-      segmentId: stepId, // in a fuller system this would map to ScriptSegment.id
-      type: 'setup',
-      durationSec,
-      visuals: buildComponentVisuals(componentRefs),
-      overlays: buildTextOverlays(stepId, text, durationSec)
-    };
-
-    scenes.push(scene);
-    sceneIndex += 1;
+  const componentScene = createComponentsScene(ingestion.structure?.components);
+  if (componentScene) {
+    insertSectionScenes(scenes, [componentScene], 'Components Overview');
   }
 
-  // Fallback: if no setup steps, create a single intro scene with generic text.
-  if (scenes.length === 0) {
-    const introText = 'Welcome to this MOBIUS tutorial.';
-    const durationSec = computeSceneDuration(introText, options);
+  const setupScenes = createSetupScenes(ingestion.structure?.setupSteps);
+  insertSectionScenes(scenes, setupScenes, 'Setup Steps');
 
-    scenes.push({
-      id: 'scene-intro-0',
-      index: 0,
-      segmentId: 'intro-0',
-      type: 'intro',
-      durationSec,
-      visuals: [],
-      overlays: buildTextOverlays('intro-0', introText, durationSec)
-    });
-  }
+  const phaseScenes = createPhaseScenes(ingestion.structure?.phases);
+  insertSectionScenes(scenes, phaseScenes, 'Turn Walkthrough');
+
+  const scoringScene = createScoringScene(ingestion);
+  insertSectionScenes(scenes, [scoringScene], 'Scoring');
+
+  appendScene(scenes, createEndCardScene(ingestion));
 
   const storyboard = {
-    storyboardContractVersion: '1.0.0',
+    storyboardContractVersion: STORYBOARD_VERSION,
     game: {
       slug: gameSlug,
       name: gameName
@@ -222,10 +314,5 @@ function generateStoryboardFromIngestion(ingestion, options = {}) {
 }
 
 module.exports = {
-  generateStoryboardFromIngestion,
-  // Exporting helpers aids future unit tests/extensions
-  buildComponentVisuals,
-  buildTextOverlays,
-  computeSceneDuration,
-  roundToIncrement
+  generateStoryboardFromIngestion
 };

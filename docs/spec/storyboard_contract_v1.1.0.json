@@ -1,0 +1,92 @@
+{
+  "version": "1.1.0",
+  "frameQuantizationSec": 0.1666667,
+  "sceneTypes": {
+    "intro": {
+      "minDurationSec": 4,
+      "maxDurationSec": 8,
+      "requiredOverlays": ["title", "brand"],
+      "allowedMotions": ["focus_zoom", "highlight_pulse"],
+      "requiredStructure": ["segmentId", "durationSec", "prevSceneId", "nextSceneId"]
+    },
+    "components_overview": {
+      "minDurationSec": 5,
+      "maxDurationSec": 10,
+      "requiredOverlays": ["summary"],
+      "allowedMotions": ["pan_to_component", "focus_zoom", "highlight_pulse"],
+      "requiredStructure": ["segmentId", "componentLayout"]
+    },
+    "setup_step": {
+      "minDurationSec": 3,
+      "maxDurationSec": 8,
+      "requiredOverlays": ["step"],
+      "allowedMotions": ["pan_to_component", "highlight_pulse"],
+      "requiredStructure": ["segmentId"]
+    },
+    "turn_flow": {
+      "minDurationSec": 4,
+      "maxDurationSec": 9,
+      "requiredOverlays": ["phase"],
+      "allowedMotions": ["focus_zoom", "pan_to_component"],
+      "requiredStructure": ["segmentId"]
+    },
+    "scoring_summary": {
+      "minDurationSec": 4,
+      "maxDurationSec": 9,
+      "requiredOverlays": ["summary"],
+      "allowedMotions": ["focus_zoom", "highlight_pulse"],
+      "requiredStructure": ["segmentId"]
+    },
+    "transition": {
+      "minDurationSec": 1,
+      "maxDurationSec": 3,
+      "requiredOverlays": ["transition"],
+      "allowedMotions": ["fade"],
+      "requiredStructure": ["segmentId"]
+    },
+    "end_card": {
+      "minDurationSec": 4,
+      "maxDurationSec": 7,
+      "requiredOverlays": ["cta", "brand"],
+      "allowedMotions": ["highlight_pulse", "focus_zoom"],
+      "requiredStructure": ["segmentId", "nextSceneId"]
+    }
+  },
+  "motion": {
+    "macros": ["focus_zoom", "pan_to_component", "highlight_pulse"],
+    "primitives": ["fade", "slide", "zoom", "pulse"],
+    "easing": ["linear", "easeInOutCubic", "easeOutQuad"],
+    "defaultDurSec": 1.5
+  },
+  "layout": {
+    "safeArea": {
+      "left": 0.05,
+      "top": 0.05,
+      "right": 0.95,
+      "bottom": 0.95
+    },
+    "componentGrid": {
+      "maxColumns": 3,
+      "regionTop": 0.55,
+      "regionHeight": 0.4
+    },
+    "layers": {
+      "background": 0,
+      "board": 5,
+      "components": 10,
+      "overlays": 20,
+      "pointers": 30
+    }
+  },
+  "timing": {
+    "baseSec": 4,
+    "perWordSec": 0.14,
+    "minSec": 2,
+    "maxSec": 15,
+    "transitionMinSec": 1,
+    "transitionMaxSec": 3
+  },
+  "linking": {
+    "requirePrevNext": true
+  }
+}
