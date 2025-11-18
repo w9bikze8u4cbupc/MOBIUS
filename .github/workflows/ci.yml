@@ -247,34 +247,49 @@ assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio
             out/preview_with_audio.mp4
           retention-days: 7
 
-  ingestion-governance:
-    name: Ingestion Governance (Phase E1)
+  phase-e-governance:
+    name: Phase E Governance (E1 Ingestion + E2 Storyboard)
     runs-on: ${{ matrix.os }}
     needs: []
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+
     steps:
+      # --- Checkout -------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
+      # --- Node -----------------------------------------------------------
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install npm dependencies
         run: npm install
 
-      - name: Prepare ingestion fixture
+      # --- Prepare directories -------------------------------------------
+      - name: Create fixture dirs
         run: |
           mkdir -p tests/fixtures/ingestion
-          # TODO: Replace with the real ingestion CLI invocation.
-          # For now this placeholder ensures the directory exists so CI plumbing works.
+          mkdir -p tests/fixtures/storyboard
         shell: bash
 
-      - name: Validate ingestion contract
+      # --- Run Phase E1: Ingestion ---------------------------------------
+      - name: Run ingestion sample
+        run: |
+          node --experimental-specifier-resolution=node scripts/ingest-sample.js \
+            --pdf tests/fixtures/ingestion/rulebook-good.json \
+            --bgg tests/fixtures/ingestion/bgg-hanamikoji.json \
+            --out tests/fixtures/ingestion/sample_ingestion.json \
+            --storyboard-out tests/fixtures/storyboard/sample_storyboard.json
+        shell: bash
+
+      # --- Validate E1 ingestion -----------------------------------------
+      - name: Validate ingestion (E1)
         run: |
           mkdir -p out/junit
           node scripts/check_ingestion.cjs \
@@ -283,10 +298,23 @@ assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio
             --junit out/junit/ingestion-contract-${{ matrix.os }}.xml
         shell: bash
 
-      - name: Upload ingestion JUnit
+      # --- Validate E2 storyboard ----------------------------------------
+      - name: Validate storyboard (E2)
+        run: |
+          node scripts/check_storyboard.cjs \
+            --input tests/fixtures/storyboard/sample_storyboard.json \
+            --contract docs/spec/storyboard_contract.json \
+            --junit out/junit/storyboard-contract-${{ matrix.os }}.xml
+        shell: bash
+
+      # --- Upload Artifacts ----------------------------------------------
+      - name: Upload Phase E JUnit Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ingestion-contract-junit-${{ matrix.os }}
-          path: out/junit/ingestion-contract-${{ matrix.os }}.xml
+          name: phase-e-junit-${{ matrix.os }}
+          path: |
+            out/junit/ingestion-contract-${{ matrix.os }}.xml
+            out/junit/storyboard-contract-${{ matrix.os }}.xml
+          retention-days: 7
 
