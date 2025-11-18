@@ -1,0 +1,40 @@
+{
+  "version": "E1.0.0",
+  "hashing": {
+    "algorithm": "sha256"
+  },
+  "headingRules": {
+    "fontSizeThreshold": 18,
+    "levels": [
+      { "minSize": 28, "level": 1 },
+      { "minSize": 22, "level": 2 },
+      { "minSize": 18, "level": 3 }
+    ],
+    "slugMaxLength": 64,
+    "coordinatePrecision": 3
+  },
+  "toc": {
+    "allowedGaps": 1,
+    "maxDepth": 3
+  },
+  "ocr": {
+    "confidenceFloor": 0.72,
+    "maxFallbacksPerDocument": 16
+  },
+  "components": {
+    "allowedTypes": ["card", "phase", "setup", "turn"],
+    "minConfidence": 0.8
+  },
+  "metadata": {
+    "requiredFields": ["title", "gameId", "source"],
+    "bgg": {
+      "allowedFields": ["name", "minPlayers", "maxPlayers", "playTime", "mechanics"]
+    }
+  },
+  "timing": {
+    "manifestGranularityMs": 10
+  },
+  "outline": {
+    "requireHeadingPerScene": true
+  }
+}

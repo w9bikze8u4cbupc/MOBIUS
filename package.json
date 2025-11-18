@@ -26,7 +26,9 @@
     "golden:snapshot:check": "node scripts/check_golden_snapshot.cjs --dir out/golden/sushi-go/windows/full-snapshot --junit out/junit/golden-snapshot-contract.junit.xml",
     "golden:snapshot:promote": "node scripts/promote_golden_snapshot.cjs --game sushi-go --os windows --mode full --snapshot out/golden/sushi-go/windows/full-snapshot --target tests/golden/sushi-go/windows --dry-run false --junit out/junit/golden-promotion-contract.junit.xml",
     "desktop:create": "node scripts/create-desktop-shortcut.mjs",
-    "desktop:verify": "node scripts/verify-desktop-shortcuts.mjs"
+    "desktop:verify": "node scripts/verify-desktop-shortcuts.mjs",
+    "ingestion:validate": "node scripts/check_ingestion.cjs",
+    "storyboard:check": "node scripts/check_storyboard.cjs"
   },
   "keywords": [
     "game",
@@ -51,11 +53,12 @@
     "preset": "ts-jest",
     "testEnvironment": "node",
     "roots": [
-      "<rootDir>/src"
+      "<rootDir>/src",
+      "<rootDir>/tests"
     ],
     "testMatch": [
       "**/__tests__/**/*.ts",
-      "**/?(*.)+(spec|test).ts"
+      "**/?(*.)+(spec|test).[tj]s"
     ],
     "transform": {
       "^.+\\.tsx?$": "ts-jest"
