@@ -14,6 +14,9 @@ concurrency:
 
 jobs:
   build-and-qa:
+    needs:
+      - phase-e-governance
+      - subtitle-governance
     strategy:
       fail-fast: false
       matrix:
@@ -322,4 +325,7 @@ assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio
             out/junit/storyboard-layout-contract.xml
             out/junit/storyboard-timing-contract.xml
           retention-days: 7
+
+  subtitle-governance:
+    uses: ./.github/workflows/phase-f7-subtitle-governance.yml
 

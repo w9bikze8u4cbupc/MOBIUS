@@ -1,0 +1,27 @@
+{
+  "subtitleContractVersion": "1.0.0",
+  "required": [
+    "subtitleContractVersion",
+    "items",
+    "language",
+    "format"
+  ],
+  "properties": {
+    "subtitleContractVersion": { "type": "string", "const": "1.0.0" },
+    "format": { "type": "string", "enum": ["srt", "vtt"] },
+    "language": { "type": "string", "minLength": 2, "maxLength": 8 },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "startSec", "endSec", "text"],
+        "properties": {
+          "id": { "type": "string" },
+          "startSec": { "type": "number", "minimum": 0 },
+          "endSec": { "type": "number", "minimum": 0 },
+          "text": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
