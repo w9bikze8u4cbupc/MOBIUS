@@ -1,0 +1,25 @@
+{
+  "subtitleContractVersion": "1.0.0",
+  "format": "srt",
+  "language": "en",
+  "items": [
+    {
+      "id": "cue-001",
+      "startSec": 0,
+      "endSec": 2.5,
+      "text": "Welcome back to the table."
+    },
+    {
+      "id": "cue-002",
+      "startSec": 2.5833333333333335,
+      "endSec": 4.333333333333333,
+      "text": "Draw two cards and reveal the best."
+    },
+    {
+      "id": "cue-003",
+      "startSec": 4.416666666666667,
+      "endSec": 6.25,
+      "text": "[MUSIC SWELLS]"
+    }
+  ]
+}
