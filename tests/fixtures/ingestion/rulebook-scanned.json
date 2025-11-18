@@ -1,0 +1,26 @@
+{
+  "documentId": "hanamikoji-rulebook-scan",
+  "metadata": {
+    "title": "Hanamikoji",
+    "gameId": "hanamikoji",
+    "source": "fixtures/rulebook-scanned.pdf"
+  },
+  "pages": [
+    {
+      "number": 1,
+      "blocks": []
+    },
+    {
+      "number": 2,
+      "blocks": [
+        { "text": "Gameplay", "fontSize": 24, "x": 100, "y": 40 }
+      ]
+    }
+  ],
+  "ocr": {
+    "1": [
+      { "text": "Setup", "fontSize": 24, "x": 100, "y": 120 },
+      { "text": "Lay out the influence tokens.", "fontSize": 12, "x": 100, "y": 150 }
+    ]
+  }
+}
