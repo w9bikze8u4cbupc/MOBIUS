@@ -2,7 +2,9 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const contract = JSON.parse(fs.readFileSync(path.join(__dirname, '../../docs/spec/ingestion_contract.json'), 'utf-8'));
+const { loadIngestionContract } = require('./contract');
+
+const contract = loadIngestionContract();
 
 const LIGATURES = new Map([
   ['ﬀ', 'ff'],

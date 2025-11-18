@@ -1,9 +1,10 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { detectHeadings, hashBlocks, normalizePages, buildPageHash, loadContract } = require('./pdf');
+const { detectHeadings, hashBlocks, normalizePages, buildPageHash } = require('./pdf');
+const { loadIngestionContract } = require('./contract');
 
-const contract = loadContract();
+const contract = loadIngestionContract();
 
 function slugify(value) {
   return value
