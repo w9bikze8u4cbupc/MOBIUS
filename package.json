@@ -23,6 +23,8 @@
     "golden:update": "node scripts/generate_golden.js",
     "golden:check:junit": "node scripts/check_golden.js --junit tests/golden/reports/junit.xml",
     "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\"",
+    "golden:snapshot:check": "node scripts/check_golden_snapshot.cjs --dir out/golden/sushi-go/windows/full-snapshot --junit out/junit/golden-snapshot-contract.junit.xml",
+    "golden:snapshot:promote": "node scripts/promote_golden_snapshot.cjs --game sushi-go --os windows --mode full --snapshot out/golden/sushi-go/windows/full-snapshot --target tests/golden/sushi-go/windows --dry-run false --junit out/junit/golden-promotion-contract.junit.xml",
     "desktop:create": "node scripts/create-desktop-shortcut.mjs",
     "desktop:verify": "node scripts/verify-desktop-shortcuts.mjs"
   },
