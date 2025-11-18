@@ -303,10 +303,9 @@ assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio
         run: |
           mkdir -p out/junit
           node scripts/check_storyboard.cjs \
-            --storyboard tests/fixtures/storyboard/sample_storyboard.json \
-            --contract-version 1.1.0 \
-            --junit out/junit/storyboard-contract-${{ matrix.os }}.xml \
-            --junit-dir out/junit
+            --input tests/fixtures/storyboard/sample_storyboard.json \
+            --contract docs/spec/storyboard_contract_v1.1.0.json \
+            --junit out/junit/storyboard-contract-${{ matrix.os }}.xml
         shell: bash
 
       # --- Upload Artifacts ----------------------------------------------

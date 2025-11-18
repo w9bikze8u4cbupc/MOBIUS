@@ -1,92 +1,144 @@
 {
-  "version": "1.1.0",
-  "frameQuantizationSec": 0.1666667,
-  "sceneTypes": {
-    "intro": {
-      "minDurationSec": 4,
-      "maxDurationSec": 8,
-      "requiredOverlays": ["title", "brand"],
-      "allowedMotions": ["focus_zoom", "highlight_pulse"],
-      "requiredStructure": ["segmentId", "durationSec", "prevSceneId", "nextSceneId"]
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "contractName": "mobius-storyboard-contract",
+  "contractVersion": "1.1.0",
+  "description": "Storyboard contract with expanded scene types, linking, and layout/timing rules.",
+  "type": "object",
+  "required": ["storyboardContractVersion", "game", "resolution", "scenes"],
+  "properties": {
+    "storyboardContractVersion": {
+      "type": "string",
+      "const": "1.1.0"
     },
-    "components_overview": {
-      "minDurationSec": 5,
-      "maxDurationSec": 10,
-      "requiredOverlays": ["summary"],
-      "allowedMotions": ["pan_to_component", "focus_zoom", "highlight_pulse"],
-      "requiredStructure": ["segmentId", "componentLayout"]
+    "game": {
+      "type": "object",
+      "required": ["slug", "name"],
+      "properties": {
+        "slug": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
     },
-    "setup_step": {
-      "minDurationSec": 3,
-      "maxDurationSec": 8,
-      "requiredOverlays": ["step"],
-      "allowedMotions": ["pan_to_component", "highlight_pulse"],
-      "requiredStructure": ["segmentId"]
+    "resolution": {
+      "type": "object",
+      "required": ["width", "height", "fps"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "fps": { "type": "number", "minimum": 1 }
+      },
+      "additionalProperties": false
     },
-    "turn_flow": {
-      "minDurationSec": 4,
-      "maxDurationSec": 9,
-      "requiredOverlays": ["phase"],
-      "allowedMotions": ["focus_zoom", "pan_to_component"],
-      "requiredStructure": ["segmentId"]
-    },
-    "scoring_summary": {
-      "minDurationSec": 4,
-      "maxDurationSec": 9,
-      "requiredOverlays": ["summary"],
-      "allowedMotions": ["focus_zoom", "highlight_pulse"],
-      "requiredStructure": ["segmentId"]
-    },
-    "transition": {
-      "minDurationSec": 1,
-      "maxDurationSec": 3,
-      "requiredOverlays": ["transition"],
-      "allowedMotions": ["fade"],
-      "requiredStructure": ["segmentId"]
-    },
-    "end_card": {
-      "minDurationSec": 4,
-      "maxDurationSec": 7,
-      "requiredOverlays": ["cta", "brand"],
-      "allowedMotions": ["highlight_pulse", "focus_zoom"],
-      "requiredStructure": ["segmentId", "nextSceneId"]
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "index",
+          "segmentId",
+          "type",
+          "durationSec",
+          "visuals",
+          "overlays"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "index": { "type": "integer", "minimum": 0 },
+          "segmentId": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": [
+              "intro",
+              "components_overview",
+              "setup_step",
+              "turn_flow",
+              "scoring_summary",
+              "end_card",
+              "transition"
+            ]
+          },
+          "prevSceneId": { "type": ["string", "null"] },
+          "nextSceneId": { "type": ["string", "null"] },
+          "durationSec": { "type": "number", "minimum": 1.0 },
+          "visuals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "assetId", "placement", "layer"],
+              "properties": {
+                "id": { "type": "string" },
+                "assetId": { "type": "string" },
+                "placement": {
+                  "type": "object",
+                  "required": ["x", "y", "width", "height"],
+                  "properties": {
+                    "x": { "type": "number" },
+                    "y": { "type": "number" },
+                    "width": { "type": "number" },
+                    "height": { "type": "number" }
+                  },
+                  "additionalProperties": false
+                },
+                "layer": { "type": "integer", "minimum": 0 },
+                "motion": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["fade", "slide", "zoom", "pulse"]
+                    },
+                    "startSec": { "type": ["number", "null"] },
+                    "endSec": { "type": ["number", "null"] },
+                    "easing": {
+                      "type": ["string", "null"],
+                      "enum": ["linear", "easeInOutCubic", "easeOutQuad", null]
+                    },
+                    "from": {},
+                    "to": {},
+                    "anchor": {},
+                    "minScale": { "type": ["number", "null"] },
+                    "maxScale": { "type": ["number", "null"] },
+                    "periodSec": { "type": ["number", "null"] },
+                    "phaseOffsetSec": { "type": ["number", "null"] },
+                    "repeatCount": { "type": ["integer", "null"] }
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "overlays": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "text", "placement", "startSec", "endSec"],
+              "properties": {
+                "id": { "type": "string" },
+                "text": { "type": "string" },
+                "placement": {
+                  "type": "object",
+                  "required": ["x", "y", "width", "height"],
+                  "properties": {
+                    "x": { "type": "number" },
+                    "y": { "type": "number" },
+                    "width": { "type": "number" },
+                    "height": { "type": "number" }
+                  },
+                  "additionalProperties": false
+                },
+                "startSec": { "type": "number", "minimum": 0 },
+                "endSec": { "type": "number", "minimum": 0 }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
     }
   },
-  "motion": {
-    "macros": ["focus_zoom", "pan_to_component", "highlight_pulse"],
-    "primitives": ["fade", "slide", "zoom", "pulse"],
-    "easing": ["linear", "easeInOutCubic", "easeOutQuad"],
-    "defaultDurSec": 1.5
-  },
-  "layout": {
-    "safeArea": {
-      "left": 0.05,
-      "top": 0.05,
-      "right": 0.95,
-      "bottom": 0.95
-    },
-    "componentGrid": {
-      "maxColumns": 3,
-      "regionTop": 0.55,
-      "regionHeight": 0.4
-    },
-    "layers": {
-      "background": 0,
-      "board": 5,
-      "components": 10,
-      "overlays": 20,
-      "pointers": 30
-    }
-  },
-  "timing": {
-    "baseSec": 4,
-    "perWordSec": 0.14,
-    "minSec": 2,
-    "maxSec": 15,
-    "transitionMinSec": 1,
-    "transitionMaxSec": 3
-  },
-  "linking": {
-    "requirePrevNext": true
-  }
+  "additionalProperties": false
 }

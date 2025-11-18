@@ -1,68 +1,41 @@
-const { snapToFrame } = require('./storyboard_timing');
+// src/ingest/storyboard_motion.js
+// Motion macros built from governed primitives.
 
-function ensureDuration(durationSec) {
-  const clamped = Math.max(0.5, Math.min(4, durationSec || 1.5));
-  return snapToFrame(clamped);
-}
+const DEFAULT_EASING = "easeInOutCubic";
 
-function focusZoomMacro({ assetId, targetRect, durationSec = 1.5, startSec = 0 }) {
-  if (!assetId || !targetRect) return null;
-  const dur = ensureDuration(durationSec);
-  const start = snapToFrame(startSec);
-  return {
-    macro: 'focus_zoom',
-    type: 'zoom',
-    assetId,
-    targetRect,
-    easing: 'easeInOutCubic',
-    startSec: start,
-    endSec: snapToFrame(start + dur)
-  };
-}
-
-function panToComponentMacro({ componentId, placement, durationSec = 1.5, startSec = 0 }) {
-  if (!componentId || !placement) return null;
-  const dur = ensureDuration(durationSec);
-  const start = snapToFrame(startSec);
-  const centerX = placement.x + placement.width / 2;
-  const centerY = placement.y + placement.height / 2;
-  return {
-    macro: 'pan_to_component',
-    type: 'slide',
-    assetId: componentId,
-    to: { x: Number(centerX.toFixed(4)), y: Number(centerY.toFixed(4)) },
-    easing: 'easeInOutCubic',
-    startSec: start,
-    endSec: snapToFrame(start + dur)
-  };
-}
-
-function highlightPulseMacro({ assetId, durationSec = 1.2, startSec = 0 }) {
-  if (!assetId) return null;
-  const dur = ensureDuration(durationSec);
-  const start = snapToFrame(startSec);
-  return {
-    macro: 'highlight_pulse',
-    type: 'pulse',
-    assetId,
-    easing: 'easeOutQuad',
-    startSec: start,
-    endSec: snapToFrame(start + dur)
-  };
-}
-
-function attachMotions(visual, motionDefs) {
-  const motions = motionDefs.filter(Boolean);
-  if (!motions.length) return visual;
+/**
+ * Fade-in macro for a visual appearing at the start of a scene.
+ */
+function applyFadeIn(visual, duration = 0.5) {
   return {
     ...visual,
-    motions: [...(visual.motions || []), ...motions]
+    motion: {
+      type: "fade",
+      startSec: 0,
+      endSec: duration,
+      easing: DEFAULT_EASING,
+      from: 0,
+      to: 1
+    }
+  };
+}
+
+/**
+ * Soft focus zoom macro (e.g., for intro title or key board area).
+ */
+function buildFocusZoom(anchorX = 0.5, anchorY = 0.5, duration = 2) {
+  return {
+    type: "zoom",
+    startSec: 0,
+    endSec: duration,
+    easing: DEFAULT_EASING,
+    from: 1.0,
+    to: 1.2,
+    anchor: { x: anchorX, y: anchorY }
   };
 }
 
 module.exports = {
-  focusZoomMacro,
-  panToComponentMacro,
-  highlightPulseMacro,
-  attachMotions
+  applyFadeIn,
+  buildFocusZoom
 };

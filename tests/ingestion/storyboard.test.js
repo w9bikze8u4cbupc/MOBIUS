@@ -1,7 +1,7 @@
 const { generateStoryboardFromIngestion } = require('../../src/ingest/storyboard');
 
 describe('generateStoryboardFromIngestion', () => {
-  it('produces a storyboard with at least one scene', () => {
+  it('produces a governed storyboard with intro, setup steps, and end card', () => {
     const ingestion = {
       ingestionContractVersion: '1.0.0',
       game: {
@@ -11,11 +11,6 @@ describe('generateStoryboardFromIngestion', () => {
         sources: { bggUrl: null, manualEntry: true }
       },
       rulebook: { filename: 'rulebook.pdf', pages: 4, sha256: 'x'.repeat(32) },
-      text: {
-        full: 'Setup: Do X.\nGameplay: Do Y.',
-        pages: [{ page: 1, text: 'Setup: Do X.' }],
-        sha256: 'y'.repeat(32)
-      },
       structure: {
         headings: [],
         components: [],
@@ -24,12 +19,19 @@ describe('generateStoryboardFromIngestion', () => {
             id: 'setup-1',
             order: 1,
             text: 'Place the board in the center of the table.',
-            componentRefs: [],
+            componentRefs: ['board'],
             pageRefs: [1],
             pauseCue: true
+          },
+          {
+            id: 'setup-2',
+            order: 2,
+            text: 'Deal five cards to each player.',
+            componentRefs: ['cards'],
+            pageRefs: [1],
+            pauseCue: false
           }
-        ],
-        phases: []
+        ]
       },
       diagnostics: {
         warnings: [],
@@ -42,13 +44,22 @@ describe('generateStoryboardFromIngestion', () => {
     const storyboard = generateStoryboardFromIngestion(ingestion);
 
     expect(storyboard).toBeTruthy();
-    expect(storyboard.storyboardContractVersion).toBe('1.0.0');
+    expect(storyboard.storyboardContractVersion).toBe('1.1.0');
     expect(storyboard.game.slug).toBe('sample-game');
+    expect(storyboard.resolution.width).toBe(1920);
     expect(Array.isArray(storyboard.scenes)).toBe(true);
-    expect(storyboard.scenes.length).toBeGreaterThan(0);
+    expect(storyboard.scenes.map((scene) => scene.type)).toEqual([
+      'intro',
+      'setup_step',
+      'setup_step',
+      'end_card'
+    ]);
 
-    const scene = storyboard.scenes[0];
-    expect(scene.type).toBe('setup');
-    expect(scene.durationSec).toBeGreaterThanOrEqual(0.5);
+    storyboard.scenes.forEach((scene, index, list) => {
+      expect(scene.index).toBe(index);
+      expect(scene.durationSec).toBeGreaterThanOrEqual(1);
+      expect(scene.prevSceneId).toBe(index === 0 ? null : list[index - 1].id);
+      expect(scene.nextSceneId).toBe(index === list.length - 1 ? null : list[index + 1].id);
+    });
   });
 });
