@@ -1,0 +1,56 @@
+{
+  "storyboardContractVersion": "1.0.0",
+  "game": {
+    "slug": "sample-game",
+    "name": "Sample Game"
+  },
+  "resolution": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30
+  },
+  "scenes": [
+    {
+      "id": "scene-001",
+      "index": 0,
+      "segmentId": "seg-intro-001",
+      "type": "intro",
+      "durationSec": 4,
+      "visuals": [
+        {
+          "id": "visual-board",
+          "assetId": "board-main",
+          "placement": {
+            "x": 0.15,
+            "y": 0.15,
+            "width": 0.7,
+            "height": 0.7
+          },
+          "layer": 0,
+          "motion": {
+            "type": "fade",
+            "startSec": 0,
+            "endSec": 1,
+            "easing": "easeInOutCubic",
+            "from": 0,
+            "to": 1
+          }
+        }
+      ],
+      "overlays": [
+        {
+          "id": "overlay-title",
+          "text": "Welcome to Sample Game",
+          "placement": {
+            "x": 0.2,
+            "y": 0.1,
+            "width": 0.6,
+            "height": 0.15
+          },
+          "startSec": 0.5,
+          "endSec": 3
+        }
+      ]
+    }
+  ]
+}

@@ -9,3 +9,4 @@ Phase E stabilizes ingestion, storyboard generation, and determinism ahead of re
 - Governance docs live in `docs/governance/` with machine-readable contracts in `docs/spec/`.
 - Validators (`scripts/check_ingestion.cjs`, `scripts/check_storyboard.cjs`) expose CI-ready JUnit artifacts and power the new npm scripts `ingestion:validate` and `storyboard:check`.
 - Deterministic ingestion + storyboard implementations are covered by Jest tests under `tests/ingestion/`.
+- CI order mirrors the delivery chain: the `ingestion-governance` job validates Phase E1 fixtures, `storyboard-governance` (Phase E2) validates the governed storyboard contract, and only then do the Phase F2+ rendering gates in `build-and-qa` execute.

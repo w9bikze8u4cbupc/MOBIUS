@@ -13,7 +13,66 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  ingestion-governance:
+    name: Ingestion Governance (Phase E1)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run ingestion contract validator
+        run: |
+          mkdir -p out/junit
+          node scripts/check_ingestion.cjs \
+            --manifest tests/fixtures/ingestion/rulebook-good.json \
+            --junit out/junit/ingestion-contract.xml
+        shell: bash
+
+      - name: Upload ingestion JUnit
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingestion-contract-junit
+          path: out/junit/ingestion-contract.xml
+
+  storyboard-governance:
+    name: Storyboard Governance (Phase E2)
+    needs: ingestion-governance
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run storyboard contract validator
+        run: |
+          mkdir -p out/junit
+          node scripts/check_storyboard.cjs \
+            --input tests/fixtures/storyboard/sample_storyboard.json \
+            --contract docs/spec/storyboard_contract.json \
+            --junit out/junit/storyboard-contract-${{ matrix.os }}.xml
+        shell: bash
+
+      - name: Upload storyboard JUnit
+        uses: actions/upload-artifact@v4
+        with:
+          name: storyboard-contract-junit-${{ matrix.os }}
+          path: out/junit/storyboard-contract-${{ matrix.os }}.xml
+
   build-and-qa:
+    needs: storyboard-governance
     strategy:
       fail-fast: false
       matrix:
