@@ -78,7 +78,9 @@ Thumbs.db
 /data/exports/
 /output/
 /ffmpeg-bin/
+/exports/*
 /*.mp4
 !/data/exports/.gitkeep
 !/output/.gitkeep
 !/ffmpeg-bin/README.md
+!/exports/.gitkeep

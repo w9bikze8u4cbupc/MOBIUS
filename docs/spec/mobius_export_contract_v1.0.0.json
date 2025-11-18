@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MobiusExportBundle",
+  "type": "object",
+  "exportContractVersion": "1.0.0",
+  "required": [
+    "exportContractVersion",
+    "project",
+    "game",
+    "ingestion",
+    "storyboard",
+    "subtitles",
+    "audio",
+    "motion",
+    "render",
+    "provenance"
+  ],
+  "properties": {
+    "exportContractVersion": { "type": "string", "const": "1.0.0" },
+    "project": {
+      "type": "object",
+      "required": ["id", "slug", "title", "languages"],
+      "properties": {
+        "id": { "type": "string" },
+        "slug": { "type": "string" },
+        "title": { "type": "string" },
+        "languages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        }
+      }
+    },
+    "game": {
+      "type": "object",
+      "required": ["name", "bggId"],
+      "properties": {
+        "name": { "type": "string" },
+        "bggId": { "type": "string" },
+        "players": { "type": "string" },
+        "playtime": { "type": "string" },
+        "age": { "type": "string" }
+      }
+    },
+    "ingestion": {
+      "type": "object",
+      "required": ["contractVersion", "result"],
+      "properties": {
+        "contractVersion": { "type": "string" },
+        "result": { "type": "object" }
+      }
+    },
+    "storyboard": {
+      "type": "object",
+      "required": ["contractVersion", "scenes"],
+      "properties": {
+        "contractVersion": { "type": "string" },
+        "scenes": { "type": "array" }
+      }
+    },
+    "subtitles": {
+      "type": "object",
+      "required": ["contractVersion", "tracks"],
+      "properties": {
+        "contractVersion": { "type": "string" },
+        "tracks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["language", "format", "items"],
+            "properties": {
+              "language": { "type": "string" },
+              "format": { "type": "string" },
+              "items": { "type": "array" }
+            }
+          }
+        }
+      }
+    },
+    "audio": {
+      "type": "object",
+      "required": ["contractVersion", "mix"],
+      "properties": {
+        "contractVersion": { "type": "string" },
+        "mix": { "type": "object" }
+      }
+    },
+    "motion": {
+      "type": "object",
+      "required": ["contractVersion", "motions"],
+      "properties": {
+        "contractVersion": { "type": "string" },
+        "motions": { "type": "array" }
+      }
+    },
+    "render": {
+      "type": "object",
+      "required": ["arcVersion", "container"],
+      "properties": {
+        "arcVersion": { "type": "string" },
+        "container": { "type": "object" }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["mobiusCommit", "branch", "generatedAt", "contracts"],
+      "properties": {
+        "mobiusCommit": { "type": "string" },
+        "branch": { "type": "string" },
+        "generatedAt": { "type": "string" },
+        "buildId": { "type": "string" },
+        "ciRunId": { "type": "string" },
+        "tools": {
+          "type": "object",
+          "properties": {
+            "ffmpegVersion": { "type": "string" },
+            "nodeVersion": { "type": "string" }
+          }
+        },
+        "contracts": {
+          "type": "object",
+          "required": [
+            "ingestion",
+            "storyboard",
+            "subtitle",
+            "audioMixing",
+            "motion",
+            "arc"
+          ],
+          "properties": {
+            "ingestion": { "type": "string" },
+            "storyboard": { "type": "string" },
+            "subtitle": { "type": "string" },
+            "audioMixing": { "type": "string" },
+            "motion": { "type": "string" },
+            "arc": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

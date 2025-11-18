@@ -337,3 +337,11 @@ assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio
   motion-governance:
     uses: ./.github/workflows/phase-f9-motion-governance.yml
 
+  mobius-export-governance:
+    needs:
+      - phase-e-governance
+      - subtitle-governance
+      - audio-mixing-governance
+      - motion-governance
+    uses: ./.github/workflows/phase-g0-mobius-export-governance.yml
+
