@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GenesisMobiusSnapshot",
+  "type": "object",
+  "required": [
+    "genesisIngestContractVersion",
+    "meta",
+    "segments",
+    "scenes",
+    "tracks",
+    "metrics",
+    "provenance"
+  ],
+  "properties": {
+    "genesisIngestContractVersion": { "type": "string", "const": "1.0.0" },
+    "meta": {
+      "type": "object",
+      "required": [
+        "projectId",
+        "projectSlug",
+        "gameName",
+        "languages",
+        "mobiusExportContractVersion"
+      ],
+      "properties": {
+        "projectId": { "type": "string" },
+        "projectSlug": { "type": "string" },
+        "gameName": { "type": "string" },
+        "languages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "mobiusExportContractVersion": { "type": "string" }
+      }
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "title", "sceneIds"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "intro",
+              "components",
+              "setup",
+              "turn",
+              "scoring",
+              "end",
+              "other"
+            ]
+          },
+          "title": { "type": "string" },
+          "sceneIds": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          }
+        }
+      }
+    },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "segmentId", "index", "durationSec"],
+        "properties": {
+          "id": { "type": "string" },
+          "segmentId": { "type": "string" },
+          "index": { "type": "integer" },
+          "durationSec": { "type": "number" }
+        }
+      }
+    },
+    "tracks": {
+      "type": "object",
+      "required": ["narration", "captions"],
+      "properties": {
+        "narration": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["sceneId", "startSec", "endSec"],
+            "properties": {
+              "sceneId": { "type": "string" },
+              "startSec": { "type": "number" },
+              "endSec": { "type": "number" }
+            }
+          }
+        },
+        "captions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["sceneId", "language", "itemCount"],
+            "properties": {
+              "sceneId": { "type": "string" },
+              "language": { "type": "string" },
+              "itemCount": { "type": "integer" }
+            }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "totalDurationSec",
+        "sceneCount",
+        "motionDensity",
+        "audio"
+      ],
+      "properties": {
+        "totalDurationSec": { "type": "number" },
+        "sceneCount": { "type": "integer" },
+        "motionDensity": {
+          "type": "object",
+          "required": ["perScene"],
+          "properties": {
+            "perScene": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["sceneId", "motionCount"],
+                "properties": {
+                  "sceneId": { "type": "string" },
+                  "motionCount": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "audio": {
+          "type": "object",
+          "required": ["lufsIntegrated", "truePeakDbtp"],
+          "properties": {
+            "lufsIntegrated": { "type": "number" },
+            "truePeakDbtp": { "type": "number" }
+          }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "mobiusCommit",
+        "branch",
+        "generatedAt",
+        "mobiusContracts"
+      ],
+      "properties": {
+        "mobiusCommit": { "type": "string" },
+        "branch": { "type": "string" },
+        "generatedAt": { "type": "string" },
+        "mobiusContracts": {
+          "type": "object",
+          "required": [
+            "ingestion",
+            "storyboard",
+            "subtitle",
+            "audioMixing",
+            "motion",
+            "arc"
+          ],
+          "properties": {
+            "ingestion": { "type": "string" },
+            "storyboard": { "type": "string" },
+            "subtitle": { "type": "string" },
+            "audioMixing": { "type": "string" },
+            "motion": { "type": "string" },
+            "arc": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

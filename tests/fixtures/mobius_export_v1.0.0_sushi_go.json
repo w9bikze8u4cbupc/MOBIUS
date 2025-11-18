@@ -1,0 +1,107 @@
+{
+  "exportContractVersion": "1.0.0",
+  "project": {
+    "id": "proj-001",
+    "slug": "sushi-go",
+    "title": "Sushi Go!",
+    "languages": ["en", "es"]
+  },
+  "game": {
+    "name": "Sushi Go!",
+    "bggId": "1234",
+    "players": "2-5",
+    "playtime": "15",
+    "age": "8+"
+  },
+  "ingestion": {
+    "contractVersion": "0.9.0",
+    "result": {"status": "ok"}
+  },
+  "storyboard": {
+    "contractVersion": "0.7.0",
+    "scenes": [
+      {
+        "id": "scene-001",
+        "segment": {"id": "segment-intro", "kind": "intro", "title": "Introduction"},
+        "durationSec": 8.0,
+        "title": "Welcome"
+      },
+      {
+        "id": "scene-002",
+        "segment": {"id": "segment-setup", "kind": "setup", "title": "Setup"},
+        "durationSec": 12.5,
+        "title": "Setup"
+      },
+      {
+        "id": "scene-003",
+        "segment": {"id": "segment-turn", "kind": "turn", "title": "Gameplay"},
+        "durationSec": 15.0,
+        "title": "Gameplay"
+      }
+    ]
+  },
+  "subtitles": {
+    "contractVersion": "0.4.0",
+    "tracks": [
+      {
+        "language": "en",
+        "format": "srt",
+        "items": [
+          {"sceneId": "scene-001", "text": "Welcome", "startSec": 0.0, "endSec": 4.0},
+          {"sceneId": "scene-002", "text": "Setup intro", "startSec": 0.0, "endSec": 6.0},
+          {"sceneId": "scene-003", "text": "Turns", "startSec": 0.0, "endSec": 8.0}
+        ]
+      },
+      {
+        "language": "es",
+        "format": "srt",
+        "items": [
+          {"sceneId": "scene-001", "text": "Bienvenidos", "startSec": 0.0, "endSec": 4.0},
+          {"sceneId": "scene-003", "text": "Turnos", "startSec": 0.0, "endSec": 8.0}
+        ]
+      }
+    ]
+  },
+  "audio": {
+    "contractVersion": "0.3.0",
+    "mix": {
+      "lufsIntegrated": -16.5,
+      "truePeakDbtp": -1.0
+    },
+    "narration": {
+      "items": [
+        {"sceneId": "scene-001", "startSec": 0.0, "endSec": 8.0},
+        {"sceneId": "scene-002", "startSec": 0.0, "endSec": 12.5},
+        {"sceneId": "scene-003", "startSec": 0.5, "endSec": 15.0}
+      ]
+    }
+  },
+  "motion": {
+    "contractVersion": "0.2.0",
+    "motions": [
+      {"sceneId": "scene-001", "motionCount": 3},
+      {"sceneId": "scene-002", "motionCount": 5},
+      {"sceneId": "scene-003", "motionCount": 2}
+    ]
+  },
+  "render": {
+    "arcVersion": "0.1.0",
+    "container": {
+      "codec": "h264",
+      "durationSec": 35.5
+    }
+  },
+  "provenance": {
+    "mobiusCommit": "abc123def",
+    "branch": "main",
+    "generatedAt": "2024-05-01T12:00:00Z",
+    "contracts": {
+      "ingestion": "1.0.0",
+      "storyboard": "0.7.0",
+      "subtitle": "0.4.0",
+      "audioMixing": "0.3.0",
+      "motion": "0.2.0",
+      "arc": "0.1.0"
+    }
+  }
+}
