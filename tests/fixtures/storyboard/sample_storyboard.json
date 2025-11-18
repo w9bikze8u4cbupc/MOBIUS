@@ -1,0 +1,422 @@
+{
+  "storyboardContractVersion": "1.1.0",
+  "game": {
+    "slug": "sample-game",
+    "name": "Sample Game"
+  },
+  "resolution": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30
+  },
+  "scenes": [
+    {
+      "id": "scene-intro",
+      "segmentId": "segment-intro",
+      "type": "intro",
+      "durationSec": 5.333333,
+      "overlays": [
+        {
+          "id": "overlay-intro-title",
+          "role": "title",
+          "text": "How to play Sample Game",
+          "placement": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.8999999999999999,
+            "height": 0.2
+          },
+          "startSec": 0,
+          "endSec": 5.333333
+        },
+        {
+          "id": "overlay-intro-brand",
+          "role": "brand",
+          "text": "MOBIUS Tutorials",
+          "placement": {
+            "x": 0.05,
+            "y": 0.73,
+            "width": 0.8999999999999999,
+            "height": 0.18
+          },
+          "startSec": 2.333333,
+          "endSec": 5.333333
+        }
+      ],
+      "visuals": [],
+      "index": 0,
+      "prevSceneId": null,
+      "nextSceneId": "scene-transition-1"
+    },
+    {
+      "id": "scene-transition-1",
+      "segmentId": "scene-transition-1",
+      "type": "transition",
+      "durationSec": 1.5,
+      "overlays": [
+        {
+          "id": "scene-transition-1-overlay",
+          "role": "transition",
+          "text": "Next: Components Overview",
+          "placement": {
+            "x": 0.05,
+            "y": 0.73,
+            "width": 0.8999999999999999,
+            "height": 0.18
+          },
+          "startSec": 0,
+          "endSec": 1.5
+        }
+      ],
+      "visuals": [],
+      "index": 1,
+      "prevSceneId": "scene-intro",
+      "nextSceneId": "scene-components-overview"
+    },
+    {
+      "id": "scene-components-overview",
+      "segmentId": "segment-components-overview",
+      "type": "components_overview",
+      "durationSec": 5,
+      "overlays": [
+        {
+          "id": "overlay-components-summary",
+          "role": "summary",
+          "text": "Components: c1",
+          "placement": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.8999999999999999,
+            "height": 0.2
+          },
+          "startSec": 0,
+          "endSec": 5
+        }
+      ],
+      "visuals": [
+        {
+          "id": "visual-component-c1-0",
+          "assetId": "c1",
+          "placement": {
+            "x": 0.09499999999999999,
+            "y": 0.5899999999999999,
+            "width": 0.8099999999999999,
+            "height": 0.32000000000000006
+          },
+          "layer": 10,
+          "motions": [
+            {
+              "type": "fade",
+              "easing": "linear",
+              "startSec": 0,
+              "endSec": 0.5
+            },
+            {
+              "macro": "focus_zoom",
+              "type": "zoom",
+              "assetId": "c1",
+              "targetRect": {
+                "x": 0.09499999999999999,
+                "y": 0.5899999999999999,
+                "width": 0.8099999999999999,
+                "height": 0.32000000000000006
+              },
+              "easing": "easeInOutCubic",
+              "startSec": 0,
+              "endSec": 1.5
+            }
+          ]
+        }
+      ],
+      "componentLayout": {
+        "type": "grid",
+        "rows": 1,
+        "columns": 1,
+        "regionTop": 0.5499999999999999,
+        "regionHeight": 0.4,
+        "safeArea": {
+          "left": 0.05,
+          "top": 0.05,
+          "right": 0.95,
+          "bottom": 0.95
+        },
+        "cells": [
+          {
+            "componentId": "c1",
+            "placement": {
+              "x": 0.09499999999999999,
+              "y": 0.5899999999999999,
+              "width": 0.8099999999999999,
+              "height": 0.32000000000000006
+            }
+          }
+        ]
+      },
+      "index": 2,
+      "prevSceneId": "scene-transition-1",
+      "nextSceneId": "scene-transition-3"
+    },
+    {
+      "id": "scene-transition-3",
+      "segmentId": "scene-transition-3",
+      "type": "transition",
+      "durationSec": 1.5,
+      "overlays": [
+        {
+          "id": "scene-transition-3-overlay",
+          "role": "transition",
+          "text": "Next: Setup Steps",
+          "placement": {
+            "x": 0.05,
+            "y": 0.73,
+            "width": 0.8999999999999999,
+            "height": 0.18
+          },
+          "startSec": 0,
+          "endSec": 1.5
+        }
+      ],
+      "visuals": [],
+      "index": 3,
+      "prevSceneId": "scene-components-overview",
+      "nextSceneId": "scene-setup-s1"
+    },
+    {
+      "id": "scene-setup-s1",
+      "segmentId": "s1",
+      "type": "setup_step",
+      "durationSec": 4.5,
+      "overlays": [
+        {
+          "id": "overlay-setup-s1",
+          "role": "step",
+          "text": "Shuffle the deck.",
+          "placement": {
+            "x": 0.05,
+            "y": 0.4,
+            "width": 0.8999999999999999,
+            "height": 0.25
+          },
+          "startSec": 0,
+          "endSec": 4.5
+        }
+      ],
+      "visuals": [
+        {
+          "id": "visual-component-c1-0",
+          "assetId": "c1",
+          "placement": {
+            "x": 0.09499999999999999,
+            "y": 0.5899999999999999,
+            "width": 0.8099999999999999,
+            "height": 0.32000000000000006
+          },
+          "layer": 10,
+          "motions": [
+            {
+              "type": "fade",
+              "easing": "linear",
+              "startSec": 0,
+              "endSec": 0.5
+            },
+            {
+              "macro": "pan_to_component",
+              "type": "slide",
+              "assetId": "c1",
+              "to": {
+                "x": 0.5,
+                "y": 0.75
+              },
+              "easing": "easeInOutCubic",
+              "startSec": 0,
+              "endSec": 1.166667
+            },
+            {
+              "macro": "highlight_pulse",
+              "type": "pulse",
+              "assetId": "c1",
+              "easing": "easeOutQuad",
+              "startSec": 0,
+              "endSec": 1
+            }
+          ]
+        }
+      ],
+      "index": 4,
+      "prevSceneId": "scene-transition-3",
+      "nextSceneId": "scene-transition-5"
+    },
+    {
+      "id": "scene-transition-5",
+      "segmentId": "scene-transition-5",
+      "type": "transition",
+      "durationSec": 1.5,
+      "overlays": [
+        {
+          "id": "scene-transition-5-overlay",
+          "role": "transition",
+          "text": "Next: Turn Walkthrough",
+          "placement": {
+            "x": 0.05,
+            "y": 0.73,
+            "width": 0.8999999999999999,
+            "height": 0.18
+          },
+          "startSec": 0,
+          "endSec": 1.5
+        }
+      ],
+      "visuals": [],
+      "index": 5,
+      "prevSceneId": "scene-setup-s1",
+      "nextSceneId": "scene-phase-p1"
+    },
+    {
+      "id": "scene-phase-p1",
+      "segmentId": "p1",
+      "type": "turn_flow",
+      "durationSec": 4.666667,
+      "overlays": [
+        {
+          "id": "overlay-phase-p1",
+          "role": "phase",
+          "text": "Play 1. Draw a card.",
+          "placement": {
+            "x": 0.05,
+            "y": 0.05,
+            "width": 0.8999999999999999,
+            "height": 0.2
+          },
+          "startSec": 0,
+          "endSec": 4.666667
+        }
+      ],
+      "visuals": [
+        {
+          "id": "visual-component-c1-0",
+          "assetId": "c1",
+          "placement": {
+            "x": 0.09499999999999999,
+            "y": 0.5899999999999999,
+            "width": 0.8099999999999999,
+            "height": 0.32000000000000006
+          },
+          "layer": 10,
+          "motions": [
+            {
+              "type": "fade",
+              "easing": "linear",
+              "startSec": 0,
+              "endSec": 0.5
+            },
+            {
+              "macro": "focus_zoom",
+              "type": "zoom",
+              "assetId": "c1",
+              "targetRect": {
+                "x": 0.09499999999999999,
+                "y": 0.5899999999999999,
+                "width": 0.8099999999999999,
+                "height": 0.32000000000000006
+              },
+              "easing": "easeInOutCubic",
+              "startSec": 0,
+              "endSec": 1.5
+            }
+          ]
+        }
+      ],
+      "index": 6,
+      "prevSceneId": "scene-transition-5",
+      "nextSceneId": "scene-transition-7"
+    },
+    {
+      "id": "scene-transition-7",
+      "segmentId": "scene-transition-7",
+      "type": "transition",
+      "durationSec": 1.5,
+      "overlays": [
+        {
+          "id": "scene-transition-7-overlay",
+          "role": "transition",
+          "text": "Next: Scoring",
+          "placement": {
+            "x": 0.05,
+            "y": 0.73,
+            "width": 0.8999999999999999,
+            "height": 0.18
+          },
+          "startSec": 0,
+          "endSec": 1.5
+        }
+      ],
+      "visuals": [],
+      "index": 7,
+      "prevSceneId": "scene-phase-p1",
+      "nextSceneId": "scene-scoring-summary"
+    },
+    {
+      "id": "scene-scoring-summary",
+      "segmentId": "segment-scoring",
+      "type": "scoring_summary",
+      "durationSec": 5.833333,
+      "overlays": [
+        {
+          "id": "overlay-scoring-summary",
+          "role": "summary",
+          "text": "Score points in Sample Game by following the objectives listed in the rulebook.",
+          "placement": {
+            "x": 0.05,
+            "y": 0.4,
+            "width": 0.8999999999999999,
+            "height": 0.25
+          },
+          "startSec": 0,
+          "endSec": 5.833333
+        }
+      ],
+      "visuals": [],
+      "index": 8,
+      "prevSceneId": "scene-transition-7",
+      "nextSceneId": "scene-end-card"
+    },
+    {
+      "id": "scene-end-card",
+      "segmentId": "segment-end",
+      "type": "end_card",
+      "durationSec": 5.333333,
+      "overlays": [
+        {
+          "id": "overlay-end-cta",
+          "role": "cta",
+          "text": "Ready to master Sample Game? Subscribe for more MOBIUS tutorials.",
+          "placement": {
+            "x": 0.05,
+            "y": 0.4,
+            "width": 0.8999999999999999,
+            "height": 0.25
+          },
+          "startSec": 0,
+          "endSec": 5.333333
+        },
+        {
+          "id": "overlay-end-brand",
+          "role": "brand",
+          "text": "MOBIUS • subscribe & share",
+          "placement": {
+            "x": 0.05,
+            "y": 0.73,
+            "width": 0.8999999999999999,
+            "height": 0.18
+          },
+          "startSec": 2.333333,
+          "endSec": 5.333333
+        }
+      ],
+      "visuals": [],
+      "index": 9,
+      "prevSceneId": "scene-scoring-summary",
+      "nextSceneId": null
+    }
+  ]
+}

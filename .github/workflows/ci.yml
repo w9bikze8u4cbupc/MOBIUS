@@ -299,12 +299,14 @@ assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio
         shell: bash
 
       # --- Validate E2 storyboard ----------------------------------------
-      - name: Validate storyboard (E2)
+      - name: Validate storyboard (E3)
         run: |
+          mkdir -p out/junit
           node scripts/check_storyboard.cjs \
-            --input tests/fixtures/storyboard/sample_storyboard.json \
-            --contract docs/spec/storyboard_contract.json \
-            --junit out/junit/storyboard-contract-${{ matrix.os }}.xml
+            --storyboard tests/fixtures/storyboard/sample_storyboard.json \
+            --contract-version 1.1.0 \
+            --junit out/junit/storyboard-contract-${{ matrix.os }}.xml \
+            --junit-dir out/junit
         shell: bash
 
       # --- Upload Artifacts ----------------------------------------------
@@ -316,5 +318,9 @@ assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio
           path: |
             out/junit/ingestion-contract-${{ matrix.os }}.xml
             out/junit/storyboard-contract-${{ matrix.os }}.xml
+            out/junit/storyboard-scenes-contract.xml
+            out/junit/storyboard-motion-contract.xml
+            out/junit/storyboard-layout-contract.xml
+            out/junit/storyboard-timing-contract.xml
           retention-days: 7
 
