@@ -1,0 +1,50 @@
+{
+  "contract": {
+    "name": "g6_mobius_feedback_contract",
+    "version": "1.0.0",
+    "description": "GENESIS → MOBIUS feedback contract for tutorial optimization guidance.",
+    "status": "active"
+  },
+  "identity": {
+    "analysisId": "string",
+    "generatedAtUtc": "string",
+    "generatorVersion": "string"
+  },
+  "input": {
+    "tutorialId": "string",
+    "mobiusExportVersion": "string",
+    "genesisIngestVersion": "string",
+    "g4ClarityVersion": "string",
+    "g5AnalyticsVersion": "string"
+  },
+  "summary": {
+    "grade": "string",
+    "clarityScore": "number",
+    "distanceFromCentroid": "number"
+  },
+  "recommendations": [
+    {
+      "code": "string",
+      "severity": "string",
+      "message": "string",
+      "category": "string",
+      "priority": "integer"
+    }
+  ],
+  "mobiusHints": {
+    "targetWpmRange": {
+      "min": "number",
+      "max": "number"
+    },
+    "targetCaptionCpsRange": {
+      "min": "number",
+      "max": "number"
+    },
+    "maxMotionLoad": "number",
+    "suggestLowerDuckingThreshold": "boolean",
+    "suggestStrongerPauseCues": "boolean"
+  },
+  "metadata": {
+    "notes": "string"
+  }
+}
