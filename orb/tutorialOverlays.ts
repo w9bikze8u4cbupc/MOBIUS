@@ -1,7 +1,11 @@
+// orb/tutorialOverlays.ts
+
+// Core types mirroring the G3 visualization contract shape.
+
 export interface G3PacingWavePoint {
-  angle: number;
-  radius: number;
-  amplitude: number;
+  angle: number;   // radians, [0, 2π]
+  radius: number;  // normalized, [0, 1] in Orb space
+  amplitude: number; // wpm deviation from target; mapping to y-offset handled by renderer
 }
 
 export interface G3DensitySegment {
@@ -9,14 +13,14 @@ export interface G3DensitySegment {
   angleEnd: number;
   radiusInner: number;
   radiusOuter: number;
-  densityScore: number;
+  densityScore: number; // 0..∞, typically small; renderer maps to opacity/intensity
 }
 
 export interface G3VisualLoadArc {
   angleStart: number;
   angleEnd: number;
   radius: number;
-  load: number;
+  load: number; // 0..1
 }
 
 export interface G3CaptionBlock {
@@ -25,13 +29,13 @@ export interface G3CaptionBlock {
   radiusInner: number;
   radiusOuter: number;
   cps: number;
-  lines: number;
+  lines: number; // 0..2
 }
 
 export interface G3ClarityPoint {
   angle: number;
   radius: number;
-  clarityScore: number;
+  clarityScore: number; // 0..1
 }
 
 export interface G3GlobalMetrics {
@@ -78,7 +82,7 @@ export interface G3VisualizationBundle {
     version: string;
   };
   identity: G3VisualizationIdentity;
-  timeline: any[]; // Orb usually doesn't need raw samples, but we keep it available.
+  timeline: any[]; // Orb usually doesn't need raw samples, but we keep them for future overlays.
   globalMetrics: G3GlobalMetrics;
   overlays: G3VisualizationOverlays;
   metadata?: Record<string, unknown>;
@@ -95,7 +99,6 @@ export function parseG3VisualizationBundle(json: unknown): G3VisualizationBundle
     throw new Error("Invalid G3 bundle: contract.name mismatch");
   }
 
-  // Minimal sanity checks
   if (!bundle.overlays || !bundle.overlays.pacingWave || !Array.isArray(bundle.overlays.pacingWave.points)) {
     throw new Error("Invalid G3 bundle: pacingWave.points missing");
   }
@@ -103,6 +106,7 @@ export function parseG3VisualizationBundle(json: unknown): G3VisualizationBundle
   return bundle;
 }
 
+// Orb-level DTO: exactly what we want the canvas/render code to consume.
 export type OrbTutorialOverlays = {
   pacingWave: G3PacingWavePoint[];
   densitySegments: G3DensitySegment[];
@@ -123,4 +127,62 @@ export function buildOrbTutorialOverlays(bundle: G3VisualizationBundle): OrbTuto
     globalMetrics: bundle.globalMetrics,
     identity: bundle.identity,
   };
+}
+
+// --- Rendering helpers (pure, deterministic, dependency-free) ---
+
+export interface CartesianPoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * Convert polar coordinates (angle in radians, radius in [0,1]) to
+ * Cartesian coordinates in a normalized Orb canvas:
+ * - Center at (0,0)
+ * - Unit circle radius 1
+ */
+export function polarToCartesian(angle: number, radius: number): CartesianPoint {
+  return {
+    x: Math.cos(angle) * radius,
+    y: Math.sin(angle) * radius,
+  };
+}
+
+// Design palette (kept in one place for consistency).
+
+export const ORB_COLORS = {
+  pacing: "#14b8a6",   // teal
+  density: "#ffc957",  // golden amber
+  motion: "#ec4899",   // magenta/pink
+  captions: "#facc15", // yellow
+  clarity: "#38bdf8",  // blue
+};
+
+// Simple mapping helpers for visual intensity.
+
+export function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+export function densityToOpacity(densityScore: number): number {
+  // Soft logistic-ish mapping to [0.1, 0.85].
+  const scaled = Math.log1p(Math.max(0, densityScore));
+  const normalized = clamp01(scaled / 3); // heuristic
+  return 0.1 + normalized * 0.75;
+}
+
+export function motionToOpacity(load: number): number {
+  const normalized = clamp01(load);
+  return 0.15 + normalized * 0.7;
+}
+
+export function captionsToOpacity(cps: number): number {
+  const normalized = clamp01(cps / 25); // >25 CPS considered heavy
+  return 0.12 + normalized * 0.7;
+}
+
+export function clarityToOpacity(score: number): number {
+  const normalized = clamp01(score);
+  return 0.25 + normalized * 0.6;
 }
