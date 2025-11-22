@@ -1,0 +1,48 @@
+{
+  "contract": {
+    "name": "g6_mobius_feedback_contract",
+    "version": "1.0.0"
+  },
+  "identity": {
+    "analysisId": "g6-demo",
+    "generatedAtUtc": "2025-11-22T16:54:12+00:00",
+    "generatorVersion": "1.0.0"
+  },
+  "input": {
+    "tutorialId": "demo",
+    "mobiusExportVersion": "1.0.0",
+    "genesisIngestVersion": "1.0.0",
+    "g4ClarityVersion": "1.0.0",
+    "g5AnalyticsVersion": "1.0.0"
+  },
+  "summary": {
+    "grade": "B",
+    "clarityScore": 0.75,
+    "distanceFromCentroid": 0.0
+  },
+  "recommendations": [
+    {
+      "code": "MAINTAIN_QUALITY",
+      "severity": "info",
+      "message": "Tutorial quality is consistent with peers. Maintain current settings.",
+      "category": "overall",
+      "priority": 3
+    }
+  ],
+  "mobiusHints": {
+    "targetWpmRange": {
+      "min": 140.0,
+      "max": 175.0
+    },
+    "targetCaptionCpsRange": {
+      "min": 10.0,
+      "max": 22.0
+    },
+    "maxMotionLoad": 0.85,
+    "suggestLowerDuckingThreshold": false,
+    "suggestStrongerPauseCues": false
+  },
+  "metadata": {
+    "notes": "GENESIS-generated feedback; MOBIUS may apply these hints to future renders."
+  }
+}
