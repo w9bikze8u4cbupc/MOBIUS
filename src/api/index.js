@@ -25,6 +25,8 @@ import xml2js from 'xml2js';
 import { promisify } from 'node:util';
 import { loadGenesisFeedback } from './genesisFeedback.js';
 import { checkGenesisFeedbackCompat } from '../compat/genesisCompat.js';
+import { loadGenesisHealthSummary } from '../system/genesisHealth.js';
+import { listGenesisArtifacts, readGenesisArtifact } from './genesisArtifacts.js';
 
 
 
@@ -399,6 +401,28 @@ app.get('/api/projects/:id/genesis-feedback', async (req, res) => {
     ...result.bundle,
     _compat: compat,
   });
+});
+
+app.get('/api/system/genesis-health', (req, res) => {
+  const summary = loadGenesisHealthSummary();
+  return res.json(summary);
+});
+
+app.get('/api/projects/:id/genesis-artifacts', (req, res) => {
+  const projectId = req.params.id;
+  const artifacts = listGenesisArtifacts(projectId);
+  return res.json(artifacts);
+});
+
+app.get('/api/projects/:id/genesis-artifacts/:filename', (req, res) => {
+  const projectId = req.params.id;
+  const filename = req.params.filename;
+  const content = readGenesisArtifact(projectId, filename);
+  if (content == null) {
+    return res.status(404).json({ error: 'Artifact not found.' });
+  }
+  res.setHeader('Content-Type', 'application/json');
+  return res.send(content);
 });
 
 app.post('/api/extract-components', async (req, res) => {    
