@@ -1,0 +1,147 @@
+{
+  "contract": {
+    "name": "g3_tutorial_visualization_contract",
+    "version": "1.0.0",
+    "description": "Contract governing how Mobius tutorials are visualized in the GENESIS Orb.",
+    "status": "active"
+  },
+  "identity": {
+    "tutorialId": "string",
+    "mobiusExportVersion": "string",
+    "genesisIngestVersion": "string",
+    "g2QualityContractVersion": "string",
+    "seqIndex": "integer"
+  },
+  "timeline": {
+    "description": "Normalized 30 Hz timeline of the tutorial.",
+    "samplingHz": 30,
+    "fields": {
+      "tStartSec": "number",
+      "tEndSec": "number",
+      "sceneIndex": "integer",
+      "sceneKind": "string", 
+      "wpm": "number",
+      "cps": "number",
+      "motionLoad": "number",
+      "audioStability": "number",
+      "clarityScore": "number"
+    },
+    "constraints": {
+      "tStartSec": { "min": 0.0 },
+      "tEndSec": { "min": 0.0 },
+      "wpm": { "min": 0.0, "max": 320.0 },
+      "cps": { "min": 0.0, "max": 40.0 },
+      "motionLoad": { "min": 0.0, "max": 1.0 },
+      "audioStability": { "min": 0.0, "max": 1.0 },
+      "clarityScore": { "min": 0.0, "max": 1.0 }
+    }
+  },
+  "globalMetrics": {
+    "description": "Aggregated tutorial-level metrics surfaced to Orb/Kernel.",
+    "fields": {
+      "durationSec": "number",
+      "avgWpm": "number",
+      "avgCps": "number",
+      "avgMotionLoad": "number",
+      "avgClarityScore": "number",
+      "densityVariance": "number",
+      "pacingStability": "number",
+      "captionLoadIndex": "number"
+    }
+  },
+  "overlays": {
+    "pacingWave": {
+      "description": "Curve representing narration pacing vs target.",
+      "fields": {
+        "targetWpm": "number",
+        "points": [
+          {
+            "angle": "number",
+            "radius": "number",
+            "amplitude": "number"
+          }
+        ]
+      },
+      "constraints": {
+        "radius": { "min": 0.28, "max": 0.55 },
+        "angle": { "min": 0.0, "max": 6.283185307179586 }
+      }
+    },
+    "densityBand": {
+      "description": "Band representing structural density over time.",
+      "fields": {
+        "segments": [
+          {
+            "angleStart": "number",
+            "angleEnd": "number",
+            "radiusInner": "number",
+            "radiusOuter": "number",
+            "densityScore": "number"
+          }
+        ]
+      },
+      "constraints": {
+        "radiusInner": { "min": 0.40, "max": 0.75 },
+        "radiusOuter": { "min": 0.40, "max": 0.92 }
+      }
+    },
+    "visualLoadRing": {
+      "description": "Outer ring encoding motion intensity.",
+      "fields": {
+        "arcs": [
+          {
+            "angleStart": "number",
+            "angleEnd": "number",
+            "radius": "number",
+            "load": "number"
+          }
+        ]
+      },
+      "constraints": {
+        "radius": { "min": 0.75, "max": 0.92 },
+        "load": { "min": 0.0, "max": 1.0 }
+      }
+    },
+    "captionBand": {
+      "description": "Subtitle readability and cue density band.",
+      "fields": {
+        "blocks": [
+          {
+            "angleStart": "number",
+            "angleEnd": "number",
+            "radiusInner": "number",
+            "radiusOuter": "number",
+            "cps": "number",
+            "lines": "integer"
+          }
+        ]
+      },
+      "constraints": {
+        "radiusInner": { "min": 0.28, "max": 0.40 },
+        "radiusOuter": { "min": 0.28, "max": 0.55 },
+        "cps": { "min": 0.0, "max": 40.0 },
+        "lines": { "min": 0, "max": 2 }
+      }
+    },
+    "clarityThread": {
+      "description": "Thread curve encoding clarity/cohesion.",
+      "fields": {
+        "points": [
+          {
+            "angle": "number",
+            "radius": "number",
+            "clarityScore": "number"
+          }
+        ]
+      },
+      "constraints": {
+        "radius": { "min": 0.55, "max": 0.75 }
+      }
+    }
+  },
+  "metadata": {
+    "createdAtUtc": "string",
+    "generator": "string",
+    "generatorVersion": "string"
+  }
+}
