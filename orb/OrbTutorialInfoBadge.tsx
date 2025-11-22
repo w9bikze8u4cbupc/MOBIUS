@@ -1,29 +1,26 @@
 // orb/OrbTutorialInfoBadge.tsx
 
 import React from "react";
-import type { G3VisualizationBundle } from "./tutorialOverlays";
-import { buildClarityOverlayState, buildInsightOverlayState } from "./clarityInsight";
+import type { G4ClarityInsightBundle } from "./clarityInsight";
+import { buildClarityBadgeState } from "./clarityInsight";
 
 type Props = {
-  g3Bundle: G3VisualizationBundle;
+  g4Bundle: G4ClarityInsightBundle;
 };
 
-export const OrbTutorialInfoBadge: React.FC<Props> = ({ g3Bundle }) => {
-  const clarity = buildClarityOverlayState(g3Bundle.globalMetrics);
-  const insight = buildInsightOverlayState(g3Bundle.globalMetrics);
-
-  const grade =
-    clarity.clarityScore >= 0.8 ? "A" :
-    clarity.clarityScore >= 0.65 ? "B" :
-    clarity.clarityScore >= 0.5 ? "C" : "D";
+export const OrbTutorialInfoBadge: React.FC<Props> = ({ g4Bundle }) => {
+  const badge = buildClarityBadgeState(g4Bundle);
 
   return (
     <div className="orb-tutorial-info-badge">
       <div className="orb-tutorial-info-badge__title">
-        Tutorial {g3Bundle.identity.tutorialId} · Seq {g3Bundle.identity.seqIndex}
+        Tutorial {g4Bundle.identity.tutorialId} · Seq {g4Bundle.identity.seqIndex}
       </div>
-      <div className="orb-tutorial-info-badge__grade">Quality Grade: {grade}</div>
-      <div className="orb-tutorial-info-badge__summary">{insight.summary}</div>
+      <div className="orb-tutorial-info-badge__grade">Quality Grade: {badge.grade}</div>
+      <div className="orb-tutorial-info-badge__clarity">
+        Clarity Score: {(badge.clarityScore * 100).toFixed(0)}%
+      </div>
+      <div className="orb-tutorial-info-badge__summary">{badge.summary}</div>
     </div>
   );
 };

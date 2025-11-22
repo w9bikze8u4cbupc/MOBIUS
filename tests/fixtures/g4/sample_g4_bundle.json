@@ -1,0 +1,33 @@
+{
+  "contract": {
+    "name": "g4_clarity_insight_contract",
+    "version": "1.0.0"
+  },
+  "identity": {
+    "tutorialId": "demo",
+    "mobiusExportVersion": "1.0.0",
+    "genesisIngestVersion": "1.0.0",
+    "g2QualityContractVersion": "1.0.0",
+    "g3VisualizationContractVersion": "1.0.0",
+    "seqIndex": 5
+  },
+  "clarity": {
+    "clarityScore": 0.75,
+    "pacingStability": 0.6,
+    "densityVariance": 0.3,
+    "captionLoadIndex": 0.72
+  },
+  "insights": {
+    "grade": "B",
+    "summary": "Tutorial quality appears stable with no major pacing, caption, or motion issues detected.",
+    "issues": []
+  },
+  "perSceneInsights": {
+    "items": []
+  },
+  "metadata": {
+    "createdAtUtc": "2025-11-18T00:00:00Z",
+    "generator": "GENESIS-G4",
+    "generatorVersion": "1.0.0"
+  }
+}

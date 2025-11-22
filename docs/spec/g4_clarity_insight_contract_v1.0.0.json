@@ -1,0 +1,67 @@
+{
+  "contract": {
+    "name": "g4_clarity_insight_contract",
+    "version": "1.0.0",
+    "description": "Contract governing CLARITY and INSIGHT overlays derived from G3 visualization and G2 metrics.",
+    "status": "active"
+  },
+  "identity": {
+    "tutorialId": "string",
+    "mobiusExportVersion": "string",
+    "genesisIngestVersion": "string",
+    "g2QualityContractVersion": "string",
+    "g3VisualizationContractVersion": "string",
+    "seqIndex": "integer"
+  },
+  "clarity": {
+    "description": "Normalized clarity-related scores used by Orb and Kernel.",
+    "fields": {
+      "clarityScore": "number",
+      "pacingStability": "number",
+      "densityVariance": "number",
+      "captionLoadIndex": "number"
+    },
+    "constraints": {
+      "clarityScore": { "min": 0.0, "max": 1.0 },
+      "pacingStability": { "min": 0.0, "max": 1.0 },
+      "densityVariance": { "min": 0.0, "max": 1.0 },
+      "captionLoadIndex": { "min": 0.0, "max": 1.0 }
+    }
+  },
+  "insights": {
+    "description": "Structured tutorial insights and issues.",
+    "fields": {
+      "grade": "string",
+      "summary": "string",
+      "issues": [
+        {
+          "code": "string",
+          "severity": "string",
+          "message": "string",
+          "segment": "string"
+        }
+      ]
+    },
+    "constraints": {
+      "grade": { "enum": ["A", "B", "C", "D", "F"] },
+      "severity": { "enum": ["info", "warn", "error"] }
+    }
+  },
+  "perSceneInsights": {
+    "description": "Optional per-scene clarity hints mapped to scene indices.",
+    "fields": {
+      "items": [
+        {
+          "sceneIndex": "integer",
+          "kind": "string",
+          "message": "string"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "createdAtUtc": "string",
+    "generator": "string",
+    "generatorVersion": "string"
+  }
+}
