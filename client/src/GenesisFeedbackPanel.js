@@ -29,7 +29,13 @@ export function GenesisFeedbackPanel({ projectId }) {
       })
       .catch((err) => {
         if (cancelled) return;
-        if (err.response && err.response.status === 404) {
+        if (err.response && err.response.status === 503) {
+          setState({
+            loading: false,
+            error: null,
+            data: { __genesisDisabled: true, _mode: err.response.data.mode || "OFF" },
+          });
+        } else if (err.response && err.response.status === 404) {
           setState({
             loading: false,
             error: null,
@@ -85,13 +91,27 @@ export function GenesisFeedbackPanel({ projectId }) {
 
   const bundle = state.data;
   const compat = bundle._compat || null;
+  const mode = bundle._mode || "UNKNOWN";
   const summary = bundle.summary || {};
   const hints = bundle.mobiusHints || {};
   const recs = bundle.recommendations || [];
 
+  if (bundle.__genesisDisabled) {
+    return (
+      <div className="genesis-feedback-panel genesis-feedback-panel--disabled">
+        <h3>GENESIS Feedback</h3>
+        <p>GENESIS integration is currently disabled (mode: {mode}).</p>
+      </div>
+    );
+  }
+
   return (
     <div className="genesis-feedback-panel">
       <h3>GENESIS Feedback</h3>
+
+      <div className="genesis-feedback-mode">
+        <strong>Mode:</strong> {mode}
+      </div>
 
       <GenesisCompatBadge compat={compat} />
 

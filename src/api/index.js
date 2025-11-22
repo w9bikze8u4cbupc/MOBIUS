@@ -25,6 +25,7 @@ import xml2js from 'xml2js';
 import { promisify } from 'node:util';
 import { loadGenesisFeedback } from './genesisFeedback.js';
 import { checkGenesisFeedbackCompat } from '../compat/genesisCompat.js';
+import { getGenesisMode } from '../config/genesisConfig.js';
 import { loadGenesisHealthSummary } from '../system/genesisHealth.js';
 import { listGenesisArtifacts, readGenesisArtifact } from './genesisArtifacts.js';
 
@@ -379,6 +380,15 @@ app.get('/api/bgg-components', async (req, res) => {
 
 app.get('/api/projects/:id/genesis-feedback', async (req, res) => {
   const projectId = req.params.id;
+  const mode = getGenesisMode();
+
+  if (mode === 'OFF') {
+    return res.status(503).json({
+      error: 'GENESIS integration is disabled.',
+      code: 'GENESIS_DISABLED',
+      mode,
+    });
+  }
 
   const result = loadGenesisFeedback(projectId);
 
@@ -387,11 +397,13 @@ app.get('/api/projects/:id/genesis-feedback', async (req, res) => {
       return res.status(404).json({
         error: 'GENESIS feedback not available for this project.',
         code: result.code,
+        mode,
       });
     }
     return res.status(500).json({
       error: result.error,
       code: result.code,
+      mode,
     });
   }
 
@@ -400,6 +412,7 @@ app.get('/api/projects/:id/genesis-feedback', async (req, res) => {
   return res.json({
     ...result.bundle,
     _compat: compat,
+    _mode: mode,
   });
 });
 
