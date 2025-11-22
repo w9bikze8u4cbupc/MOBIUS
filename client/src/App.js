@@ -4,6 +4,8 @@ import ReactMarkdown from "react-markdown";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.entry";
 import { GenesisFeedbackPanel } from "./GenesisFeedbackPanel";
+import { GenesisHealthPanel } from "./GenesisHealthPanel";
+import { GenesisArtifactsPanel } from "./GenesisArtifactsPanel";
 
 // Configure PDF.js worker
 GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -605,7 +607,7 @@ function App() {
         </div>
       </div>
 
-      {/* GENESIS Feedback Panel */}
+      {/* GENESIS Observability */}
       <div
         style={{
           marginBottom: 20,
@@ -615,7 +617,10 @@ function App() {
           background: "#f8f9fb",
         }}
       >
-        <h3>GENESIS Feedback</h3>
+        <h3>GENESIS Observability</h3>
+        <div style={{ marginBottom: 12 }}>
+          <GenesisHealthPanel />
+        </div>
         <div style={{ marginBottom: 12 }}>
           <label>
             <b>Project ID:</b>{" "}
@@ -629,10 +634,15 @@ function App() {
           </label>
         </div>
         {projectId.trim() ? (
-          <GenesisFeedbackPanel projectId={projectId.trim()} />
+          <>
+            <div style={{ marginBottom: 12 }}>
+              <GenesisArtifactsPanel projectId={projectId.trim()} />
+            </div>
+            <GenesisFeedbackPanel projectId={projectId.trim()} />
+          </>
         ) : (
           <p style={{ color: "#666" }}>
-            Enter a project ID to view GENESIS feedback and hints.
+            Enter a project ID to view GENESIS health, artifacts, and feedback.
           </p>
         )}
       </div>
