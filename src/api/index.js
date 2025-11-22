@@ -26,6 +26,7 @@ import { promisify } from 'node:util';
 import { loadGenesisFeedback } from './genesisFeedback.js';
 import { checkGenesisFeedbackCompat } from '../compat/genesisCompat.js';
 import { getGenesisMode } from '../config/genesisConfig.js';
+import { getGenesisProfile } from '../config/genesisProfiles.js';
 import { loadGenesisHealthSummary } from '../system/genesisHealth.js';
 import { listGenesisArtifacts, readGenesisArtifact } from './genesisArtifacts.js';
 
@@ -408,11 +409,13 @@ app.get('/api/projects/:id/genesis-feedback', async (req, res) => {
   }
 
   const compat = checkGenesisFeedbackCompat(result.bundle);
+  const profile = getGenesisProfile();
 
   return res.json({
     ...result.bundle,
     _compat: compat,
     _mode: mode,
+    _profile: profile,
   });
 });
 
