@@ -24,6 +24,7 @@ import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
 import { loadGenesisFeedback } from './genesisFeedback.js';
+import { checkGenesisFeedbackCompat } from '../compat/genesisCompat.js';
 
 
 
@@ -392,7 +393,12 @@ app.get('/api/projects/:id/genesis-feedback', async (req, res) => {
     });
   }
 
-  return res.json(result.bundle);
+  const compat = checkGenesisFeedbackCompat(result.bundle);
+
+  return res.json({
+    ...result.bundle,
+    _compat: compat,
+  });
 });
 
 app.post('/api/extract-components', async (req, res) => {    

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { GenesisCompatBadge } from "./GenesisCompatBadge";
 
 const INITIAL_STATE = {
   loading: true,
@@ -83,6 +84,7 @@ export function GenesisFeedbackPanel({ projectId }) {
   }
 
   const bundle = state.data;
+  const compat = bundle._compat || null;
   const summary = bundle.summary || {};
   const hints = bundle.mobiusHints || {};
   const recs = bundle.recommendations || [];
@@ -90,6 +92,8 @@ export function GenesisFeedbackPanel({ projectId }) {
   return (
     <div className="genesis-feedback-panel">
       <h3>GENESIS Feedback</h3>
+
+      <GenesisCompatBadge compat={compat} />
 
       <div className="genesis-feedback-summary">
         <div>

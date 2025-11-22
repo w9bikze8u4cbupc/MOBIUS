@@ -1,0 +1,33 @@
+{
+  "contract": {
+    "name": "genesis_mobius_compat_matrix",
+    "version": "1.0.0",
+    "description": "Compatibility matrix between MOBIUS and GENESIS contracts.",
+    "status": "active"
+  },
+  "notes": "Defines which versions of the MobiusExportBundle, G0–G6 contracts, and MOBIUS app versions are known to be compatible.",
+  "supported": [
+    {
+      "mobiusAppVersion": "1.0.x",
+      "mobiusExportBundle": "1.0.x",
+      "g0ExportContract": "1.0.x",
+      "g1IngestContract": "1.0.x",
+      "g2QualityContract": "1.0.x",
+      "g3VisualizationContract": "1.0.x",
+      "g4ClarityInsightContract": "1.0.x",
+      "g5AnalyticsContract": "1.0.x",
+      "g6MobiusFeedbackContract": "1.0.x",
+      "status": "stable"
+    }
+  ],
+  "rules": {
+    "semantic": {
+      "patchCompatible": true,
+      "minorCompatible": false
+    },
+    "fallback": {
+      "allowFeedbackIfOnlyPatchDiffers": true,
+      "blockIfMajorOrMinorDiffers": true
+    }
+  }
+}
