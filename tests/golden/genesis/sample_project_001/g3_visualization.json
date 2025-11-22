@@ -1,0 +1,137 @@
+{
+  "contract": {
+    "name": "g3_tutorial_visualization_contract",
+    "version": "1.0.0"
+  },
+  "identity": {
+    "tutorialId": "demo",
+    "mobiusExportVersion": "1.0.0",
+    "genesisIngestVersion": "1.0.0",
+    "g2QualityContractVersion": "1.0.0",
+    "seqIndex": 1
+  },
+  "timeline": [
+    {
+      "tStartSec": 0.0,
+      "tEndSec": 1.0,
+      "sceneIndex": 0,
+      "sceneKind": "setup",
+      "wpm": 150.0,
+      "cps": 12.0,
+      "motionLoad": 0.2,
+      "audioStability": 0.9,
+      "clarityScore": 0.8
+    },
+    {
+      "tStartSec": 12.0,
+      "tEndSec": 13.0,
+      "sceneIndex": 1,
+      "sceneKind": "gameplay",
+      "wpm": 170.0,
+      "cps": 18.0,
+      "motionLoad": 0.4,
+      "audioStability": 0.8,
+      "clarityScore": 0.7
+    }
+  ],
+  "globalMetrics": {
+    "durationSec": 13.0,
+    "avgWpm": 160.0,
+    "avgCps": 15.0,
+    "avgMotionLoad": 0.30000000000000004,
+    "avgClarityScore": 0.75,
+    "densityVariance": 0.0256,
+    "pacingStability": 100.0,
+    "captionLoadIndex": 2.3076923076923075
+  },
+  "overlays": {
+    "pacingWave": {
+      "targetWpm": 160.0,
+      "points": [
+        {
+          "angle": 0.0,
+          "radius": 0.28,
+          "amplitude": -10.0
+        },
+        {
+          "angle": 3.141592653589793,
+          "radius": 0.55,
+          "amplitude": 10.0
+        }
+      ]
+    },
+    "densityBand": {
+      "segments": [
+        {
+          "angleStart": 0.0,
+          "angleEnd": 3.141592653589793,
+          "radiusInner": 0.5,
+          "radiusOuter": 0.75,
+          "densityScore": 0.44
+        },
+        {
+          "angleStart": 3.141592653589793,
+          "angleEnd": 6.283185307179586,
+          "radiusInner": 0.5,
+          "radiusOuter": 0.75,
+          "densityScore": 0.76
+        }
+      ]
+    },
+    "visualLoadRing": {
+      "arcs": [
+        {
+          "angleStart": 0.0,
+          "angleEnd": 3.141592653589793,
+          "radius": 0.85,
+          "load": 0.2
+        },
+        {
+          "angleStart": 3.141592653589793,
+          "angleEnd": 6.283185307179586,
+          "radius": 0.85,
+          "load": 0.4
+        }
+      ]
+    },
+    "captionBand": {
+      "blocks": [
+        {
+          "angleStart": 0.0,
+          "angleEnd": 3.141592653589793,
+          "radiusInner": 0.3,
+          "radiusOuter": 0.45,
+          "cps": 12.0,
+          "lines": 1
+        },
+        {
+          "angleStart": 3.141592653589793,
+          "angleEnd": 6.283185307179586,
+          "radiusInner": 0.3,
+          "radiusOuter": 0.45,
+          "cps": 18.0,
+          "lines": 2
+        }
+      ]
+    },
+    "clarityThread": {
+      "points": [
+        {
+          "angle": 0.0,
+          "radius": 0.65,
+          "clarityScore": 0.8
+        },
+        {
+          "angle": 3.141592653589793,
+          "radius": 0.65,
+          "clarityScore": 0.7
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "createdAtUtc": "2025-11-18T00:00:00Z",
+    "generator": "GENESIS-G3",
+    "generatorVersion": "1.0.0"
+  }
+}
