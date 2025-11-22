@@ -3,6 +3,7 @@ import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.entry";
+import { GenesisFeedbackPanel } from "./GenesisFeedbackPanel";
 
 // Configure PDF.js worker
 GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -57,11 +58,12 @@ function App() {
   const [rulebookText, setRulebookText] = useState("");
   const [language, setLanguage] = useState("english");
   const [voice, setVoice] = useState(""); // Stores ElevenLabs voice ID
-  const [gameName, setGameName] = useState("");
-  const [metadata, setMetadata] = useState({
-    publisher: "",
-    playerCount: "",
-    gameLength: "",
+  const [gameName, setGameName] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [metadata, setMetadata] = useState({
+    publisher: "",
+    playerCount: "",
+    gameLength: "",
     minimumAge: "",
     theme: "",
     edition: "",
@@ -587,9 +589,9 @@ function App() {
       {/* Metadata Inputs */}
       <div style={{ marginBottom: 20 }}>
         <h3>Game Metadata (Optional - will attempt extraction if left blank)</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10 }}>
-          {/* Map over metadata keys to create inputs */}
-          {Object.keys(metadata).map(key => (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10 }}>
+        {/* Map over metadata keys to create inputs */}
+        {Object.keys(metadata).map(key => (
             <input
               key={key}
               type="text"
@@ -601,11 +603,43 @@ function App() {
             />
           ))}
         </div>
-      </div>
+      </div>
 
-      {/* File Upload Area */}
-      <div
-        onDragEnter={handleDrag}
+      {/* GENESIS Feedback Panel */}
+      <div
+        style={{
+          marginBottom: 20,
+          padding: 16,
+          border: "1px solid #ddd",
+          borderRadius: 8,
+          background: "#f8f9fb",
+        }}
+      >
+        <h3>GENESIS Feedback</h3>
+        <div style={{ marginBottom: 12 }}>
+          <label>
+            <b>Project ID:</b>{" "}
+            <input
+              type="text"
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              placeholder="Enter project ID to load feedback"
+              style={{ width: "240px", marginLeft: 8 }}
+            />
+          </label>
+        </div>
+        {projectId.trim() ? (
+          <GenesisFeedbackPanel projectId={projectId.trim()} />
+        ) : (
+          <p style={{ color: "#666" }}>
+            Enter a project ID to view GENESIS feedback and hints.
+          </p>
+        )}
+      </div>
+
+      {/* File Upload Area */}
+      <div
+        onDragEnter={handleDrag}
         onDragOver={handleDrag}
         onDragLeave={handleDrag}
         onDrop={handleDrop}

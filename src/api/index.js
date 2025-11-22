@@ -23,6 +23,7 @@ import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
+import { loadGenesisFeedback } from './genesisFeedback.js';
 
 
 
@@ -87,11 +88,11 @@ app.use((req, res, next) => {
 
 
 // --- API Endpoint for Explaining Text Chunks ---
-app.post('/api/explain-chunk', async (req, res) => {  
-  try {  
-    const { chunk, language } = req.body;  
-    if (!chunk) {  
-      return res.status(400).json({ error: 'No text chunk provided.' });  
+app.post('/api/explain-chunk', async (req, res) => {
+  try {
+    const { chunk, language } = req.body;
+    if (!chunk) {
+      return res.status(400).json({ error: 'No text chunk provided.' });
     }  
     // Default to English if language not specified  
     const lang = language === 'fr' ? 'fr' : 'en';  
@@ -371,6 +372,27 @@ app.get('/api/bgg-components', async (req, res) => {
       details: error.message 
     });
   }
+});
+
+app.get('/api/projects/:id/genesis-feedback', async (req, res) => {
+  const projectId = req.params.id;
+
+  const result = loadGenesisFeedback(projectId);
+
+  if (!result.ok) {
+    if (result.code === 'NOT_FOUND') {
+      return res.status(404).json({
+        error: 'GENESIS feedback not available for this project.',
+        code: result.code,
+      });
+    }
+    return res.status(500).json({
+      error: result.error,
+      code: result.code,
+    });
+  }
+
+  return res.json(result.bundle);
 });
 
 app.post('/api/extract-components', async (req, res) => {    
