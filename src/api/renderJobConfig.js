@@ -1,25 +1,23 @@
 import fs from 'fs';
-import { getGenesisFeedbackPath } from './genesisFeedback.js';
 import { getGenesisMode } from '../config/genesisConfig.js';
+import { getProfileBaseConfig } from '../config/genesisProfiles.js';
+import { getGenesisFeedbackPath } from './genesisFeedback.js';
 import { checkGenesisFeedbackCompat } from '../compat/genesisCompat.js';
+import { loadProjectScenario } from './genesisScenario.js';
 
 export function buildRenderConfigForProject(projectId) {
+  const mode = getGenesisMode();
+
+  const { scenarioId, scenario } = loadProjectScenario(projectId);
+  const profile = scenario.profile;
+
+  const baseProfileConfig = getProfileBaseConfig(profile);
   const baseConfig = {
-    subtitles: {
-      targetCpsMin: 10,
-      targetCpsMax: 20,
-    },
-    audio: {
-      targetWpm: 160,
-      duckingThresholdDb: -18,
-      insertExtraPauses: false,
-    },
-    motion: {
-      maxMotionLoad: 0.85,
-    },
+    subtitles: { ...baseProfileConfig.subtitles },
+    audio: { ...baseProfileConfig.audio },
+    motion: { ...baseProfileConfig.motion },
   };
 
-  const mode = getGenesisMode();
   if (mode === 'OFF') {
     return baseConfig;
   }
@@ -43,32 +41,55 @@ export function buildRenderConfigForProject(projectId) {
 
   if (mode === 'SHADOW' || mode === 'ADVISORY' || !compat.compatible) {
     console.log(
-      `[GENESIS] Mode=${mode}, compatible=${compat.compatible}. Hints available but not applied.`,
+      `[GENESIS] Mode=${mode}, scenario=${scenarioId}, profile=${profile}, compatible=${compat.compatible}. Hints not applied.`,
     );
     return baseConfig;
   }
 
   try {
     if (hints.targetWpmRange) {
-      baseConfig.audio.targetWpm =
-        (hints.targetWpmRange.min + hints.targetWpmRange.max) / 2;
+      const profileWpm = baseProfileConfig.audio.targetWpm;
+      const hintMid = (hints.targetWpmRange.min + hints.targetWpmRange.max) / 2;
+      baseConfig.audio.targetWpm = Math.round((profileWpm + hintMid) / 2);
     }
+
     if (hints.targetCaptionCpsRange) {
-      baseConfig.subtitles.targetCpsMin = hints.targetCaptionCpsRange.min;
-      baseConfig.subtitles.targetCpsMax = hints.targetCaptionCpsRange.max;
+      const { min, max } = hints.targetCaptionCpsRange;
+      baseConfig.subtitles.targetCpsMin = Math.max(
+        min,
+        baseProfileConfig.subtitles.targetCpsMin,
+      );
+      baseConfig.subtitles.targetCpsMax = Math.min(
+        max,
+        baseProfileConfig.subtitles.targetCpsMax,
+      );
+      if (baseConfig.subtitles.targetCpsMin > baseConfig.subtitles.targetCpsMax) {
+        baseConfig.subtitles.targetCpsMin = min;
+        baseConfig.subtitles.targetCpsMax = max;
+      }
     }
+
     if (typeof hints.maxMotionLoad === 'number') {
-      baseConfig.motion.maxMotionLoad = hints.maxMotionLoad;
+      baseConfig.motion.maxMotionLoad = Math.min(
+        baseProfileConfig.motion.maxMotionLoad,
+        hints.maxMotionLoad,
+      );
     }
+
     if (hints.suggestLowerDuckingThreshold) {
-      baseConfig.audio.duckingThresholdDb = -21;
+      baseConfig.audio.duckingThresholdDb =
+        baseProfileConfig.audio.duckingThresholdDb - 2;
     }
+
     if (hints.suggestStrongerPauseCues) {
       baseConfig.audio.insertExtraPauses = true;
     }
   } catch (err) {
-    console.error('Failed to apply GENESIS hints; falling back to base config.', err);
-    return baseConfig;
+    console.error(
+      `Failed to apply GENESIS hints for project ${projectId}; falling back to scenario profile config.`,
+      err,
+    );
+    return baseProfileConfig;
   }
 
   return baseConfig;

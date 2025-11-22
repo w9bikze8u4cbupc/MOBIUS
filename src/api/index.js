@@ -28,6 +28,8 @@ import { checkGenesisFeedbackCompat } from '../compat/genesisCompat.js';
 import { getGenesisMode } from '../config/genesisConfig.js';
 import { loadGenesisHealthSummary } from '../system/genesisHealth.js';
 import { listGenesisArtifacts, readGenesisArtifact } from './genesisArtifacts.js';
+import { loadProjectScenario, saveProjectScenario } from './genesisScenario.js';
+import { getAvailableScenarios } from '../config/genesisScenarios.js';
 
 
 
@@ -414,6 +416,31 @@ app.get('/api/projects/:id/genesis-feedback', async (req, res) => {
     _compat: compat,
     _mode: mode,
   });
+});
+
+app.get('/api/genesis/scenarios', (req, res) => {
+  return res.json(getAvailableScenarios());
+});
+
+app.get('/api/projects/:id/scenario', (req, res) => {
+  const projectId = req.params.id;
+  const { scenarioId, scenario } = loadProjectScenario(projectId);
+  return res.json({ scenarioId, scenario });
+});
+
+app.post('/api/projects/:id/scenario', express.json(), (req, res) => {
+  const projectId = req.params.id;
+  const { scenarioId } = req.body || {};
+  if (!scenarioId) {
+    return res.status(400).json({ error: 'scenarioId is required' });
+  }
+  try {
+    const result = saveProjectScenario(projectId, scenarioId);
+    return res.json(result);
+  } catch (err) {
+    console.error('Failed to save project scenario:', err);
+    return res.status(500).json({ error: 'Failed to save scenario' });
+  }
 });
 
 app.get('/api/system/genesis-health', (req, res) => {

@@ -6,6 +6,7 @@ import pdfWorker from "pdfjs-dist/build/pdf.worker.entry";
 import { GenesisFeedbackPanel } from "./GenesisFeedbackPanel";
 import { GenesisHealthPanel } from "./GenesisHealthPanel";
 import { GenesisArtifactsPanel } from "./GenesisArtifactsPanel";
+import { GenesisScenarioSelector } from "./GenesisScenarioSelector";
 
 // Configure PDF.js worker
 GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -635,6 +636,9 @@ function App() {
         </div>
         {projectId.trim() ? (
           <>
+            <div style={{ marginBottom: 12 }}>
+              <GenesisScenarioSelector projectId={projectId.trim()} />
+            </div>
             <div style={{ marginBottom: 12 }}>
               <GenesisArtifactsPanel projectId={projectId.trim()} />
             </div>
