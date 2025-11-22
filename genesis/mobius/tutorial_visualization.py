@@ -1,8 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from math import tau
 from typing import Any, Dict, Iterable, List
+
+from .tutorial_timeline_adapter import (
+    GenesisMobiusQualitySnapshotLike,
+    GenesisMobiusSnapshotLike,
+    build_timeline_from_snapshots,
+)
 
 
 TIMELINE_SAMPLING_HZ: int = 30
@@ -252,94 +258,6 @@ def _build_clarity_thread(timeline: List[TimelineSample]) -> List[ClarityPoint]:
     return points
 
 
-def _timeline_sample_to_dict(sample: TimelineSample) -> Dict[str, Any]:
-    return {
-        "tStartSec": sample.t_start_sec,
-        "tEndSec": sample.t_end_sec,
-        "sceneIndex": sample.scene_index,
-        "sceneKind": sample.scene_kind,
-        "wpm": sample.wpm,
-        "cps": sample.cps,
-        "motionLoad": sample.motion_load,
-        "audioStability": sample.audio_stability,
-        "clarityScore": sample.clarity_score,
-    }
-
-
-def _global_metrics_to_dict(metrics: GlobalMetrics) -> Dict[str, Any]:
-    return {
-        "durationSec": metrics.duration_sec,
-        "avgWpm": metrics.avg_wpm,
-        "avgCps": metrics.avg_cps,
-        "avgMotionLoad": metrics.avg_motion_load,
-        "avgClarityScore": metrics.avg_clarity_score,
-        "densityVariance": metrics.density_variance,
-        "pacingStability": metrics.pacing_stability,
-        "captionLoadIndex": metrics.caption_load_index,
-    }
-
-
-def _pacing_wave_to_dict(points: List[PacingWavePoint]) -> List[Dict[str, Any]]:
-    return [
-        {
-            "angle": point.angle,
-            "radius": point.radius,
-            "amplitude": point.amplitude,
-        }
-        for point in points
-    ]
-
-
-def _density_band_to_dict(segments: List[DensitySegment]) -> List[Dict[str, Any]]:
-    return [
-        {
-            "angleStart": segment.angle_start,
-            "angleEnd": segment.angle_end,
-            "radiusInner": segment.radius_inner,
-            "radiusOuter": segment.radius_outer,
-            "densityScore": segment.density_score,
-        }
-        for segment in segments
-    ]
-
-
-def _visual_load_ring_to_dict(arcs: List[VisualLoadArc]) -> List[Dict[str, Any]]:
-    return [
-        {
-            "angleStart": arc.angle_start,
-            "angleEnd": arc.angle_end,
-            "radius": arc.radius,
-            "load": arc.load,
-        }
-        for arc in arcs
-    ]
-
-
-def _caption_band_to_dict(blocks: List[CaptionBlock]) -> List[Dict[str, Any]]:
-    return [
-        {
-            "angleStart": block.angle_start,
-            "angleEnd": block.angle_end,
-            "radiusInner": block.radius_inner,
-            "radiusOuter": block.radius_outer,
-            "cps": block.cps,
-            "lines": block.lines,
-        }
-        for block in blocks
-    ]
-
-
-def _clarity_thread_to_dict(points: List[ClarityPoint]) -> List[Dict[str, Any]]:
-    return [
-        {
-            "angle": point.angle,
-            "radius": point.radius,
-            "clarityScore": point.clarity_score,
-        }
-        for point in points
-    ]
-
-
 def build_tutorial_visualization(
     *,
     tutorial_id: str,
@@ -354,9 +272,12 @@ def build_tutorial_visualization(
     target_wpm: float = 160.0,
 ) -> Dict[str, Any]:
     """
-    Build a deterministic visualization bundle that conforms to the
-    G3 visualization contract. This is the main entry point for GENESIS.
+    Low-level builder taking explicit TimelineSample[].
+
+    GENESIS callers should prefer build_visualization_from_snapshots()
+    unless they already have a compatible timeline.
     """
+
     if metadata is None:
         metadata = {}
 
@@ -399,25 +320,122 @@ def build_tutorial_visualization(
             "g2QualityContractVersion": viz.g2_quality_contract_version,
             "seqIndex": viz.seq_index,
         },
-        "timeline": [_timeline_sample_to_dict(sample) for sample in viz.timeline],
-        "globalMetrics": _global_metrics_to_dict(viz.global_metrics),
+        "timeline": [
+            {
+                "tStartSec": sample.t_start_sec,
+                "tEndSec": sample.t_end_sec,
+                "sceneIndex": sample.scene_index,
+                "sceneKind": sample.scene_kind,
+                "wpm": sample.wpm,
+                "cps": sample.cps,
+                "motionLoad": sample.motion_load,
+                "audioStability": sample.audio_stability,
+                "clarityScore": sample.clarity_score,
+            }
+            for sample in viz.timeline
+        ],
+        "globalMetrics": {
+            "durationSec": viz.global_metrics.duration_sec,
+            "avgWpm": viz.global_metrics.avg_wpm,
+            "avgCps": viz.global_metrics.avg_cps,
+            "avgMotionLoad": viz.global_metrics.avg_motion_load,
+            "avgClarityScore": viz.global_metrics.avg_clarity_score,
+            "densityVariance": viz.global_metrics.density_variance,
+            "pacingStability": viz.global_metrics.pacing_stability,
+            "captionLoadIndex": viz.global_metrics.caption_load_index,
+        },
         "overlays": {
             "pacingWave": {
                 "targetWpm": target_wpm,
-                "points": _pacing_wave_to_dict(viz.pacing_wave),
+                "points": [asdict(p) for p in viz.pacing_wave],
             },
             "densityBand": {
-                "segments": _density_band_to_dict(viz.density_band),
+                "segments": [
+                    {
+                        "angleStart": seg.angle_start,
+                        "angleEnd": seg.angle_end,
+                        "radiusInner": seg.radius_inner,
+                        "radiusOuter": seg.radius_outer,
+                        "densityScore": seg.density_score,
+                    }
+                    for seg in viz.density_band
+                ],
             },
             "visualLoadRing": {
-                "arcs": _visual_load_ring_to_dict(viz.visual_load_ring),
+                "arcs": [
+                    {
+                        "angleStart": arc.angle_start,
+                        "angleEnd": arc.angle_end,
+                        "radius": arc.radius,
+                        "load": arc.load,
+                    }
+                    for arc in viz.visual_load_ring
+                ],
             },
             "captionBand": {
-                "blocks": _caption_band_to_dict(viz.caption_band),
+                "blocks": [
+                    {
+                        "angleStart": block.angle_start,
+                        "angleEnd": block.angle_end,
+                        "radiusInner": block.radius_inner,
+                        "radiusOuter": block.radius_outer,
+                        "cps": block.cps,
+                        "lines": block.lines,
+                    }
+                    for block in viz.caption_band
+                ],
             },
             "clarityThread": {
-                "points": _clarity_thread_to_dict(viz.clarity_thread),
+                "points": [
+                    {
+                        "angle": pt.angle,
+                        "radius": pt.radius,
+                        "clarityScore": pt.clarity_score,
+                    }
+                    for pt in viz.clarity_thread
+                ],
             },
         },
         "metadata": viz.metadata,
     }
+
+
+def build_visualization_from_snapshots(
+    genesis_snapshot: GenesisMobiusSnapshotLike,
+    quality_snapshot: GenesisMobiusQualitySnapshotLike,
+    *,
+    seq_index: int,
+    metadata: Dict[str, Any] | None = None,
+    target_wpm: float = 160.0,
+) -> Dict[str, Any]:
+    """
+    High-level G3 entry point. This is what GENESIS should call.
+
+    It:
+      - Converts G1 + G2 snapshots into TimelineSample[].
+      - Builds the governed visualization bundle.
+    """
+
+    if metadata is None:
+        metadata = {}
+
+    timeline_samples = build_timeline_from_snapshots(genesis_snapshot, quality_snapshot)
+
+    # Enrich metadata with version info (if not already set).
+    metadata = {
+        "createdAtUtc": metadata.get("createdAtUtc", None),
+        "generator": metadata.get("generator", "GENESIS-G3"),
+        "generatorVersion": metadata.get("generatorVersion", "1.0.0"),
+        **{k: v for k, v in metadata.items() if k not in {"createdAtUtc", "generator", "generatorVersion"}},
+    }
+
+    return build_tutorial_visualization(
+        tutorial_id=genesis_snapshot.tutorial_id,
+        mobius_export_version=genesis_snapshot.mobius_export_version,
+        genesis_ingest_version=genesis_snapshot.ingest_version,
+        g2_quality_contract_version=quality_snapshot.contract_version,
+        seq_index=seq_index,
+        timeline_samples=timeline_samples,
+        metadata=metadata,
+        target_wpm=target_wpm,
+    )
