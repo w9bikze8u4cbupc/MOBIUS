@@ -92,6 +92,7 @@ export function GenesisFeedbackPanel({ projectId }) {
   const bundle = state.data;
   const compat = bundle._compat || null;
   const mode = bundle._mode || "UNKNOWN";
+  const profile = bundle._profile || "DEFAULT";
   const summary = bundle.summary || {};
   const hints = bundle.mobiusHints || {};
   const recs = bundle.recommendations || [];
@@ -111,6 +112,9 @@ export function GenesisFeedbackPanel({ projectId }) {
 
       <div className="genesis-feedback-mode">
         <strong>Mode:</strong> {mode}
+      </div>
+      <div className="genesis-feedback-profile">
+        <strong>Profile:</strong> {profile}
       </div>
 
       <GenesisCompatBadge compat={compat} />
