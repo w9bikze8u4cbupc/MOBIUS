@@ -1,3 +1,6 @@
-"""GENESIS Mobius visualization utilities (G3)."""
+"""GENESIS Mobius utilities."""
 
-__all__ = ["tutorial_visualization"]
+__all__ = [
+    "tutorial_visualization",
+    "cross_tutorial_analytics",
+]
