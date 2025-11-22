@@ -20,6 +20,7 @@ jobs:
       - audio-mixing-governance
       - motion-governance
       - g3-visualization-governance
+      - g5-cross-tutorial-analytics-governance
     strategy:
       fail-fast: false
       matrix:
@@ -372,6 +373,9 @@ assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio
           python scripts/check_g3_visualization.py tests/fixtures/g3/sample_g3_bundle.json --junit-out artifacts/junit/g3_visualization.xml
           pytest tests/test_g3_visualization_*.py
         shell: bash
+
+  g5-cross-tutorial-analytics-governance:
+    uses: ./.github/workflows/phase-g5-cross-tutorial-analytics-governance.yml
 
   mobius-export-governance:
     needs:

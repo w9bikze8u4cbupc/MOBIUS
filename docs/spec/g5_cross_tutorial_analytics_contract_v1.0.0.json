@@ -1,0 +1,64 @@
+{
+  "contract": {
+    "name": "g5_cross_tutorial_analytics_contract",
+    "version": "1.0.0",
+    "description": "Cross-tutorial analytics contract for GENESIS, enabling comparison, clustering, drift detection, and optimization guidance.",
+    "status": "active"
+  },
+  "identity": {
+    "analysisId": "string",
+    "generatedAtUtc": "string",
+    "generatorVersion": "string"
+  },
+  "input": {
+    "tutorialIds": ["string"],
+    "g4Versions": ["string"],
+    "count": "integer"
+  },
+  "aggregateMetrics": {
+    "clarityCentroid": {
+      "clarityScore": "number",
+      "pacingStability": "number",
+      "densityVariance": "number",
+      "captionLoadIndex": "number"
+    },
+    "motionLoadMean": "number",
+    "captionLoadMean": "number"
+  },
+  "tutorialComparisons": [
+    {
+      "tutorialId": "string",
+      "distanceFromCentroid": "number",
+      "rankIndex": "integer",
+      "zScores": {
+        "clarityScore": "number",
+        "captionLoadIndex": "number",
+        "avgMotionLoad": "number"
+      },
+      "flags": ["string"]
+    }
+  ],
+  "clusters": [
+    {
+      "clusterId": "string",
+      "members": ["string"],
+      "centroidClarity": "number"
+    }
+  ],
+  "drift": {
+    "clarityDrift": "number",
+    "captionLoadDrift": "number",
+    "motionLoadDrift": "number",
+    "tutorialsImpacted": ["string"]
+  },
+  "recommendations": [
+    {
+      "code": "string",
+      "severity": "string",
+      "message": "string"
+    }
+  ],
+  "metadata": {
+    "notes": "string"
+  }
+}

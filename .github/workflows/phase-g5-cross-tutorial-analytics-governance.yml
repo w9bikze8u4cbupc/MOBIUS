@@ -1,0 +1,94 @@
+name: Phase G5 - Cross-Tutorial Analytics Governance
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+jobs:
+  g5-cross-tutorial-analytics-governance:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+        shell: bash
+
+      - name: Build sample G5 bundle
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          from genesis.mobius.cross_tutorial_analytics import build_g5_analytics
+
+          g4s = [
+              {
+                  "identity": {"tutorialId": "sample-1"},
+                  "clarity": {
+                      "clarityScore": 0.82,
+                      "pacingStability": 0.78,
+                      "densityVariance": 0.42,
+                      "captionLoadIndex": 0.26,
+                  },
+                  "globalMetrics": {"avgMotionLoad": 0.35},
+                  "contract": {"version": "1.0.0"},
+              },
+              {
+                  "identity": {"tutorialId": "sample-2"},
+                  "clarity": {
+                      "clarityScore": 0.64,
+                      "pacingStability": 0.74,
+                      "densityVariance": 0.38,
+                      "captionLoadIndex": 0.33,
+                  },
+                  "globalMetrics": {"avgMotionLoad": 0.4},
+                  "contract": {"version": "1.0.0"},
+              },
+              {
+                  "identity": {"tutorialId": "sample-3"},
+                  "clarity": {
+                      "clarityScore": 0.7,
+                      "pacingStability": 0.81,
+                      "densityVariance": 0.36,
+                      "captionLoadIndex": 0.21,
+                  },
+                  "globalMetrics": {"avgMotionLoad": 0.29},
+                  "contract": {"version": "1.0.0"},
+              },
+          ]
+
+          g5 = build_g5_analytics(g4s, analysis_id="ci-sample", generated_at_utc="2025-01-01T00:00:00Z")
+          out = Path("artifacts/g5_sample.json")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text(json.dumps(g5, indent=2), encoding="utf-8")
+          PY
+        shell: bash
+
+      - name: Validate sample bundle
+        run: |
+          mkdir -p artifacts/junit
+          python scripts/check_g5_cross_tutorial_analytics.py artifacts/g5_sample.json --junit-out artifacts/junit/g5-${{ matrix.os }}.xml
+        shell: bash
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g5-cross-tutorial-analytics-${{ matrix.os }}
+          path: |
+            artifacts/g5_sample.json
+            artifacts/junit/g5-${{ matrix.os }}.xml
