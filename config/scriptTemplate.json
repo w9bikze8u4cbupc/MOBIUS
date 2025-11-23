@@ -1,0 +1,36 @@
+{
+  "structure": {
+    "game": "<string>",
+    "title": "<string>",
+    "objectives": ["<string>", "<string>", "<string>", "..."],
+    "steps": [
+      {
+        "title": "<step title>",
+        "narration": ["<sentence 1>", "<sentence 2>"],
+        "action": "<visual direction>",
+        "expect": "<viewer takeaway>"
+      }
+    ],
+    "outro": "<closing line>"
+  },
+  "example": {
+    "game": "azul",
+    "title": "How to Play Azul — Complete Beginner Tutorial",
+    "objectives": [
+      "Learn setup",
+      "Understand turn structure",
+      "Understand scoring"
+    ],
+    "steps": [
+      {
+        "title": "Place the Factory Displays",
+        "narration": [
+          "Begin by placing the factory displays in a circle at the center of the table."
+        ],
+        "action": "Show top-down board view with zoom-in on the factory tiles.",
+        "expect": "The displays are clearly visible in the player’s view."
+      }
+    ],
+    "outro": "You're ready to play. Enjoy your game of Azul!"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "video": {
+    "resolutions": ["1920x1080", "2560x1440"],
+    "fps": 30,
+    "container": ["mp4", "webm"],
+    "bitrate": {
+      "1080p": 8000
+    },
+    "colorspace": "bt709-limited",
+    "ffmpegVersion": "6.1.x"
+  },
+  "audio": {
+    "sampleRate": 48000,
+    "channels": 2,
+    "loudnessLufs": -14,
+    "truePeakDbtp": -1.0,
+    "denoise": true,
+    "deess": true
+  },
+  "determinism": {
+    "node": "20.11.x",
+    "npm": "10.x"
+  }
+}

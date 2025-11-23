@@ -1,0 +1,81 @@
+{
+  "brand": {
+    "name": "Les Jeux Mobius Games",
+    "logos": {
+      "primary": "/mnt/data/Banner.png",
+      "mono": "/mnt/data/Banner.png"
+    },
+    "colors": {
+      "primary": "#1F7AE0",
+      "secondary": "#0F3A70",
+      "accent": "#FFD54F",
+      "background": "#0B0B0D",
+      "text": "#FFFFFF",
+      "muted": "#C8C8C8"
+    },
+    "typography": {
+      "family": "Inter",
+      "weight": "SemiBold",
+      "fallbacks": ["Arial", "sans-serif"]
+    }
+  },
+  "layout": {
+    "safe": {
+      "top": 64,
+      "right": 64,
+      "bottom": 64,
+      "left": 64
+    },
+    "titlePlacement": "left",
+    "maxCharsPerLine": 48,
+    "textSizes": {
+      "title": 48,
+      "body": 32
+    }
+  },
+  "motion": {
+    "transitions": {
+      "type": "fade",
+      "durationMs": 250,
+      "easing": "easeInOutCubic"
+    },
+    "intro": {
+      "durationMs": 1200,
+      "musicCue": true,
+      "logo": {
+        "animation": "scale-up",
+        "glow": "soft",
+        "rotation": false
+      }
+    },
+    "outro": {
+      "durationMs": 1000,
+      "cta": "Abonnez-vous pour plus de tutoriels Mobius Games.",
+      "logo": {
+        "fadeToOpacity": 0.4,
+        "resolveToFull": true
+      }
+    }
+  },
+  "callouts": {
+    "style": "spotlight",
+    "color": "#FFD54F",
+    "pulseMs": 600,
+    "radius": 64
+  },
+  "cursor": {
+    "highlight": {
+      "enabled": true,
+      "radius": 48,
+      "color": "#FFD54F",
+      "opacity": 0.35,
+      "showClicks": true
+    }
+  },
+  "watermark": {
+    "enabled": true,
+    "position": "top-right",
+    "opacity": 0.12,
+    "width": 140
+  }
+}
