@@ -1,0 +1,20 @@
+{
+  "provider": "ElevenLabs",
+  "voiceProfile": {
+    "trait": "Calm, neutral warmth",
+    "gender": "Neutral/male",
+    "speakingRateWpm": 150
+  },
+  "pausesMs": {
+    "afterHeadings": 450,
+    "betweenSteps": 300
+  },
+  "musicBed": {
+    "genre": "soft ambient / light electronic",
+    "relativeLevelDb": -28
+  },
+  "loudness": {
+    "integratedLufs": -14,
+    "truePeakDbtp": -1.0
+  }
+}
