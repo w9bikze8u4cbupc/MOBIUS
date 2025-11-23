@@ -2,7 +2,7 @@
 
 ## 9) QA/UAT – “1 Task per Checkbox” (Finalized)
 - **Canonical checklist**: Adopt the Simple End-to-End Checklist (A–K) with per-ID status tracking.
-- **Target game & OSes**: Sushi Go! as flagship; validate first on **Windows**, **macOS**, then **Linux** once first two are green.
+- **Target game & OSes**: Sushi Go! as flagship; validate first on **Windows**, **macOS**, then **Linux** once the first two are green.
 - **Must-pass for ship-ready** (automation where possible):
   - **A01–A08**: Project creation & save (manual + some automation).
   - **B01–B14**: BGG metadata autofill + overrides (partially auto-checkable).
@@ -15,10 +15,11 @@
   - **I01–I04**: Packaging (container.json, captions, checksums, archive).
   - **J01–J04**: Golden & checklist validators.
   - **K01–K06**: Delivery, logs, timing, confidence (semi-manual; human confirmation required).
-- **golden:validate expectations**:
-  - Auto-check everything clearly machine-verifiable in **A–J**.
-  - Emit JSON report with per-ID status: `"A01": "pass" | "fail" | "manual"`.
-  - Require manual confirmation for **K01–K06**.
+
+### 9.1 Automation & reporting rules
+- **golden:validate coverage**: Auto-check everything clearly machine-verifiable in **A–J**.
+- **Report contract**: Emit JSON with per-ID status, e.g. `"A01": "pass" | "fail" | "manual"`.
+- **Manual gates**: Require explicit human confirmation for **K01–K06**.
 - **Director rule**: A tutorial cannot be marked “publishable” unless all auto-checkable items pass **and** a human marks **K01–K06** complete.
 
 ## 10) Priorities & Timeline (Director-Decided)
