@@ -28,6 +28,7 @@ import { checkGenesisFeedbackCompat } from '../compat/genesisCompat.js';
 import { getGenesisMode } from '../config/genesisConfig.js';
 import { getGenesisProfile } from '../config/genesisProfiles.js';
 import { loadGenesisHealthSummary } from '../system/genesisHealth.js';
+import { computeCampaignPlan } from "../system/genesisCampaign.js";
 import { computeCompliance } from '../system/genesisCompliance.js';
 import { listGenesisArtifacts, readGenesisArtifact } from './genesisArtifacts.js';
 import { loadQualityGoals, saveQualityGoals } from './genesisGoals.js';
@@ -110,6 +111,34 @@ app.post('/api/explain-chunk', async (req, res) => {
     console.error('Error in /api/explain-chunk:', err);  
     res.status(500).json({ error: 'Failed to generate explanation.' });  
   }  
+});
+
+// GET global GENESIS campaign plan
+app.get("/api/genesis/campaign", (req, res) => {
+  const plan = computeCampaignPlan();
+  res.json({ plan });
+});
+
+// POST: auto-optimize top N non-compliant projects
+app.post("/api/genesis/campaign/auto-optimize", express.json(), async (req, res) => {
+  const { limit = 3 } = req.body || {};
+  const plan = computeCampaignPlan();
+  const targets = plan
+    .filter((p) => p.compliant === false && p.priorityScore > 0)
+    .slice(0, limit);
+
+  const results = [];
+  for (const p of targets) {
+    try {
+      await runGenesisAutoOptimize(p.projectId);
+      results.push({ projectId: p.projectId, ok: true });
+    } catch (err) {
+      console.error("Campaign auto-optimize failed for", p.projectId, err);
+      results.push({ projectId: p.projectId, ok: false, error: err.message });
+    }
+  }
+
+  res.json({ targets, results });
 });
 
 // --- Save Project Endpoint ---
@@ -196,8 +225,8 @@ async function generatePreviewImage(filePath, outputPath = 'uploads/tmp', qualit
   }  
 }
   
-// BGG XML API extraction function  
-async function extractBGGMetadataFromAPI(gameId) {  
+// BGG XML API extraction function
+async function extractBGGMetadataFromAPI(gameId) {
   try {  
     console.log('🔗 Fetching from BGG API for game ID:', gameId);  
       
