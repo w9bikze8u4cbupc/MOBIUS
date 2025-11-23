@@ -11,6 +11,7 @@ import { GenesisAutoOptimizeButton } from "./GenesisAutoOptimizeButton";
 import { GenesisCampaignPanel } from "./GenesisCampaignPanel";
 import { GenesisInspector } from "./GenesisInspector";
 import { GenesisQaReportButton } from "./GenesisQaReportButton";
+import { GenesisDebugBundleButton } from "./GenesisDebugBundleButton";
 
 // Configure PDF.js worker
 GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -654,6 +655,9 @@ function App() {
             </div>
             <div style={{ marginBottom: 12 }}>
               <GenesisQaReportButton projectId={projectId.trim()} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <GenesisDebugBundleButton projectId={projectId.trim()} />
             </div>
             <div style={{ marginBottom: 12 }}>
               <GenesisInspector projectId={projectId.trim()} />

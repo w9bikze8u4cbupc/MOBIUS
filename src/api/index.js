@@ -35,6 +35,7 @@ import { loadQualityGoals, saveQualityGoals } from './genesisGoals.js';
 import { runGenesisAutoOptimize } from './genesisAutoOptimize.js';
 import { loadGenesisInspectorBundle } from "./genesisInspector.js";
 import { ensureGenesisReport, getReportPath } from "./genesisReport.js";
+import { buildGenesisDebugBundle } from "./genesisDebugBundle.js";
 
 
 
@@ -458,6 +459,55 @@ app.get("/api/projects/:id/genesis-report/download", (req, res) => {
     `attachment; filename="genesis_qa_report_v1.0.0.md"`
   );
   fs.createReadStream(pathFs).pipe(res);
+});
+
+// Return debug bundle as JSON in response body
+app.get("/api/projects/:id/genesis-debug-bundle", (req, res) => {
+  const projectId = req.params.id;
+  const bundle = buildGenesisDebugBundle(projectId);
+
+  // Nothing at all? (no artifacts & no history)
+  const empty =
+    !bundle.artifacts.g3 &&
+    !bundle.artifacts.g4 &&
+    !bundle.artifacts.g5 &&
+    !bundle.artifacts.g6 &&
+    (!bundle.evalHistory || bundle.evalHistory.length === 0);
+
+  if (empty) {
+    return res.status(404).json({
+      error: "No GENESIS debug data available for this project.",
+    });
+  }
+
+  return res.json(bundle);
+});
+
+// Download debug bundle as a JSON file
+app.get("/api/projects/:id/genesis-debug-bundle/download", (req, res) => {
+  const projectId = req.params.id;
+  const bundle = buildGenesisDebugBundle(projectId);
+
+  const empty =
+    !bundle.artifacts.g3 &&
+    !bundle.artifacts.g4 &&
+    !bundle.artifacts.g5 &&
+    !bundle.artifacts.g6 &&
+    (!bundle.evalHistory || bundle.evalHistory.length === 0);
+
+  if (empty) {
+    return res.status(404).json({
+      error: "No GENESIS debug data available for this project.",
+    });
+  }
+
+  const payload = JSON.stringify(bundle, null, 2);
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="genesis_debug_bundle_${projectId}.json"`
+  );
+  return res.send(payload);
 });
 
 app.post('/api/projects/:id/genesis-auto-optimize', async (req, res) => {
