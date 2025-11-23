@@ -1,0 +1,18 @@
+{
+  "format": "srt",
+  "encoding": "utf8",
+  "maxCharsPerLine": 42,
+  "maxCps": 17,
+  "maxLines": 2,
+  "timing": {
+    "minCueMs": 1000,
+    "minGapMs": 100,
+    "snapToWord": true,
+    "leadInMs": 50,
+    "leadOutMs": 50
+  },
+  "nonSpeech": {
+    "enabled": true
+  },
+  "languages": ["en", "fr"]
+}
