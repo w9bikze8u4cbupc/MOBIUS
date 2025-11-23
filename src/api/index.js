@@ -28,7 +28,9 @@ import { checkGenesisFeedbackCompat } from '../compat/genesisCompat.js';
 import { getGenesisMode } from '../config/genesisConfig.js';
 import { getGenesisProfile } from '../config/genesisProfiles.js';
 import { loadGenesisHealthSummary } from '../system/genesisHealth.js';
+import { computeCompliance } from '../system/genesisCompliance.js';
 import { listGenesisArtifacts, readGenesisArtifact } from './genesisArtifacts.js';
+import { loadQualityGoals, saveQualityGoals } from './genesisGoals.js';
 
 
 
@@ -379,6 +381,20 @@ app.get('/api/bgg-components', async (req, res) => {
   }
 });
 
+// GET project goals
+app.get('/api/projects/:id/goals', (req, res) => {
+  const goals = loadQualityGoals(req.params.id);
+  res.json({ goals });
+});
+
+// SET project goals
+app.post('/api/projects/:id/goals', express.json(), (req, res) => {
+  const goals = req.body;
+  if (!goals) return res.status(400).json({ error: 'Goals required' });
+  const saved = saveQualityGoals(req.params.id, goals);
+  res.json({ goals: saved });
+});
+
 app.get('/api/projects/:id/genesis-feedback', async (req, res) => {
   const projectId = req.params.id;
   const mode = getGenesisMode();
@@ -410,12 +426,16 @@ app.get('/api/projects/:id/genesis-feedback', async (req, res) => {
 
   const compat = checkGenesisFeedbackCompat(result.bundle);
   const profile = getGenesisProfile();
+  const goals = loadQualityGoals(projectId);
+  const compliance = computeCompliance({ g6: result.bundle, goals });
 
   return res.json({
     ...result.bundle,
     _compat: compat,
     _mode: mode,
     _profile: profile,
+    _goals: goals,
+    _compliance: compliance,
   });
 });
 
