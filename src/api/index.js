@@ -3048,8 +3048,13 @@ app.get('/load-project/:id', (req, res) => {
   );
 });
 
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
+if (process.env.NODE_ENV !== 'test') {
+  const PORT = process.env.PORT || 5001;
+  app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
-});
+  });
+}
+
+export { app };
+export default app;

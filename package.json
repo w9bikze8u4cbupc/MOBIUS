@@ -61,7 +61,13 @@
       "**/?(*.)+(spec|test).[tj]s"
     ],
     "transform": {
-      "^.+\\.tsx?$": "ts-jest"
+      "^.+\\.[tj]s$": [
+        "ts-jest",
+        {
+          "isolatedModules": true,
+          "allowJs": true
+        }
+      ]
     }
   }
 }
