@@ -33,6 +33,7 @@ import { computeCompliance } from '../system/genesisCompliance.js';
 import { listGenesisArtifacts, readGenesisArtifact } from './genesisArtifacts.js';
 import { loadQualityGoals, saveQualityGoals } from './genesisGoals.js';
 import { runGenesisAutoOptimize } from './genesisAutoOptimize.js';
+import { loadGenesisInspectorBundle } from "./genesisInspector.js";
 
 
 
@@ -479,6 +480,19 @@ app.get('/api/projects/:id/genesis-feedback', async (req, res) => {
     _goals: goals,
     _compliance: compliance,
   });
+});
+
+app.get("/api/projects/:id/genesis-inspector", (req, res) => {
+  const projectId = req.params.id;
+  const bundle = loadGenesisInspectorBundle(projectId);
+
+  if (!bundle.g3 && !bundle.g4 && !bundle.g5 && !bundle.g6) {
+    return res.status(404).json({
+      error: "No GENESIS artifacts found for this project.",
+    });
+  }
+
+  return res.json(bundle);
 });
 
 app.get('/api/system/genesis-health', (req, res) => {
