@@ -34,6 +34,7 @@ import { listGenesisArtifacts, readGenesisArtifact } from './genesisArtifacts.js
 import { loadQualityGoals, saveQualityGoals } from './genesisGoals.js';
 import { runGenesisAutoOptimize } from './genesisAutoOptimize.js';
 import { loadGenesisInspectorBundle } from "./genesisInspector.js";
+import { ensureGenesisReport, getReportPath } from "./genesisReport.js";
 
 
 
@@ -424,6 +425,39 @@ app.post('/api/projects/:id/goals', express.json(), (req, res) => {
   if (!goals) return res.status(400).json({ error: 'Goals required' });
   const saved = saveQualityGoals(req.params.id, goals);
   res.json({ goals: saved });
+});
+
+// Generate (if needed) and return QA report metadata
+app.post("/api/projects/:id/genesis-report", async (req, res) => {
+  const projectId = req.params.id;
+  try {
+    const reportPath = await ensureGenesisReport(projectId);
+    return res.json({
+      ok: true,
+      path: `/api/projects/${projectId}/genesis-report/download`,
+      filename: "genesis_qa_report_v1.0.0.md",
+    });
+  } catch (err) {
+    console.error("Failed to generate GENESIS QA report:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Serve the QA report file as text/markdown
+app.get("/api/projects/:id/genesis-report/download", (req, res) => {
+  const projectId = req.params.id;
+  const pathFs = getReportPath(projectId);
+
+  if (!fs.existsSync(pathFs)) {
+    return res.status(404).json({ error: "Report not found." });
+  }
+
+  res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="genesis_qa_report_v1.0.0.md"`
+  );
+  fs.createReadStream(pathFs).pipe(res);
 });
 
 app.post('/api/projects/:id/genesis-auto-optimize', async (req, res) => {
