@@ -93,6 +93,8 @@ export function GenesisFeedbackPanel({ projectId }) {
   const compat = bundle._compat || null;
   const mode = bundle._mode || "UNKNOWN";
   const profile = bundle._profile || "DEFAULT";
+  const goals = bundle._goals || null;
+  const compliance = bundle._compliance || null;
   const summary = bundle.summary || {};
   const hints = bundle.mobiusHints || {};
   const recs = bundle.recommendations || [];
@@ -136,6 +138,27 @@ export function GenesisFeedbackPanel({ projectId }) {
             : "—"}
         </div>
       </div>
+
+      {goals && compliance && (
+        <div
+          className={`genesis-feedback-compliance ${
+            compliance.compliant ? "ok" : "fail"
+          }`}
+        >
+          <h4>Goal Compliance</h4>
+          <div>
+            <strong>Status:</strong>{" "}
+            {compliance.compliant ? "COMPLIANT ✔️" : "NOT COMPLIANT ❌"}
+          </div>
+          {!compliance.compliant && (
+            <ul>
+              {compliance.reasons.map((r, i) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="genesis-feedback-hints">
         <h4>Suggested Parameter Ranges</h4>
