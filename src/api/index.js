@@ -28,6 +28,7 @@ import { checkGenesisFeedbackCompat } from '../compat/genesisCompat.js';
 import { getGenesisMode } from '../config/genesisConfig.js';
 import { loadGenesisHealthSummary } from '../system/genesisHealth.js';
 import { listGenesisArtifacts, readGenesisArtifact } from './genesisArtifacts.js';
+import { loadGenesisHistory } from '../system/genesisHistory.js';
 
 
 
@@ -438,9 +439,18 @@ app.get('/api/projects/:id/genesis-artifacts/:filename', (req, res) => {
   return res.send(content);
 });
 
-app.post('/api/extract-components', async (req, res) => {    
-  try {    
-    console.log('Starting component extraction...');    
+app.get('/api/projects/:id/genesis-history', (req, res) => {
+  const projectId = req.params.id;
+  const tutorialId = req.query.tutorialId || null;
+  const limit = req.query.limit ? Number(req.query.limit) : 10;
+
+  const history = loadGenesisHistory({ projectId, tutorialId, limit });
+  return res.json({ history });
+});
+
+app.post('/api/extract-components', async (req, res) => {
+  try {
+    console.log('Starting component extraction...');
     const pdfPath = req.body.pdfPath;    
     if (!pdfPath) {    
       return res.status(400).json({ error: 'No PDF path provided' });    
