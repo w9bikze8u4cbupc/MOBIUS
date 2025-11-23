@@ -1,0 +1,6 @@
+{
+  "maxIterations": 5,
+  "maxWpmStep": 20,
+  "clarityStep": 0.05,
+  "distanceStep": 0.05
+}
