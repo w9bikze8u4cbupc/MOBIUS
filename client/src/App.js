@@ -8,6 +8,7 @@ import { GenesisHealthPanel } from "./GenesisHealthPanel";
 import { GenesisArtifactsPanel } from "./GenesisArtifactsPanel";
 import { GenesisGoalsEditor } from "./GenesisGoalsEditor";
 import { GenesisAutoOptimizeButton } from "./GenesisAutoOptimizeButton";
+import { GenesisCampaignPanel } from "./GenesisCampaignPanel";
 
 // Configure PDF.js worker
 GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -620,6 +621,9 @@ function App() {
         }}
       >
         <h3>GENESIS Observability</h3>
+        <div style={{ marginBottom: 12 }}>
+          <GenesisCampaignPanel />
+        </div>
         <div style={{ marginBottom: 12 }}>
           <GenesisHealthPanel />
         </div>
