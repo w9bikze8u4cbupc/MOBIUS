@@ -31,6 +31,7 @@ import { loadGenesisHealthSummary } from '../system/genesisHealth.js';
 import { computeCompliance } from '../system/genesisCompliance.js';
 import { listGenesisArtifacts, readGenesisArtifact } from './genesisArtifacts.js';
 import { loadQualityGoals, saveQualityGoals } from './genesisGoals.js';
+import { runGenesisAutoOptimize } from './genesisAutoOptimize.js';
 
 
 
@@ -393,6 +394,18 @@ app.post('/api/projects/:id/goals', express.json(), (req, res) => {
   if (!goals) return res.status(400).json({ error: 'Goals required' });
   const saved = saveQualityGoals(req.params.id, goals);
   res.json({ goals: saved });
+});
+
+app.post('/api/projects/:id/genesis-auto-optimize', async (req, res) => {
+  const projectId = req.params.id;
+
+  try {
+    await runGenesisAutoOptimize(projectId);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Auto optimize failed:', err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 app.get('/api/projects/:id/genesis-feedback', async (req, res) => {

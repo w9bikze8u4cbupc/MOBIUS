@@ -7,6 +7,7 @@ import { GenesisFeedbackPanel } from "./GenesisFeedbackPanel";
 import { GenesisHealthPanel } from "./GenesisHealthPanel";
 import { GenesisArtifactsPanel } from "./GenesisArtifactsPanel";
 import { GenesisGoalsEditor } from "./GenesisGoalsEditor";
+import { GenesisAutoOptimizeButton } from "./GenesisAutoOptimizeButton";
 
 // Configure PDF.js worker
 GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -641,6 +642,9 @@ function App() {
             </div>
             <div style={{ marginBottom: 12 }}>
               <GenesisGoalsEditor projectId={projectId.trim()} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <GenesisAutoOptimizeButton projectId={projectId.trim()} />
             </div>
             <GenesisFeedbackPanel projectId={projectId.trim()} />
           </>
