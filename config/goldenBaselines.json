@@ -1,0 +1,45 @@
+{
+  "capture": {
+    "timepointsSeconds": [5, 10, 20],
+    "referenceResolution": "1080p",
+    "bypassResolutions": ["1440p"]
+  },
+  "masks": [
+    {
+      "name": "watermark",
+      "rect": [1600, 32, 300, 120],
+      "os": "any"
+    },
+    {
+      "name": "cursorHighlight",
+      "circle": [0, 0, 96],
+      "dynamic": true
+    },
+    {
+      "name": "calloutPulse",
+      "circle": [0, 0, 128],
+      "dynamic": true
+    }
+  ],
+  "metrics": {
+    "ssim": {
+      "threshold": 0.95,
+      "promotionThreshold": 0.97
+    },
+    "psnr": {
+      "thresholdDb": 28
+    },
+    "vmaf": {
+      "threshold": 90,
+      "platform": "linux-optional"
+    }
+  },
+  "promotion": {
+    "requirements": [
+      "SSIM stability meets promotion threshold",
+      "no timing drift",
+      "macOS and Linux outputs match"
+    ],
+    "label": "promote-baseline"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "defaultLocale": "en-US",
+  "locales": {
+    "en-US": {
+      "tone": "warm, beginner-friendly, no slang"
+    },
+    "fr-FR": {
+      "tone": "formal-neutral, clear instructions, avoid anglicisms"
+    }
+  },
+  "translationPipeline": [
+    "script-authored in English",
+    "machine translate",
+    "LLM smoothing pass",
+    "human edit if needed"
+  ],
+  "glossary": {
+    "source": "glossary.json",
+    "lockTerminology": true
+  },
+  "doNotTranslate": [
+    "meeple",
+    "deck",
+    "draft",
+    "push your luck",
+    "worker placement",
+    "set collection",
+    "BoardGameGeek",
+    "Mobius Games"
+  ],
+  "rules": {
+    "gameNamesTranslated": false,
+    "cardNamesTranslated": false,
+    "subtitleNaming": {
+      "pattern": "{game}-{locale}.srt",
+      "locales": {
+        "en-US": "en",
+        "fr-FR": "fr"
+      }
+    },
+    "forcedAlignmentRequired": false,
+    "durationSource": "TTS"
+  }
+}
