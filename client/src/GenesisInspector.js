@@ -6,6 +6,77 @@ function pct(value) {
   return `${Math.round(value * 100)}%`;
 }
 
+function mapIssuesToSegments(g3, g4) {
+  if (!g3 || !g4) return { segments: [], issuesBySegmentIndex: {}, issues: [] };
+
+  const segments = g3.timeline || g3.segments || [];
+  const issues = (g4.insights && g4.insights.issues) || [];
+
+  const issuesBySegmentIndex = {};
+
+  const getSegRange = (s) => {
+    const start =
+      typeof s.t_start_sec === "number"
+        ? s.t_start_sec
+        : typeof s.tStart === "number"
+        ? s.tStart
+        : null;
+    const end =
+      typeof s.t_end_sec === "number"
+        ? s.t_end_sec
+        : typeof s.tEnd === "number"
+        ? s.tEnd
+        : null;
+    return { start, end };
+  };
+
+  const getIssueRange = (iss) => {
+    if (typeof iss.segmentIndex === "number") {
+      return { segmentIndex: iss.segmentIndex, start: null, end: null };
+    }
+    const loc = iss.location || iss.range || {};
+    const start =
+      typeof iss.t_start_sec === "number"
+        ? iss.t_start_sec
+        : typeof loc.start_sec === "number"
+        ? loc.start_sec
+        : null;
+    const end =
+      typeof iss.t_end_sec === "number"
+        ? iss.t_end_sec
+        : typeof loc.end_sec === "number"
+        ? loc.end_sec
+        : null;
+    return { segmentIndex: null, start, end };
+  };
+
+  issues.forEach((iss) => {
+    const r = getIssueRange(iss);
+
+    if (r.segmentIndex != null && segments[r.segmentIndex]) {
+      const idx = r.segmentIndex;
+      issuesBySegmentIndex[idx] = issuesBySegmentIndex[idx] || [];
+      issuesBySegmentIndex[idx].push(iss);
+      return;
+    }
+
+    // Overlap by time range if we have times
+    if (r.start == null || r.end == null) return;
+
+    segments.forEach((seg, idx) => {
+      const { start: sStart, end: sEnd } = getSegRange(seg);
+      if (sStart == null || sEnd == null) return;
+      const overlap = !(r.end <= sStart || r.start >= sEnd);
+      if (overlap) {
+        issuesBySegmentIndex[idx] = issuesBySegmentIndex[idx] || [];
+        issuesBySegmentIndex[idx].push(iss);
+      }
+    });
+  });
+
+  return { segments, issuesBySegmentIndex, issues };
+}
+
 export function GenesisInspector({ projectId }) {
   const [state, setState] = useState({
     loading: true,
@@ -65,6 +136,9 @@ export function GenesisInspector({ projectId }) {
 
   const { data } = state;
   const { g3, g4, g5, g6, goals, scenario } = data;
+
+  const { segments: mappedSegments, issuesBySegmentIndex, issues: mappedIssues } =
+    mapIssuesToSegments(g3, g4);
 
   const renderTabs = () => (
     <div className="genesis-inspector__tabs">
@@ -135,48 +209,59 @@ export function GenesisInspector({ projectId }) {
     if (!g3) {
       return <p>No G3 visualization timeline available.</p>;
     }
-    const segments = g3.timeline || g3.segments || [];
-    if (segments.length === 0) {
+    const segments = mappedSegments;
+    if (!segments || segments.length === 0) {
       return <p>No timeline segments.</p>;
     }
 
     return (
       <div className="genesis-inspector__section">
-        <h4>Timeline (WPM / CPS / Motion)</h4>
+        <h4>Timeline (WPM / CPS / Motion) with Issues</h4>
         <table className="genesis-inspector__table">
           <thead>
             <tr>
+              <th>#</th>
               <th>Start</th>
               <th>End</th>
               <th>WPM</th>
               <th>CPS</th>
               <th>Motion</th>
               <th>Clarity</th>
+              <th>Issues</th>
             </tr>
           </thead>
           <tbody>
-            {segments.map((s, idx) => (
-              <tr key={idx}>
-                <td>{s.t_start_sec?.toFixed?.(2) ?? s.tStart ?? "—"}</td>
-                <td>{s.t_end_sec?.toFixed?.(2) ?? s.tEnd ?? "—"}</td>
-                <td>{s.wpm ?? "—"}</td>
-                <td>{s.cps ?? "—"}</td>
-                <td>
-                  {s.motion_load != null
-                    ? s.motion_load.toFixed(2)
-                    : s.motionLoad != null
-                    ? s.motionLoad.toFixed(2)
-                    : "—"}
-                </td>
-                <td>
-                  {s.clarity_score != null
-                    ? s.clarity_score.toFixed(2)
-                    : s.clarityScore != null
-                    ? s.clarityScore.toFixed(2)
-                    : "—"}
-                </td>
-              </tr>
-            ))}
+            {segments.map((s, idx) => {
+              const segIssues = issuesBySegmentIndex[idx] || [];
+              return (
+                <tr key={idx}>
+                  <td>{idx}</td>
+                  <td>{s.t_start_sec?.toFixed?.(2) ?? s.tStart ?? "—"}</td>
+                  <td>{s.t_end_sec?.toFixed?.(2) ?? s.tEnd ?? "—"}</td>
+                  <td>{s.wpm ?? "—"}</td>
+                  <td>{s.cps ?? "—"}</td>
+                  <td>
+                    {s.motion_load != null
+                      ? s.motion_load.toFixed(2)
+                      : s.motionLoad != null
+                      ? s.motionLoad.toFixed(2)
+                      : "—"}
+                  </td>
+                  <td>
+                    {s.clarity_score != null
+                      ? s.clarity_score.toFixed(2)
+                      : s.clarityScore != null
+                      ? s.clarityScore.toFixed(2)
+                      : "—"}
+                  </td>
+                  <td>
+                    {segIssues.length === 0
+                      ? "—"
+                      : segIssues.map((iss) => iss.code || "ISSUE").join(", ")}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -188,7 +273,29 @@ export function GenesisInspector({ projectId }) {
       return <p>No G4 clarity bundle available.</p>;
     }
     const clarity = g4.clarity || {};
-    const issues = (g4.insights && g4.insights.issues) || [];
+    const issues = mappedIssues;
+
+    const formatIssueLocation = (iss) => {
+      // Segment index
+      if (typeof iss.segmentIndex === "number") {
+        return `segment #${iss.segmentIndex}`;
+      }
+      const loc = iss.location || iss.range || {};
+      const start =
+        typeof iss.t_start_sec === "number"
+          ? iss.t_start_sec
+          : typeof loc.start_sec === "number"
+          ? loc.start_sec
+          : null;
+      const end =
+        typeof iss.t_end_sec === "number"
+          ? iss.t_end_sec
+          : typeof loc.end_sec === "number"
+          ? loc.end_sec
+          : null;
+      if (start == null || end == null) return null;
+      return `${start.toFixed(2)}s → ${end.toFixed(2)}s`;
+    };
 
     return (
       <div className="genesis-inspector__section">
@@ -209,17 +316,44 @@ export function GenesisInspector({ projectId }) {
             : "—"}
         </div>
 
-        {issues.length > 0 && (
-          <>
-            <h5>Flagged Issues</h5>
-            <ul>
-              {issues.map((iss, idx) => (
+        <h5 style={{ marginTop: "1rem" }}>Flagged Issues</h5>
+        {(!issues || issues.length === 0) && (
+          <p>No clarity issues recorded in G4.</p>
+        )}
+        {issues && issues.length > 0 && (
+          <ul>
+            {issues.map((iss, idx) => {
+              const locText = formatIssueLocation(iss);
+              const segIndices = [];
+              Object.entries(issuesBySegmentIndex).forEach(
+                ([segIdx, segIssues]) => {
+                  if (segIssues.includes(iss)) {
+                    segIndices.push(Number(segIdx));
+                  }
+                }
+              );
+              return (
                 <li key={idx}>
-                  <strong>{iss.code}</strong> – {iss.message || iss.detail}
+                  <strong>{iss.code || "ISSUE"}</strong> – {" "}
+                  {iss.message || iss.detail || ""}
+                  {locText && (
+                    <>
+                      {" "}
+                      <em>({locText})</em>
+                    </>
+                  )}
+                  {segIndices.length > 0 && (
+                    <>
+                      {" "}
+                      <span>
+                        [segments: {segIndices.sort((a, b) => a - b).join(", ")}]
+                      </span>
+                    </>
+                  )}
                 </li>
-              ))}
-            </ul>
-          </>
+              );
+            })}
+          </ul>
         )}
       </div>
     );
