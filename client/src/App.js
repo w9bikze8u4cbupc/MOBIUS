@@ -30,9 +30,9 @@ const VOICE_OPTIONS = [
 
 // Helper function to split markdown text into sections for display/TTS
 function splitMarkdownSections(markdown) {
-  // Regex to find lines that look like markdown headers (## Title), or lines starting with 3+ caps/digits/-/.
-  // This version aims to include the header line with the section content.
-  const regex = /(^|\n)(##? .+)/g;
+  // Regex to find lines that look like markdown headers (## Title), or lines starting with 3+ caps/digits/-/.
+  // This version aims to include the header line with the section content.
+  const regex = /(^|\n)(##? .+)/g;
   const sections = [];
   let lastIndex = 0;
   let match;
@@ -55,8 +55,40 @@ function splitMarkdownSections(markdown) {
     sections.push(markdown.slice(lastIndex).trim());
   }
 
-  // Filter out any empty sections that might have resulted from the split
-  return sections.filter(section => section.length > 0);
+  // Filter out any empty sections that might have resulted from the split
+  return sections.filter(section => section.length > 0);
+}
+
+function buildSyntheticPagesFromText(text) {
+  const paragraphs = text
+    .split(/\n+/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean);
+
+  if (!paragraphs.length) {
+    return [];
+  }
+
+  const chunkSize = 6;
+  const pages = [];
+  for (let i = 0; i < paragraphs.length; i += chunkSize) {
+    const slice = paragraphs.slice(i, i + chunkSize);
+    const blocks = slice.map((para, idx) => ({
+      text: para,
+      fontSize: idx === 0 ? 24 : 14,
+      x: 50,
+      y: 40 + idx * 30,
+      width: 500,
+      height: 20,
+    }));
+
+    pages.push({
+      number: pages.length + 1,
+      blocks,
+    });
+  }
+
+  return pages;
 }
 
 
@@ -89,10 +121,16 @@ function App() {
   const fileInputRef = useRef(); // Ref for the hidden file input
 
   // State for displaying translation status/errors
-  const [translationStatus, setTranslationStatus] = useState({
-    isTranslating: false,
-    error: null, // Stores translation-specific errors/warnings from backend
-  });
+  const [translationStatus, setTranslationStatus] = useState({
+    isTranslating: false,
+    error: null, // Stores translation-specific errors/warnings from backend
+  });
+  const [ingestionManifest, setIngestionManifest] = useState(null);
+  const [storyboardManifest, setStoryboardManifest] = useState(null);
+  const [ingestionError, setIngestionError] = useState("");
+  const [storyboardError, setStoryboardError] = useState("");
+  const [ingesting, setIngesting] = useState(false);
+  const [storyboarding, setStoryboarding] = useState(false);
 
 
   // --- Effects ---
@@ -160,11 +198,15 @@ function App() {
     const name = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
     setGameName(name);
     setRulebookText("");
-    setSummary("");
-    setEditedSummary("");
-    setSections([]);
-    setAudio({});
-    setAudioLoading({});
+    setSummary("");
+    setEditedSummary("");
+    setSections([]);
+    setAudio({});
+    setAudioLoading({});
+    setIngestionManifest(null);
+    setStoryboardManifest(null);
+    setIngestionError("");
+    setStoryboardError("");
     // Reset metadata to empty strings
     setMetadata({ publisher: "", playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "" });
     setShowThemePrompt(false);
@@ -210,22 +252,84 @@ function App() {
   };
 
   // Handler for manual text area changes
-  const handleTextChange = (e) => {
-    // Reset states similar to file handling, except don't clear gameName based on file
-    setRulebookText(e.target.value);
-    setFile(null); // Clear file if user starts typing
-    setSummary("");
+  const handleTextChange = (e) => {
+    // Reset states similar to file handling, except don't clear gameName based on file
+    setRulebookText(e.target.value);
+    setFile(null); // Clear file if user starts typing
+    setSummary("");
     setEditedSummary("");
     setSections([]);
     setAudio({});
     setAudioLoading({});
     // Keep existing metadata or reset based on preference, here resetting to empty
-    setMetadata({ publisher: "", playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "" });
-    setShowThemePrompt(false);
-    setError("");
-    setTranslationStatus({ isTranslating: false, error: null });
+    setMetadata({ publisher: "", playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "" });
+    setShowThemePrompt(false);
+    setError("");
+    setTranslationStatus({ isTranslating: false, error: null });
+    setIngestionManifest(null);
+    setStoryboardManifest(null);
+    setIngestionError("");
+    setStoryboardError("");
 
-  };
+  };
+
+  const handleRunIngestion = async () => {
+    if (!rulebookText.trim()) {
+      setIngestionError("Upload or paste a rulebook first");
+      return;
+    }
+
+    setIngesting(true);
+    setIngestionError("");
+    setStoryboardManifest(null);
+
+    const syntheticPages = buildSyntheticPagesFromText(rulebookText);
+    const idSlug = (projectId || gameName || 'rulebook').replace(/\s+/g, '-').toLowerCase();
+    const payload = {
+      documentId: idSlug || 'rulebook',
+      metadata: {
+        title: gameName || 'Untitled Rulebook',
+        gameId: idSlug || 'rulebook',
+        source: 'client-ui'
+      },
+      pages: syntheticPages,
+      bggMetadata: {}
+    };
+
+    try {
+      const { data } = await axios.post(`${BACKEND_URL}/api/ingest`, payload);
+      setIngestionManifest(data.manifest);
+    } catch (err) {
+      setIngestionManifest(null);
+      const apiError = err.response?.data?.code || err.response?.data?.error || err.message;
+      setIngestionError(apiError);
+    } finally {
+      setIngesting(false);
+    }
+  };
+
+  const handleGenerateStoryboard = async () => {
+    if (!ingestionManifest) {
+      setStoryboardError("Run deterministic ingestion first");
+      return;
+    }
+
+    setStoryboarding(true);
+    setStoryboardError("");
+
+    try {
+      const { data } = await axios.post(`${BACKEND_URL}/api/storyboard`, {
+        ingestionManifest,
+        options: { includeOverlayHashes: true }
+      });
+      setStoryboardManifest(data.manifest);
+    } catch (err) {
+      const apiError = err.response?.data?.code || err.response?.data?.error || err.message;
+      setStoryboardError(apiError);
+    } finally {
+      setStoryboarding(false);
+    }
+  };
 
 
   // --- Metadata Handling ---
@@ -595,8 +699,8 @@ function App() {
 
 
       {/* Metadata Inputs */}
-      <div style={{ marginBottom: 20 }}>
-        <h3>Game Metadata (Optional - will attempt extraction if left blank)</h3>
+      <div style={{ marginBottom: 20 }}>
+        <h3>Game Metadata (Optional - will attempt extraction if left blank)</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10 }}>
         {/* Map over metadata keys to create inputs */}
         {Object.keys(metadata).map(key => (
@@ -610,7 +714,73 @@ function App() {
               style={{ color: metadata[key] === "Not found" ? "red" : "black" }}
             />
           ))}
-        </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginBottom: 20,
+          padding: 16,
+          border: '1px solid #ddd',
+          borderRadius: 8,
+          background: '#fafafa'
+        }}
+      >
+        <h3>Phase E Ingestion</h3>
+        <p style={{ marginTop: 0 }}>
+          Run the deterministic ingestion pipeline on the current rulebook text and preview the outline/components before
+          triggering storyboard generation.
+        </p>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            onClick={handleRunIngestion}
+            disabled={ingesting || !rulebookText}
+            style={{ padding: '10px 16px', background: ingesting ? '#b0bec5' : '#1976d2', color: '#fff', border: 'none', borderRadius: 4 }}
+          >
+            {ingesting ? 'Running ingestion…' : 'Run deterministic ingestion'}
+          </button>
+          <button
+            onClick={handleGenerateStoryboard}
+            disabled={!ingestionManifest || storyboarding}
+            style={{ padding: '10px 16px', background: !ingestionManifest || storyboarding ? '#b0bec5' : '#388e3c', color: '#fff', border: 'none', borderRadius: 4 }}
+          >
+            {storyboarding ? 'Generating storyboard…' : 'Generate storyboard'}
+          </button>
+        </div>
+
+        {ingestionError && <p style={{ color: 'red', marginTop: 12 }}>{ingestionError}</p>}
+        {storyboardError && <p style={{ color: 'red', marginTop: 4 }}>{storyboardError}</p>}
+
+        {ingestionManifest && (
+          <div style={{ marginTop: 16 }}>
+            <h4 style={{ marginBottom: 8 }}>Ingestion summary</h4>
+            <p style={{ margin: '4px 0' }}>
+              Headings: {ingestionManifest.outline.length} · Components: {ingestionManifest.components.length} · Pages:{' '}
+              {ingestionManifest.stats?.pageCount ?? ingestionManifest.assets?.pages?.length ?? 'n/a'}
+            </p>
+            <ul style={{ paddingLeft: 16 }}>
+              {ingestionManifest.outline.slice(0, 5).map((heading) => (
+                <li key={heading.id}>
+                  {heading.title} (page {heading.page})
+                </li>
+              ))}
+            </ul>
+            {ingestionManifest.outline.length > 5 && <p>Showing first 5 headings.</p>}
+          </div>
+        )}
+
+        {storyboardManifest && (
+          <div style={{ marginTop: 16 }}>
+            <h4 style={{ marginBottom: 8 }}>Storyboard scenes</h4>
+            <ul style={{ paddingLeft: 16 }}>
+              {storyboardManifest.scenes.map((scene) => (
+                <li key={scene.id}>
+                  {scene.id}: {scene.motion?.type || 'motion'} · {scene.durationMs}ms
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* GENESIS Observability */}
