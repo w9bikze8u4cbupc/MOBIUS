@@ -22,13 +22,17 @@ function buildMotionPrimitive(index) {
   };
 }
 
+// Generate a deterministic storyboard manifest from an ingestion manifest. The
+// optional settings mirror the CLI defaults so the API can expose a thin
+// wrapper without diverging behavior.
 function generateStoryboard(ingestionManifest, options = {}) {
   if (!ingestionManifest || !Array.isArray(ingestionManifest.outline)) {
     throw new Error('STORYBOARD_INVALID_INGESTION');
   }
 
   const scenes = ingestionManifest.outline.map((entry, index) => {
-    const duration = roundDuration(options.sceneDurationMs ?? contract.timing.defaultSceneDurationMs);
+    const durationMs = roundDuration(options.sceneDurationMs ?? contract.timing.defaultSceneDurationMs);
+    const durationSec = durationMs / 1000;
     const motion = buildMotionPrimitive(index);
     const assets = [
       {
@@ -40,18 +44,29 @@ function generateStoryboard(ingestionManifest, options = {}) {
 
     const overlays = [];
     if (options.includeOverlayHashes) {
+      const placement = { x: 0.1, y: 0.1, width: 0.8, height: 0.2 };
       overlays.push({
         id: `overlay-${entry.slug}`,
         textHash: hash(entry.title.toLowerCase()),
-        bbox: { x: 0.1, y: 0.1, width: 0.8, height: 0.2 },
-        zIndex: 1
+        placement,
+        zIndex: 1,
+        startSec: 0,
+        endSec: durationSec
       });
     }
 
+    const id = `${contract.scenes.idPrefix}${index + 1}`;
+    const prevSceneId = index === 0 ? null : `${contract.scenes.idPrefix}${index}`;
+    const nextSceneId = index === ingestionManifest.outline.length - 1 ? null : `${contract.scenes.idPrefix}${index + 2}`;
+
     return {
-      id: `${contract.scenes.idPrefix}${index + 1}`,
+      id,
       sourceId: entry.id,
-      durationMs: duration,
+      durationMs,
+      durationSec,
+      index,
+      prevSceneId,
+      nextSceneId,
       motion,
       overlays,
       assets

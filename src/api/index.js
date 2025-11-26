@@ -39,6 +39,8 @@ import {
   createCorsMiddleware,
   ensureProductionKeys
 } from './gatewaySecurity.js';
+import { createRequire } from 'module';
+import { registerPhaseERoutes } from './ingestionRoutes.js';
 
 
 
@@ -58,6 +60,11 @@ const bggMetadataCache = new Map();
 // Resolve module paths without relying on import.meta (compatible with Jest CJS transforms)
 const moduleDirname = path.join(process.cwd(), 'src', 'api');
 const moduleFilename = path.join(moduleDirname, 'index.js');
+const ingestionRequire = createRequire(moduleFilename);
+const { runIngestionPipeline, normalizeBggMetadata } = ingestionRequire('../ingestion/pipeline');
+const { generateStoryboard } = ingestionRequire('../storyboard/generator');
+const { validateIngestionManifest } = ingestionRequire('../validators/ingestionValidator');
+const { validateStoryboard } = ingestionRequire('../validators/storyboardValidator');
 const execFilePromise = promisify(execFile);
 
 // CORS configuration - MUST be before other middleware/routes
@@ -99,6 +106,15 @@ app.get('/health', (_req, res) => {
 
 // --- API Key Middleware ---
 app.use(createAuthMiddleware(gatewayConfig));
+
+
+registerPhaseERoutes(app, {
+  runIngestionPipeline,
+  normalizeBggMetadata,
+  validateIngestionManifest,
+  generateStoryboard,
+  validateStoryboard
+});
 
 
 

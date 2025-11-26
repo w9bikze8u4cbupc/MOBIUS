@@ -25,6 +25,9 @@ function ensureMetadata(metadata = {}) {
   return metadata;
 }
 
+// Normalize BGG metadata to the subset allowed by the ingestion contract. This is
+// exported for programmatic callers (e.g., the API layer) to sanitize inbound
+// payloads without duplicating contract knowledge.
 function normalizeBggMetadata(raw = {}) {
   const allowed = contract.metadata.bgg.allowedFields;
   return Object.fromEntries(
@@ -81,6 +84,9 @@ function buildAssets(pages, components) {
   };
 }
 
+// Deterministic ingestion entrypoint used by both the CLI and API surfaces.
+// Accepts normalized page blocks (see scripts/ingest-sample.js for guidance)
+// and returns a contract-compliant ingestion manifest.
 function runIngestionPipeline({ documentId, metadata, pages = [], ocr = {}, bggMetadata = {} }) {
   const { pages: normalizedPages, fallbackEvents } = normalizePages(pages, ocr);
   const outline = extractOutline(normalizedPages);
@@ -127,5 +133,6 @@ function writeManifest(manifest, outPath) {
 
 module.exports = {
   runIngestionPipeline,
-  writeManifest
+  writeManifest,
+  normalizeBggMetadata
 };
