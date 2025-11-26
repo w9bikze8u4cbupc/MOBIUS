@@ -131,6 +131,11 @@ function App() {
   const [storyboardError, setStoryboardError] = useState("");
   const [ingesting, setIngesting] = useState(false);
   const [storyboarding, setStoryboarding] = useState(false);
+  const [renderLang, setRenderLang] = useState("en");
+  const [renderResolution, setRenderResolution] = useState("1920x1080");
+  const [renderJobConfig, setRenderJobConfig] = useState(null);
+  const [renderConfigError, setRenderConfigError] = useState("");
+  const [showRenderConfigJson, setShowRenderConfigJson] = useState(false);
 
 
   // --- Effects ---
@@ -331,8 +336,34 @@ function App() {
     }
   };
 
+  const handleRenderJobConfig = async () => {
+    setRenderConfigError("");
+    setShowRenderConfigJson(false);
 
-  // --- Metadata Handling ---
+    if (!projectId.trim()) {
+      setRenderConfigError("Project ID is required to generate a render job config.");
+      return;
+    }
+
+    try {
+      const { data } = await axios.get(`${BACKEND_URL}/api/render-job-config`, {
+        params: {
+          projectId: projectId.trim(),
+          lang: renderLang,
+          resolution: renderResolution,
+        },
+      });
+
+      setRenderJobConfig(data.config);
+    } catch (err) {
+      const apiError = err.response?.data?.error || err.response?.data?.code || err.message;
+      setRenderConfigError(apiError);
+      setRenderJobConfig(null);
+    }
+  };
+
+
+ // --- Metadata Handling ---
   // Handle changes to metadata input fields
   const handleMetadataChange = (field, value) => {
     setMetadata(prev => ({ ...prev, [field]: value }));
@@ -779,6 +810,86 @@ function App() {
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+      </div>
+
+      {/* Render job configuration */}
+      <div
+        style={{
+          marginBottom: 20,
+          padding: 16,
+          border: "1px solid #ddd",
+          borderRadius: 8,
+          background: "#f8f9fb",
+        }}
+      >
+        <h3>Render / Preview</h3>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <label>
+            Language:
+            <select
+              value={renderLang}
+              onChange={(e) => setRenderLang(e.target.value)}
+              style={{ marginLeft: 8 }}
+            >
+              <option value="en">English</option>
+              <option value="fr">French</option>
+            </select>
+          </label>
+          <label>
+            Resolution:
+            <select
+              value={renderResolution}
+              onChange={(e) => setRenderResolution(e.target.value)}
+              style={{ marginLeft: 8 }}
+            >
+              <option value="1920x1080">1920x1080</option>
+              <option value="1280x720">1280x720</option>
+              <option value="1080x1080">1080x1080</option>
+            </select>
+          </label>
+          <button
+            onClick={handleRenderJobConfig}
+            style={{ padding: "8px 14px", background: "#1976d2", color: "#fff", border: "none", borderRadius: 4 }}
+          >
+            Generate render job config
+          </button>
+        </div>
+        {renderConfigError && (
+          <p style={{ color: "red", marginTop: 8 }}>{renderConfigError}</p>
+        )}
+        {renderJobConfig && (
+          <div style={{ marginTop: 12 }}>
+            <p style={{ margin: "4px 0" }}>
+              Resolution: {renderJobConfig.video.resolution.width}x{renderJobConfig.video.resolution.height} @ {renderJobConfig.video.fps}fps
+            </p>
+            <p style={{ margin: "4px 0" }}>
+              Scenes: {renderJobConfig.timing.scenes.length} · Total duration: {renderJobConfig.timing.totalDurationSec.toFixed(2)}s
+            </p>
+            <p style={{ margin: "4px 0" }}>
+              Assets: {renderJobConfig.assets.images.length} images / {renderJobConfig.assets.audio.length} audio / {renderJobConfig.assets.captions.length} captions
+            </p>
+            <button
+              onClick={() => setShowRenderConfigJson(!showRenderConfigJson)}
+              style={{ marginTop: 8, padding: "6px 10px" }}
+            >
+              {showRenderConfigJson ? "Hide raw JSON" : "View raw JSON"}
+            </button>
+            {showRenderConfigJson && (
+              <pre
+                style={{
+                  marginTop: 8,
+                  padding: 12,
+                  background: "#0b1021",
+                  color: "#d1e5ff",
+                  borderRadius: 4,
+                  overflowX: "auto",
+                }}
+              >
+                {JSON.stringify(renderJobConfig, null, 2)}
+              </pre>
+            )}
           </div>
         )}
       </div>

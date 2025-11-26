@@ -1,108 +1,222 @@
-import fs from "fs";
-import { getGenesisMode } from "../config/genesisConfig.js";
-import { getGenesisProfile, getProfileBaseConfig } from "../config/genesisProfiles.js";
-import { checkGenesisFeedbackCompat } from "../compat/genesisCompat.js";
-import { getGenesisFeedbackPath } from "./genesisFeedback.js";
+// Render job configuration builder for feeding the external rendering pipeline.
+// This module maps Phase E ingestion + storyboard outputs into a single
+// JSON contract that the renderer can consume without being tightly coupled
+// to the rendering engine internals.
 
-export function buildRenderConfigForProject(projectId) {
-  const mode = getGenesisMode();
-  const profile = getGenesisProfile();
+const projectStateStore = new Map();
 
-  // 1. Base config from profile.
-  const baseProfileConfig = getProfileBaseConfig(profile);
+function safeNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
 
-  const baseConfig = {
-    subtitles: { ...baseProfileConfig.subtitles },
-    audio: { ...baseProfileConfig.audio },
-    motion: { ...baseProfileConfig.motion },
+function parseResolution(input) {
+  if (!input || typeof input !== "string") return null;
+  const match = input.toLowerCase().match(/(\d+)x(\d+)/);
+  if (!match) return null;
+  const [, width, height] = match;
+  return { width: Number(width), height: Number(height) };
+}
+
+function normalizeStoryboardScenes(storyboardManifest) {
+  if (!storyboardManifest || !Array.isArray(storyboardManifest.scenes)) {
+    return { scenes: [], totalDurationSec: 0 };
+  }
+
+  const orderedScenes = [...storyboardManifest.scenes].sort((a, b) => {
+    const aIdx = safeNumber(a.index, 0);
+    const bIdx = safeNumber(b.index, 0);
+    return aIdx - bIdx;
+  });
+
+  const scenes = orderedScenes.map((scene, idx) => ({
+    id: scene.id || `scene-${idx + 1}`,
+    segmentId: scene.segmentId || null,
+    type: scene.type || "unknown",
+    durationSec: safeNumber(scene.durationSec ?? scene.durationMs / 1000, 0),
+    overlays: Array.isArray(scene.overlays)
+      ? scene.overlays.map((overlay) => ({
+          id: overlay.id,
+          role: overlay.role,
+          text: overlay.text,
+        }))
+      : [],
+  }));
+
+  const totalDurationSec = scenes.reduce(
+    (sum, scene) => sum + safeNumber(scene.durationSec, 0),
+    0,
+  );
+
+  return { scenes, totalDurationSec };
+}
+
+export function buildRenderJobConfig({
+  projectId,
+  metadata = {},
+  ingestionManifest,
+  storyboardManifest,
+  lang = "en",
+  resolution,
+  fps,
+  mode = "preview",
+} = {}) {
+  if (!projectId) {
+    throw new Error("RENDER_JOB_PROJECT_ID_REQUIRED");
+  }
+  if (!ingestionManifest) {
+    throw new Error("RENDER_JOB_MISSING_INGESTION");
+  }
+  if (!storyboardManifest) {
+    throw new Error("RENDER_JOB_MISSING_STORYBOARD");
+  }
+
+  const { scenes, totalDurationSec } = normalizeStoryboardScenes(
+    storyboardManifest,
+  );
+
+  const storyboardResolution = storyboardManifest.resolution || {};
+  const resolvedResolution =
+    resolution || parseResolution(metadata.resolutionOverride);
+
+  const video = {
+    resolution: {
+      width: resolvedResolution?.width || storyboardResolution.width || 1920,
+      height: resolvedResolution?.height || storyboardResolution.height || 1080,
+    },
+    fps: safeNumber(
+      fps ?? storyboardResolution.fps ?? storyboardManifest.fps,
+      30,
+    ),
+    mode,
   };
 
-  // If GENESIS is OFF: just use profile config.
-  if (mode === "OFF") {
-    return baseConfig;
-  }
+  const imageAssets =
+    ingestionManifest.assets?.components?.map((component) => ({
+      id: component.id,
+      hash: component.hash,
+      type: "component",
+    })) || [];
 
-  // 2. Try to load GENESIS feedback (G6).
-  const feedbackPath = getGenesisFeedbackPath(projectId);
-  if (!fs.existsSync(feedbackPath)) {
-    return baseConfig;
-  }
+  const pageAssets =
+    ingestionManifest.assets?.pages?.map((page) => ({
+      id: `page-${page.page}`,
+      hash: page.hash,
+      type: "page",
+    })) || [];
 
-  let feedback;
-  try {
-    const raw = fs.readFileSync(feedbackPath, "utf8");
-    feedback = JSON.parse(raw);
-  } catch (err) {
-    console.error("Failed to parse GENESIS feedback:", err);
-    return baseConfig;
-  }
+  const assets = {
+    images: [...imageAssets, ...pageAssets],
+    audio: [],
+    captions: [],
+    storyboardScenes: scenes.map((scene) => ({
+      id: scene.id,
+      type: scene.type,
+      durationSec: scene.durationSec,
+    })),
+  };
 
-  const compat = checkGenesisFeedbackCompat(feedback);
-  const hints = feedback.mobiusHints || {};
+  const timing = {
+    totalDurationSec,
+    scenes: scenes.map((scene) => ({
+      id: scene.id,
+      durationSec: scene.durationSec,
+    })),
+  };
 
-  // 3. SHADOW/ADVISORY or incompatible → do not modify config.
-  if (mode === "SHADOW" || mode === "ADVISORY" || !compat.compatible) {
-    console.log(
-      `[GENESIS] Mode=${mode}, profile=${profile}, compatible=${compat.compatible}. Hints not applied.`,
-    );
-    return baseConfig;
-  }
-
-  // 4. ACTIVE + compatible → apply hints on top of profile base.
-  try {
-    if (hints.targetWpmRange) {
-      // Blend profile targetWpm with GENESIS range.
-      const profileWpm = baseProfileConfig.audio.targetWpm;
-      const hintMid =
-        (hints.targetWpmRange.min + hints.targetWpmRange.max) / 2;
-      baseConfig.audio.targetWpm = Math.round((profileWpm + hintMid) / 2);
-    }
-
-    if (hints.targetCaptionCpsRange) {
-      // Clamp profile CPS into GENESIS suggested range.
-      const { min, max } = hints.targetCaptionCpsRange;
-      baseConfig.subtitles.targetCpsMin = Math.max(
-        min,
-        baseProfileConfig.subtitles.targetCpsMin,
-      );
-      baseConfig.subtitles.targetCpsMax = Math.min(
-        max,
-        baseProfileConfig.subtitles.targetCpsMax,
-      );
-      if (
-        baseConfig.subtitles.targetCpsMin >
-        baseConfig.subtitles.targetCpsMax
-      ) {
-        // fallback: use hint range if intersection is empty
-        baseConfig.subtitles.targetCpsMin = min;
-        baseConfig.subtitles.targetCpsMax = max;
-      }
-    }
-
-    if (typeof hints.maxMotionLoad === "number") {
-      // Take the *lower* of profile maxMotionLoad and hint to stay safe.
-      baseConfig.motion.maxMotionLoad = Math.min(
-        baseProfileConfig.motion.maxMotionLoad,
-        hints.maxMotionLoad,
-      );
-    }
-
-    if (hints.suggestLowerDuckingThreshold) {
-      // Nudge toward stronger ducking relative to profile.
-      baseConfig.audio.duckingThresholdDb =
-        baseProfileConfig.audio.duckingThresholdDb - 2;
-    }
-
-    if (hints.suggestStrongerPauseCues) {
-      baseConfig.audio.insertExtraPauses = true;
-    }
-  } catch (err) {
-    console.error(
-      `Failed to apply GENESIS hints for project ${projectId}; falling back to profile config.`,
-      err,
-    );
-    return baseProfileConfig;
-  }
-
-  return baseConfig;
+  return {
+    projectId,
+    gameName:
+      metadata.gameName ||
+      storyboardManifest.game?.name ||
+      ingestionManifest.document?.title ||
+      "",
+    lang,
+    video,
+    assets,
+    timing,
+    metadata: {
+      ingestionVersion: ingestionManifest.version,
+      storyboardContractVersion: storyboardManifest.storyboardContractVersion,
+      seed: metadata.seed || null,
+    },
+    deterministic: true,
+  };
 }
+
+export function setProjectState(projectId, state) {
+  projectStateStore.set(String(projectId), state);
+}
+
+export function clearProjectState() {
+  projectStateStore.clear();
+}
+
+export function getProjectState(projectId) {
+  return projectStateStore.get(String(projectId));
+}
+
+export function registerRenderJobConfigRoute(app, { loadProjectById } = {}) {
+  const load = loadProjectById || getProjectState;
+
+  app.get("/api/render-job-config", (req, res) => {
+    const { projectId, lang, resolution, fps, mode } = req.query || {};
+
+    if (!projectId || !lang) {
+      return res.status(400).json({
+        ok: false,
+        code: "RENDER_JOB_BAD_REQUEST",
+        error: "projectId and lang are required",
+      });
+    }
+
+    const project = load(projectId);
+    if (!project) {
+      return res.status(404).json({
+        ok: false,
+        code: "RENDER_JOB_PROJECT_NOT_FOUND",
+        error: "Project not found",
+      });
+    }
+
+    if (!project.ingestionManifest) {
+      return res.status(400).json({
+        ok: false,
+        code: "RENDER_JOB_MISSING_INGESTION",
+        error: "Ingestion manifest is required",
+      });
+    }
+
+    if (!project.storyboardManifest) {
+      return res.status(400).json({
+        ok: false,
+        code: "RENDER_JOB_MISSING_STORYBOARD",
+        error: "Storyboard manifest is required",
+      });
+    }
+
+    try {
+      const config = buildRenderJobConfig({
+        projectId,
+        metadata: project.metadata || {},
+        ingestionManifest: project.ingestionManifest,
+        storyboardManifest: project.storyboardManifest,
+        lang,
+        resolution: parseResolution(resolution) || project.resolution,
+        fps: fps ? Number(fps) : undefined,
+        mode: mode || "preview",
+      });
+
+      return res.json({ ok: true, config });
+    } catch (err) {
+      console.error("Failed to build render job config", err);
+      const status = err.message?.startsWith("RENDER_JOB") ? 400 : 500;
+      return res.status(status).json({
+        ok: false,
+        code: err.message || "RENDER_JOB_UNKNOWN_ERROR",
+        error: "Unable to build render job config",
+      });
+    }
+  });
+}
+

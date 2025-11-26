@@ -34,6 +34,10 @@ import { loadGenesisInspectorBundle } from "./genesisInspector.js";
 import { ensureGenesisReport, getReportPath } from "./genesisReport.js";
 import { buildGenesisDebugBundle } from "./genesisDebugBundle.js";
 import {
+  getProjectState,
+  registerRenderJobConfigRoute,
+} from "./renderJobConfig.js";
+import {
   buildGatewayConfig,
   createAuthMiddleware,
   createCorsMiddleware,
@@ -114,6 +118,10 @@ registerPhaseERoutes(app, {
   validateIngestionManifest,
   generateStoryboard,
   validateStoryboard
+});
+
+registerRenderJobConfigRoute(app, {
+  loadProjectById: (projectId) => getProjectState(projectId),
 });
 
 
