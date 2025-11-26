@@ -1,6 +1,5 @@
 
 import express from 'express';
-import cors from 'cors';
 import db from './db.js';
 import dotenv from 'dotenv';
 import axios from 'axios';
@@ -8,11 +7,9 @@ import * as cheerio from 'cheerio';
 import OpenAI from 'openai';
 import * as pdfToImg from 'pdf-to-img';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { spawn, execFile } from 'child_process';
-import { ensureDir } from 'fs-extra'; // If you use fs-extra for directory creation  
+import { ensureDir } from 'fs-extra'; // If you use fs-extra for directory creation
 import sharp from 'sharp'; // For image processing
-import { dirname } from 'path';
 import { XMLParser } from 'fast-xml-parser';
 import fs, { promises as fsPromises, existsSync } from 'fs';
 import { explainChunkWithAI } from './aiUtils.js';
@@ -36,6 +33,12 @@ import { runGenesisAutoOptimize } from './genesisAutoOptimize.js';
 import { loadGenesisInspectorBundle } from "./genesisInspector.js";
 import { ensureGenesisReport, getReportPath } from "./genesisReport.js";
 import { buildGenesisDebugBundle } from "./genesisDebugBundle.js";
+import {
+  buildGatewayConfig,
+  createAuthMiddleware,
+  createCorsMiddleware,
+  ensureProductionKeys
+} from './gatewaySecurity.js';
 
 
 
@@ -46,22 +49,22 @@ console.log('API file loaded!');
 
 const app = express();
 const port = process.env.PORT || 5001;
+const gatewayConfig = buildGatewayConfig(process.env);
+ensureProductionKeys(gatewayConfig);
+
 const bggMetadataCache = new Map();
 
 
-// Fix for __dirname in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// Resolve module paths without relying on import.meta (compatible with Jest CJS transforms)
+const moduleDirname = path.join(process.cwd(), 'src', 'api');
+const moduleFilename = path.join(moduleDirname, 'index.js');
 const execFilePromise = promisify(execFile);
 
 // CORS configuration - MUST be before other middleware/routes
-app.use(cors({
-  origin: 'http://localhost:3000',
-  credentials: true
-}));
+app.use(createCorsMiddleware(gatewayConfig));
 app.use(express.json());
-app.use('/static', express.static(path.join(__dirname, 'uploads')));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/static', express.static(path.join(moduleDirname, 'uploads')));
+app.use('/uploads', express.static(path.join(moduleDirname, 'uploads')));
 
 // --- API Configuration ---
 const BACKEND_URL = `http://localhost:${port}`;
@@ -69,7 +72,7 @@ const IMAGE_EXTRACTOR_API_KEY = process.env.IMAGE_EXTRACTOR_API_KEY;
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Validate OUTPUT_DIR at startup  
-const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(__dirname, 'uploads', 'MobiusGames');
+const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(moduleDirname, 'uploads', 'MobiusGames');
 if (!OUTPUT_DIR || typeof OUTPUT_DIR !== 'string') {
   console.error('Invalid OUTPUT_DIR configuration');
   process.exit(1);  
@@ -89,13 +92,13 @@ console.warn = function (...args) {
   originalWarn.apply(console, args);
 };
 
-// --- Simple API Key Middleware (Development Mode) ---  
-app.use((req, res, next) => {  
-  // TODO: Implement proper session-based authentication  
-  // For now, skip API key validation in development  
-  console.log(`${req.method} ${req.path} - API key validation skipped`);  
-  next();  
+// --- Health check (unauthenticated) ---
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
 });
+
+// --- API Key Middleware ---
+app.use(createAuthMiddleware(gatewayConfig));
 
 
 
@@ -1441,7 +1444,7 @@ function extractComponents(description) {
 // --- File Upload Configuration ---
 const storage = multer.diskStorage({  
   destination: (req, file, cb) => {  
-    const uploadPath = path.join(__dirname, 'uploads'); // ✅ Fixed path
+    const uploadPath = path.join(moduleDirname, 'uploads'); // ✅ Fixed path
     if (!existsSync(uploadPath)) {  
       fs.mkdirSync(uploadPath, { recursive: true });  
     }  
@@ -1625,7 +1628,7 @@ app.post('/save-matches', async (req, res) => {
       savedAt: new Date().toISOString()
     };
 
-    const matchesDir = path.join(__dirname, 'saved-matches');
+    const matchesDir = path.join(moduleDirname, 'saved-matches');
     if (!fs.existsSync(matchesDir)) {
       fs.mkdirSync(matchesDir, { recursive: true });
     }
@@ -2164,7 +2167,7 @@ app.get('/list-page-images', (req, res) => {
   }
 
   // You may want to use a unique folder per PDF, but for now, let's assume all page images are in one folder
-  const pagesDir = path.join(__dirname, 'uploads', 'pages');
+  const pagesDir = path.join(moduleDirname, 'uploads', 'pages');
   if (!existsSync(pagesDir)) {  
     return res.json({ pageImages: [] });  
   }
@@ -2475,7 +2478,7 @@ app.post('/fetch-bgg-images', async (req, res) => {
 
     // Download images
     const images = [];
-    const OUTPUT_DIR = path.join(__dirname, 'uploads', 'images');
+    const OUTPUT_DIR = path.join(moduleDirname, 'uploads', 'images');
     
     // Ensure output directory exists
     if (!fs.existsSync(OUTPUT_DIR)) {
@@ -2502,7 +2505,7 @@ app.post('/fetch-bgg-images', async (req, res) => {
         if (existsSync(filepath)) {
           images.push({
             filename: filename,
-            path: path.relative(path.join(__dirname, 'uploads'), filepath),
+            path: path.relative(path.join(moduleDirname, 'uploads'), filepath),
             type: type,
             source: 'BGG'
           });
@@ -2518,7 +2521,7 @@ app.post('/fetch-bgg-images', async (req, res) => {
 
     // Filter out any images without a valid path (extra safety)
     const validImages = images.filter(
-      img => img && img.path && existsSync(path.join(__dirname, 'uploads', img.path))
+      img => img && img.path && existsSync(path.join(moduleDirname, 'uploads', img.path))
     );
     res.json({ success: true, images: validImages });
 
@@ -2567,7 +2570,7 @@ app.post('/convert-pdf-to-images', async (req, res) => {
 
     // Create output directory for this PDF's images
     const pdfName = path.basename(pdfPath, '.pdf');
-    const outputDir = path.join(__dirname, 'uploads', 'images', pdfName);
+    const outputDir = path.join(moduleDirname, 'uploads', 'images', pdfName);
     
     // Call your Python script
     const pythonProcess = spawn('python', ['pdf_to_images.py', pdfPath, outputDir]);
@@ -3048,7 +3051,7 @@ app.get('/load-project/:id', (req, res) => {
   );
 });
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' && !process.env.JEST_WORKER_ID) {
   const PORT = process.env.PORT || 5001;
   app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
