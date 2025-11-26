@@ -1,3 +1,5 @@
+// Contract-driven ingestion pipeline entrypoint. Implements the DOCS/spec
+// ingestion contract for normalized rulebook text and structure output.
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');

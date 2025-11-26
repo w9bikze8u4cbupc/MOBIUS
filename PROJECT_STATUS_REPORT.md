@@ -22,7 +22,7 @@
 - README points to ingestion/storyboard validators (scripts/check_ingestion.cjs, scripts/check_storyboard.cjs) producing JUnit artifacts. Jest-based ingestion/storyboard tests exist. No GitHub Actions or CI workflows present in repo.
 
 ## Gaps and inconsistencies
-- Missing `src/api/db.js` (or alternative persistence layer) blocks project saving. No auth/session implementation despite TODO. Client and server assume localhost origins with hard-coded ports. Deployment/readiness docs exist but no code-based environment toggles beyond GENESIS flags. Duplicate ingestion namespaces (`src/ingest` vs `src/ingestion`) risk confusion; only `src/ingestion` wired into tests/contracts.
+- Missing `src/api/db.js` (or alternative persistence layer) blocks project saving. No auth/session implementation despite TODO. Client and server assume localhost origins with hard-coded ports. Deployment/readiness docs exist but no code-based environment toggles beyond GENESIS flags. Duplicate ingestion namespaces (`src/ingest` vs `src/ingestion`) risk confusion; only `src/ingestion` wired into tests/contracts. [Resolved] Storyboard utilities now live under `src/storyboard` with compatibility shims in `src/ingest`, clarifying the canonical ingestion pipeline.
 
 ## Next recommended step
 Implement and wire a minimal persistence adapter for `/save-project` in `src/api/index.js` (or adjust to in-memory store) to unblock end-to-end project saves, and add an integration test covering project creation with mocked storage. This directly resolves the hard failure from the missing `db.js` import and validates the gateway/client loop without altering rendering or ingestion logic.

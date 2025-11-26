@@ -3,7 +3,7 @@ const path = require('path');
 const { runIngestionPipeline } = require('../../src/ingestion/pipeline');
 const { hydrateFromFixture } = require('../../src/ingestion/bgg');
 const { validateIngestionManifest } = require('../../src/validators/ingestionValidator');
-const { generateStoryboardFromIngestion } = require('../../src/ingest/storyboard');
+const { generateStoryboardFromIngestion } = require('../../src/storyboard/storyboard_from_ingestion');
 const { validateStoryboard } = require('../../src/validators/storyboardValidator');
 
 function readFixture(name) {

@@ -1,3 +1,5 @@
+// Contract loader for the canonical ingestion pipeline; reads DOCS/spec
+// ingestion_contract.json to enforce manifests.
 const fs = require('fs');
 const path = require('path');
 

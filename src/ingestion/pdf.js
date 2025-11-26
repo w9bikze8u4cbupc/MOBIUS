@@ -1,3 +1,5 @@
+// Contract-driven ingestion helpers for normalizing PDF text into the ingestion
+// manifest shape (heading detection, hashing, OCR tracking).
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
