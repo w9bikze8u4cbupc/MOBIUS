@@ -28,7 +28,8 @@
     "desktop:create": "node scripts/create-desktop-shortcut.mjs",
     "desktop:verify": "node scripts/verify-desktop-shortcuts.mjs",
     "ingestion:validate": "node scripts/check_ingestion.cjs",
-    "storyboard:check": "node scripts/check_storyboard.cjs"
+    "storyboard:check": "node scripts/check_storyboard.cjs",
+    "checklist:validate": "node scripts/validate_mobius_checklist.cjs"
   },
   "keywords": [
     "game",
