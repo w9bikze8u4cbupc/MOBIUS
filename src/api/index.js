@@ -34,9 +34,12 @@ import { loadGenesisInspectorBundle } from "./genesisInspector.js";
 import { ensureGenesisReport, getReportPath } from "./genesisReport.js";
 import { buildGenesisDebugBundle } from "./genesisDebugBundle.js";
 import {
+  buildRenderJobConfig,
   getProjectState,
   registerRenderJobConfigRoute,
 } from "./renderJobConfig.js";
+import { enqueueRenderJob, getJob, listJobArtifacts } from "./renderQueue.js";
+import { RENDER_OUTPUT_BASE } from "./renderExecutor.js";
 import {
   buildGatewayConfig,
   createAuthMiddleware,
@@ -122,6 +125,96 @@ registerPhaseERoutes(app, {
 
 registerRenderJobConfigRoute(app, {
   loadProjectById: (projectId) => getProjectState(projectId),
+});
+
+app.post('/api/render', async (req, res) => {
+  const { projectId, lang, resolution, fps, mode, config } = req.body || {};
+
+  try {
+    const renderConfig =
+      config ||
+      (() => {
+        if (!projectId || !lang) {
+          throw new Error('RENDER_REQUEST_INVALID');
+        }
+
+        const project = getProjectState(projectId);
+        if (!project) {
+          const err = new Error('RENDER_PROJECT_NOT_FOUND');
+          err.status = 404;
+          throw err;
+        }
+
+        if (!project.ingestionManifest || !project.storyboardManifest) {
+          const err = new Error('RENDER_PROJECT_INCOMPLETE');
+          err.status = 400;
+          throw err;
+        }
+
+        return buildRenderJobConfig({
+          projectId,
+          metadata: project.metadata || {},
+          ingestionManifest: project.ingestionManifest,
+          storyboardManifest: project.storyboardManifest,
+          lang,
+          resolution,
+          fps,
+          mode,
+        });
+      })();
+
+    const job = enqueueRenderJob(renderConfig, { outputOptions: { outputBaseDir: RENDER_OUTPUT_BASE } });
+    return res.json({ ok: true, jobId: job.id, status: job.status, progress: job.progress });
+  } catch (err) {
+    const status = err.status || (err.message === 'RENDER_REQUEST_INVALID' ? 400 : 500);
+    console.error('Failed to enqueue render job', err);
+    return res.status(status).json({
+      ok: false,
+      code: err.message || 'RENDER_ENQUEUE_FAILED',
+      error: 'Unable to start render job',
+    });
+  }
+});
+
+app.get('/api/render/:jobId/status', (req, res) => {
+  const { jobId } = req.params;
+  const job = getJob(jobId);
+
+  if (!job) {
+    return res.status(404).json({ ok: false, error: 'Job not found' });
+  }
+
+  return res.json({
+    ok: true,
+    job: {
+      id: job.id,
+      status: job.status,
+      progress: job.progress,
+      error: job.error,
+      resultPaths: job.resultPaths,
+    },
+  });
+});
+
+app.get('/api/render/:jobId/artifacts', async (req, res) => {
+  const { jobId } = req.params;
+  const job = getJob(jobId);
+
+  if (!job) {
+    return res.status(404).json({ ok: false, error: 'Job not found' });
+  }
+
+  if (job.status !== 'completed') {
+    return res.status(400).json({ ok: false, error: 'Job not completed yet' });
+  }
+
+  try {
+    const artifacts = listJobArtifacts(jobId);
+    return res.json({ ok: true, artifacts });
+  } catch (err) {
+    console.error('Failed to list artifacts for job', jobId, err);
+    return res.status(500).json({ ok: false, error: 'Failed to list artifacts' });
+  }
 });
 
 

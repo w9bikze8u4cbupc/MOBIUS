@@ -136,6 +136,10 @@ function App() {
   const [renderJobConfig, setRenderJobConfig] = useState(null);
   const [renderConfigError, setRenderConfigError] = useState("");
   const [showRenderConfigJson, setShowRenderConfigJson] = useState(false);
+  const [renderJobState, setRenderJobState] = useState(null);
+  const [renderJobError, setRenderJobError] = useState("");
+  const [renderJobLoading, setRenderJobLoading] = useState(false);
+  const renderPollRef = useRef(null);
 
 
   // --- Effects ---
@@ -150,8 +154,8 @@ function App() {
   }, [language]); // Rerun when language changes
 
   // Effect to update editedSummary when summary changes (after generation)
-  useEffect(() => {
-    setEditedSummary(summary);
+  useEffect(() => {
+    setEditedSummary(summary);
     // Automatically split sections when summary is updated
     if (summary) {
       const newSections = splitMarkdownSections(summary);
@@ -162,7 +166,15 @@ function App() {
       setSections([]);
       setAudio({});
     }
-  }, [summary]); // Rerun when summary changes
+  }, [summary]); // Rerun when summary changes
+
+  useEffect(() => {
+    return () => {
+      if (renderPollRef.current) {
+        clearInterval(renderPollRef.current);
+      }
+    };
+  }, []);
 
 
   // --- Helper Functions ---
@@ -359,6 +371,89 @@ function App() {
       const apiError = err.response?.data?.error || err.response?.data?.code || err.message;
       setRenderConfigError(apiError);
       setRenderJobConfig(null);
+    }
+  };
+
+  const fetchRenderArtifacts = async (jobId) => {
+    try {
+      const { data } = await axios.get(`${BACKEND_URL}/api/render/${jobId}/artifacts`);
+      setRenderJobState((prev) => ({
+        ...(prev || { id: jobId }),
+        artifacts: data.artifacts || [],
+      }));
+    } catch (err) {
+      const apiError = err.response?.data?.error || err.message;
+      setRenderJobError(apiError);
+    }
+  };
+
+  const pollRenderJob = (jobId) => {
+    if (renderPollRef.current) {
+      clearInterval(renderPollRef.current);
+    }
+
+    renderPollRef.current = setInterval(async () => {
+      try {
+        const { data } = await axios.get(`${BACKEND_URL}/api/render/${jobId}/status`);
+        const job = data.job || {};
+        setRenderJobState(job);
+
+        if (job.status === 'completed') {
+          clearInterval(renderPollRef.current);
+          renderPollRef.current = null;
+          fetchRenderArtifacts(jobId);
+        } else if (job.status === 'failed') {
+          clearInterval(renderPollRef.current);
+          renderPollRef.current = null;
+        }
+      } catch (err) {
+        const apiError = err.response?.data?.error || err.message;
+        setRenderJobError(apiError);
+        clearInterval(renderPollRef.current);
+        renderPollRef.current = null;
+      }
+    }, 3000);
+  };
+
+  const handleStartRender = async () => {
+    setRenderJobError("");
+    setRenderJobLoading(true);
+
+    if (renderPollRef.current) {
+      clearInterval(renderPollRef.current);
+      renderPollRef.current = null;
+    }
+
+    try {
+      const payload = renderJobConfig
+        ? { config: renderJobConfig }
+        : {
+            projectId: projectId.trim(),
+            lang: renderLang,
+            resolution: renderResolution,
+          };
+
+      if (!payload.projectId && !payload.config) {
+        setRenderJobError("Project ID or a precomputed render job config is required.");
+        setRenderJobLoading(false);
+        return;
+      }
+
+      const { data } = await axios.post(`${BACKEND_URL}/api/render`, payload);
+      const job = {
+        id: data.jobId,
+        status: data.status,
+        progress: data.progress || 0,
+        artifacts: [],
+      };
+
+      setRenderJobState(job);
+      pollRenderJob(job.id);
+    } catch (err) {
+      const apiError = err.response?.data?.error || err.response?.data?.code || err.message;
+      setRenderJobError(apiError);
+    } finally {
+      setRenderJobLoading(false);
     }
   };
 
@@ -892,6 +987,54 @@ function App() {
             )}
           </div>
         )}
+
+        <div
+          style={{
+            marginTop: 16,
+            padding: 12,
+            borderTop: "1px solid #ddd",
+          }}
+        >
+          <h4 style={{ marginBottom: 8 }}>Render execution</h4>
+          <p style={{ margin: "6px 0", color: "#555" }}>
+            Submit a render job to the gateway. If a render config is loaded, it will be used directly;
+            otherwise the server will build one using the project ID.
+          </p>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              onClick={handleStartRender}
+              disabled={renderJobLoading}
+              style={{ padding: "8px 14px", background: "#2e7d32", color: "#fff", border: "none", borderRadius: 4 }}
+            >
+              {renderJobLoading ? "Starting render..." : "Start render"}
+            </button>
+            {renderJobState && (
+              <span style={{ fontWeight: 600 }}>
+                Job: {renderJobState.id} · Status: {renderJobState.status} · Progress: {renderJobState.progress || 0}%
+              </span>
+            )}
+          </div>
+          {renderJobError && (
+            <p style={{ color: "red", marginTop: 6 }}>{renderJobError}</p>
+          )}
+          {renderJobState?.error && (
+            <p style={{ color: "red", marginTop: 6 }}>{renderJobState.error}</p>
+          )}
+          {renderJobState?.artifacts?.length ? (
+            <div style={{ marginTop: 10 }}>
+              <p style={{ margin: "4px 0" }}>Artifacts:</p>
+              <ul style={{ paddingLeft: 16 }}>
+                {renderJobState.artifacts.map((artifact) => (
+                  <li key={artifact}>
+                    <a href={artifact} target="_blank" rel="noreferrer">
+                      {artifact}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {/* GENESIS Observability */}
