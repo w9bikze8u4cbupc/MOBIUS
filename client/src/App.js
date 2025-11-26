@@ -136,6 +136,11 @@ function App() {
   const [renderJobConfig, setRenderJobConfig] = useState(null);
   const [renderConfigError, setRenderConfigError] = useState("");
   const [showRenderConfigJson, setShowRenderConfigJson] = useState(false);
+  const [renderJobId, setRenderJobId] = useState(null);
+  const [renderJobStatus, setRenderJobStatus] = useState("");
+  const [renderJobProgress, setRenderJobProgress] = useState(0);
+  const [renderJobError, setRenderJobError] = useState("");
+  const [renderArtifacts, setRenderArtifacts] = useState([]);
 
 
   // --- Effects ---
@@ -150,19 +155,46 @@ function App() {
   }, [language]); // Rerun when language changes
 
   // Effect to update editedSummary when summary changes (after generation)
-  useEffect(() => {
-    setEditedSummary(summary);
-    // Automatically split sections when summary is updated
-    if (summary) {
-      const newSections = splitMarkdownSections(summary);
+  useEffect(() => {
+    setEditedSummary(summary);
+    // Automatically split sections when summary is updated
+    if (summary) {
+      const newSections = splitMarkdownSections(summary);
       console.log('Sections created:', newSections);
       setSections(newSections);
       setAudio({}); // Clear existing audio when summary changes
     } else {
       setSections([]);
-      setAudio({});
-    }
-  }, [summary]); // Rerun when summary changes
+      setAudio({});
+    }
+  }, [summary]); // Rerun when summary changes
+
+  useEffect(() => {
+    if (!renderJobId) return undefined;
+
+    const interval = setInterval(async () => {
+      try {
+        const { data } = await axios.get(`${BACKEND_URL}/api/render/${renderJobId}/status`);
+        setRenderJobStatus(data.status);
+        if (typeof data.progress === "number") {
+          setRenderJobProgress(data.progress);
+        }
+
+        if (data.status === "completed") {
+          const artifactsRes = await axios.get(`${BACKEND_URL}/api/render/${renderJobId}/artifacts`);
+          setRenderArtifacts(artifactsRes.data.artifacts || []);
+          clearInterval(interval);
+        } else if (data.status === "failed") {
+          setRenderJobError(data.error || "Render failed");
+          clearInterval(interval);
+        }
+      } catch (err) {
+        setRenderJobError(err.response?.data?.error || err.message);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [renderJobId]);
 
 
   // --- Helper Functions ---
@@ -359,6 +391,37 @@ function App() {
       const apiError = err.response?.data?.error || err.response?.data?.code || err.message;
       setRenderConfigError(apiError);
       setRenderJobConfig(null);
+    }
+  };
+
+  const handleStartRender = async () => {
+    setRenderJobError("");
+    setRenderJobStatus("");
+    setRenderJobProgress(0);
+    setRenderArtifacts([]);
+
+    if (!projectId.trim()) {
+      setRenderJobError("Project ID is required to start a render.");
+      return;
+    }
+
+    try {
+      const payload = {
+        projectId: projectId.trim(),
+        lang: renderLang,
+        resolution: renderResolution,
+      };
+
+      if (renderJobConfig) {
+        payload.renderJobConfig = renderJobConfig;
+      }
+
+      const { data } = await axios.post(`${BACKEND_URL}/api/render`, payload);
+      setRenderJobId(data.jobId);
+      setRenderJobStatus(data.status);
+    } catch (err) {
+      const apiError = err.response?.data?.error || err.response?.data?.code || err.message;
+      setRenderJobError(apiError);
     }
   };
 
@@ -855,6 +918,12 @@ function App() {
           >
             Generate render job config
           </button>
+          <button
+            onClick={handleStartRender}
+            style={{ padding: "8px 14px", background: "#2e7d32", color: "#fff", border: "none", borderRadius: 4 }}
+          >
+            Start render
+          </button>
         </div>
         {renderConfigError && (
           <p style={{ color: "red", marginTop: 8 }}>{renderConfigError}</p>
@@ -889,6 +958,31 @@ function App() {
               >
                 {JSON.stringify(renderJobConfig, null, 2)}
               </pre>
+            )}
+          </div>
+        )}
+        {renderJobError && (
+          <p style={{ color: "red", marginTop: 8 }}>{renderJobError}</p>
+        )}
+        {renderJobId && (
+          <div style={{ marginTop: 12 }}>
+            <p style={{ margin: "4px 0" }}><b>Job ID:</b> {renderJobId}</p>
+            <p style={{ margin: "4px 0" }}>
+              <b>Status:</b> {renderJobStatus || "queued"} {renderJobProgress ? `(${renderJobProgress}%)` : ""}
+            </p>
+            {renderArtifacts.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <p style={{ margin: "4px 0" }}>Artifacts:</p>
+                <ul>
+                  {renderArtifacts.map((artifact) => (
+                    <li key={artifact}>
+                      <a href={`${BACKEND_URL}/render-results/${artifact}`} target="_blank" rel="noreferrer">
+                        {artifact}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         )}

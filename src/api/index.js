@@ -38,6 +38,13 @@ import {
   registerRenderJobConfigRoute,
 } from "./renderJobConfig.js";
 import {
+  enqueueRenderJob,
+  getRenderJob,
+  getRenderJobArtifacts,
+  setRenderExecutor,
+} from './renderQueue.js';
+import { runRenderJob } from './renderExecutor.js';
+import {
   buildGatewayConfig,
   createAuthMiddleware,
   createCorsMiddleware,
@@ -71,23 +78,41 @@ const { validateIngestionManifest } = ingestionRequire('../validators/ingestionV
 const { validateStoryboard } = ingestionRequire('../validators/storyboardValidator');
 const execFilePromise = promisify(execFile);
 
+function parseResolutionValue(input) {
+  if (!input || typeof input !== 'string') return null;
+  const match = input.toLowerCase().match(/(\d+)x(\d+)/);
+  if (!match) return null;
+  return { width: Number(match[1]), height: Number(match[2]) };
+}
+
 // CORS configuration - MUST be before other middleware/routes
 app.use(createCorsMiddleware(gatewayConfig));
 app.use(express.json());
 app.use('/static', express.static(path.join(moduleDirname, 'uploads')));
 app.use('/uploads', express.static(path.join(moduleDirname, 'uploads')));
+app.use('/render-results', express.static(RENDER_OUTPUT_DIR));
 
 // --- API Configuration ---
 const BACKEND_URL = `http://localhost:${port}`;
 const IMAGE_EXTRACTOR_API_KEY = process.env.IMAGE_EXTRACTOR_API_KEY;
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Validate OUTPUT_DIR at startup  
+// Validate OUTPUT_DIR at startup
 const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(moduleDirname, 'uploads', 'MobiusGames');
 if (!OUTPUT_DIR || typeof OUTPUT_DIR !== 'string') {
   console.error('Invalid OUTPUT_DIR configuration');
-  process.exit(1);  
+  process.exit(1);
 }
+
+const RENDER_OUTPUT_DIR = process.env.RENDER_OUTPUT_DIR || path.join(process.cwd(), 'exports', 'render-jobs');
+ensureDir(RENDER_OUTPUT_DIR);
+
+setRenderExecutor((job, { updateProgress }) =>
+  runRenderJob(job, {
+    onProgress: updateProgress,
+    outputBaseDir: RENDER_OUTPUT_DIR,
+  }),
+);
 
 console.log('Starting server...');
 
@@ -122,6 +147,104 @@ registerPhaseERoutes(app, {
 
 registerRenderJobConfigRoute(app, {
   loadProjectById: (projectId) => getProjectState(projectId),
+});
+
+app.post('/api/render', async (req, res) => {
+  const { projectId, lang, resolution, fps, mode, renderJobConfig } = req.body || {};
+
+  try {
+    let config = renderJobConfig;
+
+    if (!config) {
+      if (!projectId || !lang) {
+        return res.status(400).json({
+          ok: false,
+          code: 'RENDER_REQUEST_INVALID',
+          error: 'projectId and lang are required',
+        });
+      }
+
+      const project = getProjectState(projectId);
+      if (!project) {
+        return res.status(404).json({
+          ok: false,
+          code: 'RENDER_PROJECT_NOT_FOUND',
+          error: 'Project not found',
+        });
+      }
+
+      config = buildRenderJobConfig({
+        projectId,
+        metadata: project.metadata || {},
+        ingestionManifest: project.ingestionManifest,
+        storyboardManifest: project.storyboardManifest,
+        lang,
+        resolution: parseResolutionValue(resolution) || project.resolution,
+        fps: fps ? Number(fps) : undefined,
+        mode: mode || 'preview',
+      });
+    }
+
+    const job = enqueueRenderJob({ config });
+
+    return res.status(202).json({
+      ok: true,
+      jobId: job.id,
+      status: job.status,
+    });
+  } catch (err) {
+    const isUserError = err.message?.startsWith('RENDER_JOB');
+    const status = isUserError ? 400 : 500;
+    return res.status(status).json({
+      ok: false,
+      code: err.message || 'RENDER_JOB_FAILED',
+      error: 'Unable to enqueue render job',
+    });
+  }
+});
+
+app.get('/api/render/:jobId/status', (req, res) => {
+  const job = getRenderJob(req.params.jobId);
+  if (!job) {
+    return res.status(404).json({
+      ok: false,
+      code: 'RENDER_JOB_NOT_FOUND',
+      error: 'Render job not found',
+    });
+  }
+
+  return res.json({
+    ok: true,
+    jobId: job.id,
+    status: job.status,
+    progress: job.progress,
+    error: job.error,
+  });
+});
+
+app.get('/api/render/:jobId/artifacts', (req, res) => {
+  const job = getRenderJob(req.params.jobId);
+  if (!job) {
+    return res.status(404).json({
+      ok: false,
+      code: 'RENDER_JOB_NOT_FOUND',
+      error: 'Render job not found',
+    });
+  }
+
+  if (job.status !== 'completed') {
+    return res.status(400).json({
+      ok: false,
+      code: 'RENDER_JOB_NOT_READY',
+      error: 'Artifacts available after completion',
+    });
+  }
+
+  const artifacts = getRenderJobArtifacts(job.id).map((p) =>
+    path.relative(RENDER_OUTPUT_DIR, p),
+  );
+
+  return res.json({ ok: true, jobId: job.id, artifacts });
 });
 
 
