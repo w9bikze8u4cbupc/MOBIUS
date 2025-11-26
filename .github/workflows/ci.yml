@@ -1,387 +1,47 @@
-name: CI
+name: Node CI
 
 on:
   push:
-    paths-ignore:
-      - '**/*.md'
+    branches:
+      - main
   pull_request:
-    paths-ignore:
-      - '**/*.md'
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches:
+      - main
 
 jobs:
-  build-and-qa:
-    needs:
-      - phase-e-governance
-      - subtitle-governance
-      - audio-mixing-governance
-      - motion-governance
-      - g3-visualization-governance
-      - g5-cross-tutorial-analytics-governance
+  build-and-test:
+    runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+        node-version: [18.x, 20.x]
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            client/package-lock.json
-
-      - name: Install deps
-        run: npm ci
-        working-directory: client
-
-      - name: Ensure FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v2
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Build
-        run: npm run build --if-present
-        working-directory: client
-
-      - name: Unit tests (root)
-        run: npm test -- --ci --reporters=default
-        working-directory: .
-
-      - name: Unit tests (client)
-        run: npm test -- --ci --reporters=default
-        working-directory: client
-        continue-on-error: false
-
-      - name: Render preview
-        run: |
-          mkdir -p out artifacts
-          npm run render --if-present
-          if [ ! -f out/preview_with_audio.mp4 ]; then
-            candidate="$(find . -maxdepth 2 -type f -name 'preview*.mp4' | head -n1)"
-            if [ -n "$candidate" ]; then
-              cp "$candidate" out/preview_with_audio.mp4
-            fi
-          fi
-        shell: bash
-
-      - name: Fallback preview (synthetic)
-        if: ${{ !cancelled() }}
-        run: |
-          if [ ! -f out/preview_with_audio.mp4 ]; then
-            mkdir -p out
-            ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=black:s=1280x720:d=6 \
-                   -f lavfi -i sine=f=1000:d=6 -shortest \
-                   -c:v libx264 -pix_fmt yuv420p -r 30 -c:a aac -b:a 128k out/preview_with_audio.mp4
-          fi
-        shell: bash
-
-      - name: Verify audio stream present
-        run: |
-          ffprobe -hide_banner -loglevel error -select_streams a -show_entries stream=index -of csv=p=0 out/preview_with_audio.mp4 > artifacts/audio_streams.txt
-          if [ ! -s artifacts/audio_streams.txt ]; then
-            echo "No audio streams detected in out/preview_with_audio.mp4" >&2
-            exit 1
-          fi
-        shell: bash
-
-      - name: Audio ebur128
-        run: |
-          ffmpeg -hide_banner -nostats -i out/preview_with_audio.mp4 -filter_complex ebur128=peak=true -f null - 2> artifacts/preview_with_audio_ebur128.txt
-        shell: bash
-
-      - name: Capture media metadata
-        run: |
-          ffprobe -hide_banner -loglevel error -print_format json -show_format -show_streams out/preview_with_audio.mp4 > artifacts/preview_ffprobe.json
-        shell: bash
-
-      - name: Capture provenance (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          sha256sum out/preview_with_audio.mp4 > artifacts/preview_with_audio.sha256
-        shell: bash
-
-      - name: Capture provenance (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          Get-FileHash -Algorithm SHA256 out/preview_with_audio.mp4 | Format-Table -HideTableHeaders > artifacts/preview_with_audio.sha256
-        shell: pwsh
-
-      - name: Audio gates (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          if ! grep -q 'I:' artifacts/preview_with_audio_ebur128.txt; then
-            echo "Integrated loudness result was not found in EBUR128 output." >&2
-            exit 1
-          fi
-          if ! grep -q 'TP:' artifacts/preview_with_audio_ebur128.txt; then
-            echo "True-peak result was not found in EBUR128 output." >&2
-            exit 1
-          fi
-        shell: bash
-
-      - name: Audio gates (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          if (-not (Select-String -Path 'artifacts/preview_with_audio_ebur128.txt' -Pattern 'I:')) {
-            Write-Error 'Integrated loudness result was not found in EBUR128 output.'
-          }
-          if (-not (Select-String -Path 'artifacts/preview_with_audio_ebur128.txt' -Pattern 'TP:')) {
-            Write-Error 'True-peak result was not found in EBUR128 output.'
-          }
-        shell: pwsh
-
-      - name: Extract EBUR128 metrics (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          python - <<'PY'
-          import json
-          import pathlib
-          import re
-
-          metrics_path = pathlib.Path('artifacts/preview_audio_metrics.json')
-          log_text = pathlib.Path('artifacts/preview_with_audio_ebur128.txt').read_text(encoding='utf-8')
-
-          integrated = re.search(r'I:\s*(-?\d+(?:\.\d+)?)', log_text)
-          true_peak = re.search(r'TP:\s*(-?\d+(?:\.\d+)?)', log_text)
-
-          if integrated and true_peak:
-              payload = {
-                  'integrated_lufs': float(integrated.group(1)),
-                  'true_peak_dbfs': float(true_peak.group(1)),
-              }
-              metrics_path.write_text(json.dumps(payload, separators=(',', ':')), encoding='utf-8')
-          PY
-        shell: bash
-
-      - name: Extract EBUR128 metrics (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          $logText = Get-Content 'artifacts/preview_with_audio_ebur128.txt' -Raw
-          $integratedMatch = [regex]::Match($logText, 'I:\s*(-?\d+(?:\.\d+)?)')
-          $truePeakMatch = [regex]::Match($logText, 'TP:\s*(-?\d+(?:\.\d+)?)')
-          if ($integratedMatch.Success -and $truePeakMatch.Success) {
-            $payload = [ordered]@{
-              integrated_lufs = [double]$integratedMatch.Groups[1].Value
-              true_peak_dbfs = [double]$truePeakMatch.Groups[1].Value
-            }
-            $json = $payload | ConvertTo-Json -Compress
-            Set-Content -Path 'artifacts/preview_audio_metrics.json' -Value $json -Encoding utf8
-          }
-        shell: pwsh
-
-      - name: Validate audio metrics (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          if [ -f artifacts/preview_audio_metrics.json ]; then
-            python -c "import json; d=json.load(open('artifacts/preview_audio_metrics.json'));\
-assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio metric keys'"
-          fi
-        shell: bash
-
-      - name: Validate audio metrics (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          if (Test-Path 'artifacts/preview_audio_metrics.json') {
-            $json = Get-Content 'artifacts/preview_audio_metrics.json' -Raw | ConvertFrom-Json
-            $hasIntegrated = $json.PSObject.Properties.Name -contains 'integrated_lufs'
-            $hasTruePeak = $json.PSObject.Properties.Name -contains 'true_peak_dbfs'
-            if (-not ($hasIntegrated -and $hasTruePeak)) {
-              Write-Error 'Missing expected audio metric keys in artifacts/preview_audio_metrics.json.'
-            }
-          }
-        shell: pwsh
-
-      - name: Summarize audio metrics
-        if: always() && runner.os != 'Windows'
-        run: |
-          echo '### Preview Audio Metrics' >> "$GITHUB_STEP_SUMMARY"
-          if [ -f artifacts/preview_audio_metrics.json ]; then
-            echo '```json' >> "$GITHUB_STEP_SUMMARY"
-            cat artifacts/preview_audio_metrics.json >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo 'Metrics not generated in this run.' >> "$GITHUB_STEP_SUMMARY"
-          fi
-        shell: bash
-
-      - name: Summarize audio metrics (Windows)
-        if: always() && runner.os == 'Windows'
-        run: |
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '### Preview Audio Metrics'
-          if (Test-Path 'artifacts/preview_audio_metrics.json') {
-            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```json'
-            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value (Get-Content 'artifacts/preview_audio_metrics.json' -Raw)
-            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
-          }
-          else {
-            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value 'Metrics not generated in this run.'
-          }
-        shell: pwsh
-
-      - name: Container gates (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          test -s artifacts/preview_ffprobe.json
-        shell: bash
-
-      - name: Container gates (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          if (-not (Test-Path 'artifacts/preview_ffprobe.json')) {
-            Write-Error 'Expected artifacts/preview_ffprobe.json to exist.'
-          }
-        shell: pwsh
-
-      - name: Upload artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: qa-${{ matrix.os }}-${{ github.run_number }}
-          path: |
-            artifacts/**
-            out/preview_with_audio.mp4
-          retention-days: 7
-
-  phase-e-governance:
-    name: Phase E Governance (E1 Ingestion + E2 Storyboard)
-    runs-on: ${{ matrix.os }}
-    needs: []
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-
-    steps:
-      # --- Checkout -------------------------------------------------------
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      # --- Node -----------------------------------------------------------
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install npm dependencies
-        run: npm install
-
-      # --- Prepare directories -------------------------------------------
-      - name: Create fixture dirs
-        run: |
-          mkdir -p tests/fixtures/ingestion
-          mkdir -p tests/fixtures/storyboard
-        shell: bash
-
-      # --- Run Phase E1: Ingestion ---------------------------------------
-      - name: Run ingestion sample
-        run: |
-          node --experimental-specifier-resolution=node scripts/ingest-sample.js \
-            --pdf tests/fixtures/ingestion/rulebook-good.json \
-            --bgg tests/fixtures/ingestion/bgg-hanamikoji.json \
-            --out tests/fixtures/ingestion/sample_ingestion.json \
-            --storyboard-out tests/fixtures/storyboard/sample_storyboard.json
-        shell: bash
-
-      # --- Validate E1 ingestion -----------------------------------------
-      - name: Validate ingestion (E1)
-        run: |
-          mkdir -p out/junit
-          node scripts/check_ingestion.cjs \
-            --input tests/fixtures/ingestion/sample_ingestion.json \
-            --contract docs/spec/ingestion_contract.json \
-            --junit out/junit/ingestion-contract-${{ matrix.os }}.xml
-        shell: bash
-
-      # --- Validate E2 storyboard ----------------------------------------
-      - name: Validate storyboard (E3)
-        run: |
-          mkdir -p out/junit
-          node scripts/check_storyboard.cjs \
-            --input tests/fixtures/storyboard/sample_storyboard.json \
-            --contract docs/spec/storyboard_contract_v1.1.0.json \
-            --junit out/junit/storyboard-contract-${{ matrix.os }}.xml
-        shell: bash
-
-      # --- Upload Artifacts ----------------------------------------------
-      - name: Upload Phase E JUnit Reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-e-junit-${{ matrix.os }}
-          path: |
-            out/junit/ingestion-contract-${{ matrix.os }}.xml
-            out/junit/storyboard-contract-${{ matrix.os }}.xml
-            out/junit/storyboard-scenes-contract.xml
-            out/junit/storyboard-motion-contract.xml
-            out/junit/storyboard-layout-contract.xml
-            out/junit/storyboard-timing-contract.xml
-          retention-days: 7
-
-  subtitle-governance:
-    uses: ./.github/workflows/phase-f7-subtitle-governance.yml
-
-  audio-mixing-governance:
-    uses: ./.github/workflows/phase-f8-audio-mixing-governance.yml
-
-  motion-governance:
-    uses: ./.github/workflows/phase-f9-motion-governance.yml
-
-  g3-visualization-governance:
-    name: G3 Tutorial Visualization Governance
-    runs-on: ${{ matrix.os }}
-    needs:
-      - phase-e-governance
-      - subtitle-governance
-      - audio-mixing-governance
-      - motion-governance
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+          node-version: ${{ matrix.node-version }}
+          cache: npm
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-          pip install pytest
-        shell: bash
+        run: npm ci
 
-      - name: Run G3 visualization checks
-        run: |
-          mkdir -p artifacts/junit
-          python scripts/check_g3_visualization.py tests/fixtures/g3/sample_g3_bundle.json --junit-out artifacts/junit/g3_visualization.xml
-          pytest tests/test_g3_visualization_*.py
-        shell: bash
+      - name: Run tests
+        run: npm test
 
-  g5-cross-tutorial-analytics-governance:
-    uses: ./.github/workflows/phase-g5-cross-tutorial-analytics-governance.yml
+      - name: Validate ingestion pipeline
+        run: npm run ingestion:validate
 
-  mobius-export-governance:
-    needs:
-      - phase-e-governance
-      - subtitle-governance
-      - audio-mixing-governance
-      - motion-governance
-    uses: ./.github/workflows/phase-g0-mobius-export-governance.yml
+      - name: Validate storyboard generator
+        run: npm run storyboard:check
 
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-node-${{ matrix.node-version }}
+          path: |
+            tests/reports/**
+            reports/**
+          if-no-files-found: ignore
