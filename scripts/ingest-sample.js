@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { runIngestionPipeline } = require('../src/ingestion/pipeline');
-const { generateStoryboardFromIngestion } = require('../src/ingest/storyboard');
+const { generateStoryboardFromIngestion } = require('../src/storyboard/storyboard_from_ingestion');
 
 function parseArgs() {
   const args = process.argv.slice(2);

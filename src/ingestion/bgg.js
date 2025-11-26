@@ -1,4 +1,6 @@
 const fs = require('fs');
+// Contract-driven ingestion helper for hydrating BoardGameGeek metadata under
+// the DOCS/spec ingestion manifest.
 const path = require('path');
 const { loadIngestionContract } = require('./contract');
 

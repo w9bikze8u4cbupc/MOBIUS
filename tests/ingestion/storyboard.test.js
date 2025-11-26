@@ -1,4 +1,4 @@
-const { generateStoryboardFromIngestion } = require('../../src/ingest/storyboard');
+const { generateStoryboardFromIngestion } = require('../../src/storyboard/storyboard_from_ingestion');
 
 describe('generateStoryboardFromIngestion', () => {
   it('produces a governed storyboard with intro, setup steps, and end card', () => {
