@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
+import { packageRenderJob } from './packaging.js';
 
 const moduleDirname = path.join(process.cwd(), 'src', 'api');
 export const RENDER_OUTPUT_BASE =
@@ -95,8 +96,33 @@ export async function runRenderJob(job, options = {}) {
     child.on('exit', async (code) => {
       if (code === 0) {
         try {
+          let packagingResult = {};
+          try {
+            packagingResult = await packageRenderJob({
+              jobId: job.id,
+              outputDir: jobOutputDir,
+              jobConfig: job.config,
+            });
+          } catch (packagingError) {
+            console.error('Failed to package render job', job.id, packagingError);
+            packagingResult = { packagingError: packagingError?.message };
+          }
+
           const artifacts = await collectArtifacts(jobOutputDir, publicBasePath);
-          resolve(artifacts);
+          const manifestPath = packagingResult.manifestPath
+            ? path.join(publicBasePath, path.basename(packagingResult.manifestPath))
+            : null;
+          const zipPath = packagingResult.zipPath
+            ? path.join(publicBasePath, path.basename(packagingResult.zipPath))
+            : null;
+
+          resolve({
+            artifacts,
+            manifest: packagingResult.manifest,
+            manifestPath,
+            zipPath,
+            packagingError: packagingResult.packagingError,
+          });
         } catch (err) {
           reject(err);
         }
