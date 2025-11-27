@@ -48,6 +48,21 @@ import {
 } from './gatewaySecurity.js';
 import { createRequire } from 'module';
 import { registerPhaseERoutes } from './ingestionRoutes.js';
+import { registerImageRoutes } from './imageRoutes.js';
+import {
+  appendImages,
+  linkImagesToComponent,
+  listImages,
+  upsertImage,
+} from '../services/imageStore.js';
+import {
+  extractRulebookImages,
+  fetchBggImages,
+  ingestManualImage,
+  normalizeImageAsset,
+  runImageEnhancement,
+} from '../services/imagePipeline.js';
+import { fetchImagesFromExtractor } from '../services/imageExtractorClient.js';
 
 
 
@@ -1599,6 +1614,8 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage: storage });
+
+registerImageRoutes(app, { upload, extractorApiKey: IMAGE_EXTRACTOR_API_KEY });
 
 // Helper function to identify components using AI  
 async function identifyComponents(text) {
@@ -3190,6 +3207,7 @@ app.get('/load-project/:id', (req, res) => {
     }
   );
 });
+
 
 if (process.env.NODE_ENV !== 'test' && !process.env.JEST_WORKER_ID) {
   const PORT = process.env.PORT || 5001;
