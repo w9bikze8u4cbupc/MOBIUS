@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import json
 from typing import Any, Dict, List
+import argparse
 
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
@@ -77,6 +78,35 @@ class LocalizationConfig:
             forced_alignment_required=raw["rules"]["forcedAlignmentRequired"],
             duration_source=raw["rules"]["durationSource"],
         )
+
+
+def _dump_configs() -> None:
+    parser = argparse.ArgumentParser(
+        description="Emit captions and localization configuration as JSON for the Node gateway.",
+    )
+    parser.add_argument(
+        "--dump-captions-localization",
+        action="store_true",
+        help="Print combined captions/localization configuration to stdout.",
+    )
+    args = parser.parse_args()
+
+    if not args.dump_captions_localization:
+        parser.error("--dump-captions-localization is required to emit config")
+
+    captions = CaptionsConfig.load()
+    localization = LocalizationConfig.load()
+
+    payload = {
+        "captions": captions.__dict__,
+        "localization": localization.__dict__,
+    }
+
+    print(json.dumps(payload))
+
+
+if __name__ == "__main__":
+    _dump_configs()
 
 
 @dataclass

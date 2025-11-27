@@ -1,6 +1,14 @@
 import React from "react";
 
-export function VoiceStep({ sections, audio, audioLoading, onPlayAudio }) {
+export function VoiceStep({
+  sections,
+  audio,
+  audioLoading,
+  onPlayAudio,
+  availableCaptionLocales = [],
+  selectedCaptionLocales = [],
+  onToggleCaptionLocale = () => {},
+}) {
   return (
     <div className="pipeline-section">
       <h3>Voice & TTS</h3>
@@ -17,6 +25,25 @@ export function VoiceStep({ sections, audio, audioLoading, onPlayAudio }) {
           {audio[idx] && <audio id={`audio-${idx}`} src={audio[idx]} controls style={{ width: "100%" }} />}
         </div>
       ))}
+
+      {availableCaptionLocales.length > 0 && (
+        <div className="pipeline-section" style={{ background: "#f5f7fb" }}>
+          <h4 style={{ marginTop: 0 }}>Caption languages</h4>
+          <p className="pipeline-muted">Choose which locales should generate caption tracks.</p>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {availableCaptionLocales.map((locale) => (
+              <label key={locale} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={selectedCaptionLocales.includes(locale)}
+                  onChange={() => onToggleCaptionLocale(locale)}
+                />
+                {locale}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

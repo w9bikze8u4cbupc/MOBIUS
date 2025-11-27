@@ -7,6 +7,10 @@ import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
 
+const CONFIG_DIR = path.join(process.cwd(), 'config');
+const LOCALIZATION_GENERATED_PATH = path.join(CONFIG_DIR, 'localization.generated.json');
+const LOCALIZATION_FALLBACK_PATH = path.join(CONFIG_DIR, 'localization.json');
+
 function isVideoFile(filename) {
   return /\.(mp4|mov|mkv|webm)$/i.test(filename);
 }
@@ -31,6 +35,23 @@ async function computeSha256(filePath) {
     stream.on('data', (chunk) => hash.update(chunk));
     stream.on('end', () => resolve(hash.digest('hex')));
   });
+}
+
+function loadLocalizationConfig() {
+  const pathToUse = fs.existsSync(LOCALIZATION_GENERATED_PATH)
+    ? LOCALIZATION_GENERATED_PATH
+    : LOCALIZATION_FALLBACK_PATH;
+  if (!pathToUse || !fs.existsSync(pathToUse)) return {};
+  try {
+    const raw = fs.readFileSync(pathToUse, 'utf8');
+    const parsed = JSON.parse(raw);
+    return {
+      subtitleLocaleCodes:
+        parsed.subtitleLocaleCodes || parsed.subtitle_locale_codes || parsed.locales || {},
+    };
+  } catch (err) {
+    return {};
+  }
 }
 
 async function detectToolVersion(binary) {
@@ -146,7 +167,32 @@ function inferLanguage(filename) {
   return match ? match[1] : undefined;
 }
 
-async function buildMediaSection({ videos, audios, captions, images, outputDir }) {
+function inferCaptionFromFilename(filename, localizationConfig) {
+  const base = path.basename(filename);
+  const entries = Object.entries(localizationConfig.subtitleLocaleCodes || {});
+  for (const [locale, code] of entries) {
+    const regex = new RegExp(`(^|[-_\.])${code}(?=\.)`, 'i');
+    if (regex.test(base)) {
+      return { locale, languageCode: code };
+    }
+  }
+
+  const fallbackLanguage = inferLanguage(base);
+  const fallbackLocale = fallbackLanguage
+    ? entries.find(([, code]) => code === fallbackLanguage)?.[0]
+    : undefined;
+
+  return { locale: fallbackLocale, languageCode: fallbackLanguage };
+}
+
+async function buildMediaSection({
+  videos,
+  audios,
+  captions,
+  images,
+  outputDir,
+  localizationConfig,
+}) {
   const [videoEntries, audioEntries, captionEntries, imageEntries] = await Promise.all([
     describeMediaEntries({ files: videos, outputDir, kind: 'video' }),
     describeMediaEntries({ files: audios, outputDir, kind: 'audio' }),
@@ -155,12 +201,17 @@ async function buildMediaSection({ videos, audios, captions, images, outputDir }
       for (const file of captions) {
         const sha256 = await computeSha256(file);
         const stat = await fs.promises.stat(file);
+        const inferred = inferCaptionFromFilename(path.basename(file), localizationConfig || {});
+        const format = path.extname(file).replace('.', '').toLowerCase();
         entries.push({
           kind: 'captions',
           path: path.relative(outputDir, file),
           sizeBytes: stat.size,
           sha256,
-          language: inferLanguage(path.basename(file)),
+          language: inferred.languageCode || inferLanguage(path.basename(file)),
+          languageCode: inferred.languageCode || inferLanguage(path.basename(file)),
+          locale: inferred.locale,
+          format: format || undefined,
         });
       }
       return entries;
@@ -192,7 +243,12 @@ function buildChecksums(media) {
 
 export async function packageRenderJob({ jobId, outputDir, jobConfig }) {
   const artifactGroups = await collectArtifacts(outputDir);
-  const media = await buildMediaSection({ ...artifactGroups, outputDir });
+  const localizationConfig = loadLocalizationConfig();
+  const media = await buildMediaSection({
+    ...artifactGroups,
+    outputDir,
+    localizationConfig,
+  });
   const tools = await buildToolsSection();
   const env = buildEnvSection();
 
@@ -202,6 +258,7 @@ export async function packageRenderJob({ jobId, outputDir, jobConfig }) {
     generatedAt: new Date().toISOString(),
     tools,
     env,
+    localization: localizationConfig,
     media,
     referenceDurationSec:
       jobConfig?.timing?.totalDurationSec || media.referenceDurationSec || null,
