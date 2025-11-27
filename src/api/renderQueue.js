@@ -13,6 +13,10 @@ function buildJob(config, options = {}) {
     progress: 0,
     error: null,
     resultPaths: [],
+    manifest: null,
+    manifestPath: null,
+    zipPath: null,
+    packagingError: null,
     config,
   };
 }
@@ -33,7 +37,7 @@ async function processQueue(executor, outputOptions) {
   job.progress = 0;
 
   try {
-    const resultPaths = await executor(job, {
+    const result = await executor(job, {
       ...outputOptions,
       onProgress: (progress) => {
         if (typeof progress === 'number' && Number.isFinite(progress)) {
@@ -42,7 +46,19 @@ async function processQueue(executor, outputOptions) {
       },
     });
 
-    job.resultPaths = Array.isArray(resultPaths) ? resultPaths : [];
+    if (Array.isArray(result)) {
+      job.resultPaths = result;
+    } else if (result && typeof result === 'object') {
+      job.resultPaths = Array.isArray(result.artifacts)
+        ? result.artifacts
+        : [];
+      job.manifest = result.manifest || null;
+      job.manifestPath = result.manifestPath || null;
+      job.zipPath = result.zipPath || null;
+      job.packagingError = result.packagingError || null;
+    } else {
+      job.resultPaths = [];
+    }
     job.status = 'completed';
     job.progress = 100;
   } catch (err) {
@@ -73,7 +89,14 @@ export function getJob(jobId) {
 
 export function listJobArtifacts(jobId) {
   const job = jobs.get(jobId);
-  return job?.resultPaths || [];
+  if (!job) return [];
+  return {
+    artifacts: job.resultPaths || [],
+    manifest: job.manifest || null,
+    manifestPath: job.manifestPath || null,
+    zipPath: job.zipPath || null,
+    packagingError: job.packagingError || null,
+  };
 }
 
 export function getQueueSize() {
