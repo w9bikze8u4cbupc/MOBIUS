@@ -1,3 +1,6 @@
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const {
   evaluateChecklist,
   generateJUnitXml,
@@ -5,13 +8,18 @@ const {
 } = require('../../scripts/validate_mobius_checklist.cjs');
 
 describe('validate_mobius_checklist', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'checklist-fixture-'));
+  fs.mkdirSync(path.join(tempRoot, 'out'), { recursive: true });
+  fs.writeFileSync(path.join(tempRoot, 'out', 'video.mp4'), 'video-content');
+
   const passingContainer = {
     exists: true,
     data: {
-      videos: [{ path: 'out/video.mp4', duration: 120 }],
-      referenceDuration: 119.5,
-      captions: [{ path: 'captions.vtt' }],
-      manifest: { files: ['video.mp4', 'captions.vtt'] },
+      media: {
+        video: [{ path: 'out/video.mp4', durationSec: 120, sha256: 'abc' }],
+        captions: [{ path: 'captions.vtt', sha256: 'def' }],
+      },
+      referenceDurationSec: 119.5,
     },
   };
 
@@ -27,10 +35,14 @@ describe('validate_mobius_checklist', () => {
 
   const findResult = (results, id) => results.find((r) => r.id === id);
 
+  afterAll(() => {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
   test('maps container and junit artifacts to checklist pass/fail results', () => {
     const results = evaluateChecklist({
       container: passingContainer,
-      containerPath: 'exports/sushi-go/windows/container.json',
+      containerPath: path.join(tempRoot, 'container.json'),
       junitSummary: passingJUnit,
       junitPath: 'exports/sushi-go/windows/golden.junit.xml',
     });

@@ -104,21 +104,64 @@ function evaluateChecklist({ container, containerPath, junitSummary, junitPath }
     containerExists ? '' : container?.error || `Missing container at ${containerPath}`
   );
 
-  const videos = containerExists ? container.data.videos || [] : [];
+  const media = containerExists ? container.data.media || {} : {};
+  const videos = containerExists
+    ? Array.isArray(media.video)
+      ? media.video
+      : Array.isArray(container.data.videos)
+        ? container.data.videos
+        : []
+    : [];
+  const audios = containerExists
+    ? Array.isArray(media.audio)
+      ? media.audio
+      : Array.isArray(container.data.audio)
+        ? container.data.audio
+        : []
+    : [];
+  const captions = containerExists
+    ? Array.isArray(media.captions)
+      ? media.captions
+      : Array.isArray(container.data.captions)
+        ? container.data.captions
+        : []
+    : [];
+  const images = containerExists
+    ? Array.isArray(media.images)
+      ? media.images
+      : Array.isArray(container.data.images)
+        ? container.data.images
+        : []
+    : [];
+
   const hasVideos = videos.length > 0;
+  const containerDir = containerPath ? path.dirname(containerPath) : process.cwd();
+  const firstVideoPath = hasVideos ? videos[0].path || videos[0].file : undefined;
+  const resolvedVideoPath = firstVideoPath
+    ? path.isAbsolute(firstVideoPath)
+      ? firstVideoPath
+      : path.join(containerDir, firstVideoPath)
+    : undefined;
+  const videoPathExists = resolvedVideoPath ? fileExists(resolvedVideoPath) : false;
   pushResult(
     'G05',
     'At least one MP4 is listed in container output',
-    containerExists && hasVideos,
+    containerExists && hasVideos && videoPathExists,
     containerExists
       ? hasVideos
-        ? ''
+        ? videoPathExists
+          ? ''
+          : `Listed video not found at ${resolvedVideoPath}`
         : 'No videos listed in container.json'
       : 'container.json unavailable'
   );
 
-  const referenceDuration = containerExists ? container.data.referenceDuration : undefined;
-  const firstDuration = hasVideos ? videos[0].duration : undefined;
+  const referenceDuration = containerExists
+    ? media.referenceDurationSec ?? container.data.referenceDurationSec ?? container.data.referenceDuration
+    : undefined;
+  const firstDuration = hasVideos
+    ? videos[0].durationSec ?? videos[0].duration ?? videos[0].duration_ms / 1000
+    : undefined;
   const durationPass =
     containerExists &&
     typeof referenceDuration === 'number' &&
@@ -136,7 +179,6 @@ function evaluateChecklist({ container, containerPath, junitSummary, junitPath }
     })()
   );
 
-  const captions = containerExists ? container.data.captions || [] : [];
   const captionsPresent = captions.length > 0;
   pushResult(
     'I02',
@@ -149,12 +191,20 @@ function evaluateChecklist({ container, containerPath, junitSummary, junitPath }
       : 'container.json unavailable'
   );
 
-  const manifestPresent = containerExists && (container.data.manifest || container.data.checksums);
+  const allMediaEntries = [...videos, ...audios, ...captions, ...images];
+  const checksumComplete =
+    containerExists &&
+    allMediaEntries.length > 0 &&
+    allMediaEntries.every((entry) => typeof entry.sha256 === 'string' && entry.sha256.length > 0);
   pushResult(
     'I03',
     'Manifest or checksums generated',
-    Boolean(manifestPresent),
-    manifestPresent ? '' : containerExists ? 'Manifest/checksums missing' : 'container.json unavailable'
+    checksumComplete,
+    checksumComplete
+      ? ''
+      : containerExists
+        ? 'Missing sha256 on one or more media entries'
+        : 'container.json unavailable'
   );
 
   const junitExists = junitSummary?.exists;

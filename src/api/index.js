@@ -192,6 +192,10 @@ app.get('/api/render/:jobId/status', (req, res) => {
       progress: job.progress,
       error: job.error,
       resultPaths: job.resultPaths,
+      manifest: job.manifest,
+      manifestPath: job.manifestPath,
+      zipPath: job.zipPath,
+      packagingError: job.packagingError,
     },
   });
 });
@@ -215,6 +219,25 @@ app.get('/api/render/:jobId/artifacts', async (req, res) => {
     console.error('Failed to list artifacts for job', jobId, err);
     return res.status(500).json({ ok: false, error: 'Failed to list artifacts' });
   }
+});
+
+app.get('/api/render/:jobId/manifest', (req, res) => {
+  const { jobId } = req.params;
+  const job = getJob(jobId);
+
+  if (!job) {
+    return res.status(404).json({ ok: false, error: 'Job not found' });
+  }
+
+  if (job.status !== 'completed') {
+    return res.status(400).json({ ok: false, error: 'Job not completed yet' });
+  }
+
+  if (!job.manifest) {
+    return res.status(404).json({ ok: false, error: 'Manifest not available' });
+  }
+
+  return res.json({ ok: true, manifest: job.manifest, manifestPath: job.manifestPath, zipPath: job.zipPath });
 });
 
 
