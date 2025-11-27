@@ -144,6 +144,8 @@ function App() {
   const [storyboarding, setStoryboarding] = useState(false);
   const [renderLang, setRenderLang] = useState("en");
   const [renderResolution, setRenderResolution] = useState("1920x1080");
+  const [selectedCaptionLocales, setSelectedCaptionLocales] = useState(["en-US"]);
+  const [burnInCaptions, setBurnInCaptions] = useState(false);
   const [renderJobConfig, setRenderJobConfig] = useState(null);
   const [renderConfigError, setRenderConfigError] = useState("");
   const [showRenderConfigJson, setShowRenderConfigJson] = useState(false);
@@ -368,6 +370,16 @@ function App() {
     }
   };
 
+  const availableCaptionLocales = ["en-US", "fr-FR"];
+
+  const toggleCaptionLocale = (locale) => {
+    setSelectedCaptionLocales((prev) =>
+      prev.includes(locale)
+        ? prev.filter((entry) => entry !== locale)
+        : [...prev, locale],
+    );
+  };
+
   const handleRenderJobConfig = async () => {
     setRenderConfigError("");
     setShowRenderConfigJson(false);
@@ -383,6 +395,8 @@ function App() {
           projectId: projectId.trim(),
           lang: renderLang,
           resolution: renderResolution,
+          captionLocales: selectedCaptionLocales.join(","),
+          burnInCaptions,
         },
       });
 
@@ -451,6 +465,8 @@ function App() {
             projectId: projectId.trim(),
             lang: renderLang,
             resolution: renderResolution,
+            captionLocales: selectedCaptionLocales,
+            burnInCaptions,
           };
 
       if (!payload.projectId && !payload.config) {
@@ -994,6 +1010,9 @@ function App() {
               audio={audio}
               audioLoading={audioLoading}
               onPlayAudio={handlePlayAudio}
+              availableCaptionLocales={availableCaptionLocales}
+              selectedCaptionLocales={selectedCaptionLocales}
+              onToggleCaptionLocale={toggleCaptionLocale}
             />
           )}
 
@@ -1004,6 +1023,11 @@ function App() {
               setRenderLang={setRenderLang}
               renderResolution={renderResolution}
               setRenderResolution={setRenderResolution}
+              availableCaptionLocales={availableCaptionLocales}
+              selectedCaptionLocales={selectedCaptionLocales}
+              setSelectedCaptionLocales={setSelectedCaptionLocales}
+              burnInCaptions={burnInCaptions}
+              setBurnInCaptions={setBurnInCaptions}
               onGenerateConfig={handleRenderJobConfig}
               renderJobConfig={renderJobConfig}
               renderConfigError={renderConfigError}

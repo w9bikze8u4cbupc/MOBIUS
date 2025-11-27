@@ -143,7 +143,7 @@ registerRenderJobConfigRoute(app, {
 });
 
 app.post('/api/render', async (req, res) => {
-  const { projectId, lang, resolution, fps, mode, config } = req.body || {};
+  const { projectId, lang, resolution, fps, mode, captionLocales, burnInCaptions, config } = req.body || {};
 
   try {
     const renderConfig =
@@ -175,6 +175,8 @@ app.post('/api/render', async (req, res) => {
           resolution,
           fps,
           mode,
+          captionLocales,
+          burnInCaptions,
         });
       })();
 

@@ -13,6 +13,7 @@
     "gen:shotlists": "node scripts/compile-shotlist.mjs gigs/hanamikoji.json > tmp/shotlist.json",
     "gen:timelines": "echo 'Generating timelines...'",
     "render:proxy": "node scripts/render-ffmpeg.mjs tmp/timeline.json assets out/preview.mp4 --preview",
+    "sync:captions-config": "node scripts/sync_captions_config.cjs",
     "golden:check": "npm run golden:check:sushi && npm run golden:check:loveletter",
     "golden:update:sushi": "node scripts/generate_golden.js --game \"Sushi Go\" --in \"out/sushi-go/preview.mp4\" --out \"tests/golden/sushi-go\" --frames \"5,10,20\"",
     "golden:update:loveletter": "node scripts/generate_golden.js --game \"Love Letter\" --in \"out/love-letter/preview.mp4\" --out \"tests/golden/love-letter\" --frames \"5,10,20\"",

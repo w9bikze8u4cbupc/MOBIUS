@@ -6,6 +6,11 @@ export function RenderExportStep({
   setRenderLang,
   renderResolution,
   setRenderResolution,
+  availableCaptionLocales = [],
+  selectedCaptionLocales = [],
+  setSelectedCaptionLocales = () => {},
+  burnInCaptions = false,
+  setBurnInCaptions = () => {},
   onGenerateConfig,
   renderJobConfig,
   renderConfigError,
@@ -40,6 +45,42 @@ export function RenderExportStep({
             <option value="3840x2160">4K</option>
           </select>
         </label>
+      </div>
+
+      <div className="pipeline-grid-two">
+        <label style={{ display: "block" }}>
+          Burn-in captions
+          <input
+            type="checkbox"
+            checked={burnInCaptions}
+            onChange={(e) => setBurnInCaptions(e.target.checked)}
+            style={{ marginLeft: 8 }}
+          />
+        </label>
+        <div>
+          <strong>Caption locales</strong>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+            {availableCaptionLocales.map((locale) => {
+              const isChecked = selectedCaptionLocales.includes(locale);
+              return (
+                <label key={locale} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => {
+                      setSelectedCaptionLocales((prev) =>
+                        prev.includes(locale)
+                          ? prev.filter((entry) => entry !== locale)
+                          : [...prev, locale],
+                      );
+                    }}
+                  />
+                  {locale}
+                </label>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {renderConfigError && <p style={{ color: "red" }}>{renderConfigError}</p>}
