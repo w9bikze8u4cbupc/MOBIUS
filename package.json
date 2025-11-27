@@ -29,7 +29,8 @@
     "desktop:verify": "node scripts/verify-desktop-shortcuts.mjs",
     "ingestion:validate": "node scripts/check_ingestion.cjs",
     "storyboard:check": "node scripts/check_storyboard.cjs",
-    "checklist:validate": "node scripts/validate_mobius_checklist.cjs"
+    "checklist:validate": "node scripts/validate_mobius_checklist.cjs",
+    "mobius:e2e": "node scripts/run_mobius_e2e.cjs --game hanamikoji --lang en --resolution 1920x1080 --mode preview"
   },
   "keywords": [
     "game",
