@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
-import ReactMarkdown from "react-markdown";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.entry";
 import { GenesisFeedbackPanel } from "./GenesisFeedbackPanel";
@@ -12,6 +11,17 @@ import { GenesisCampaignPanel } from "./GenesisCampaignPanel";
 import { GenesisInspector } from "./GenesisInspector";
 import { GenesisQaReportButton } from "./GenesisQaReportButton";
 import { GenesisDebugBundleButton } from "./GenesisDebugBundleButton";
+import { PipelineStepper } from "./components/PipelineStepper";
+import { pipelineSteps } from "./components/pipelineSteps";
+import { ProjectSetupStep } from "./components/steps/ProjectSetupStep";
+import { MetadataInputStep } from "./components/steps/MetadataInputStep";
+import { IngestionReviewStep } from "./components/steps/IngestionReviewStep";
+import { ImagesStep } from "./components/steps/ImagesStep";
+import { ScriptStep } from "./components/steps/ScriptStep";
+import { StoryboardStep } from "./components/steps/StoryboardStep";
+import { VoiceStep } from "./components/steps/VoiceStep";
+import { RenderExportStep } from "./components/steps/RenderExportStep";
+import "./styles/pipeline.css";
 
 // Configure PDF.js worker
 GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -100,6 +110,7 @@ function App() {
   const [voice, setVoice] = useState(""); // Stores ElevenLabs voice ID
   const [gameName, setGameName] = useState("");
   const [projectId, setProjectId] = useState("");
+  const [bggUrl, setBggUrl] = useState("");
   const [metadata, setMetadata] = useState({
     publisher: "",
     playerCount: "",
@@ -140,6 +151,8 @@ function App() {
   const [renderJobError, setRenderJobError] = useState("");
   const [renderJobLoading, setRenderJobLoading] = useState(false);
   const renderPollRef = useRef(null);
+  const [activeStepId, setActiveStepId] = useState(pipelineSteps[0].id);
+  const [completedStepIds, setCompletedStepIds] = useState([]);
 
 
   // --- Effects ---
@@ -701,7 +714,7 @@ function App() {
 
 
   // --- Audio Playback for a single section (used by "Play Audio" button) ---
-  const handlePlayAudio = async (section, idx) => {
+  const handlePlayAudio = async (section, idx) => {
     // Check if audio already exists for this section
     if (audio[idx]) {
       // If audio exists, just play it
@@ -710,10 +723,10 @@ function App() {
         audioPlayer.play();
         return;
       }
-    }
+    }
 
-    // If audio doesn't exist, generate it
-    setAudioLoading(prev => ({ ...prev, [idx]: true })); // Set loading for this section
+    // If audio doesn't exist, generate it
+    setAudioLoading(prev => ({ ...prev, [idx]: true })); // Set loading for this section
     setError(""); // Clear general errors
 
     try {
@@ -758,589 +771,290 @@ function App() {
       setError(err.response?.data?.error || `Failed to generate audio for section ${idx}.`);
     } finally {
       setAudioLoading(prev => ({ ...prev, [idx]: false })); // Turn off loading state for this section
-    }
-  };
+    }
+  };
+
+  const goToStep = (stepId) => {
+    if (completedStepIds.includes(stepId)) {
+      setActiveStepId(stepId);
+    }
+  };
+
+  const markStepCompleted = (stepId) => {
+    setCompletedStepIds((prev) => (prev.includes(stepId) ? prev : [...prev, stepId]));
+  };
+
+  const advanceToNextStep = (currentStepId) => {
+    const currentIndex = pipelineSteps.findIndex((s) => s.id === currentStepId);
+    const next = pipelineSteps[currentIndex + 1];
+    if (next) {
+      setActiveStepId(next.id);
+    }
+  };
+
+  const handleConfirmStep = (stepId) => {
+    const setAndAdvance = () => {
+      markStepCompleted(stepId);
+      advanceToNextStep(stepId);
+    };
+
+    switch (stepId) {
+      case "project": {
+        if (!gameName.trim()) {
+          setError("Provide a game name before continuing.");
+          return;
+        }
+        setError("");
+        setAndAdvance();
+        break;
+      }
+      case "metadata": {
+        if (!rulebookText.trim()) {
+          setError("Upload a PDF or paste rulebook text to continue.");
+          return;
+        }
+        setError("");
+        setAndAdvance();
+        break;
+      }
+      case "ingestion": {
+        if (!ingestionManifest) {
+          setError("Run deterministic ingestion first.");
+          return;
+        }
+        setError("");
+        setAndAdvance();
+        break;
+      }
+      case "images": {
+        setError("");
+        setAndAdvance();
+        break;
+      }
+      case "script": {
+        if (!summary.trim()) {
+          setError("Generate and review the script before confirming.");
+          return;
+        }
+        setError("");
+        setAndAdvance();
+        break;
+      }
+      case "storyboard": {
+        if (!storyboardManifest) {
+          setError("Generate the storyboard to proceed.");
+          return;
+        }
+        setError("");
+        setAndAdvance();
+        break;
+      }
+      case "voice": {
+        if (!sections.length) {
+          setError("Generate sectioned audio from the script before confirming.");
+          return;
+        }
+        setError("");
+        setAndAdvance();
+        break;
+      }
+      case "render": {
+        if (renderJobState?.status !== "completed") {
+          setError("Start and finish a render job before final confirmation.");
+          return;
+        }
+        setError("");
+        markStepCompleted(stepId);
+        break;
+      }
+      default:
+        setAndAdvance();
+    }
+  };
 
 
-  // --- Rendered Output (JSX) ---
-  return (
-    <div style={{ maxWidth: 800, margin: "40px auto", fontFamily: "sans-serif", padding: 20 }}>
-      <h1>Board Game Tutorial Generator</h1>
+  
+  // --- Rendered Output (JSX) ---
+  return (
+    <div style={{ maxWidth: "1200px", margin: "24px auto", fontFamily: "sans-serif", padding: 20 }}>
+      <h1>Board Game Tutorial Generator</h1>
+      <div className="pipeline-layout">
+        <div className="pipeline-main">
+          <PipelineStepper
+            steps={pipelineSteps}
+            activeStepId={activeStepId}
+            completedStepIds={completedStepIds}
+            onStepClick={goToStep}
+            onConfirmStep={handleConfirmStep}
+          />
 
-      {/* --- Input Controls --- */}
-      <div style={{ marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 20 }}>
-        {/* Language Select */}
-        <div>
-          <label>
-            <b>Language:</b>{" "}
-            <select value={language} onChange={e => setLanguage(e.target.value)}>
-              <option value="english">English</option>
-              <option value="french">French</option>
-            </select>
-          </label>
-        </div>
+          {error && (<div style={{ color: "red", marginBottom: 12 }}>{error}</div>)}
+          {translationStatus.error && (<div style={{ color: "orange", marginBottom: 12 }}>{translationStatus.error}</div>)}
 
-        {/* Voice Select */}
-        <div>
-          <label>
-            <b>Voice:</b>{" "}
-            <select value={voice} onChange={e => setVoice(e.target.value)} disabled={getLanguageVoices(language).length === 0}>
-              {getLanguageVoices(language).map(v => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
-              {getLanguageVoices(language).length === 0 && <option value="">No voices available</option>}
-          </select>
-          </label>
-        </div>
+          {activeStepId === "project" && (
+            <ProjectSetupStep
+              projectId={projectId}
+              setProjectId={setProjectId}
+              gameName={gameName}
+              setGameName={setGameName}
+              language={language}
+              setLanguage={setLanguage}
+              voice={voice}
+              setVoice={setVoice}
+              getLanguageVoices={getLanguageVoices}
+              detailPercentage={detailPercentage}
+              setDetailPercentage={setDetailPercentage}
+              renderLang={renderLang}
+              setRenderLang={setRenderLang}
+              renderResolution={renderResolution}
+              setRenderResolution={setRenderResolution}
+            />
+          )}
 
-        {/* Detail Percentage */}
-        <div>
-          <label>
-            <b>Detail % Increase:</b>{" "}
-            <select value={detailPercentage} onChange={e => setDetailPercentage(Number(e.target.value))}>
-              <option value={5}>5%</option>
-              <option value={10}>10%</option>
-              <option value={25}>25%</option>
-              <option value={50}>50%</option>
-            </select>
-          </label>
-        </div>
-      </div>
+          {activeStepId === "metadata" && (
+            <MetadataInputStep
+              bggUrl={bggUrl}
+              setBggUrl={setBggUrl}
+              metadata={metadata}
+              handleMetadataChange={handleMetadataChange}
+              file={file}
+              dragActive={dragActive}
+              onDrag={handleDrag}
+              onDrop={handleDrop}
+              fileInputRef={fileInputRef}
+              onFileChange={handleFileChange}
+              rulebookText={rulebookText}
+              onTextChange={handleTextChange}
+              error={error}
+            />
+          )}
 
-      {/* Game Name Input */}
-      <div style={{ marginBottom: 20 }}>
-        <label>
-          <b>Game Name:</b>{" "}
-          <input
-            type="text"
-            value={gameName}
-            onChange={e => setGameName(e.target.value)}
-            placeholder="Enter the game name"
-            style={{ width: "calc(100% - 110px)", marginRight: 10 }}
-          />
-        </label>
-      </div>
+          {activeStepId === "ingestion" && (
+            <IngestionReviewStep
+              onRunIngestion={handleRunIngestion}
+              ingesting={ingesting}
+              rulebookText={rulebookText}
+              ingestionManifest={ingestionManifest}
+              ingestionError={ingestionError}
+            />
+          )}
 
+          {activeStepId === "images" && <ImagesStep />}
 
-      {/* Metadata Inputs */}
-      <div style={{ marginBottom: 20 }}>
-        <h3>Game Metadata (Optional - will attempt extraction if left blank)</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10 }}>
-        {/* Map over metadata keys to create inputs */}
-        {Object.keys(metadata).map(key => (
-            <input
-              key={key}
-              type="text"
-              value={metadata[key]}
-              onChange={e => handleMetadataChange(key, e.target.value)}
-              placeholder={key.charAt(0).toUpperCase() + key.slice(1) + " (e.g., " + (key === 'playerCount' ? '2-4' : key === 'gameLength' ? '30-60 min' : key === 'minimumAge' ? '8+' : key === 'theme' ? 'Deep-sea Adventure' : key === 'edition' ? 'Third Edition' : 'Publisher') + ")"}
-              // Apply red color if backend returned 'Not found' and user hasn't edited
-              style={{ color: metadata[key] === "Not found" ? "red" : "black" }}
-            />
-          ))}
+          {activeStepId === "script" && (
+            <ScriptStep
+              loading={loading}
+              rulebookText={rulebookText}
+              gameName={gameName}
+              onSummarize={handleSummarize}
+              summary={summary}
+              editedSummary={editedSummary}
+              onEdit={handleSummaryEdit}
+              onSave={handleSaveSummary}
+              translationStatus={translationStatus}
+              error={error}
+            />
+          )}
+
+          {activeStepId === "storyboard" && (
+            <StoryboardStep
+              onGenerateStoryboard={handleGenerateStoryboard}
+              storyboardManifest={storyboardManifest}
+              storyboardError={storyboardError}
+              storyboarding={storyboarding}
+            />
+          )}
+
+          {activeStepId === "voice" && (
+            <VoiceStep
+              sections={sections}
+              audio={audio}
+              audioLoading={audioLoading}
+              onPlayAudio={handlePlayAudio}
+            />
+          )}
+
+          {activeStepId === "render" && (
+            <RenderExportStep
+              projectId={projectId}
+              renderLang={renderLang}
+              setRenderLang={setRenderLang}
+              renderResolution={renderResolution}
+              setRenderResolution={setRenderResolution}
+              onGenerateConfig={handleRenderJobConfig}
+              renderJobConfig={renderJobConfig}
+              renderConfigError={renderConfigError}
+              showRenderConfigJson={showRenderConfigJson}
+              setShowRenderConfigJson={setShowRenderConfigJson}
+              onStartRender={handleStartRender}
+              renderJobState={renderJobState}
+              renderJobError={renderJobError}
+              renderJobLoading={renderJobLoading}
+            />
+          )}
+        </div>
+
+        <div className="pipeline-sidebar">
+          <h3 style={{ marginTop: 0 }}>GENESIS controls</h3>
+          <p className="pipeline-muted">Optional QA and campaign helpers.</p>
+          {projectId.trim() ? (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+                <GenesisHealthPanel projectId={projectId.trim()} />
+                <GenesisArtifactsPanel projectId={projectId.trim()} />
+                <GenesisCampaignPanel projectId={projectId.trim()} />
+              </div>
+              <div style={{ margin: "12px 0" }}>
+                <GenesisGoalsEditor projectId={projectId.trim()} />
+              </div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+                <GenesisAutoOptimizeButton projectId={projectId.trim()} />
+                <GenesisQaReportButton projectId={projectId.trim()} />
+                <GenesisDebugBundleButton projectId={projectId.trim()} />
+                <GenesisInspector projectId={projectId.trim()} />
+              </div>
+              <GenesisFeedbackPanel projectId={projectId.trim()} />
+            </>
+          ) : (
+            <p className="pipeline-muted">Enter a project ID to view GENESIS health, artifacts, and feedback.</p>
+          )}
         </div>
       </div>
 
-      <div
-        style={{
-          marginBottom: 20,
-          padding: 16,
-          border: '1px solid #ddd',
-          borderRadius: 8,
-          background: '#fafafa'
-        }}
-      >
-        <h3>Phase E Ingestion</h3>
-        <p style={{ marginTop: 0 }}>
-          Run the deterministic ingestion pipeline on the current rulebook text and preview the outline/components before
-          triggering storyboard generation.
-        </p>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <button
-            onClick={handleRunIngestion}
-            disabled={ingesting || !rulebookText}
-            style={{ padding: '10px 16px', background: ingesting ? '#b0bec5' : '#1976d2', color: '#fff', border: 'none', borderRadius: 4 }}
-          >
-            {ingesting ? 'Running ingestion…' : 'Run deterministic ingestion'}
-          </button>
-          <button
-            onClick={handleGenerateStoryboard}
-            disabled={!ingestionManifest || storyboarding}
-            style={{ padding: '10px 16px', background: !ingestionManifest || storyboarding ? '#b0bec5' : '#388e3c', color: '#fff', border: 'none', borderRadius: 4 }}
-          >
-            {storyboarding ? 'Generating storyboard…' : 'Generate storyboard'}
-          </button>
-        </div>
-
-        {ingestionError && <p style={{ color: 'red', marginTop: 12 }}>{ingestionError}</p>}
-        {storyboardError && <p style={{ color: 'red', marginTop: 4 }}>{storyboardError}</p>}
-
-        {ingestionManifest && (
-          <div style={{ marginTop: 16 }}>
-            <h4 style={{ marginBottom: 8 }}>Ingestion summary</h4>
-            <p style={{ margin: '4px 0' }}>
-              Headings: {ingestionManifest.outline.length} · Components: {ingestionManifest.components.length} · Pages:{' '}
-              {ingestionManifest.stats?.pageCount ?? ingestionManifest.assets?.pages?.length ?? 'n/a'}
-            </p>
-            <ul style={{ paddingLeft: 16 }}>
-              {ingestionManifest.outline.slice(0, 5).map((heading) => (
-                <li key={heading.id}>
-                  {heading.title} (page {heading.page})
-                </li>
-              ))}
-            </ul>
-            {ingestionManifest.outline.length > 5 && <p>Showing first 5 headings.</p>}
-          </div>
-        )}
-
-        {storyboardManifest && (
-          <div style={{ marginTop: 16 }}>
-            <h4 style={{ marginBottom: 8 }}>Storyboard scenes</h4>
-            <ul style={{ paddingLeft: 16 }}>
-              {storyboardManifest.scenes.map((scene) => (
-                <li key={scene.id}>
-                  {scene.id}: {scene.motion?.type || 'motion'} · {scene.durationMs}ms
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      {/* Render job configuration */}
-      <div
-        style={{
-          marginBottom: 20,
-          padding: 16,
-          border: "1px solid #ddd",
-          borderRadius: 8,
-          background: "#f8f9fb",
-        }}
-      >
-        <h3>Render / Preview</h3>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-          <label>
-            Language:
-            <select
-              value={renderLang}
-              onChange={(e) => setRenderLang(e.target.value)}
-              style={{ marginLeft: 8 }}
-            >
-              <option value="en">English</option>
-              <option value="fr">French</option>
-            </select>
-          </label>
-          <label>
-            Resolution:
-            <select
-              value={renderResolution}
-              onChange={(e) => setRenderResolution(e.target.value)}
-              style={{ marginLeft: 8 }}
-            >
-              <option value="1920x1080">1920x1080</option>
-              <option value="1280x720">1280x720</option>
-              <option value="1080x1080">1080x1080</option>
-            </select>
-          </label>
-          <button
-            onClick={handleRenderJobConfig}
-            style={{ padding: "8px 14px", background: "#1976d2", color: "#fff", border: "none", borderRadius: 4 }}
-          >
-            Generate render job config
-          </button>
-        </div>
-        {renderConfigError && (
-          <p style={{ color: "red", marginTop: 8 }}>{renderConfigError}</p>
-        )}
-        {renderJobConfig && (
-          <div style={{ marginTop: 12 }}>
-            <p style={{ margin: "4px 0" }}>
-              Resolution: {renderJobConfig.video.resolution.width}x{renderJobConfig.video.resolution.height} @ {renderJobConfig.video.fps}fps
-            </p>
-            <p style={{ margin: "4px 0" }}>
-              Scenes: {renderJobConfig.timing.scenes.length} · Total duration: {renderJobConfig.timing.totalDurationSec.toFixed(2)}s
-            </p>
-            <p style={{ margin: "4px 0" }}>
-              Assets: {renderJobConfig.assets.images.length} images / {renderJobConfig.assets.audio.length} audio / {renderJobConfig.assets.captions.length} captions
-            </p>
-            <button
-              onClick={() => setShowRenderConfigJson(!showRenderConfigJson)}
-              style={{ marginTop: 8, padding: "6px 10px" }}
-            >
-              {showRenderConfigJson ? "Hide raw JSON" : "View raw JSON"}
-            </button>
-            {showRenderConfigJson && (
-              <pre
-                style={{
-                  marginTop: 8,
-                  padding: 12,
-                  background: "#0b1021",
-                  color: "#d1e5ff",
-                  borderRadius: 4,
-                  overflowX: "auto",
-                }}
-              >
-                {JSON.stringify(renderJobConfig, null, 2)}
-              </pre>
-            )}
-          </div>
-        )}
-
+      {showThemePrompt && (
         <div
           style={{
-            marginTop: 16,
-            padding: 12,
-            borderTop: "1px solid #ddd",
+            position: "fixed",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            background: "#fff",
+            padding: 30,
+            borderRadius: 8,
+            boxShadow: "0 0 20px rgba(0,0,0,0.5)",
+            zIndex: 1000,
+            minWidth: 300,
+            maxWidth: 400,
+            textAlign: "center",
           }}
         >
-          <h4 style={{ marginBottom: 8 }}>Render execution</h4>
-          <p style={{ margin: "6px 0", color: "#555" }}>
-            Submit a render job to the gateway. If a render config is loaded, it will be used directly;
-            otherwise the server will build one using the project ID.
-          </p>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <button
-              onClick={handleStartRender}
-              disabled={renderJobLoading}
-              style={{ padding: "8px 14px", background: "#2e7d32", color: "#fff", border: "none", borderRadius: 4 }}
-            >
-              {renderJobLoading ? "Starting render..." : "Start render"}
-            </button>
-            {renderJobState && (
-              <span style={{ fontWeight: 600 }}>
-                Job: {renderJobState.id} · Status: {renderJobState.status} · Progress: {renderJobState.progress || 0}%
-              </span>
-            )}
-          </div>
-          {renderJobError && (
-            <p style={{ color: "red", marginTop: 6 }}>{renderJobError}</p>
-          )}
-          {renderJobState?.error && (
-            <p style={{ color: "red", marginTop: 6 }}>{renderJobState.error}</p>
-          )}
-          {renderJobState?.artifacts?.length ? (
-            <div style={{ marginTop: 10 }}>
-              <p style={{ margin: "4px 0" }}>Artifacts:</p>
-              <ul style={{ paddingLeft: 16 }}>
-                {renderJobState.artifacts.map((artifact) => (
-                  <li key={artifact}>
-                    <a href={artifact} target="_blank" rel="noreferrer">
-                      {artifact}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
+          <h3>Game Theme Required</h3>
+          <p>The theme could not be automatically detected. Please enter the game's theme to continue:</p>
+          <input
+            type="text"
+            value={metadata.theme}
+            onChange={(e) => handleMetadataChange("theme", e.target.value)}
+            placeholder="e.g., Deep-sea Adventure"
+            style={{ width: "calc(100% - 22px)", marginBottom: 15, padding: 10 }}
+          />
+          <button
+            onClick={handleThemeSubmit}
+            style={{ padding: "10px 20px", background: "#1976d2", color: "#fff", border: "none", borderRadius: 4 }}
+          >
+            Submit Theme
+          </button>
         </div>
-      </div>
-
-      {/* GENESIS Observability */}
-      <div
-        style={{
-          marginBottom: 20,
-          padding: 16,
-          border: "1px solid #ddd",
-          borderRadius: 8,
-          background: "#f8f9fb",
-        }}
-      >
-        <h3>GENESIS Observability</h3>
-        <div style={{ marginBottom: 12 }}>
-          <GenesisCampaignPanel />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <GenesisHealthPanel />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label>
-            <b>Project ID:</b>{" "}
-            <input
-              type="text"
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              placeholder="Enter project ID to load feedback"
-              style={{ width: "240px", marginLeft: 8 }}
-            />
-          </label>
-        </div>
-        {projectId.trim() ? (
-          <>
-            <div style={{ marginBottom: 12 }}>
-              <GenesisArtifactsPanel projectId={projectId.trim()} />
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <GenesisGoalsEditor projectId={projectId.trim()} />
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <GenesisAutoOptimizeButton projectId={projectId.trim()} />
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <GenesisQaReportButton projectId={projectId.trim()} />
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <GenesisDebugBundleButton projectId={projectId.trim()} />
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <GenesisInspector projectId={projectId.trim()} />
-            </div>
-            <GenesisFeedbackPanel projectId={projectId.trim()} />
-          </>
-        ) : (
-          <p style={{ color: "#666" }}>
-            Enter a project ID to view GENESIS health, artifacts, and feedback.
-          </p>
-        )}
-      </div>
-
-      {/* File Upload Area */}
-      <div
-        onDragEnter={handleDrag}
-        onDragOver={handleDrag}
-        onDragLeave={handleDrag}
-        onDrop={handleDrop}
-        style={{
-          border: dragActive ? "2px solid #1976d2" : "2px dashed #aaa",
-          borderRadius: 8,
-          padding: 30,
-          textAlign: "center",
-          background: dragActive ? "#e3f2fd" : "#fafbfc",
-          marginBottom: 20,
-          cursor: "pointer",
-          transition: "border-color 0.2s, background-color 0.2s"
-        }}
-        onClick={() => fileInputRef.current.click()}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/pdf" // Accept only PDF files
-          style={{ display: "none" }} // Hide the actual file input
-          onChange={handleFileChange}
-        />
-        <div style={{ fontSize: 18 }}>
-          {file ? `Selected: ${file.name}` : "Drag & drop a PDF file here, or click to select"}
-        </div>
-        {file && file.type !== "application/pdf" && (
-          <div style={{ color: "orange", marginTop: 10 }}>Warning: Only PDF files are supported for automatic text extraction.</div>
-        )}
-      </div>
-
-      {/* Rulebook Text Area */}
-      <div style={{ marginBottom: 20 }}>
-        <textarea
-          rows={10}
-          style={{ width: "100%", padding: 10, boxSizing: "border-box" }}
-          placeholder="Or paste rulebook text here..."
-          value={rulebookText}
-          onChange={handleTextChange}
-        />
-      </div>
-
-      {/* Generate Button */}
-      <button
-        onClick={handleSummarize}
-        disabled={loading || !rulebookText.trim() || !gameName.trim()} // Disable if loading or required fields are empty
-        style={{
-          padding: "10px 30px",
-          fontSize: 18,
-          background: loading || !rulebookText.trim() || !gameName.trim() ? "#b0bec5" : "#1976d2", // Grey out if disabled
-          color: "#fff",
-          border: "none",
-          borderRadius: 4,
-          cursor: loading || !rulebookText.trim() || !gameName.trim() ? "not-allowed" : "pointer",
-          marginRight: 10,
-          transition: "background-color 0.2s"
-        }}
-      >
-        {loading ? "Processing..." : "Generate Tutorial Script"}
-      </button>
-
-      {/* Error Message Display */}
-      {error && (
-        <div style={{ color: "red", marginTop: 20, fontWeight: "bold" }}>
-          {error}
-        </div>
-      )}
-      {/* Translation Status/Warning Display */}
-      {translationStatus.error && (
-        <div style={{ color: "orange", marginTop: 10, fontWeight: "bold" }}>
-          {translationStatus.error}
-        </div>
-      )}
-
-
-      {/* Theme Prompt Modal */}
-      {showThemePrompt && (
-        <div style={{
-          position: "fixed",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          background: "#fff",
-          padding: 30,
-          borderRadius: 8,
-          boxShadow: "0 0 20px rgba(0,0,0,0.5)",
-          zIndex: 1000, // Ensure modal is on top
-          minWidth: 300,
-          maxWidth: 400,
-          textAlign: "center"
-        }}>
-          <h3>Game Theme Required</h3>
-          <p>The theme could not be automatically detected. Please enter the game's theme to continue:</p>
-          <input
-            type="text"
-            value={metadata.theme}
-            onChange={e => handleMetadataChange("theme", e.target.value)}
-            placeholder="e.g., Deep-sea Adventure"
-            style={{ width: "calc(100% - 22px)", marginBottom: 15, padding: 10 }} // Adjust width for padding/border
-          />
-          <button
-            onClick={handleThemeSubmit}
-            disabled={loading || !metadata.theme.trim() || metadata.theme === "Not found"} // Disable if loading or theme is empty/default
-            style={{
-              padding: "10px 20px",
-              background: loading || !metadata.theme.trim() || metadata.theme === "Not found" ? "#b0bec5" : "#43a047",
-              color: "#fff",
-              border: "none",
-              borderRadius: 4,
-              cursor: loading || !metadata.theme.trim() || metadata.theme === "Not found" ? "not-allowed" : "pointer",
-            }}
-          >
-            {loading ? "Processing..." : "Submit Theme"}
-          </button>
-        </div>
-      )}
-
-
-      {/* Generated Summary Display and Edit */}
-      {summary && (
-        <>
-          <div style={{ marginTop: 40 }}>
-            <h2>📖 Tutorial Script Preview</h2>
-            {/* Metadata Display */}
-            <div style={{ marginBottom: 20, padding: 15, background: "#e0e0e0", borderRadius: 8 }}>
-              <h3>Metadata</h3>
-              {/* Display metadata from state, applying red style if it's the 'Not found' placeholder */}
-              {Object.keys(metadata).map(key => (
-                <p key={key} style={{ margin: '5px 0' }}>
-                  <b>{key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim()}:</b>{" "} {/* Format key like 'playerCount' to 'Player Count' */}
-                  <span style={{ color: metadata[key] === "Not found" ? "red" : "black" }}>
-                    {metadata[key] === "Not found" ? `${key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim()} is missing` : metadata[key]}
-                  </span>
-                </p>
-              ))}
-            </div>
-
-            {/* Editable Summary Textarea */}
-            <textarea
-              rows={20}
-              style={{ width: "100%", marginBottom: 10, padding: 10, boxSizing: "border-box" }}
-              value={editedSummary}
-              onChange={handleSummaryEdit}
-              placeholder="Edit the tutorial script here..."
-            />
-
-            {/* Edit Action Buttons */}
-            <button
-              onClick={handleSaveSummary}
-              disabled={loading || editedSummary === summary} // Disable if loading or no changes made
-              style={{
-                padding: "10px 20px",
-                fontSize: 16,
-                background: loading || editedSummary === summary ? "#b0bec5" : "#43a047",
-                color: "#fff",
-                border: "none",
-                borderRadius: 4,
-                cursor: loading || editedSummary === summary ? "not-allowed" : "pointer",
-                marginRight: 10,
-                transition: "background-color 0.2s"
-              }}
-            >
-              Save Edited Script
-            </button>
-            <button
-              onClick={handleSaveAndContinue}
-              disabled={loading || sections.length === 0} // Disable if loading or no sections
-              style={{
-                padding: "10px 20px",
-                fontSize: 16,
-                background: loading || sections.length === 0 ? "#b0bec5" : "#1976d2",
-                color: "#fff",
-                border: "none",
-                borderRadius: 4,
-                cursor: loading || sections.length === 0 ? "not-allowed" : "pointer",
-                transition: "background-color 0.2s"
-              }}
-            >
-              Save and Generate Audio
-            </button>
-          </div>
-
-          {/* Script Sections with Audio Players */}
-          <div style={{ marginTop: 20 }}>
-            <h3>Script Sections</h3>
-            {sections.map((section, idx) => (
-              <div
-                key={idx}
-                style={{
-                  border: "1px solid #ddd",
-                  borderRadius: 6,
-                  marginBottom: 24,
-                  padding: 16,
-                  background: "#fafbfc",
-                }}
-              >
-                {/* Render section markdown */}
-                <ReactMarkdown>{section}</ReactMarkdown>
-
-                {/* Audio Play Button */}
-                <button
-                  onClick={() => handlePlayAudio(section, idx)}
-                  disabled={audioLoading[idx] || !voice} // Disable if loading or no voice selected
-                  style={{
-                    marginTop: 10,
-                    background: audioLoading[idx] || !voice ? "#b0bec5" : "#43a047",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 4,
-                    padding: "6px 18px",
-                    fontSize: 16,
-                    cursor: audioLoading[idx] || !voice ? "not-allowed" : "pointer",
-                    transition: "background-color 0.2s"
-                  }}
-                >
-                  {audioLoading[idx] ? "Loading audio..." : "🔊 Play Audio"}
-                </button>
-                {/* Audio Player */}
-                <audio
-                  id={`audio-${idx}`}
-                  controls
-                  style={{ display: audio[idx] ? "block" : "none", marginTop: 10 }}
-                  src={audio[idx]} // Set the audio source URL
-                  onEnded={() => console.log(`Audio for section ${idx} ended.`)} // Optional: Add event handlers
-                  onError={(e) => console.error(`Audio playback error for section ${idx}:`, e)}
-                />
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-
-      {/* Footer */}
-      <footer style={{ marginTop: 60, color: "#888", fontSize: 14, textAlign: "center" }}>
-        <div>
-          <b>Tip:</b> Upload a PDF or paste the rulebook text for best results.
-        </div>
-        <div>
-          <b>Backend:</b> <code>{BACKEND_URL}</code>
-        </div>
-      </footer>
-    </div>
-  );
+      )}
+    </div>
+  );
 }
-
-export default App;
