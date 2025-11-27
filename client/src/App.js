@@ -153,6 +153,8 @@ function App() {
   const renderPollRef = useRef(null);
   const [activeStepId, setActiveStepId] = useState(pipelineSteps[0].id);
   const [completedStepIds, setCompletedStepIds] = useState([]);
+  const [projectImages, setProjectImages] = useState([]);
+  const [componentImageLinks, setComponentImageLinks] = useState({});
 
 
   // --- Effects ---
@@ -188,6 +190,11 @@ function App() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    setProjectImages([]);
+    setComponentImageLinks({});
+  }, [projectId]);
 
 
   // --- Helper Functions ---
@@ -827,6 +834,11 @@ function App() {
         break;
       }
       case "images": {
+        const hasLinked = Object.values(componentImageLinks || {}).some((links) => (links || []).length > 0);
+        if (!hasLinked) {
+          setError("Link at least one image to a component before confirming.");
+          return;
+        }
         setError("");
         setAndAdvance();
         break;
@@ -939,7 +951,18 @@ function App() {
             />
           )}
 
-          {activeStepId === "images" && <ImagesStep />}
+          {activeStepId === "images" && (
+            <ImagesStep
+              projectId={projectId}
+              components={ingestionManifest?.components || []}
+              images={projectImages}
+              componentImages={componentImageLinks}
+              onImagesUpdated={({ images, componentImages }) => {
+                setProjectImages(images || []);
+                setComponentImageLinks(componentImages || {});
+              }}
+            />
+          )}
 
           {activeStepId === "script" && (
             <ScriptStep
