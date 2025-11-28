@@ -67,13 +67,20 @@ import { fetchImagesFromExtractor } from '../services/imageExtractorClient.js';
 
 
 dotenv.config();
-console.log('Loaded OpenAI key:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
+
+// Using Replit AI Integrations for OpenAI access - no API key management needed
+// Charges are billed to your Replit credits
+const aiIntegrationsConfigured = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL && process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+console.log('Replit AI Integrations configured:', aiIntegrationsConfigured ? 'Yes' : 'No');
+console.log('Legacy OpenAI key:', process.env.OPENAI_API_KEY ? 'Yes (fallback)' : 'No');
 
 console.log('API file loaded!');
 
 const app = express();
 // Port configuration - use single source of truth
-const defaultPort = process.env.NODE_ENV === 'production' ? 5000 : 5001;
+// In production, serve on port 5000 (same as frontend build)
+// In development, use port 8000 (backend API only)
+const defaultPort = process.env.NODE_ENV === 'production' ? 5000 : 8000;
 const port = Number(process.env.PORT) || defaultPort;
 const gatewayConfig = buildGatewayConfig(process.env);
 ensureProductionKeys(gatewayConfig);
@@ -106,7 +113,16 @@ if (existsSync(clientBuildPath)) {
 // --- API Configuration ---
 const BACKEND_URL = `http://localhost:${port}`;
 const IMAGE_EXTRACTOR_API_KEY = process.env.IMAGE_EXTRACTOR_API_KEY;
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// This uses Replit's AI Integrations service for OpenAI-compatible API access
+// Falls back to direct OpenAI API key if AI Integrations is not configured
+const openai = new OpenAI({
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || undefined,
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
+});
+
+// the newest OpenAI model is "gpt-5" which was released August 7, 2025
+// do not change this unless explicitly requested by the user
+const DEFAULT_AI_MODEL = 'gpt-5';
 
 // Validate OUTPUT_DIR at startup  
 const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(moduleDirname, 'uploads', 'MobiusGames');
@@ -1387,12 +1403,12 @@ async function extractMetadata(rulebookText) {
   try {
     console.log('Extracting metadata...');
     const response = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-5',  // the newest OpenAI model is "gpt-5" which was released August 7, 2025
       messages: [
         { role: 'system', content: 'You are a precise metadata extractor.' },
         { role: 'user', content: prompt },
       ],
-      max_tokens: 500,
+      max_completion_tokens: 500,
       temperature: 0.5,
     });
     
@@ -1434,12 +1450,12 @@ ${chunk}`;
   try {
     console.log(`Summarizing chunk (${chunk.length} chars) in English`);
     const response = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-5',  // the newest OpenAI model is "gpt-5" which was released August 7, 2025
       messages: [
         { role: 'system', content: 'You are a professional boardgame educator and scriptwriter for a popular YouTube channel. Your job is to transform complex boardgame rulebooks into clear, concise, and engaging tutorial scripts that are easy for viewers to understand. You always focus on the core rules, logical structure, and accessible language, making sure the summary is suitable for narration in a video. Avoid unnecessary details, and prioritize clarity, flow, and audience engagement.' },
         { role: 'user', content: prompt },
       ],
-      max_tokens: 200,
+      max_completion_tokens: 500,
       temperature: 0.7,
     });
     
@@ -1686,7 +1702,7 @@ async function identifyComponents(text) {
       4. Output valid JSON only`;
     
     const response = await openai.chat.completions.create({  
-      model: "gpt-4",
+      model: "gpt-5",  // the newest OpenAI model is "gpt-5" which was released August 7, 2025
       messages: [  
         {  
           role: "system",  
@@ -1698,7 +1714,7 @@ async function identifyComponents(text) {
         }  
       ],  
       temperature: 0.3,  
-      max_tokens: 1000  
+      max_completion_tokens: 1000  
     });  
     
     // Parse the response  
@@ -2074,15 +2090,15 @@ Rulebook Text:`
 // Generate the summary
 console.log('Generating final English script using OpenAI...')
     const englishSummaryResponse = await openai.chat.completions.create({  
-      model: 'gpt-4',  
+      model: 'gpt-5',  // the newest OpenAI model is "gpt-5" which was released August 7, 2025
       messages: [  
         {  
           role: 'system',  
           content: "You are a master boardgame educator, scriptwriter, and video production consultant for a leading YouTube channel. Your role is to transform complex boardgame rulebooks into clear, engaging, and visually dynamic tutorial scripts. You always write in a friendly, enthusiastic, and conversational style, making the rules accessible for new and casual players while still respecting experienced gamers. You structure every script in logical, easy-to-follow sections, include visual cues and editing notes, and ensure the script is ready for high-quality video production. Your explanations are concise, step-by-step, and always highlight key rules, common mistakes, and tips for success. You never add information not found in the rulebook or provided data, and you always write for spoken delivery.",  
         },  
-        { role: 'user', content: finalPrompt }, // Use finalPrompt instead of englishFinalPrompt  
+        { role: 'user', content: finalPrompt },
       ],  
-      max_tokens: 4096,  
+      max_completion_tokens: 4096,  
       temperature: 0.7,  
     });  
     
@@ -2106,7 +2122,7 @@ console.log('Generating final English script using OpenAI...')
         ${englishSummary}`;  
         
         const translationResponse = await openai.chat.completions.create({  
-          model: 'gpt-4',  
+          model: 'gpt-5',  // the newest OpenAI model is "gpt-5" which was released August 7, 2025
           messages: [  
             {  
               role: 'system',  
@@ -2114,7 +2130,7 @@ console.log('Generating final English script using OpenAI...')
             },  
             { role: 'user', content: translationPrompt },  
           ],  
-          max_tokens: 4096,  
+          max_completion_tokens: 4096,  
           temperature: 0.3,  
         });  
         
@@ -2296,13 +2312,13 @@ if (!mainContentText || mainContentText.length < 30) {
 }
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-5',  // the newest OpenAI model is "gpt-5" which was released August 7, 2025
       messages: [
         { role: 'system', content: 'You are an expert boardgame metadata analyst and content strategist for YouTube tutorial videos. Your job is to extract all relevant information from provided boardgame text, focusing on details that will help create clear, engaging, and comprehensive video tutorials. You always prioritize accuracy, completeness, and clarity. You understand what information is most useful for teaching, explaining, and visually presenting boardgames to new and casual players. You return only the requested data as a clean, well-structured JSON object, using empty strings or empty arrays for any missing fields. You never add commentary or invent information' },
         { role: 'user', content: prompt }
       ],
       temperature: 0,
-      max_tokens: 800,
+      max_completion_tokens: 800,
     });
 
     const content = response.choices[0].message.content;
@@ -3145,7 +3161,7 @@ app.post('/api/extract-bgg-html', async (req, res) => {
     `;
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-5',  // the newest OpenAI model is "gpt-5" which was released August 7, 2025
       messages: [
         { 
           role: 'system', 
@@ -3154,7 +3170,7 @@ app.post('/api/extract-bgg-html', async (req, res) => {
         { role: 'user', content: prompt }
       ],
       temperature: 0,
-      max_tokens: 1200,
+      max_completion_tokens: 1200,
     });
 
     const content = response.choices[0].message.content;

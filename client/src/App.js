@@ -27,9 +27,10 @@ import "./styles/pipeline.css";
 GlobalWorkerOptions.workerSrc = pdfWorker;
 
 // Backend URL - use environment variable or relative path in production
+// In development, connects to Express backend on port 8000
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL !== undefined 
   ? process.env.REACT_APP_BACKEND_URL 
-  : (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5001');
+  : (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8000');
 
 // Updated VOICE_OPTIONS array with the specified ElevenLabs voices
 const VOICE_OPTIONS = [
