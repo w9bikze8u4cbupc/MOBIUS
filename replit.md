@@ -12,7 +12,7 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 - Features:
   - Project setup and game metadata input
   - PDF rulebook ingestion and BoardGameGeek integration
-  - AI-powered script generation (GPT-5)
+  - AI-powered script generation (GPT-4o)
   - Image management and enhancement
   - Storyboard creation
   - Voice synthesis with ElevenLabs
@@ -29,7 +29,7 @@ A comprehensive pipeline for generating professional game tutorial videos from s
   - RESTful API for all pipeline operations
   - PDF parsing and text extraction
   - BGG metadata scraping
-  - OpenAI integration via Replit AI Integrations (GPT-5)
+  - OpenAI integration via Replit AI Integrations (GPT-4o)
   - ElevenLabs integration for TTS
   - Image processing pipeline
   - Render queue management
@@ -66,7 +66,7 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 ## Recent Changes (Nov 28, 2025)
 
 ### AI-Powered Game Component Extraction (Latest)
-- Uses GPT-5 to extract exact physical game components from PDF rulebooks
+- Uses GPT-4o to extract exact physical game components from PDF rulebooks
 - Extracts: component name, exact quantity, category, and details (colors, materials)
 - Categories: cards, tokens, boards, tiles, dice, meeples, miniatures, markers, cubes, other
 - Uses first 12,000 characters of PDF for comprehensive component coverage
@@ -76,7 +76,7 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 - `/api/extract-game-components` endpoint in backend
 
 ### Automatic Metadata Extraction
-- AI-powered game metadata extraction from PDF rulebooks using GPT-5
+- AI-powered game metadata extraction from PDF rulebooks using GPT-4o
 - Extracts: game name, publisher, player count, game length, minimum age, theme, edition
 - Uses first 6000 characters of PDF for comprehensive metadata capture
 - BoardGameGeek integration (optional - requires API token as of 2024)
@@ -88,7 +88,7 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 
 ### AI Integration Upgrade
 - Set up Replit AI Integrations for OpenAI - no API key management needed
-- Upgraded all AI models from GPT-4 to GPT-5 for better script quality
+- Using GPT-4o model for reliable AI extraction and script generation
 - Updated OpenAI client to use AI Integrations with legacy fallback
 - Fixed malformed template literals in script generation prompts
 - Fixed typos in system prompts ("YoYou are" -> "You are")

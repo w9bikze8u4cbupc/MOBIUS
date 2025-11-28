@@ -121,8 +121,8 @@ const openai = new OpenAI({
 });
 
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025
-// do not change this unless explicitly requested by the user
-const DEFAULT_AI_MODEL = 'gpt-5';
+// gpt-4o is the recommended model for Replit AI Integrations
+const DEFAULT_AI_MODEL = 'gpt-4o';
 
 // Validate OUTPUT_DIR at startup  
 const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(moduleDirname, 'uploads', 'MobiusGames');
@@ -226,60 +226,54 @@ app.post('/api/extract-game-name', async (req, res) => {
       return res.status(400).json({ error: 'Insufficient text provided' });
     }
     
-    // Use first 10,000 chars - metadata can be at beginning or end of rulebook
-    const sampleText = text.substring(0, 10000);
-    console.log('Extracting game info from PDF text (first 10000 chars)');
+    // Use first 8,000 chars to stay within context limits
+    const sampleText = text.substring(0, 8000);
+    console.log('Extracting game info from PDF text (first 8000 chars)');
     
     const response = await openai.chat.completions.create({
       model: DEFAULT_AI_MODEL,
       messages: [
         {
-          role: 'system',
-          content: `You are an expert at analyzing board game rulebooks and extracting game information.
-Your task is to carefully read the rulebook text and extract ALL available metadata.
-
-Look for information in:
-- Title pages and headers
-- Copyright notices  
-- Back cover text
-- "About this game" sections
-- Component lists that mention player counts
-- Setup sections that mention player counts
-- Any mentions of game duration, age recommendations, etc.
-
-Be thorough - scan the entire text for any mentions of these details.`
-        },
-        {
           role: 'user',
-          content: `Extract all available information from this board game rulebook. Return a JSON object with these fields:
+          content: `Analyze this board game rulebook text and extract the following information. Return ONLY a JSON object with no additional text.
 
-- gameName: the exact name of the board game (REQUIRED - look for the title)
-- publisher: the publishing company (look for logos, copyright, "published by", "a game by")
-- playerCount: number of players (look for "2-4 players", "for X players", setup instructions)
-- gameLength: approximate play time (look for "minutes", "playing time", "duration")
-- minimumAge: age recommendation (look for "ages X+", "X and up", age ratings)
-- theme: the game's theme/setting (determine from the game's story, artwork descriptions, setting)
-- edition: edition or version if mentioned (look for "2nd Edition", "Revised", version numbers)
-
-Return ONLY a valid JSON object. For any field not found, use empty string "".
+JSON format:
+{
+  "gameName": "exact game title",
+  "publisher": "publisher name or empty string",
+  "playerCount": "e.g. 2-4 or empty string",
+  "gameLength": "e.g. 30-60 minutes or empty string", 
+  "minimumAge": "e.g. 10+ or empty string",
+  "theme": "brief theme description or empty string",
+  "edition": "edition info or empty string"
+}
 
 Rulebook text:
-${sampleText}`
+${sampleText}
+
+Return only the JSON object:`
         }
       ],
-      max_completion_tokens: 1000
+      max_completion_tokens: 500
     });
     
     console.log('OpenAI response:', JSON.stringify(response.choices[0]));
     
     let content = response.choices[0]?.message?.content?.trim() || '{}';
+    // Remove markdown code blocks if present
     content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    // Extract just the JSON object if there's extra text
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      content = jsonMatch[0];
+    }
     
     let result;
     try {
       result = JSON.parse(content);
     } catch (parseErr) {
-      console.error('Failed to parse JSON, extracting game name only');
+      console.error('Failed to parse JSON:', content);
+      // Try to extract game name from text
       const nameMatch = content.match(/gameName["\s:]+["']?([^"'\n,}]+)/i);
       result = { gameName: nameMatch ? nameMatch[1].trim() : '' };
     }
@@ -304,43 +298,32 @@ app.post('/api/extract-game-components', async (req, res) => {
     
     console.log('Extracting game components for:', gameName || 'Unknown game');
     
-    // Use a larger sample for component extraction - components can be anywhere in the rulebook
-    const sampleText = text.substring(0, 12000);
+    // Use first 8000 chars for component extraction
+    const sampleText = text.substring(0, 8000);
     
     const response = await openai.chat.completions.create({
       model: DEFAULT_AI_MODEL,
       messages: [
         {
-          role: 'system',
-          content: `You are an expert at analyzing board game rulebooks and extracting the complete list of physical game components.
-
-Your task is to identify EVERY physical component that comes in the game box, with EXACT quantities.
-
-For each component, extract:
-1. "name" - The specific name (e.g., "Action Card", "Resource Token", "Player Board")
-2. "quantity" - The exact number (e.g., "25", "100", "1 per player", "4 sets of 10")
-3. "category" - One of: cards, tokens, boards, tiles, dice, meeples, miniatures, markers, cubes, other
-4. "details" - Color, material, or distinguishing features if mentioned (e.g., "5 red, 5 blue", "wooden", "double-sided")
-
-IMPORTANT RULES:
-- Extract components with their EXACT quantities as stated in the rulebook
-- If there are multiple colors/types, list each separately OR note "X of each Y colors"
-- Include ALL components: cards, tokens, dice, boards, tiles, meeples, markers, cubes, miniatures, rulebook, reference cards, bags, etc.
-- If a component has sub-types (e.g., "25 Action cards: 10 Attack, 10 Defense, 5 Special"), include the breakdown
-- Use the exact terminology from the rulebook
-- Return a valid JSON array`
-        },
-        {
           role: 'user',
-          content: `Extract all physical game components from this ${gameName ? `"${gameName}" ` : ''}rulebook text:
+          content: `List all physical game components from this board game rulebook. Return ONLY a JSON array.
 
+Each component should have:
+- name: component name
+- quantity: number or description like "4" or "1 per player"
+- category: one of cards, tokens, boards, tiles, dice, meeples, miniatures, markers, cubes, other
+- details: colors or other details, or empty string
+
+Example format:
+[{"name": "Player Board", "quantity": "4", "category": "boards", "details": "double-sided"},{"name": "Resource Tokens", "quantity": "50", "category": "tokens", "details": "10 each of 5 colors"}]
+
+Rulebook text:
 ${sampleText}
 
-Return a JSON array of objects with: name, quantity, category, details
-Only return the JSON array, no other text.`
+Return only the JSON array:`
         }
       ],
-      max_completion_tokens: 2000
+      max_completion_tokens: 1500
     });
     
     let content = response.choices[0]?.message?.content?.trim() || '[]';
