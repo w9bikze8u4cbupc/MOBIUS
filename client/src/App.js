@@ -204,8 +204,93 @@ function App() {
     setComponentImageLinks({});
   }, [projectId]);
 
+  // Ref to track auto-extraction state without causing re-renders
+  const autoExtractionRef = useRef({ triggered: false, processedHash: '' });
 
-  // --- Helper Functions ---
+  // Auto-trigger extraction when entering Step 3 (Ingestion Review)
+  useEffect(() => {
+    if (activeStepId !== 'ingestion') return;
+    
+    const hasContent = rulebookText?.trim();
+    if (!hasContent) return;
+    
+    const textHash = rulebookText.substring(0, 100);
+    const ref = autoExtractionRef.current;
+    
+    // Skip if already triggered for this content
+    if (ref.triggered && ref.processedHash === textHash) return;
+    
+    // Skip if already processing
+    if (ingesting || extractingComponents) return;
+    
+    // Skip if we already have components for this content
+    if (gameComponents.length > 0 && ref.processedHash === textHash) return;
+    
+    // Mark as triggered
+    ref.triggered = true;
+    ref.processedHash = textHash;
+    
+    const runAutoExtraction = async () => {
+      console.log('Auto-triggering component extraction and document analysis...');
+      
+      // Extract components
+      try {
+        setExtractingComponents(true);
+        setIngestionError("");
+        const { data } = await axios.post(`${BACKEND_URL}/api/extract-game-components`, {
+          text: rulebookText,
+          gameName: gameName || null
+        });
+        const componentsWithIds = (data.components || []).map((comp, idx) => ({
+          ...comp,
+          id: comp.id || `comp-${Date.now()}-${idx}`
+        }));
+        setGameComponents(componentsWithIds);
+        if (componentsWithIds.length > 0) {
+          setCompletedStepIds(prev => 
+            prev.includes('ingestion') ? prev : [...prev, 'ingestion']
+          );
+        }
+      } catch (err) {
+        console.error('Auto component extraction failed:', err);
+        setIngestionError(`Component extraction failed: ${err.response?.data?.error || err.message}`);
+      } finally {
+        setExtractingComponents(false);
+      }
+      
+      // Run document analysis
+      try {
+        setIngesting(true);
+        const syntheticPages = buildSyntheticPagesFromText(rulebookText);
+        const idSlug = (projectId || gameName || 'rulebook').replace(/\s+/g, '-').toLowerCase();
+        const { data } = await axios.post(`${BACKEND_URL}/api/ingest`, {
+          documentId: idSlug || 'rulebook',
+          metadata: { title: gameName || 'Untitled Rulebook', gameId: idSlug || 'rulebook', source: 'client-ui' },
+          pages: syntheticPages,
+          bggMetadata: {}
+        });
+        setIngestionManifest(data.manifest);
+      } catch (err) {
+        console.error('Auto ingestion failed:', err);
+      } finally {
+        setIngesting(false);
+      }
+    };
+    
+    const timer = setTimeout(runAutoExtraction, 300);
+    return () => clearTimeout(timer);
+  }, [activeStepId, rulebookText, ingesting, extractingComponents, gameComponents.length, gameName, projectId]);
+
+  // Reset auto-trigger when PDF changes
+  useEffect(() => {
+    if (file) {
+      autoExtractionRef.current = { triggered: false, processedHash: '' };
+    }
+  }, [file]);
+
+
+
+  // --- Helper Functions ---
   // Get available voice options filtered by language
   const getLanguageVoices = (lang) => VOICE_OPTIONS.filter(v => v.language === lang);
 

@@ -65,13 +65,35 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 
 ## Recent Changes (Nov 28, 2025)
 
-### Step 4 Image Pipeline Enhancement (Latest)
-- **Image Thumbnails**: Now displays actual image thumbnails from extracted rulebook pages
+### Step 3 Automation (Latest)
+- **Automatic Component Extraction**: When entering Step 3 (Ingestion Review), MOBIUS automatically:
+  - Extracts game components using GPT-4o AI from the rulebook PDF
+  - Runs document structure analysis in parallel
+  - No manual button clicks required - just navigate to Step 3
+- **Smart Re-run Prevention**: Only triggers extraction when rulebook content changes
+- **Reset on PDF Change**: Auto-trigger resets when a new PDF is uploaded
+
+### Step 4 Intelligent Image Cropping (Latest)
+- **AI-Powered Component Detection**: GPT-4o vision analyzes each PDF page to detect component images
+  - Identifies distinct photographs/illustrations of game components
+  - Returns bounding boxes with confidence levels (high/medium/low)
+  - Labels detected images with component type (cards, dice, tokens, etc.)
+- **Automatic Image Cropping**: Uses sharp to crop detected regions from PDF pages
+  - Crops stored in `data/rulebook-images/<projectId>/crops/`
+  - Each crop includes metadata: parentPage, bbox, aiLabels, confidence
+- **Smart Fallback**: If no component images detected, falls back to full page extraction
+- **Auto-Matching**: Cropped images are automatically matched to components based on AI labels
+- **Enhanced UI**: 
+  - Shows AI-detected label and confidence level on each cropped image
+  - Displays parent page number for crop provenance
+  - Purple color coding for AI-detected crops
+- **Image Thumbnails**: Displays actual image thumbnails from extracted rulebook pages
   - Image serving endpoint: `GET /api/projects/:projectId/images/:imageId/file`
   - Secure path validation prevents directory traversal
-  - Works for rulebook images, manual uploads, and BGG images
+  - Works for rulebook images, ai-crops, manual uploads, and BGG images
 - **Auto-Gather Images**: One-click button to collect images from all available sources
-  - PDF rulebook extraction (converts pages to images)
+  - AI vision-based component cropping (primary method)
+  - PDF page extraction (fallback)
   - BoardGameGeek image fetch (requires BGG ID due to API auth changes)
 - **AI-Powered Component Matching**: GPT-4o analyzes images and automatically matches them to game components
   - Matches based on image source, tags, and component categories
@@ -81,24 +103,14 @@ A comprehensive pipeline for generating professional game tutorial videos from s
   - Confirm correct matches to reinforce patterns
   - Reject incorrect matches to teach MOBIUS what to avoid
   - Patterns stored in `data/match-learning.json`
-  - Uses component category, name, and successful/failed image tags
-  - Future matching will use learned patterns for better accuracy
-- **Enhanced ImagesStep UI**:
-  - Actual image thumbnails in gallery (not text placeholders)
-  - Component list shows linked image thumbnails in header
-  - Expand component to see all linked images with thumbnails
-  - Learning mode toggle with Confirm/Reject buttons on each image
-  - Collapsible image galleries grouped by source
-  - Manual source options collapsed by default
 - **New API Endpoints**:
   - `GET /api/projects/:projectId/images/:imageId/file` - Serve image files
-  - `POST /api/projects/:projectId/images/extract-pdf` - Extract images from PDF
+  - `POST /api/projects/:projectId/images/extract-crops` - AI-powered component cropping
+  - `POST /api/projects/:projectId/images/extract-pdf` - Full page extraction
   - `POST /api/projects/:projectId/images/auto-match` - AI component matching
   - `POST /api/projects/:projectId/match-feedback` - Save match confirmations
   - `GET /api/learning/patterns` - Get learned matching patterns
-  - `GET /api/learning/stats` - Get feedback statistics
 - **BGG Search Improvement**: Now searches by game name (not just ID) with graceful fallback
-- **PDF File Integration**: Auto-gather now uses the PDF file from Step 1 for image extraction
 
 ### AI-Powered Game Component Extraction
 - Uses GPT-4o to extract exact physical game components from PDF rulebooks

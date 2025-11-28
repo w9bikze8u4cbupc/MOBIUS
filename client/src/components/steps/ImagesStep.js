@@ -8,10 +8,34 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL !== undefined
 const getImageUrl = (projectId, image) => {
   if (!image) return null;
   if (image.originalUrl) return image.originalUrl;
-  if (image.fileKey || image.source === 'rulebook' || image.source === 'manual') {
+  if (image.fileKey || image.source === 'rulebook' || image.source === 'manual' || image.source === 'ai-crop') {
     return `${BACKEND_URL}/api/projects/${projectId}/images/${image.id}/file`;
   }
   return null;
+};
+
+const getSourceLabel = (source) => {
+  const labels = {
+    'rulebook': 'Rulebook Page',
+    'ai-crop': 'AI Detected',
+    'bgg': 'BoardGameGeek',
+    'manual': 'Manual Upload',
+    'bgg-components': 'BGG Components',
+    'web-search': 'Web Search'
+  };
+  return labels[source] || source;
+};
+
+const getSourceColor = (source) => {
+  const colors = {
+    'rulebook': '#2196f3',
+    'ai-crop': '#9c27b0',
+    'bgg': '#ff9800',
+    'manual': '#4caf50',
+    'bgg-components': '#ff5722',
+    'web-search': '#00bcd4'
+  };
+  return colors[source] || '#757575';
 };
 
 export function ImagesStep({ 
@@ -73,7 +97,7 @@ export function ImagesStep({
     onImagesUpdated?.(payload);
   };
 
-  // Automatic image gathering from all sources
+  // Automatic image gathering with intelligent cropping
   const handleAutoGather = async () => {
     if (!projectId) return;
     setLoading(true);
@@ -83,11 +107,74 @@ export function ImagesStep({
       const results = {
         sources: [],
         totalImages: 0,
-        errors: []
+        errors: [],
+        cropsFound: 0
       };
       
-      // Step 1: Extract images from PDF if available
-      if (pdfFile) {
+      // Step 1: Extract component images from PDF using AI vision
+      if (pdfFile && components.length > 0) {
+        try {
+          setAutoGatherStatus({ 
+            status: 'gathering', 
+            message: 'AI is scanning PDF for component images...' 
+          });
+          const formData = new FormData();
+          formData.append('file', pdfFile);
+          formData.append('components', JSON.stringify(components));
+          
+          const cropRes = await axios.post(
+            `${BACKEND_URL}/api/projects/${projectId}/images/extract-crops`,
+            formData,
+            { headers: { 'Content-Type': 'multipart/form-data' } }
+          );
+          
+          if (cropRes.data?.images) {
+            const mode = cropRes.data.mode;
+            const count = mode === 'crops' ? cropRes.data.cropsCount : cropRes.data.pagesCount;
+            results.sources.push({ 
+              source: mode === 'crops' ? 'ai-crops' : 'rulebook', 
+              count 
+            });
+            results.totalImages += cropRes.data.images.length;
+            results.cropsFound = cropRes.data.cropsCount || 0;
+            refreshState(cropRes.data);
+            
+            if (mode === 'crops') {
+              setAutoGatherStatus({ 
+                status: 'gathering', 
+                message: `Found ${count} component images, now checking other sources...` 
+              });
+            }
+          }
+        } catch (err) {
+          console.error('AI crop extraction failed:', err);
+          results.errors.push({ source: 'ai-crops', error: err.message });
+          
+          // Fallback to full page extraction
+          if (pdfFile) {
+            try {
+              setAutoGatherStatus({ status: 'gathering', message: 'Extracting full pages from PDF...' });
+              const formData = new FormData();
+              formData.append('file', pdfFile);
+              
+              const pdfRes = await axios.post(
+                `${BACKEND_URL}/api/projects/${projectId}/images/extract-pdf`,
+                formData,
+                { headers: { 'Content-Type': 'multipart/form-data' } }
+              );
+              
+              if (pdfRes.data?.images) {
+                results.sources.push({ source: 'rulebook', count: pdfRes.data.images.length });
+                results.totalImages += pdfRes.data.images.length;
+                refreshState(pdfRes.data);
+              }
+            } catch (fallbackErr) {
+              console.error('Fallback PDF extraction failed:', fallbackErr);
+            }
+          }
+        }
+      } else if (pdfFile) {
+        // No components yet, just extract full pages
         try {
           setAutoGatherStatus({ status: 'gathering', message: 'Extracting images from PDF rulebook...' });
           const formData = new FormData();
@@ -144,9 +231,10 @@ export function ImagesStep({
           errors: results.errors
         });
       } else {
+        const cropsMsg = results.cropsFound > 0 ? ` (${results.cropsFound} AI-detected component crops)` : '';
         setAutoGatherStatus({
           status: 'complete',
-          message: `Found ${results.totalImages} images from ${results.sources.length} sources`,
+          message: `Found ${results.totalImages} images from ${results.sources.length} sources${cropsMsg}`,
           sources: results.sources,
           errors: results.errors
         });
@@ -466,11 +554,24 @@ export function ImagesStep({
                             <span style={{ color: '#999' }}>📷</span>
                           )}
                         </div>
-                        <div style={{ color: '#666', wordBreak: 'break-all' }}>
-                          {(img.tags || []).find(t => t.startsWith('page-')) || img.id.substring(0, 15)}
+                        <div style={{ color: '#666', wordBreak: 'break-all', fontWeight: img.source === 'ai-crop' ? 600 : 400 }}>
+                          {img.aiLabels?.[0] || (img.tags || []).find(t => t.startsWith('page-')) || img.id.substring(0, 15)}
                         </div>
-                        <div style={{ color: '#999', marginTop: 4 }}>
-                          {(img.tags || []).filter(t => !t.startsWith('page-')).slice(0, 2).join(', ')}
+                        {img.source === 'ai-crop' && img.confidence && (
+                          <div style={{ 
+                            display: 'inline-block',
+                            padding: '2px 6px', 
+                            background: img.confidence === 'high' ? '#e8f5e9' : img.confidence === 'medium' ? '#fff3e0' : '#fce4ec',
+                            color: img.confidence === 'high' ? '#2e7d32' : img.confidence === 'medium' ? '#f57c00' : '#c62828',
+                            borderRadius: 4,
+                            fontSize: 9,
+                            marginTop: 4
+                          }}>
+                            {img.confidence} confidence
+                          </div>
+                        )}
+                        <div style={{ color: '#999', marginTop: 4, fontSize: 10 }}>
+                          {img.parentPage ? `Page ${img.parentPage}` : (img.tags || []).filter(t => !t.startsWith('page-')).slice(0, 2).join(', ')}
                         </div>
                       </div>
                     );
