@@ -234,24 +234,32 @@ app.post('/api/extract-game-name', async (req, res) => {
       model: DEFAULT_AI_MODEL,
       messages: [
         {
+          role: 'system',
+          content: 'You are a board game metadata extractor. Extract ALL available information from rulebooks. Never return empty strings if information can be found or reasonably inferred. Always respond with valid JSON only.'
+        },
+        {
           role: 'user',
-          content: `Analyze this board game rulebook text and extract the following information. Return ONLY a JSON object with no additional text.
+          content: `Extract game metadata from this rulebook. Look carefully for player count, game duration, age rating, and publisher info - this is usually on the first page or in the introduction.
 
-JSON format:
+IMPORTANT: Fill in ALL fields. Look for phrases like:
+- "2-4 players" or "For 2 to 4 players" 
+- "45 minutes" or "Playing time: 30-60 min"
+- "Ages 14+" or "14 and up"
+- Publisher logos or copyright notices
+
+Return this exact JSON structure:
 {
-  "gameName": "exact game title",
-  "publisher": "publisher name or empty string",
-  "playerCount": "e.g. 2-4 or empty string",
-  "gameLength": "e.g. 30-60 minutes or empty string", 
-  "minimumAge": "e.g. 10+ or empty string",
-  "theme": "brief theme description or empty string",
-  "edition": "edition info or empty string"
+  "gameName": "exact game title from the rulebook",
+  "publisher": "publisher name (look for copyright or logo)",
+  "playerCount": "player range like 2-4",
+  "gameLength": "duration like 45 minutes or 30-60 min", 
+  "minimumAge": "age rating like 14+ or 10+",
+  "theme": "brief theme description",
+  "edition": "edition if mentioned"
 }
 
 Rulebook text:
-${sampleText}
-
-Return only the JSON object:`
+${sampleText}`
         }
       ],
       max_completion_tokens: 500
@@ -276,6 +284,26 @@ Return only the JSON object:`
       // Try to extract game name from text
       const nameMatch = content.match(/gameName["\s:]+["']?([^"'\n,}]+)/i);
       result = { gameName: nameMatch ? nameMatch[1].trim() : '' };
+    }
+    
+    // Try to extract missing fields from the rulebook text directly
+    if (!result.playerCount) {
+      const playerMatch = sampleText.match(/(\d)\s*[-–to]+\s*(\d)\s*player/i);
+      if (playerMatch) {
+        result.playerCount = `${playerMatch[1]}-${playerMatch[2]}`;
+      }
+    }
+    if (!result.gameLength) {
+      const timeMatch = sampleText.match(/(\d+)\s*(?:[-–to]+\s*(\d+))?\s*min(?:ute)?s?/i);
+      if (timeMatch) {
+        result.gameLength = timeMatch[2] ? `${timeMatch[1]}-${timeMatch[2]} minutes` : `${timeMatch[1]} minutes`;
+      }
+    }
+    if (!result.minimumAge) {
+      const ageMatch = sampleText.match(/(?:ages?\s*)?(\d+)\s*\+/i);
+      if (ageMatch) {
+        result.minimumAge = `${ageMatch[1]}+`;
+      }
     }
     
     console.log('Extracted game info:', result);
