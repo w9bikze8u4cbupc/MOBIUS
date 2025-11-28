@@ -1,0 +1,17 @@
+modules = ["nodejs-20", "python-3.12", "bash"]
+[agent]
+expertMode = true
+
+[nix]
+channel = "stable-25_05"
+
+[userenv]
+
+[userenv.development]
+NODE_ENV = "development"
+PORT = "5001"
+MOBIUS_CORS_ORIGINS = "*"
+DB_DATA_DIR = "./data"
+DB_DATA_FILE = "./data/projects.json"
+OUTPUT_DIR = "./output/MobiusGames"
+JOB_RESULTS_DIR = "./src/api/uploads/render-jobs"
