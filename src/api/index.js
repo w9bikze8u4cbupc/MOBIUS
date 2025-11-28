@@ -226,8 +226,8 @@ app.post('/api/extract-game-name', async (req, res) => {
       return res.status(400).json({ error: 'Insufficient text provided' });
     }
     
-    const sampleText = text.substring(0, 4000);
-    console.log('Extracting game info from PDF text');
+    const sampleText = text.substring(0, 6000);
+    console.log('Extracting game info from PDF text (first 6000 chars)');
     
     const response = await openai.chat.completions.create({
       model: DEFAULT_AI_MODEL,
@@ -285,8 +285,26 @@ app.get('/api/bgg-search', async (req, res) => {
     
     console.log('Searching BGG for:', gameName);
     
+    const bggApiKey = process.env.BGG_API_KEY;
+    const headers = { 
+      'User-Agent': 'MobiusGamesTutorialGenerator/1.0',
+      'Accept': 'application/xml'
+    };
+    if (bggApiKey) {
+      headers['Authorization'] = `Bearer ${bggApiKey}`;
+    }
+    
     const searchUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(gameName)}&type=boardgame&exact=1`;
-    const searchResponse = await axios.get(searchUrl);
+    let searchResponse;
+    try {
+      searchResponse = await axios.get(searchUrl, { headers, timeout: 10000 });
+    } catch (searchErr) {
+      if (searchErr.response?.status === 401 || searchErr.response?.status === 403) {
+        console.log('BGG API requires authentication. Skipping BGG metadata.');
+        return res.json({ found: false, reason: 'BGG API requires authentication' });
+      }
+      throw searchErr;
+    }
     
     let parser = new xml2js.Parser({ explicitArray: false });
     let searchData = await parser.parseStringPromise(searchResponse.data);
@@ -301,13 +319,19 @@ app.get('/api/bgg-search', async (req, res) => {
     
     if (!gameId) {
       const fuzzyUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(gameName)}&type=boardgame`;
-      const fuzzyResponse = await axios.get(fuzzyUrl);
-      searchData = await parser.parseStringPromise(fuzzyResponse.data);
-      
-      if (searchData?.items?.item) {
-        const items = Array.isArray(searchData.items.item) ? searchData.items.item : [searchData.items.item];
-        if (items.length > 0) {
-          gameId = items[0].$.id;
+      try {
+        const fuzzyResponse = await axios.get(fuzzyUrl, { headers, timeout: 10000 });
+        searchData = await parser.parseStringPromise(fuzzyResponse.data);
+        
+        if (searchData?.items?.item) {
+          const items = Array.isArray(searchData.items.item) ? searchData.items.item : [searchData.items.item];
+          if (items.length > 0) {
+            gameId = items[0].$.id;
+          }
+        }
+      } catch (fuzzyErr) {
+        if (fuzzyErr.response?.status === 401 || fuzzyErr.response?.status === 403) {
+          return res.json({ found: false, reason: 'BGG API requires authentication' });
         }
       }
     }
@@ -320,7 +344,15 @@ app.get('/api/bgg-search', async (req, res) => {
     console.log('Found BGG game ID:', gameId);
     
     const detailsUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}&stats=1`;
-    const detailsResponse = await axios.get(detailsUrl);
+    let detailsResponse;
+    try {
+      detailsResponse = await axios.get(detailsUrl, { headers, timeout: 10000 });
+    } catch (detailsErr) {
+      if (detailsErr.response?.status === 401 || detailsErr.response?.status === 403) {
+        return res.json({ found: false, reason: 'BGG API requires authentication' });
+      }
+      throw detailsErr;
+    }
     const detailsData = await parser.parseStringPromise(detailsResponse.data);
     
     const item = detailsData?.items?.item;
@@ -354,7 +386,7 @@ app.get('/api/bgg-search', async (req, res) => {
     res.json(metadata);
   } catch (err) {
     console.error('BGG search error:', err.message);
-    res.status(500).json({ error: 'Failed to search BGG', details: err.message });
+    res.json({ found: false, error: err.message });
   }
 });
 

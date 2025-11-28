@@ -238,9 +238,9 @@ function App() {
       setExtractingName(true);
       console.log('Extracting game info from PDF...');
       
-      // Step 1: Extract game info from PDF
+      // Step 1: Extract game info from PDF - use first 8000 chars for better coverage
       const pdfResponse = await axios.post(`${BACKEND_URL}/api/extract-game-name`, {
-        text: text.substring(0, 5000)
+        text: text.substring(0, 8000)
       });
       console.log('PDF extraction response:', pdfResponse.data);
       
@@ -252,18 +252,19 @@ function App() {
         const slug = extractedName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
         setProjectId(slug);
         
-        // Apply PDF-extracted metadata first
-        setMetadata(prev => ({
-          publisher: pdfData.publisher || prev.publisher,
-          playerCount: pdfData.playerCount || prev.playerCount,
-          gameLength: pdfData.gameLength || prev.gameLength,
-          minimumAge: pdfData.minimumAge || prev.minimumAge,
-          theme: pdfData.theme || prev.theme,
-          edition: pdfData.edition || prev.edition
-        }));
+        // Store PDF metadata (may have empty strings)
+        const pdfMetadata = {
+          publisher: pdfData.publisher || '',
+          playerCount: pdfData.playerCount || '',
+          gameLength: pdfData.gameLength || '',
+          minimumAge: pdfData.minimumAge || '',
+          theme: pdfData.theme || '',
+          edition: pdfData.edition || ''
+        };
         
         // Step 2: Search BGG for additional metadata
         console.log('Searching BGG for:', extractedName);
+        let bggMetadata = null;
         try {
           const bggResponse = await axios.get(`${BACKEND_URL}/api/bgg-search`, {
             params: { gameName: extractedName }
@@ -271,23 +272,25 @@ function App() {
           console.log('BGG response:', bggResponse.data);
           
           if (bggResponse.data?.found) {
-            const bgg = bggResponse.data;
-            setBggUrl(bgg.bggUrl || '');
-            
-            // Merge BGG data (BGG takes priority for missing fields)
-            setMetadata(prev => ({
-              publisher: prev.publisher || bgg.publisher || '',
-              playerCount: prev.playerCount || bgg.playerCount || '',
-              gameLength: prev.gameLength || bgg.gameLength || '',
-              minimumAge: prev.minimumAge || bgg.minimumAge || '',
-              theme: prev.theme || bgg.theme || '',
-              edition: prev.edition || ''
-            }));
-            console.log('BGG metadata applied');
+            bggMetadata = bggResponse.data;
+            setBggUrl(bggMetadata.bggUrl || '');
           }
         } catch (bggErr) {
-          console.log('BGG search failed, using PDF data only:', bggErr.message);
+          console.log('BGG search failed:', bggErr.message);
         }
+        
+        // Step 3: Merge metadata - prefer PDF values, fall back to BGG for empty fields
+        const mergedMetadata = {
+          publisher: pdfMetadata.publisher || bggMetadata?.publisher || '',
+          playerCount: pdfMetadata.playerCount || bggMetadata?.playerCount || '',
+          gameLength: pdfMetadata.gameLength || bggMetadata?.gameLength || '',
+          minimumAge: pdfMetadata.minimumAge || bggMetadata?.minimumAge || '',
+          theme: pdfMetadata.theme || bggMetadata?.theme || '',
+          edition: pdfMetadata.edition || ''
+        };
+        
+        setMetadata(mergedMetadata);
+        console.log('Merged metadata:', mergedMetadata);
       } else {
         console.log('No game name found in PDF');
       }
@@ -1016,6 +1019,9 @@ function App() {
               onDrop={handleDrop}
               extractingName={extractingName}
               loading={loading}
+              metadata={metadata}
+              setMetadata={setMetadata}
+              bggUrl={bggUrl}
             />
           )}
 

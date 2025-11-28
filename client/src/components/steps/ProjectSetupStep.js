@@ -22,6 +22,9 @@ export function ProjectSetupStep({
   onDrop,
   extractingName,
   loading,
+  metadata,
+  setMetadata,
+  bggUrl,
 }) {
   const voices = getLanguageVoices(language);
   const dropRef = useRef(null);
@@ -157,6 +160,85 @@ export function ProjectSetupStep({
                 placeholder="Auto-generated from game name"
               />
             </label>
+          </div>
+
+          {metadata && (
+            <div style={{ marginTop: 16, padding: 16, backgroundColor: '#f5f5f5', borderRadius: 8 }}>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: 14, color: '#555' }}>
+                Extracted Game Metadata
+                {bggUrl && (
+                  <a href={bggUrl} target="_blank" rel="noopener noreferrer" 
+                     style={{ marginLeft: 12, fontSize: 12, color: '#1976d2' }}>
+                    View on BGG
+                  </a>
+                )}
+              </h4>
+              <div className="pipeline-grid-two" style={{ gap: 8 }}>
+                <label style={{ marginBottom: 0 }}>
+                  Publisher
+                  <input
+                    type="text"
+                    value={metadata.publisher || ''}
+                    onChange={(e) => setMetadata(prev => ({...prev, publisher: e.target.value}))}
+                    placeholder="Not found"
+                    style={{ fontSize: 13 }}
+                  />
+                </label>
+                <label style={{ marginBottom: 0 }}>
+                  Player Count
+                  <input
+                    type="text"
+                    value={metadata.playerCount || ''}
+                    onChange={(e) => setMetadata(prev => ({...prev, playerCount: e.target.value}))}
+                    placeholder="e.g., 2-4 players"
+                    style={{ fontSize: 13 }}
+                  />
+                </label>
+                <label style={{ marginBottom: 0 }}>
+                  Play Time
+                  <input
+                    type="text"
+                    value={metadata.gameLength || ''}
+                    onChange={(e) => setMetadata(prev => ({...prev, gameLength: e.target.value}))}
+                    placeholder="e.g., 45-60 minutes"
+                    style={{ fontSize: 13 }}
+                  />
+                </label>
+                <label style={{ marginBottom: 0 }}>
+                  Minimum Age
+                  <input
+                    type="text"
+                    value={metadata.minimumAge || ''}
+                    onChange={(e) => setMetadata(prev => ({...prev, minimumAge: e.target.value}))}
+                    placeholder="e.g., 10+"
+                    style={{ fontSize: 13 }}
+                  />
+                </label>
+                <label style={{ marginBottom: 0 }}>
+                  Theme
+                  <input
+                    type="text"
+                    value={metadata.theme || ''}
+                    onChange={(e) => setMetadata(prev => ({...prev, theme: e.target.value}))}
+                    placeholder="e.g., Fantasy, Sci-Fi"
+                    style={{ fontSize: 13 }}
+                  />
+                </label>
+                <label style={{ marginBottom: 0 }}>
+                  Edition
+                  <input
+                    type="text"
+                    value={metadata.edition || ''}
+                    onChange={(e) => setMetadata(prev => ({...prev, edition: e.target.value}))}
+                    placeholder="e.g., 2nd Edition"
+                    style={{ fontSize: 13 }}
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+
+          <div className="pipeline-grid-two" style={{ marginTop: 16 }}>
             <label>
               Output Language
               <select value={language} onChange={(e) => setLanguage(e.target.value)}>
