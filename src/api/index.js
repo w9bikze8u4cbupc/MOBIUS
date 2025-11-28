@@ -267,8 +267,7 @@ Rulebook text:
 ${sampleText}`
         }
       ],
-      max_completion_tokens: 1000,
-      temperature: 0.2
+      max_completion_tokens: 1000
     });
     
     console.log('OpenAI response:', JSON.stringify(response.choices[0]));
@@ -341,8 +340,7 @@ Return a JSON array of objects with: name, quantity, category, details
 Only return the JSON array, no other text.`
         }
       ],
-      max_completion_tokens: 2000,
-      temperature: 0.2,
+      max_completion_tokens: 2000
     });
     
     let content = response.choices[0]?.message?.content?.trim() || '[]';
