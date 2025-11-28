@@ -65,6 +65,17 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 
 ## Recent Changes (Nov 28, 2025)
 
+### Automatic Metadata Extraction (Latest)
+- AI-powered game metadata extraction from PDF rulebooks using GPT-5
+- Extracts: game name, publisher, player count, game length, minimum age, theme, edition
+- Uses first 6000 characters of PDF for comprehensive metadata capture
+- BoardGameGeek integration (optional - requires API token as of 2024)
+- Intelligent fallback: PDF metadata -> BGG metadata -> user input
+- Metadata state properly shared across all pipeline stages
+- Redesigned UI with horizontal pill-style step navigation
+- Prominent centered PDF drop zone for better user experience
+- Editable metadata fields with real-time updates
+
 ### AI Integration Upgrade
 - Set up Replit AI Integrations for OpenAI - no API key management needed
 - Upgraded all AI models from GPT-4 to GPT-5 for better script quality
@@ -78,6 +89,8 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 - Added ES Module support via src/api/package.json and src/services/package.json
 - Added explainChunkWithAI and extractComponentsWithAI functions
 - Configured dual workflows: Start Backend (port 8000) and Start Frontend (port 5000)
+- `/api/extract-game-name` endpoint extracts full game metadata from PDF text
+- `/api/bgg-search` endpoint for BoardGameGeek integration (handles 401 auth gracefully)
 
 ### UI/UX Enhancements
 - Added comprehensive CSS improvements in pipeline.css:
