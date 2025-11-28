@@ -226,27 +226,24 @@ app.post('/api/extract-game-name', async (req, res) => {
       return res.status(400).json({ error: 'Insufficient text provided' });
     }
     
-    console.log('Extracting game name from text of length:', text.length);
+    const sampleText = text.substring(0, 1500);
+    console.log('Extracting game name from text sample');
     
     const response = await openai.chat.completions.create({
       model: DEFAULT_AI_MODEL,
       messages: [
         {
-          role: 'system',
-          content: 'You are an expert at identifying board game names from rulebook text. Extract ONLY the official game name. Return just the game name, nothing else. No quotes, no punctuation, just the name.'
-        },
-        {
           role: 'user',
-          content: `Extract the board game name from this rulebook text. Return ONLY the game name:\n\n${text}`
+          content: `What is the name of this board game? Reply with ONLY the game name, one word or phrase.\n\n${sampleText}`
         }
       ],
-      max_completion_tokens: 200
+      max_completion_tokens: 500
     });
     
     console.log('OpenAI response:', JSON.stringify(response.choices[0]));
     
     let gameName = response.choices[0]?.message?.content?.trim() || '';
-    gameName = gameName.replace(/^["']|["']$/g, '');
+    gameName = gameName.replace(/^["']|["']$/g, '').replace(/\.$/, '');
     console.log('Extracted game name:', gameName);
     res.json({ gameName });
   } catch (err) {

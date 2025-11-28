@@ -236,13 +236,18 @@ function App() {
   const extractGameNameFromText = async (text) => {
     try {
       setExtractingName(true);
+      console.log('Calling extract-game-name API...');
       const response = await axios.post(`${BACKEND_URL}/api/extract-game-name`, {
         text: text.substring(0, 3000)
       });
+      console.log('Game name API response:', response.data);
       if (response.data?.gameName) {
+        console.log('Setting game name to:', response.data.gameName);
         setGameName(response.data.gameName);
         const slug = response.data.gameName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
         setProjectId(slug);
+      } else {
+        console.log('No game name in response');
       }
     } catch (err) {
       console.error('Failed to extract game name:', err);
@@ -1072,6 +1077,26 @@ function App() {
               renderJobLoading={renderJobLoading}
             />
           )}
+
+          <div style={{ marginTop: 16, textAlign: 'right' }}>
+            <button
+              className="confirm-step-btn"
+              onClick={() => handleConfirmStep(activeStepId)}
+              style={{
+                background: 'linear-gradient(90deg, #1565c0, #1976d2)',
+                color: 'white',
+                border: 'none',
+                padding: '12px 24px',
+                borderRadius: 8,
+                fontSize: 15,
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                textTransform: 'uppercase'
+              }}
+            >
+              Confirm {pipelineSteps.find(s => s.id === activeStepId)?.label} & Continue
+            </button>
+          </div>
         </div>
 
         <div className="pipeline-sidebar">
