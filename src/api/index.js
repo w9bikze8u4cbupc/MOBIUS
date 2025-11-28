@@ -226,30 +226,49 @@ app.post('/api/extract-game-name', async (req, res) => {
       return res.status(400).json({ error: 'Insufficient text provided' });
     }
     
-    const sampleText = text.substring(0, 6000);
-    console.log('Extracting game info from PDF text (first 6000 chars)');
+    // Use first 10,000 chars - metadata can be at beginning or end of rulebook
+    const sampleText = text.substring(0, 10000);
+    console.log('Extracting game info from PDF text (first 10000 chars)');
     
     const response = await openai.chat.completions.create({
       model: DEFAULT_AI_MODEL,
       messages: [
         {
-          role: 'user',
-          content: `Extract information from this board game rulebook. Return a JSON object with these fields:
-- gameName: the name of the board game
-- publisher: the publishing company (if found)
-- playerCount: number of players (e.g., "2-4 players")
-- gameLength: play time (e.g., "45-60 minutes")
-- minimumAge: age recommendation (e.g., "10+")
-- theme: the game's theme/setting (e.g., "fantasy", "sci-fi", "underwater")
-- edition: edition if mentioned (e.g., "2nd Edition")
+          role: 'system',
+          content: `You are an expert at analyzing board game rulebooks and extracting game information.
+Your task is to carefully read the rulebook text and extract ALL available metadata.
 
-Return ONLY valid JSON, no explanation. Use empty string "" if info not found.
+Look for information in:
+- Title pages and headers
+- Copyright notices  
+- Back cover text
+- "About this game" sections
+- Component lists that mention player counts
+- Setup sections that mention player counts
+- Any mentions of game duration, age recommendations, etc.
+
+Be thorough - scan the entire text for any mentions of these details.`
+        },
+        {
+          role: 'user',
+          content: `Extract all available information from this board game rulebook. Return a JSON object with these fields:
+
+- gameName: the exact name of the board game (REQUIRED - look for the title)
+- publisher: the publishing company (look for logos, copyright, "published by", "a game by")
+- playerCount: number of players (look for "2-4 players", "for X players", setup instructions)
+- gameLength: approximate play time (look for "minutes", "playing time", "duration")
+- minimumAge: age recommendation (look for "ages X+", "X and up", age ratings)
+- theme: the game's theme/setting (determine from the game's story, artwork descriptions, setting)
+- edition: edition or version if mentioned (look for "2nd Edition", "Revised", version numbers)
+
+Return ONLY a valid JSON object. For any field not found, use empty string "".
 
 Rulebook text:
 ${sampleText}`
         }
       ],
-      max_completion_tokens: 1000
+      max_completion_tokens: 1000,
+      temperature: 0.2
     });
     
     console.log('OpenAI response:', JSON.stringify(response.choices[0]));

@@ -1073,15 +1073,8 @@ function App() {
               setBggUrl={setBggUrl}
               metadata={metadata}
               handleMetadataChange={handleMetadataChange}
+              gameName={gameName}
               file={file}
-              dragActive={dragActive}
-              onDrag={handleDrag}
-              onDrop={handleDrop}
-              fileInputRef={fileInputRef}
-              onFileChange={handleFileChange}
-              rulebookText={rulebookText}
-              onTextChange={handleTextChange}
-              error={error}
             />
           )}
 
