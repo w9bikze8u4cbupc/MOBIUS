@@ -221,6 +221,15 @@
     ]
   },
   "componentLinks": {
-    "abyss": {}
+    "abyss": {
+      "comp-1": [],
+      "comp-2": [],
+      "comp-3": [],
+      "comp-4": [],
+      "comp-5": [],
+      "comp-6": [],
+      "comp-7": [],
+      "comp-8": []
+    }
   }
 }
