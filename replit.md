@@ -81,7 +81,12 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 - **Page Extraction Fallback**: Most rulebook PDFs use full-page layouts, so extraction falls back to:
   - Extracting full pages as high-quality images
   - 12 pages from a typical rulebook become 12 browsable images
-- **AI Cropping Disabled**: Previous AI-based cropping produced poor results (text fragments instead of component photos). This has been removed.
+- **AI Component Cropping (NEW)**: GPT-4o Vision detects and crops individual game components
+  - Uses bounding box detection to find cards, tokens, boards, dice, miniatures, tiles
+  - Returns percentage-based coordinates for accurate cropping
+  - Filters out text blocks, diagrams, and decorative elements
+  - Sharp library performs the actual image cropping
+  - Cropped components saved to `data/component-crops/<projectId>/`
 - **Quality Filtering**: Only extracts images >= 100x100 pixels
 - **Enhanced UI**: 
   - Blue color coding for rulebook page images

@@ -8,7 +8,7 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL !== undefined
 const getImageUrl = (projectId, image) => {
   if (!image) return null;
   if (image.originalUrl) return image.originalUrl;
-  if (image.fileKey || image.source === 'rulebook' || image.source === 'manual' || image.source === 'ai-crop' || image.source === 'native-pdf') {
+  if (image.fileKey || image.source === 'rulebook' || image.source === 'manual' || image.source === 'ai-crop' || image.source === 'native-pdf' || image.source === 'ai-component-crop') {
     return `${BACKEND_URL}/api/projects/${projectId}/images/${image.id}/file`;
   }
   return null;
@@ -19,6 +19,7 @@ const getSourceLabel = (source) => {
     'rulebook': 'Rulebook Page',
     'native-pdf': 'Embedded Image',
     'ai-crop': 'AI Detected',
+    'ai-component-crop': 'AI Component',
     'bgg': 'BoardGameGeek',
     'manual': 'Manual Upload',
     'bgg-components': 'BGG Components',
@@ -32,6 +33,7 @@ const getSourceColor = (source) => {
     'rulebook': '#2196f3',
     'native-pdf': '#4caf50',
     'ai-crop': '#9c27b0',
+    'ai-component-crop': '#9c27b0',
     'bgg': '#ff9800',
     'manual': '#673ab7',
     'bgg-components': '#ff5722',
@@ -53,6 +55,7 @@ export function ImagesStep({
   const [loading, setLoading] = useState(false);
   const [autoGatherStatus, setAutoGatherStatus] = useState(null);
   const [matchingStatus, setMatchingStatus] = useState(null);
+  const [croppingStatus, setCroppingStatus] = useState(null);
   const [manualBggUrl, setManualBggUrl] = useState(bggUrl || "");
   const [manualPdfPath, setManualPdfPath] = useState("");
   const [manualFile, setManualFile] = useState(null);
@@ -226,6 +229,51 @@ export function ImagesStep({
       setAutoGatherStatus({ 
         status: 'error', 
         message: err.response?.data?.error || 'Failed to gather images' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // AI-powered component cropping from rulebook pages
+  const handleCropComponents = async () => {
+    if (!projectId) return;
+    
+    const rulebookImages = localImages.filter(img => img.source === 'rulebook');
+    if (rulebookImages.length === 0) {
+      setCroppingStatus({ 
+        status: 'error', 
+        message: 'No rulebook pages found. Click "Auto-Gather All Images" first to extract pages from the PDF.' 
+      });
+      return;
+    }
+    
+    setLoading(true);
+    setCroppingStatus({ status: 'cropping', message: `Analyzing ${rulebookImages.length} pages for game components...` });
+    
+    try {
+      const res = await axios.post(`${BACKEND_URL}/api/projects/${projectId}/images/crop-components`);
+      
+      if (res.data?.images) {
+        refreshState(res.data);
+      }
+      
+      if (res.data.cropsCount > 0) {
+        setCroppingStatus({
+          status: 'complete',
+          message: res.data.message || `Found ${res.data.cropsCount} component images!`
+        });
+      } else {
+        setCroppingStatus({
+          status: 'warning',
+          message: 'No distinct component images detected. The rulebook may use embedded graphics rather than photos.'
+        });
+      }
+    } catch (err) {
+      console.error('Component cropping failed:', err);
+      setCroppingStatus({ 
+        status: 'error', 
+        message: err.response?.data?.error || 'Failed to detect components in images' 
       });
     } finally {
       setLoading(false);
@@ -458,6 +506,66 @@ export function ImagesStep({
           </div>
         )}
       </div>
+
+      {/* AI Component Cropping Section */}
+      {localImages.filter(img => img.source === 'rulebook').length > 0 && (
+        <div style={{ 
+          background: 'linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%)', 
+          padding: 20, 
+          borderRadius: 12, 
+          marginBottom: 20 
+        }}>
+          <h4 style={{ margin: '0 0 8px 0', color: '#7b1fa2' }}>
+            AI Component Detection
+          </h4>
+          <p style={{ margin: '0 0 16px 0', color: '#555', fontSize: 14 }}>
+            Use GPT-4o Vision to detect and crop individual game component images (cards, tokens, boards) from the rulebook pages.
+          </p>
+          
+          <button 
+            onClick={handleCropComponents} 
+            disabled={loading}
+            style={{
+              padding: '12px 24px',
+              fontSize: 16,
+              fontWeight: 'bold',
+              background: loading && croppingStatus?.status === 'cropping' ? '#ce93d8' : '#9c27b0',
+              color: 'white',
+              border: 'none',
+              borderRadius: 8,
+              cursor: loading ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}
+          >
+            {loading && croppingStatus?.status === 'cropping' ? (
+              <>
+                <span className="loading-spinner" style={{ width: 20, height: 20 }}></span>
+                Detecting Components...
+              </>
+            ) : (
+              <>✂️ Crop Component Images</>
+            )}
+          </button>
+          
+          {croppingStatus && (
+            <div style={{ 
+              marginTop: 12, 
+              padding: 12, 
+              background: croppingStatus.status === 'error' ? '#ffebee' : 
+                         croppingStatus.status === 'warning' ? '#fff8e1' : '#e8f5e9',
+              borderRadius: 8,
+              fontSize: 14
+            }}>
+              <strong>
+                {croppingStatus.status === 'error' ? '❌' : 
+                 croppingStatus.status === 'warning' ? '⚠️' : '✅'}
+              </strong> {croppingStatus.message}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Image gallery */}
       {localImages.length > 0 && (

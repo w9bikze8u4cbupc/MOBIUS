@@ -21,10 +21,12 @@ import {
   getMatchPatterns,
   getLearnedPatterns,
 } from '../services/matchLearning.js';
-// AI cropping disabled - produced poor results (text fragments instead of component images)
 import {
   extractAllImages as extractNativeImages,
 } from '../services/nativeImageExtractor.js';
+import {
+  extractComponentsFromAllPages,
+} from '../services/componentCropper.js';
 
 export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {}) {
   const uploadMiddleware = upload || { single: () => (_req, _res, next) => next() };
@@ -180,6 +182,64 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
     } catch (err) {
       console.error('Failed to extract native images:', err);
       res.status(500).json({ error: err.message || 'Failed to extract native images' });
+    }
+  });
+
+  // AI-powered component cropping - uses GPT-4o Vision to detect and crop game components
+  app.post('/api/projects/:projectId/images/crop-components', async (req, res) => {
+    const { projectId } = req.params;
+    
+    if (!openai) {
+      return res.status(500).json({ error: 'OpenAI not configured' });
+    }
+    
+    try {
+      const state = listImages(projectId);
+      const pageImages = (state.images || []).filter(img => 
+        img.source === 'rulebook' && img.fileKey && fs.existsSync(img.fileKey)
+      );
+      
+      if (pageImages.length === 0) {
+        return res.status(400).json({ 
+          error: 'No rulebook page images found. Please extract pages from PDF first.' 
+        });
+      }
+      
+      const pagePaths = pageImages.map(img => img.fileKey);
+      console.log(`Starting component cropping for ${pagePaths.length} pages`);
+      
+      const crops = await extractComponentsFromAllPages(openai, projectId, pagePaths);
+      
+      if (crops.length === 0) {
+        return res.json({
+          success: true,
+          message: 'No component images detected in rulebook pages',
+          cropsCount: 0,
+          images: state.images,
+          componentImages: state.componentImages
+        });
+      }
+      
+      const normalized = crops.map(crop => normalizeImageAsset({
+        ...crop,
+        quality: { score: 0.8, notes: 'AI-cropped component' }
+      }));
+      
+      const enhanced = normalized.map(runImageEnhancement);
+      appendImages(projectId, enhanced);
+      const updatedState = listImages(projectId);
+      
+      console.log(`Component cropping complete: ${enhanced.length} components extracted`);
+      res.json({
+        success: true,
+        message: `Extracted ${enhanced.length} component images from ${pagePaths.length} pages`,
+        cropsCount: enhanced.length,
+        images: updatedState.images,
+        componentImages: updatedState.componentImages
+      });
+    } catch (err) {
+      console.error('Component cropping failed:', err);
+      res.status(500).json({ error: err.message || 'Failed to crop components' });
     }
   });
 
