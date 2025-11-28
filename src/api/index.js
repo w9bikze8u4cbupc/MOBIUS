@@ -2025,30 +2025,49 @@ app.post('/summarize', async (req, res) => {
       Here is the rulebook text:
       `;
 
-      const finalPrompt =
-      (resummarize && previousSummary)
-      ? englishBasePrompt.replace(
-      'Here is the rulebook text:',
-      `Here is the rulebook text and additional context:
+      const componentsJson = JSON.stringify(components);
+      const metadataJson = JSON.stringify(metadata);
+      
+      let finalPrompt;
+      if (resummarize && previousSummary) {
+        finalPrompt = englishBasePrompt.replace(
+          'Here is the rulebook text:',
+          `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
-      Previous Summary: ${previousSummary}
+Components List: ${componentsJson}
+Game Metadata: ${metadataJson}
+Previous Summary: ${previousSummary}
 
-      Rulebook Text:        )       : englishBasePrompt           .replace(             'Here is the rulebook text:',            Here is the rulebook text and additional context:
+Rulebook Text:`
+        );
+      } else {
+        finalPrompt = englishBasePrompt
+          .replace(
+            'Here is the rulebook text:',
+            `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
+Components List: ${componentsJson}
+Game Metadata: ${metadataJson}
 
-      Rulebook Text:          )           .replace(             'Component Overview:',            Component Overview:
-
-          Use the provided components list: ${JSON.stringify(components)}
-          Provide exact quantities and clear descriptions for each component
-          Add visual cues like "[Show close-up of resource tokens]" or "[Display all cards fanned out]"
-          Mention any unique or unusual pieces that distinguish this game        )         .replace(           'Setup:',          Setup:
-          Reference the components list for accurate quantities: ${JSON.stringify(components)}
-          Walk through setup step-by-step with detailed instructions (e.g., "Shuffle the 40 mission cards thoroughly, then place them face-down in the center")
-          Add visual placeholders like "[Overhead shot: Initial board setup]" or "[Animation: Card placement]"
-          Highlight common setup mistakes and how to avoid them`
+Rulebook Text:`
+          )
+          .replace(
+            'Component Overview:',
+            `Component Overview:
+    Use the provided components list: ${componentsJson}
+    Provide exact quantities and clear descriptions for each component
+    Add visual cues like "[Show close-up of resource tokens]" or "[Display all cards fanned out]"
+    Mention any unique or unusual pieces that distinguish this game`
+          )
+          .replace(
+            'Setup:',
+            `Setup:
+    Reference the components list for accurate quantities: ${componentsJson}
+    Walk through setup step-by-step with detailed instructions
+    Add visual placeholders like "[Overhead shot: Initial board setup]" or "[Animation: Card placement]"
+    Highlight common setup mistakes and how to avoid them`
           );
+      }
 
       console.log('Final prompt (truncated):', finalPrompt.slice(0, 500));
       
@@ -2059,7 +2078,7 @@ console.log('Generating final English script using OpenAI...')
       messages: [  
         {  
           role: 'system',  
-          content: "YoYou are a master boardgame educator, scriptwriter, and video production consultant for a leading YouTube channel. Your role is to transform complex boardgame rulebooks into clear, engaging, and visually dynamic tutorial scripts. You always write in a friendly, enthusiastic, and conversational style, making the rules accessible for new and casual players while still respecting experienced gamers. You structure every script in logical, easy-to-follow sections, include visual cues and editing notes, and ensure the script is ready for high-quality video production. Your explanations are concise, step-by-step, and always highlight key rules, common mistakes, and tips for success. You never add information not found in the rulebook or provided data, and you always write for spoken delivery.",  
+          content: "You are a master boardgame educator, scriptwriter, and video production consultant for a leading YouTube channel. Your role is to transform complex boardgame rulebooks into clear, engaging, and visually dynamic tutorial scripts. You always write in a friendly, enthusiastic, and conversational style, making the rules accessible for new and casual players while still respecting experienced gamers. You structure every script in logical, easy-to-follow sections, include visual cues and editing notes, and ensure the script is ready for high-quality video production. Your explanations are concise, step-by-step, and always highlight key rules, common mistakes, and tips for success. You never add information not found in the rulebook or provided data, and you always write for spoken delivery.",  
         },  
         { role: 'user', content: finalPrompt }, // Use finalPrompt instead of englishFinalPrompt  
       ],  
@@ -2091,7 +2110,7 @@ console.log('Generating final English script using OpenAI...')
           messages: [  
             {  
               role: 'system',  
-              content: "You are a You are a professional English-to-French translator specializing in boardgame content and YouTube video scripts. Your translations are always natural, idiomatic, and engaging, perfectly suited for spoken delivery in a friendly, casual, and accessible style. You preserve all formatting, markdown, section headers, and special markers (such as [SHORT PAUSE] or [Show close-up of cards]) exactly as in the original. You never omit, add, or alter content—your goal is to deliver a faithful, high-quality French version that feels as lively and clear as the English script.",  
+              content: "You are a professional English-to-French translator specializing in boardgame content and YouTube video scripts. Your translations are always natural, idiomatic, and engaging, perfectly suited for spoken delivery in a friendly, casual, and accessible style. You preserve all formatting, markdown, section headers, and special markers (such as [SHORT PAUSE] or [Show close-up of cards]) exactly as in the original. You never omit, add, or alter content—your goal is to deliver a faithful, high-quality French version that feels as lively and clear as the English script.",  
             },  
             { role: 'user', content: translationPrompt },  
           ],  
