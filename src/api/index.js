@@ -217,7 +217,7 @@ app.post('/api/storyboard', async (req, res) => {
   }
 });
 
-// --- Extract game name from rulebook text ---
+// --- Extract game name and metadata from rulebook text ---
 app.post('/api/extract-game-name', async (req, res) => {
   try {
     const { text } = req.body;
@@ -226,29 +226,135 @@ app.post('/api/extract-game-name', async (req, res) => {
       return res.status(400).json({ error: 'Insufficient text provided' });
     }
     
-    const sampleText = text.substring(0, 1500);
-    console.log('Extracting game name from text sample');
+    const sampleText = text.substring(0, 4000);
+    console.log('Extracting game info from PDF text');
     
     const response = await openai.chat.completions.create({
       model: DEFAULT_AI_MODEL,
       messages: [
         {
           role: 'user',
-          content: `What is the name of this board game? Reply with ONLY the game name, one word or phrase.\n\n${sampleText}`
+          content: `Extract information from this board game rulebook. Return a JSON object with these fields:
+- gameName: the name of the board game
+- publisher: the publishing company (if found)
+- playerCount: number of players (e.g., "2-4 players")
+- gameLength: play time (e.g., "45-60 minutes")
+- minimumAge: age recommendation (e.g., "10+")
+- theme: the game's theme/setting (e.g., "fantasy", "sci-fi", "underwater")
+- edition: edition if mentioned (e.g., "2nd Edition")
+
+Return ONLY valid JSON, no explanation. Use empty string "" if info not found.
+
+Rulebook text:
+${sampleText}`
         }
       ],
-      max_completion_tokens: 500
+      max_completion_tokens: 1000
     });
     
     console.log('OpenAI response:', JSON.stringify(response.choices[0]));
     
-    let gameName = response.choices[0]?.message?.content?.trim() || '';
-    gameName = gameName.replace(/^["']|["']$/g, '').replace(/\.$/, '');
-    console.log('Extracted game name:', gameName);
-    res.json({ gameName });
+    let content = response.choices[0]?.message?.content?.trim() || '{}';
+    content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    
+    let result;
+    try {
+      result = JSON.parse(content);
+    } catch (parseErr) {
+      console.error('Failed to parse JSON, extracting game name only');
+      const nameMatch = content.match(/gameName["\s:]+["']?([^"'\n,}]+)/i);
+      result = { gameName: nameMatch ? nameMatch[1].trim() : '' };
+    }
+    
+    console.log('Extracted game info:', result);
+    res.json(result);
   } catch (err) {
-    console.error('Game name extraction error:', err.message, err);
-    res.status(500).json({ error: 'Failed to extract game name', details: err.message });
+    console.error('Game info extraction error:', err.message, err);
+    res.status(500).json({ error: 'Failed to extract game info', details: err.message });
+  }
+});
+
+// --- Search BGG by game name and fetch metadata ---
+app.get('/api/bgg-search', async (req, res) => {
+  try {
+    const { gameName } = req.query;
+    
+    if (!gameName) {
+      return res.status(400).json({ error: 'Game name required' });
+    }
+    
+    console.log('Searching BGG for:', gameName);
+    
+    const searchUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(gameName)}&type=boardgame&exact=1`;
+    const searchResponse = await axios.get(searchUrl);
+    
+    let parser = new xml2js.Parser({ explicitArray: false });
+    let searchData = await parser.parseStringPromise(searchResponse.data);
+    
+    let gameId = null;
+    if (searchData?.items?.item) {
+      const items = Array.isArray(searchData.items.item) ? searchData.items.item : [searchData.items.item];
+      if (items.length > 0) {
+        gameId = items[0].$.id;
+      }
+    }
+    
+    if (!gameId) {
+      const fuzzyUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(gameName)}&type=boardgame`;
+      const fuzzyResponse = await axios.get(fuzzyUrl);
+      searchData = await parser.parseStringPromise(fuzzyResponse.data);
+      
+      if (searchData?.items?.item) {
+        const items = Array.isArray(searchData.items.item) ? searchData.items.item : [searchData.items.item];
+        if (items.length > 0) {
+          gameId = items[0].$.id;
+        }
+      }
+    }
+    
+    if (!gameId) {
+      console.log('No BGG game found for:', gameName);
+      return res.json({ found: false });
+    }
+    
+    console.log('Found BGG game ID:', gameId);
+    
+    const detailsUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${gameId}&stats=1`;
+    const detailsResponse = await axios.get(detailsUrl);
+    const detailsData = await parser.parseStringPromise(detailsResponse.data);
+    
+    const item = detailsData?.items?.item;
+    if (!item) {
+      return res.json({ found: false });
+    }
+    
+    const links = Array.isArray(item.link) ? item.link : [item.link].filter(Boolean);
+    const publishers = links.filter(l => l?.$.type === 'boardgamepublisher').map(l => l.$.value);
+    const categories = links.filter(l => l?.$.type === 'boardgamecategory').map(l => l.$.value);
+    
+    const metadata = {
+      found: true,
+      bggId: gameId,
+      bggUrl: `https://boardgamegeek.com/boardgame/${gameId}`,
+      gameName: item.name?.$?.value || (Array.isArray(item.name) ? item.name[0]?.$?.value : gameName),
+      publisher: publishers.join(', ') || '',
+      playerCount: `${item.minplayers?.$?.value || '?'}-${item.maxplayers?.$?.value || '?'} players`,
+      gameLength: `${item.minplaytime?.$?.value || item.playingtime?.$?.value || '?'}-${item.maxplaytime?.$?.value || item.playingtime?.$?.value || '?'} minutes`,
+      minimumAge: item.minage?.$?.value ? `${item.minage.$.value}+` : '',
+      theme: categories.slice(0, 3).join(', ') || '',
+      description: item.description || '',
+      yearPublished: item.yearpublished?.$?.value || '',
+      rating: item.statistics?.ratings?.average?.$?.value || '',
+      weight: item.statistics?.ratings?.averageweight?.$?.value || '',
+      thumbnail: item.thumbnail || '',
+      image: item.image || ''
+    };
+    
+    console.log('BGG metadata fetched:', metadata.gameName);
+    res.json(metadata);
+  } catch (err) {
+    console.error('BGG search error:', err.message);
+    res.status(500).json({ error: 'Failed to search BGG', details: err.message });
   }
 });
 

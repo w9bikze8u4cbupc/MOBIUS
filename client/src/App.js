@@ -232,25 +232,67 @@ function App() {
     }
   };
 
-  // Extract game name from rulebook text using AI
-  const extractGameNameFromText = async (text) => {
+  // Extract game info from rulebook text using AI and then fetch BGG metadata
+  const extractGameInfoFromText = async (text) => {
     try {
       setExtractingName(true);
-      console.log('Calling extract-game-name API...');
-      const response = await axios.post(`${BACKEND_URL}/api/extract-game-name`, {
-        text: text.substring(0, 3000)
+      console.log('Extracting game info from PDF...');
+      
+      // Step 1: Extract game info from PDF
+      const pdfResponse = await axios.post(`${BACKEND_URL}/api/extract-game-name`, {
+        text: text.substring(0, 5000)
       });
-      console.log('Game name API response:', response.data);
-      if (response.data?.gameName) {
-        console.log('Setting game name to:', response.data.gameName);
-        setGameName(response.data.gameName);
-        const slug = response.data.gameName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      console.log('PDF extraction response:', pdfResponse.data);
+      
+      const pdfData = pdfResponse.data || {};
+      const extractedName = pdfData.gameName || '';
+      
+      if (extractedName) {
+        setGameName(extractedName);
+        const slug = extractedName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
         setProjectId(slug);
+        
+        // Apply PDF-extracted metadata first
+        setMetadata(prev => ({
+          publisher: pdfData.publisher || prev.publisher,
+          playerCount: pdfData.playerCount || prev.playerCount,
+          gameLength: pdfData.gameLength || prev.gameLength,
+          minimumAge: pdfData.minimumAge || prev.minimumAge,
+          theme: pdfData.theme || prev.theme,
+          edition: pdfData.edition || prev.edition
+        }));
+        
+        // Step 2: Search BGG for additional metadata
+        console.log('Searching BGG for:', extractedName);
+        try {
+          const bggResponse = await axios.get(`${BACKEND_URL}/api/bgg-search`, {
+            params: { gameName: extractedName }
+          });
+          console.log('BGG response:', bggResponse.data);
+          
+          if (bggResponse.data?.found) {
+            const bgg = bggResponse.data;
+            setBggUrl(bgg.bggUrl || '');
+            
+            // Merge BGG data (BGG takes priority for missing fields)
+            setMetadata(prev => ({
+              publisher: prev.publisher || bgg.publisher || '',
+              playerCount: prev.playerCount || bgg.playerCount || '',
+              gameLength: prev.gameLength || bgg.gameLength || '',
+              minimumAge: prev.minimumAge || bgg.minimumAge || '',
+              theme: prev.theme || bgg.theme || '',
+              edition: prev.edition || ''
+            }));
+            console.log('BGG metadata applied');
+          }
+        } catch (bggErr) {
+          console.log('BGG search failed, using PDF data only:', bggErr.message);
+        }
       } else {
-        console.log('No game name in response');
+        console.log('No game name found in PDF');
       }
     } catch (err) {
-      console.error('Failed to extract game name:', err);
+      console.error('Failed to extract game info:', err);
     } finally {
       setExtractingName(false);
     }
@@ -286,7 +328,7 @@ function App() {
         const extracted = await extractTextFromPDF(file);
         setRulebookText(extracted);
         setLoading(false);
-        extractGameNameFromText(extracted);
+        extractGameInfoFromText(extracted);
       } else {
         setError("Please upload a PDF file");
       }
