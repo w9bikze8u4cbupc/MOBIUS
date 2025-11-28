@@ -226,27 +226,32 @@ app.post('/api/extract-game-name', async (req, res) => {
       return res.status(400).json({ error: 'Insufficient text provided' });
     }
     
+    console.log('Extracting game name from text of length:', text.length);
+    
     const response = await openai.chat.completions.create({
       model: DEFAULT_AI_MODEL,
       messages: [
         {
           role: 'system',
-          content: 'You are an expert at identifying board game names from rulebook text. Extract ONLY the official game name. Return just the game name, nothing else.'
+          content: 'You are an expert at identifying board game names from rulebook text. Extract ONLY the official game name. Return just the game name, nothing else. No quotes, no punctuation, just the name.'
         },
         {
           role: 'user',
           content: `Extract the board game name from this rulebook text. Return ONLY the game name:\n\n${text}`
         }
       ],
-      max_completion_tokens: 50,
-      temperature: 0.1
+      max_completion_tokens: 200
     });
     
-    const gameName = response.choices[0]?.message?.content?.trim() || '';
+    console.log('OpenAI response:', JSON.stringify(response.choices[0]));
+    
+    let gameName = response.choices[0]?.message?.content?.trim() || '';
+    gameName = gameName.replace(/^["']|["']$/g, '');
+    console.log('Extracted game name:', gameName);
     res.json({ gameName });
   } catch (err) {
-    console.error('Game name extraction error:', err.message);
-    res.status(500).json({ error: 'Failed to extract game name' });
+    console.error('Game name extraction error:', err.message, err);
+    res.status(500).json({ error: 'Failed to extract game name', details: err.message });
   }
 });
 

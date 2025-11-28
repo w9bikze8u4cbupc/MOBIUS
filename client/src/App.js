@@ -966,9 +966,9 @@ function App() {
               file={file}
               rulebookText={rulebookText}
               onFileChange={handleFileChange}
-              onTextChange={handleTextChange}
               onDrop={handleDrop}
               extractingName={extractingName}
+              loading={loading}
             />
           )}
 
