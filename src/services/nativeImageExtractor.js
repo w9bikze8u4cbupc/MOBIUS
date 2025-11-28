@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
+import { PDFDocument, PDFName, PDFDict, PDFStream, PDFRawStream } from 'pdf-lib';
+import pako from 'pako';
 
 const DATA_DIR = process.env.DB_DATA_DIR || path.resolve(process.cwd(), 'data');
 
@@ -8,95 +10,40 @@ function generateImageId() {
   return `native-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 }
 
-async function extractEmbeddedImages(pdfBuffer, projectId, options = {}) {
-  const { minWidth = 50, minHeight = 50 } = options;
-  
-  const projectDir = path.join(DATA_DIR, 'rulebook-images', projectId, 'native');
-  if (!fs.existsSync(projectDir)) {
-    fs.mkdirSync(projectDir, { recursive: true });
-  }
-  
-  const results = [];
+async function decodeStream(streamObj) {
+  if (!streamObj) return null;
   
   try {
-    const pdfBytes = pdfBuffer instanceof Buffer ? pdfBuffer : Buffer.from(pdfBuffer);
-    const pdfString = pdfBytes.toString('binary');
-    
-    const streamMatches = [...pdfString.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)];
-    console.log(`Found ${streamMatches.length} streams in PDF`);
-    
-    const imageSignatures = {
-      jpeg: [0xFF, 0xD8, 0xFF],
-      png: [0x89, 0x50, 0x4E, 0x47],
-    };
-    
-    let imageIndex = 0;
-    
-    for (const match of streamMatches) {
-      try {
-        const streamData = match[1];
-        const streamBuffer = Buffer.from(streamData, 'binary');
-        
-        if (streamBuffer.length < 100) continue;
-        
-        let format = null;
-        
-        if (streamBuffer[0] === 0xFF && streamBuffer[1] === 0xD8 && streamBuffer[2] === 0xFF) {
-          format = 'jpeg';
-        } else if (streamBuffer[0] === 0x89 && streamBuffer[1] === 0x50 && streamBuffer[2] === 0x4E && streamBuffer[3] === 0x47) {
-          format = 'png';
-        }
-        
-        if (!format) continue;
-        
-        try {
-          const metadata = await sharp(streamBuffer).metadata();
-          
-          if (metadata.width < minWidth || metadata.height < minHeight) {
-            console.log(`Skipping small image: ${metadata.width}x${metadata.height}`);
-            continue;
-          }
-          
-          const imageId = generateImageId();
-          const filename = `${imageId}.${format === 'jpeg' ? 'jpg' : 'png'}`;
-          const imagePath = path.join(projectDir, filename);
-          
-          await sharp(streamBuffer)
-            .toFile(imagePath);
-          
-          results.push({
-            id: imageId,
-            source: 'native-pdf',
-            fileKey: `rulebook-images/${projectId}/native/${filename}`,
-            width: metadata.width,
-            height: metadata.height,
-            format: format,
-            extractionMethod: 'stream-scan',
-            tags: ['extracted', 'native'],
-          });
-          
-          imageIndex++;
-          console.log(`Extracted native image ${imageIndex}: ${metadata.width}x${metadata.height} ${format}`);
-          
-        } catch (sharpErr) {
-          continue;
-        }
-        
-      } catch (err) {
-        continue;
-      }
+    let bytes;
+    if (streamObj.getContents) {
+      bytes = streamObj.getContents();
+    } else if (streamObj.contents) {
+      bytes = streamObj.contents;
+    } else {
+      return null;
     }
     
+    if (!bytes || bytes.length < 100) return null;
+    return bytes;
   } catch (err) {
-    console.error('Native extraction failed:', err);
+    return null;
   }
-  
-  console.log(`Native extraction complete: ${results.length} images found`);
-  return results;
 }
 
-async function extractImagesWithPdfLib(pdfBuffer, projectId) {
-  const { PDFDocument, PDFName, PDFRawStream, PDFStream } = await import('pdf-lib');
+function isValidImageBuffer(buffer) {
+  if (!buffer || buffer.length < 10) return false;
+  
+  if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+    return 'jpeg';
+  }
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+    return 'png';
+  }
+  return false;
+}
+
+async function extractImagesFromPdfLib(pdfBuffer, projectId, options = {}) {
+  const { minWidth = 100, minHeight = 100 } = options;
   
   const projectDir = path.join(DATA_DIR, 'rulebook-images', projectId, 'native');
   if (!fs.existsSync(projectDir)) {
@@ -106,76 +53,180 @@ async function extractImagesWithPdfLib(pdfBuffer, projectId) {
   const results = [];
   
   try {
-    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+    const context = pdfDoc.context;
+    
     const pages = pdfDoc.getPages();
+    console.log(`Processing ${pages.length} pages for embedded images...`);
     
-    console.log(`Processing ${pages.length} pages with pdf-lib`);
+    const processedHashes = new Set();
     
-    for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
-      const page = pages[pageIndex];
+    for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
+      const page = pages[pageIdx];
       
       try {
         const resources = page.node.Resources();
         if (!resources) continue;
         
-        const xObjectDict = resources.lookup(PDFName.of('XObject'));
-        if (!xObjectDict) continue;
+        const xObjectRef = resources.get(PDFName.of('XObject'));
+        if (!xObjectRef) continue;
         
-        const xObjectNames = xObjectDict.keys ? xObjectDict.keys() : [];
+        const xObjects = context.lookup(xObjectRef);
+        if (!xObjects || !(xObjects instanceof PDFDict)) continue;
         
-        for (const name of xObjectNames) {
+        const entries = xObjects.entries();
+        
+        for (const [name, ref] of entries) {
           try {
-            const xObject = xObjectDict.lookup(name);
+            const xObject = context.lookup(ref);
             if (!xObject) continue;
             
-            const subtype = xObject.lookup ? xObject.lookup(PDFName.of('Subtype')) : null;
+            const subtypeRef = xObject.get ? xObject.get(PDFName.of('Subtype')) : null;
+            if (!subtypeRef) continue;
+            
+            const subtype = context.lookup(subtypeRef);
             if (!subtype || subtype.toString() !== '/Image') continue;
             
-            const width = xObject.lookup(PDFName.of('Width'))?.asNumber?.() || 0;
-            const height = xObject.lookup(PDFName.of('Height'))?.asNumber?.() || 0;
+            const widthRef = xObject.get(PDFName.of('Width'));
+            const heightRef = xObject.get(PDFName.of('Height'));
+            const width = widthRef ? context.lookup(widthRef)?.value() || 0 : 0;
+            const height = heightRef ? context.lookup(heightRef)?.value() || 0 : 0;
             
-            if (width < 50 || height < 50) continue;
+            if (width < minWidth || height < minHeight) {
+              continue;
+            }
             
-            console.log(`Found image XObject on page ${pageIndex + 1}: ${width}x${height}`);
+            const filterRef = xObject.get(PDFName.of('Filter'));
+            const filter = filterRef ? context.lookup(filterRef)?.toString() : null;
             
-          } catch (err) {
+            const streamBytes = await decodeStream(xObject);
+            if (!streamBytes) continue;
+            
+            const hash = Buffer.from(streamBytes.slice(0, 1000)).toString('base64');
+            if (processedHashes.has(hash)) continue;
+            processedHashes.add(hash);
+            
+            let imageBuffer = null;
+            let format = null;
+            
+            if (filter === '/DCTDecode') {
+              format = 'jpeg';
+              imageBuffer = Buffer.from(streamBytes);
+            } else if (filter === '/FlateDecode') {
+              try {
+                const inflated = pako.inflate(streamBytes);
+                
+                const colorSpaceRef = xObject.get(PDFName.of('ColorSpace'));
+                const colorSpace = colorSpaceRef ? context.lookup(colorSpaceRef)?.toString() : '/DeviceRGB';
+                const bitsPerComp = xObject.get(PDFName.of('BitsPerComponent'));
+                const bits = bitsPerComp ? context.lookup(bitsPerComp)?.value() || 8 : 8;
+                
+                let channels = 3;
+                if (colorSpace === '/DeviceGray') channels = 1;
+                else if (colorSpace === '/DeviceCMYK') channels = 4;
+                
+                const expectedSize = width * height * channels * (bits / 8);
+                if (inflated.length >= expectedSize * 0.9) {
+                  const rawImageData = {
+                    create: {
+                      width: width,
+                      height: height,
+                      channels: channels,
+                      background: { r: 255, g: 255, b: 255 }
+                    }
+                  };
+                  
+                  try {
+                    imageBuffer = await sharp(Buffer.from(inflated), { raw: { width, height, channels } })
+                      .png()
+                      .toBuffer();
+                    format = 'png';
+                  } catch (sharpErr) {
+                    continue;
+                  }
+                }
+              } catch (inflateErr) {
+                continue;
+              }
+            } else if (!filter) {
+              const detectedFormat = isValidImageBuffer(streamBytes);
+              if (detectedFormat) {
+                format = detectedFormat;
+                imageBuffer = Buffer.from(streamBytes);
+              }
+            }
+            
+            if (!imageBuffer || !format) continue;
+            
+            try {
+              const metadata = await sharp(imageBuffer).metadata();
+              if (!metadata.width || metadata.width < minWidth || !metadata.height || metadata.height < minHeight) {
+                continue;
+              }
+              
+              const imageId = generateImageId();
+              const filename = `${imageId}.${format === 'jpeg' ? 'jpg' : 'png'}`;
+              const imagePath = path.join(projectDir, filename);
+              const fileKey = path.resolve(imagePath);
+              
+              await sharp(imageBuffer).toFile(imagePath);
+              
+              results.push({
+                id: imageId,
+                source: 'native-pdf',
+                fileKey: fileKey,
+                width: metadata.width,
+                height: metadata.height,
+                format: format,
+                parentPage: pageIdx + 1,
+                tags: ['extracted', 'native', 'embedded'],
+                quality: { score: 0.9 }
+              });
+              
+              console.log(`Extracted image from page ${pageIdx + 1}: ${metadata.width}x${metadata.height} ${format}`);
+              
+            } catch (saveErr) {
+              continue;
+            }
+            
+          } catch (xobjErr) {
             continue;
           }
         }
         
       } catch (pageErr) {
-        console.error(`Error processing page ${pageIndex + 1}:`, pageErr.message);
+        console.error(`Error processing page ${pageIdx + 1}:`, pageErr.message);
       }
     }
     
   } catch (err) {
-    console.error('pdf-lib extraction failed:', err);
+    console.error('PDF-lib extraction error:', err);
   }
   
   return results;
 }
 
 async function extractAllImages(pdfBuffer, projectId, options = {}) {
-  console.log('Starting comprehensive PDF image extraction...');
+  console.log('Starting native PDF image extraction with pdf-lib...');
   
-  const nativeImages = await extractEmbeddedImages(pdfBuffer, projectId, options);
+  const images = await extractImagesFromPdfLib(pdfBuffer, projectId, options);
   
-  if (nativeImages.length > 0) {
-    console.log(`Found ${nativeImages.length} embedded images`);
+  if (images.length > 0) {
+    console.log(`Found ${images.length} embedded images using pdf-lib`);
     return {
       mode: 'native',
-      images: nativeImages,
-      message: `Extracted ${nativeImages.length} embedded images from PDF`
+      images: images,
+      message: `Extracted ${images.length} embedded images from PDF`
     };
   }
   
-  console.log('No embedded images found via stream scanning');
+  console.log('No embedded images found in PDF structure');
   
   return {
     mode: 'none',
     images: [],
-    message: 'No embedded images found in PDF. Try page-level extraction for scanned documents.'
+    message: 'No embedded images found. The PDF may contain only scanned pages or vector graphics.'
   };
 }
 
-export { extractEmbeddedImages, extractAllImages, extractImagesWithPdfLib };
+export { extractAllImages, extractImagesFromPdfLib };

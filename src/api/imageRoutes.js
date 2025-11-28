@@ -142,8 +142,8 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
       }
       
       console.log('Extracting native embedded images from PDF:', req.file.path);
-      const fs = await import('fs');
-      const pdfBuffer = fs.readFileSync(req.file.path);
+      const fsModule = await import('fs');
+      const pdfBuffer = fsModule.readFileSync(req.file.path);
       
       const result = await extractNativeImages(pdfBuffer, projectId, {
         minWidth: 100,
@@ -154,24 +154,28 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         console.log('No native images found, falling back to page extraction');
         const extracted = await extractRulebookImages(projectId, req.file.path);
         const enhanced = extracted.map(runImageEnhancement);
-        const state = appendImages(projectId, enhanced);
+        appendImages(projectId, enhanced);
+        const state = listImages(projectId);
         return res.json({ 
           mode: 'pages',
           message: 'No embedded images found, extracted full pages instead',
           nativeCount: 0,
           pagesCount: enhanced.length,
+          newImagesCount: enhanced.length,
           images: state.images, 
           componentImages: state.componentImages 
         });
       }
       
       const enhanced = result.images.map(runImageEnhancement);
-      const state = appendImages(projectId, enhanced);
+      appendImages(projectId, enhanced);
+      const state = listImages(projectId);
       
       console.log(`Extracted ${enhanced.length} native embedded images from PDF`);
       res.json({ 
         mode: 'native',
         nativeCount: enhanced.length,
+        newImagesCount: enhanced.length,
         message: result.message,
         images: state.images, 
         componentImages: state.componentImages 

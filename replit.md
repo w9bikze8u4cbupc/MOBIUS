@@ -73,20 +73,19 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 - **Smart Re-run Prevention**: Only triggers extraction when rulebook content changes
 - **Reset on PDF Change**: Auto-trigger resets when a new PDF is uploaded
 
-### Step 4 Intelligent Image Cropping (Latest)
-- **AI-Powered Component Detection**: GPT-4o vision analyzes each PDF page to detect component images
-  - Identifies distinct photographs/illustrations of game components
-  - Returns bounding boxes with confidence levels (high/medium/low)
-  - Labels detected images with component type (cards, dice, tokens, etc.)
-- **Automatic Image Cropping**: Uses sharp to crop detected regions from PDF pages
-  - Crops stored in `data/rulebook-images/<projectId>/crops/`
-  - Each crop includes metadata: parentPage, bbox, aiLabels, confidence
-- **Smart Fallback**: If no component images detected, falls back to full page extraction
-- **Auto-Matching**: Cropped images are automatically matched to components based on AI labels
+### Step 4 Native Image Extraction (Latest)
+- **Native PDF Image Extraction**: Extracts embedded images directly from PDF structure
+  - Uses pdf-lib to parse PDF XObject image references
+  - Decodes compressed streams (DCTDecode for JPEG, FlateDecode for raw)
+  - Extracts actual component photographs, not text or page fragments
+  - Images stored in `data/rulebook-images/<projectId>/native/`
+- **Smart Fallback**: If no embedded images found, falls back to full page extraction
+- **Quality Filtering**: Only extracts images >= 100x100 pixels
+- **Duplicate Prevention**: Uses hash-based deduplication across pages
 - **Enhanced UI**: 
-  - Shows AI-detected label and confidence level on each cropped image
-  - Displays parent page number for crop provenance
-  - Purple color coding for AI-detected crops
+  - Green color coding for native embedded images
+  - Displays parent page number for provenance
+  - Shows image dimensions and format
 - **Image Thumbnails**: Displays actual image thumbnails from extracted rulebook pages
   - Image serving endpoint: `GET /api/projects/:projectId/images/:imageId/file`
   - Secure path validation prevents directory traversal
@@ -105,8 +104,8 @@ A comprehensive pipeline for generating professional game tutorial videos from s
   - Patterns stored in `data/match-learning.json`
 - **New API Endpoints**:
   - `GET /api/projects/:projectId/images/:imageId/file` - Serve image files
-  - `POST /api/projects/:projectId/images/extract-crops` - AI-powered component cropping
-  - `POST /api/projects/:projectId/images/extract-pdf` - Full page extraction
+  - `POST /api/projects/:projectId/images/extract-native` - Native embedded image extraction
+  - `POST /api/projects/:projectId/images/extract-pdf` - Full page extraction (fallback)
   - `POST /api/projects/:projectId/images/auto-match` - AI component matching
   - `POST /api/projects/:projectId/match-feedback` - Save match confirmations
   - `GET /api/learning/patterns` - Get learned matching patterns
