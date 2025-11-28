@@ -274,6 +274,100 @@ ${sampleText}`
   }
 });
 
+// --- AI-Powered Game Component Extraction ---
+// Extracts exact physical game components with quantities from rulebook text
+app.post('/api/extract-game-components', async (req, res) => {
+  try {
+    const { text, gameName } = req.body;
+    
+    if (!text || text.length < 100) {
+      return res.status(400).json({ error: 'Insufficient text provided for component extraction' });
+    }
+    
+    console.log('Extracting game components for:', gameName || 'Unknown game');
+    
+    // Use a larger sample for component extraction - components can be anywhere in the rulebook
+    const sampleText = text.substring(0, 12000);
+    
+    const response = await openai.chat.completions.create({
+      model: DEFAULT_AI_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: `You are an expert at analyzing board game rulebooks and extracting the complete list of physical game components.
+
+Your task is to identify EVERY physical component that comes in the game box, with EXACT quantities.
+
+For each component, extract:
+1. "name" - The specific name (e.g., "Action Card", "Resource Token", "Player Board")
+2. "quantity" - The exact number (e.g., "25", "100", "1 per player", "4 sets of 10")
+3. "category" - One of: cards, tokens, boards, tiles, dice, meeples, miniatures, markers, cubes, other
+4. "details" - Color, material, or distinguishing features if mentioned (e.g., "5 red, 5 blue", "wooden", "double-sided")
+
+IMPORTANT RULES:
+- Extract components with their EXACT quantities as stated in the rulebook
+- If there are multiple colors/types, list each separately OR note "X of each Y colors"
+- Include ALL components: cards, tokens, dice, boards, tiles, meeples, markers, cubes, miniatures, rulebook, reference cards, bags, etc.
+- If a component has sub-types (e.g., "25 Action cards: 10 Attack, 10 Defense, 5 Special"), include the breakdown
+- Use the exact terminology from the rulebook
+- Return a valid JSON array`
+        },
+        {
+          role: 'user',
+          content: `Extract all physical game components from this ${gameName ? `"${gameName}" ` : ''}rulebook text:
+
+${sampleText}
+
+Return a JSON array of objects with: name, quantity, category, details
+Only return the JSON array, no other text.`
+        }
+      ],
+      max_completion_tokens: 2000,
+      temperature: 0.2,
+    });
+    
+    let content = response.choices[0]?.message?.content?.trim() || '[]';
+    content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    
+    let components = [];
+    try {
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        components = JSON.parse(jsonMatch[0]);
+      } else {
+        components = JSON.parse(content);
+      }
+    } catch (parseErr) {
+      console.error('Failed to parse components JSON:', parseErr.message);
+      return res.status(500).json({ error: 'Failed to parse component list', raw: content });
+    }
+    
+    if (!Array.isArray(components)) {
+      components = [];
+    }
+    
+    // Normalize and validate components
+    const normalizedComponents = components.map((c, idx) => ({
+      id: `comp-${idx + 1}`,
+      name: c.name || 'Unknown Component',
+      quantity: c.quantity || 'N/A',
+      category: c.category || 'other',
+      details: c.details || '',
+    }));
+    
+    console.log(`Extracted ${normalizedComponents.length} components`);
+    res.json({ 
+      components: normalizedComponents,
+      gameName: gameName || null,
+      extractedAt: new Date().toISOString()
+    });
+    
+  } catch (err) {
+    console.error('Component extraction error:', err.message);
+    res.status(500).json({ error: 'Failed to extract components', details: err.message });
+  }
+});
+
 // --- Search BGG by game name and fetch metadata ---
 app.get('/api/bgg-search', async (req, res) => {
   try {

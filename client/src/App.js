@@ -161,6 +161,8 @@ function App() {
   const [projectImages, setProjectImages] = useState([]);
   const [componentImageLinks, setComponentImageLinks] = useState({});
   const [extractingName, setExtractingName] = useState(false);
+  const [gameComponents, setGameComponents] = useState([]);
+  const [extractingComponents, setExtractingComponents] = useState(false);
 
 
   // --- Effects ---
@@ -417,6 +419,39 @@ function App() {
       setIngestionError(apiError);
     } finally {
       setIngesting(false);
+    }
+  };
+
+  // Extract game components using AI
+  const handleExtractComponents = async () => {
+    if (!rulebookText.trim()) {
+      setIngestionError("Upload or paste a rulebook first");
+      return;
+    }
+
+    setExtractingComponents(true);
+    setIngestionError("");
+
+    try {
+      console.log('Extracting game components...');
+      const { data } = await axios.post(`${BACKEND_URL}/api/extract-game-components`, {
+        text: rulebookText,
+        gameName: gameName || null
+      });
+      
+      console.log('Extracted components:', data.components);
+      setGameComponents(data.components || []);
+      
+      // Mark ingestion step as complete if we have components
+      if (data.components?.length > 0 && !completedStepIds.includes('ingestion')) {
+        setCompletedStepIds(prev => [...prev, 'ingestion']);
+      }
+    } catch (err) {
+      console.error('Component extraction error:', err);
+      const apiError = err.response?.data?.error || err.message;
+      setIngestionError(`Component extraction failed: ${apiError}`);
+    } finally {
+      setExtractingComponents(false);
     }
   };
 
@@ -1050,6 +1085,11 @@ function App() {
               rulebookText={rulebookText}
               ingestionManifest={ingestionManifest}
               ingestionError={ingestionError}
+              gameName={gameName}
+              gameComponents={gameComponents}
+              setGameComponents={setGameComponents}
+              onExtractComponents={handleExtractComponents}
+              extractingComponents={extractingComponents}
             />
           )}
 
