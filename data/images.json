@@ -1,6 +1,235 @@
 {
   "imagesByProject": {
-    "jaipur": []
+    "jaipur": [],
+    "abyss": [
+      {
+        "id": "rulebook-1764357912237-g9bp8o",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/abyss/page-1.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-1"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764357913236-2e3wn0",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/abyss/page-2.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-2"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764357913950-c0115h",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/abyss/page-3.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-3"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764357914455-cwh0k2",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/abyss/page-4.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-4"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764357915429-qd5mcm",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/abyss/page-5.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-5"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764357916165-ikuhy9",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/abyss/page-6.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764357916636-kkkguf",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/abyss/page-7.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-7"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764357917311-g7ovh5",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/abyss/page-8.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-8"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764357917838-aleq1s",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/abyss/page-9.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-9"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764357918331-2jny80",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/abyss/page-10.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-10"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764357918903-5vylx1",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/abyss/page-11.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-11"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764357919246-evyqp6",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/abyss/page-12.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-12"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      }
+    ]
   },
-  "componentLinks": {}
+  "componentLinks": {
+    "abyss": {
+      "comp-1": [],
+      "comp-2": [],
+      "comp-3": [],
+      "comp-4": [],
+      "comp-5": [],
+      "comp-6": [],
+      "comp-7": [],
+      "comp-8": []
+    }
+  }
 }

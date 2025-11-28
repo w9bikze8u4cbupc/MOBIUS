@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import {
   appendImages,
   linkImagesToComponent,
@@ -14,9 +16,56 @@ import {
   matchComponentsToImages,
 } from '../services/imagePipeline.js';
 import { fetchImagesFromExtractor } from '../services/imageExtractorClient.js';
+import {
+  saveMatchFeedback,
+  getMatchPatterns,
+  getLearnedPatterns,
+} from '../services/matchLearning.js';
 
 export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {}) {
   const uploadMiddleware = upload || { single: () => (_req, _res, next) => next() };
+
+  // Serve image files from data directory
+  app.get('/api/projects/:projectId/images/:imageId/file', (req, res) => {
+    const { projectId, imageId } = req.params;
+    const state = listImages(projectId);
+    const image = (state.images || []).find(img => img.id === imageId);
+    
+    if (!image) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+    
+    // Get file path from fileKey or construct from source
+    let filePath = image.fileKey;
+    
+    if (!filePath) {
+      // For BGG images, redirect to original URL
+      if (image.originalUrl) {
+        return res.redirect(image.originalUrl);
+      }
+      return res.status(404).json({ error: 'No file path for image' });
+    }
+    
+    // Security: Ensure path is within allowed directories
+    const allowedDirs = [
+      path.resolve(process.cwd(), 'data'),
+      path.resolve(process.cwd(), 'src/api/uploads'),
+    ];
+    const resolvedPath = path.resolve(filePath);
+    const isAllowed = allowedDirs.some(dir => resolvedPath.startsWith(dir));
+    
+    if (!isAllowed) {
+      console.error('Attempted access to disallowed path:', resolvedPath);
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    if (!fs.existsSync(resolvedPath)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    
+    // Serve the file
+    res.sendFile(resolvedPath);
+  });
 
   app.get('/api/projects/:projectId/images', (req, res) => {
     const { projectId } = req.params;
@@ -247,6 +296,51 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
     } catch (err) {
       console.error('Auto-match failed:', err);
       res.status(500).json({ error: err.message || 'Auto-match failed' });
+    }
+  });
+
+  // Learning system endpoints
+  app.post('/api/projects/:projectId/match-feedback', (req, res) => {
+    const { projectId } = req.params;
+    const { gameName, componentId, componentName, componentCategory, imageId, imageTags, imageSource, isCorrect, correctedImageId } = req.body || {};
+    
+    try {
+      const feedback = saveMatchFeedback(projectId, {
+        gameName,
+        componentId,
+        componentName,
+        componentCategory,
+        imageId,
+        imageTags,
+        imageSource,
+        isCorrect,
+        correctedImageId,
+      });
+      
+      console.log('Saved match feedback:', componentName, '->', isCorrect ? 'correct' : 'incorrect');
+      res.json({ success: true, feedback });
+    } catch (err) {
+      console.error('Failed to save feedback:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/learning/patterns', (req, res) => {
+    try {
+      const patterns = getLearnedPatterns();
+      res.json({ patterns });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/learning/stats', async (req, res) => {
+    try {
+      const { getFeedbackStats } = await import('../services/matchLearning.js');
+      const stats = getFeedbackStats();
+      res.json(stats);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   });
 }

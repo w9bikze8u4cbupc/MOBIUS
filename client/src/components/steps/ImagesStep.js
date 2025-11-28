@@ -1,9 +1,18 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import axios from "axios";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL !== undefined 
   ? process.env.REACT_APP_BACKEND_URL 
   : '';
+
+const getImageUrl = (projectId, image) => {
+  if (!image) return null;
+  if (image.originalUrl) return image.originalUrl;
+  if (image.fileKey || image.source === 'rulebook' || image.source === 'manual') {
+    return `${BACKEND_URL}/api/projects/${projectId}/images/${image.id}/file`;
+  }
+  return null;
+};
 
 export function ImagesStep({ 
   projectId, 
@@ -25,6 +34,8 @@ export function ImagesStep({
   const [localLinks, setLocalLinks] = useState(componentImages || {});
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [expandedSources, setExpandedSources] = useState({});
+  const [feedbackMode, setFeedbackMode] = useState(false);
+  const [feedbackStatus, setFeedbackStatus] = useState({});
 
   useEffect(() => {
     setLocalImages(images || []);
@@ -251,6 +262,38 @@ export function ImagesStep({
     return (localLinks[componentId] || []).length;
   };
 
+  const handleFeedback = async (component, imageId, isCorrect, correctedImageId = null) => {
+    if (!projectId) return;
+    
+    const image = localImages.find(img => img.id === imageId);
+    if (!image) return;
+    
+    try {
+      await axios.post(`${BACKEND_URL}/api/projects/${projectId}/match-feedback`, {
+        gameName,
+        componentId: component.id,
+        componentName: component.name,
+        componentCategory: component.category,
+        imageId,
+        imageTags: image.tags || [],
+        imageSource: image.source,
+        isCorrect,
+        correctedImageId,
+      });
+      
+      setFeedbackStatus(prev => ({
+        ...prev,
+        [`${component.id}-${imageId}`]: isCorrect ? 'confirmed' : 'rejected'
+      }));
+    } catch (err) {
+      console.error('Failed to save feedback:', err);
+    }
+  };
+
+  const getImageById = useCallback((imageId) => {
+    return localImages.find(img => img.id === imageId);
+  }, [localImages]);
+
   const getCategoryIcon = (category) => {
     const icons = {
       cards: '🃏',
@@ -388,47 +431,50 @@ export function ImagesStep({
                   background: '#fafafa',
                   borderRadius: 6
                 }}>
-                  {imgs.map((img) => (
-                    <div 
-                      key={img.id} 
-                      style={{ 
-                        border: '1px solid #ddd', 
-                        borderRadius: 6, 
-                        padding: 8,
-                        background: 'white',
-                        fontSize: 11
-                      }}
-                    >
-                      <div style={{ 
-                        width: '100%', 
-                        height: 80, 
-                        background: '#e0e0e0', 
-                        borderRadius: 4,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 6,
-                        overflow: 'hidden'
-                      }}>
-                        {img.originalUrl ? (
-                          <img 
-                            src={img.originalUrl} 
-                            alt={img.id}
-                            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'cover' }}
-                            onError={(e) => { e.target.style.display = 'none'; }}
-                          />
-                        ) : (
-                          <span style={{ color: '#999' }}>📷</span>
-                        )}
+                  {imgs.map((img) => {
+                    const imgUrl = getImageUrl(projectId, img);
+                    return (
+                      <div 
+                        key={img.id} 
+                        style={{ 
+                          border: '1px solid #ddd', 
+                          borderRadius: 6, 
+                          padding: 8,
+                          background: 'white',
+                          fontSize: 11
+                        }}
+                      >
+                        <div style={{ 
+                          width: '100%', 
+                          height: 80, 
+                          background: '#e0e0e0', 
+                          borderRadius: 4,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginBottom: 6,
+                          overflow: 'hidden'
+                        }}>
+                          {imgUrl ? (
+                            <img 
+                              src={imgUrl} 
+                              alt={img.id}
+                              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'cover' }}
+                              onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<span style="color:#999">📷</span>'; }}
+                            />
+                          ) : (
+                            <span style={{ color: '#999' }}>📷</span>
+                          )}
+                        </div>
+                        <div style={{ color: '#666', wordBreak: 'break-all' }}>
+                          {(img.tags || []).find(t => t.startsWith('page-')) || img.id.substring(0, 15)}
+                        </div>
+                        <div style={{ color: '#999', marginTop: 4 }}>
+                          {(img.tags || []).filter(t => !t.startsWith('page-')).slice(0, 2).join(', ')}
+                        </div>
                       </div>
-                      <div style={{ color: '#666', wordBreak: 'break-all' }}>
-                        {img.id.substring(0, 20)}...
-                      </div>
-                      <div style={{ color: '#999', marginTop: 4 }}>
-                        {(img.tags || []).slice(0, 2).join(', ')}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -492,6 +538,42 @@ export function ImagesStep({
         </div>
       )}
 
+      {/* Learning mode toggle */}
+      {Object.keys(localLinks).length > 0 && (
+        <div style={{ 
+          background: feedbackMode ? '#e8f5e9' : '#f5f5f5', 
+          padding: 16, 
+          borderRadius: 8, 
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <div>
+            <strong>Learning Mode</strong>
+            <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#666' }}>
+              {feedbackMode 
+                ? 'Confirm or reject matches to help MOBIUS learn and improve future matching.' 
+                : 'Enable to review and confirm component matches.'}
+            </p>
+          </div>
+          <button
+            onClick={() => setFeedbackMode(!feedbackMode)}
+            style={{
+              padding: '8px 16px',
+              background: feedbackMode ? '#4caf50' : '#1976d2',
+              color: 'white',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            {feedbackMode ? '✓ Learning Active' : 'Enable Learning'}
+          </button>
+        </div>
+      )}
+
       {/* Component list with linked images */}
       <div style={{ marginTop: 24 }}>
         <h4>Component Image Links</h4>
@@ -535,6 +617,32 @@ export function ImagesStep({
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {/* Show linked image thumbnails */}
+                    {linkedImageIds.slice(0, 3).map(imgId => {
+                      const img = getImageById(imgId);
+                      const imgUrl = img ? getImageUrl(projectId, img) : null;
+                      return imgUrl ? (
+                        <div 
+                          key={imgId}
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 4,
+                            overflow: 'hidden',
+                            border: '1px solid #ddd'
+                          }}
+                        >
+                          <img 
+                            src={imgUrl} 
+                            alt=""
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        </div>
+                      ) : null;
+                    })}
+                    {linkedImageIds.length > 3 && (
+                      <span style={{ fontSize: 11, color: '#999' }}>+{linkedImageIds.length - 3}</span>
+                    )}
                     <span style={{ 
                       background: linkedCount > 0 ? '#4caf50' : '#ffeb3b',
                       color: linkedCount > 0 ? 'white' : '#333',
@@ -551,31 +659,160 @@ export function ImagesStep({
                 
                 {isSelected && (
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e0e0e0' }}>
+                    {/* Show currently linked images with thumbnails */}
+                    {linkedImageIds.length > 0 && (
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+                          Linked Images:
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {linkedImageIds.map(imgId => {
+                            const img = getImageById(imgId);
+                            const imgUrl = img ? getImageUrl(projectId, img) : null;
+                            const feedbackKey = `${component.id}-${imgId}`;
+                            const status = feedbackStatus[feedbackKey];
+                            
+                            return (
+                              <div 
+                                key={imgId}
+                                style={{
+                                  border: status === 'confirmed' ? '3px solid #4caf50' : 
+                                         status === 'rejected' ? '3px solid #f44336' : '2px solid #1976d2',
+                                  borderRadius: 8,
+                                  padding: 4,
+                                  background: 'white'
+                                }}
+                              >
+                                <div style={{
+                                  width: 100,
+                                  height: 75,
+                                  borderRadius: 4,
+                                  overflow: 'hidden',
+                                  background: '#e0e0e0',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}>
+                                  {imgUrl ? (
+                                    <img 
+                                      src={imgUrl} 
+                                      alt=""
+                                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    />
+                                  ) : (
+                                    <span style={{ color: '#999' }}>📷</span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: 10, color: '#666', textAlign: 'center', marginTop: 4 }}>
+                                  {img?.tags?.find(t => t.startsWith('page-')) || 'Image'}
+                                </div>
+                                
+                                {/* Feedback buttons in learning mode */}
+                                {feedbackMode && !status && (
+                                  <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleFeedback(component, imgId, true); }}
+                                      style={{
+                                        flex: 1,
+                                        padding: '4px 6px',
+                                        background: '#4caf50',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: 4,
+                                        fontSize: 10,
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      ✓ Correct
+                                    </button>
+                                    <button
+                                      onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        handleFeedback(component, imgId, false);
+                                        handleComponentLink(component.id, imgId);
+                                      }}
+                                      style={{
+                                        flex: 1,
+                                        padding: '4px 6px',
+                                        background: '#f44336',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: 4,
+                                        fontSize: 10,
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      ✗ Wrong
+                                    </button>
+                                  </div>
+                                )}
+                                {status && (
+                                  <div style={{ 
+                                    fontSize: 10, 
+                                    textAlign: 'center', 
+                                    marginTop: 4,
+                                    color: status === 'confirmed' ? '#4caf50' : '#f44336' 
+                                  }}>
+                                    {status === 'confirmed' ? '✓ Confirmed' : '✗ Rejected'}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    
                     <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>
                       Click an image to link/unlink it from this component:
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', 
+                      gap: 8 
+                    }}>
                       {localImages.map((img) => {
                         const isLinked = linkedImageIds.includes(img.id);
+                        const imgUrl = getImageUrl(projectId, img);
                         return (
                           <button
                             key={img.id}
                             onClick={() => handleComponentLink(component.id, img.id)}
                             style={{
-                              padding: '8px 12px',
+                              padding: 4,
                               borderRadius: 6,
-                              border: isLinked ? '2px solid #4caf50' : '1px solid #ccc',
+                              border: isLinked ? '3px solid #4caf50' : '1px solid #ccc',
                               background: isLinked ? '#e8f5e9' : '#fafafa',
                               cursor: 'pointer',
-                              fontSize: 12,
                               display: 'flex',
-                              alignItems: 'center',
-                              gap: 6
+                              flexDirection: 'column',
+                              alignItems: 'center'
                             }}
                           >
-                            {isLinked && <span style={{ color: '#4caf50' }}>✓</span>}
-                            <span style={{ color: '#666' }}>{img.source}:</span>
-                            <span>{img.id.substring(0, 15)}...</span>
+                            <div style={{
+                              width: '100%',
+                              height: 60,
+                              borderRadius: 4,
+                              overflow: 'hidden',
+                              background: '#e0e0e0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              {imgUrl ? (
+                                <img 
+                                  src={imgUrl} 
+                                  alt=""
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                              ) : (
+                                <span style={{ color: '#999' }}>📷</span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 9, color: '#666', marginTop: 4 }}>
+                              {isLinked && <span style={{ color: '#4caf50' }}>✓ </span>}
+                              {img.tags?.find(t => t.startsWith('page-')) || img.source}
+                            </div>
                           </button>
                         );
                       })}

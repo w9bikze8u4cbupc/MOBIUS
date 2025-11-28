@@ -66,22 +66,37 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 ## Recent Changes (Nov 28, 2025)
 
 ### Step 4 Image Pipeline Enhancement (Latest)
+- **Image Thumbnails**: Now displays actual image thumbnails from extracted rulebook pages
+  - Image serving endpoint: `GET /api/projects/:projectId/images/:imageId/file`
+  - Secure path validation prevents directory traversal
+  - Works for rulebook images, manual uploads, and BGG images
 - **Auto-Gather Images**: One-click button to collect images from all available sources
   - PDF rulebook extraction (converts pages to images)
   - BoardGameGeek image fetch (requires BGG ID due to API auth changes)
-  - Web search for component-specific images
 - **AI-Powered Component Matching**: GPT-4o analyzes images and automatically matches them to game components
   - Matches based on image source, tags, and component categories
   - Fallback to category-based matching if AI unavailable
+- **Learning System**: Train MOBIUS to improve matching over time
+  - Enable "Learning Mode" to review and confirm/reject matches
+  - Confirm correct matches to reinforce patterns
+  - Reject incorrect matches to teach MOBIUS what to avoid
+  - Patterns stored in `data/match-learning.json`
+  - Uses component category, name, and successful/failed image tags
+  - Future matching will use learned patterns for better accuracy
 - **Enhanced ImagesStep UI**:
-  - Prominent auto-gather and auto-match buttons with progress feedback
+  - Actual image thumbnails in gallery (not text placeholders)
+  - Component list shows linked image thumbnails in header
+  - Expand component to see all linked images with thumbnails
+  - Learning mode toggle with Confirm/Reject buttons on each image
   - Collapsible image galleries grouped by source
-  - Component list showing linked image counts
-  - Click-to-expand component details with image linking
   - Manual source options collapsed by default
 - **New API Endpoints**:
-  - `POST /api/projects/:projectId/images/extract-pdf` - Extract images from uploaded PDF file
-  - `POST /api/projects/:projectId/images/auto-match` - AI component-to-image matching
+  - `GET /api/projects/:projectId/images/:imageId/file` - Serve image files
+  - `POST /api/projects/:projectId/images/extract-pdf` - Extract images from PDF
+  - `POST /api/projects/:projectId/images/auto-match` - AI component matching
+  - `POST /api/projects/:projectId/match-feedback` - Save match confirmations
+  - `GET /api/learning/patterns` - Get learned matching patterns
+  - `GET /api/learning/stats` - Get feedback statistics
 - **BGG Search Improvement**: Now searches by game name (not just ID) with graceful fallback
 - **PDF File Integration**: Auto-gather now uses the PDF file from Step 1 for image extraction
 
