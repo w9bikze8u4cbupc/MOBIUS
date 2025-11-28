@@ -25,6 +25,9 @@ import {
   extractComponentCrops,
   matchCropsToComponents,
 } from '../services/intelligentCropper.js';
+import {
+  extractAllImages as extractNativeImages,
+} from '../services/nativeImageExtractor.js';
 
 export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {}) {
   const uploadMiddleware = upload || { single: () => (_req, _res, next) => next() };
@@ -106,22 +109,76 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
     }
   });
 
-  // Extract images from uploaded PDF file
+  // Extract images from uploaded PDF file (page-level extraction)
   app.post('/api/projects/:projectId/images/extract-pdf', uploadMiddleware.single('file'), async (req, res) => {
     const { projectId } = req.params;
     try {
       if (!req.file) {
         return res.status(400).json({ error: 'PDF file is required' });
       }
-      console.log('Extracting images from uploaded PDF:', req.file.path);
+      console.log('Extracting page images from uploaded PDF:', req.file.path);
       const extracted = await extractRulebookImages(projectId, req.file.path);
       const enhanced = extracted.map(runImageEnhancement);
       const state = appendImages(projectId, enhanced);
-      console.log('Extracted', enhanced.length, 'images from PDF');
-      res.json({ images: state.images, componentImages: state.componentImages });
+      console.log('Extracted', enhanced.length, 'page images from PDF');
+      res.json({ 
+        mode: 'pages',
+        pagesCount: enhanced.length,
+        images: state.images, 
+        componentImages: state.componentImages 
+      });
     } catch (err) {
       console.error('Failed to extract PDF images', err);
       res.status(400).json({ error: err.message || 'Unable to extract PDF images' });
+    }
+  });
+
+  // Extract native embedded images from PDF (extracts actual image objects, not page renders)
+  app.post('/api/projects/:projectId/images/extract-native', uploadMiddleware.single('file'), async (req, res) => {
+    const { projectId } = req.params;
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'PDF file is required' });
+      }
+      
+      console.log('Extracting native embedded images from PDF:', req.file.path);
+      const fs = await import('fs');
+      const pdfBuffer = fs.readFileSync(req.file.path);
+      
+      const result = await extractNativeImages(pdfBuffer, projectId, {
+        minWidth: 100,
+        minHeight: 100,
+      });
+      
+      if (result.images.length === 0) {
+        console.log('No native images found, falling back to page extraction');
+        const extracted = await extractRulebookImages(projectId, req.file.path);
+        const enhanced = extracted.map(runImageEnhancement);
+        const state = appendImages(projectId, enhanced);
+        return res.json({ 
+          mode: 'pages',
+          message: 'No embedded images found, extracted full pages instead',
+          nativeCount: 0,
+          pagesCount: enhanced.length,
+          images: state.images, 
+          componentImages: state.componentImages 
+        });
+      }
+      
+      const enhanced = result.images.map(runImageEnhancement);
+      const state = appendImages(projectId, enhanced);
+      
+      console.log(`Extracted ${enhanced.length} native embedded images from PDF`);
+      res.json({ 
+        mode: 'native',
+        nativeCount: enhanced.length,
+        message: result.message,
+        images: state.images, 
+        componentImages: state.componentImages 
+      });
+    } catch (err) {
+      console.error('Failed to extract native images:', err);
+      res.status(500).json({ error: err.message || 'Failed to extract native images' });
     }
   });
 

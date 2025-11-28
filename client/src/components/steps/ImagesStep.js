@@ -8,7 +8,7 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL !== undefined
 const getImageUrl = (projectId, image) => {
   if (!image) return null;
   if (image.originalUrl) return image.originalUrl;
-  if (image.fileKey || image.source === 'rulebook' || image.source === 'manual' || image.source === 'ai-crop') {
+  if (image.fileKey || image.source === 'rulebook' || image.source === 'manual' || image.source === 'ai-crop' || image.source === 'native-pdf') {
     return `${BACKEND_URL}/api/projects/${projectId}/images/${image.id}/file`;
   }
   return null;
@@ -17,6 +17,7 @@ const getImageUrl = (projectId, image) => {
 const getSourceLabel = (source) => {
   const labels = {
     'rulebook': 'Rulebook Page',
+    'native-pdf': 'Embedded Image',
     'ai-crop': 'AI Detected',
     'bgg': 'BoardGameGeek',
     'manual': 'Manual Upload',
@@ -29,9 +30,10 @@ const getSourceLabel = (source) => {
 const getSourceColor = (source) => {
   const colors = {
     'rulebook': '#2196f3',
+    'native-pdf': '#4caf50',
     'ai-crop': '#9c27b0',
     'bgg': '#ff9800',
-    'manual': '#4caf50',
+    'manual': '#673ab7',
     'bgg-components': '#ff5722',
     'web-search': '#00bcd4'
   };
@@ -97,7 +99,7 @@ export function ImagesStep({
     onImagesUpdated?.(payload);
   };
 
-  // Automatic image gathering with intelligent cropping
+  // Automatic image gathering - uses native extraction first, then page-level fallback
   const handleAutoGather = async () => {
     if (!projectId) return;
     setLoading(true);
@@ -108,92 +110,72 @@ export function ImagesStep({
         sources: [],
         totalImages: 0,
         errors: [],
-        cropsFound: 0
+        nativeFound: 0
       };
       
-      // Step 1: Extract component images from PDF using AI vision
-      if (pdfFile && components.length > 0) {
+      // Step 1: Try native embedded image extraction first (best quality)
+      if (pdfFile) {
         try {
           setAutoGatherStatus({ 
             status: 'gathering', 
-            message: 'AI is scanning PDF for component images...' 
+            message: 'Extracting embedded images from PDF...' 
           });
           const formData = new FormData();
           formData.append('file', pdfFile);
-          formData.append('components', JSON.stringify(components));
           
-          const cropRes = await axios.post(
-            `${BACKEND_URL}/api/projects/${projectId}/images/extract-crops`,
+          const nativeRes = await axios.post(
+            `${BACKEND_URL}/api/projects/${projectId}/images/extract-native`,
             formData,
             { headers: { 'Content-Type': 'multipart/form-data' } }
           );
           
-          if (cropRes.data?.images) {
-            const mode = cropRes.data.mode;
-            const count = mode === 'crops' ? cropRes.data.cropsCount : cropRes.data.pagesCount;
+          if (nativeRes.data?.images) {
+            const mode = nativeRes.data.mode;
+            const count = mode === 'native' ? nativeRes.data.nativeCount : nativeRes.data.pagesCount;
             results.sources.push({ 
-              source: mode === 'crops' ? 'ai-crops' : 'rulebook', 
+              source: mode === 'native' ? 'native-pdf' : 'rulebook', 
               count 
             });
-            results.totalImages += cropRes.data.images.length;
-            results.cropsFound = cropRes.data.cropsCount || 0;
-            refreshState(cropRes.data);
+            results.totalImages += nativeRes.data.images.length;
+            results.nativeFound = nativeRes.data.nativeCount || 0;
+            refreshState(nativeRes.data);
             
-            if (mode === 'crops') {
+            if (mode === 'native' && count > 0) {
               setAutoGatherStatus({ 
                 status: 'gathering', 
-                message: `Found ${count} component images, now checking other sources...` 
+                message: `Found ${count} embedded images, checking other sources...` 
+              });
+            } else {
+              setAutoGatherStatus({ 
+                status: 'gathering', 
+                message: `Extracted ${count} pages, checking other sources...` 
               });
             }
           }
         } catch (err) {
-          console.error('AI crop extraction failed:', err);
-          results.errors.push({ source: 'ai-crops', error: err.message });
+          console.error('Native extraction failed:', err);
+          results.errors.push({ source: 'native-pdf', error: err.message });
           
           // Fallback to full page extraction
-          if (pdfFile) {
-            try {
-              setAutoGatherStatus({ status: 'gathering', message: 'Extracting full pages from PDF...' });
-              const formData = new FormData();
-              formData.append('file', pdfFile);
-              
-              const pdfRes = await axios.post(
-                `${BACKEND_URL}/api/projects/${projectId}/images/extract-pdf`,
-                formData,
-                { headers: { 'Content-Type': 'multipart/form-data' } }
-              );
-              
-              if (pdfRes.data?.images) {
-                results.sources.push({ source: 'rulebook', count: pdfRes.data.images.length });
-                results.totalImages += pdfRes.data.images.length;
-                refreshState(pdfRes.data);
-              }
-            } catch (fallbackErr) {
-              console.error('Fallback PDF extraction failed:', fallbackErr);
+          try {
+            setAutoGatherStatus({ status: 'gathering', message: 'Extracting pages from PDF...' });
+            const formData = new FormData();
+            formData.append('file', pdfFile);
+            
+            const pdfRes = await axios.post(
+              `${BACKEND_URL}/api/projects/${projectId}/images/extract-pdf`,
+              formData,
+              { headers: { 'Content-Type': 'multipart/form-data' } }
+            );
+            
+            if (pdfRes.data?.images) {
+              results.sources.push({ source: 'rulebook', count: pdfRes.data.images.length });
+              results.totalImages += pdfRes.data.images.length;
+              refreshState(pdfRes.data);
             }
+          } catch (fallbackErr) {
+            console.error('Fallback PDF extraction failed:', fallbackErr);
           }
-        }
-      } else if (pdfFile) {
-        // No components yet, just extract full pages
-        try {
-          setAutoGatherStatus({ status: 'gathering', message: 'Extracting images from PDF rulebook...' });
-          const formData = new FormData();
-          formData.append('file', pdfFile);
-          
-          const pdfRes = await axios.post(
-            `${BACKEND_URL}/api/projects/${projectId}/images/extract-pdf`,
-            formData,
-            { headers: { 'Content-Type': 'multipart/form-data' } }
-          );
-          
-          if (pdfRes.data?.images) {
-            results.sources.push({ source: 'rulebook', count: pdfRes.data.images.length });
-            results.totalImages += pdfRes.data.images.length;
-            refreshState(pdfRes.data);
-          }
-        } catch (err) {
-          console.error('PDF extraction failed:', err);
-          results.errors.push({ source: 'rulebook', error: err.message });
         }
       }
       
