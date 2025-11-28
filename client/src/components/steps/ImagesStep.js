@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
-const BACKEND_URL = "http://localhost:5001";
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL !== undefined 
+  ? process.env.REACT_APP_BACKEND_URL 
+  : (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8000');
 
 export function ImagesStep({ projectId, components = [], images = [], componentImages = {}, onImagesUpdated }) {
   const [loading, setLoading] = useState(false);

@@ -150,6 +150,73 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
+// --- Ingestion API endpoint ---
+app.post('/api/ingest', async (req, res) => {
+  try {
+    const { documentId, metadata, pages = [], bggMetadata = {} } = req.body;
+    
+    if (!documentId) {
+      return res.status(400).json({ error: 'Missing documentId' });
+    }
+    
+    if (!pages.length) {
+      return res.status(400).json({ error: 'No pages provided' });
+    }
+    
+    const manifest = runIngestionPipeline({
+      documentId,
+      metadata: {
+        title: metadata?.title || 'Untitled',
+        gameId: metadata?.gameId || documentId,
+        source: metadata?.source || 'api',
+        ...metadata
+      },
+      pages,
+      bggMetadata
+    });
+    
+    res.json({ ok: true, manifest });
+  } catch (err) {
+    console.error('Ingestion error:', err.message);
+    res.status(400).json({ 
+      ok: false, 
+      error: err.message,
+      code: err.message
+    });
+  }
+});
+
+// --- Storyboard API endpoint ---
+app.post('/api/storyboard', async (req, res) => {
+  try {
+    const { ingestionManifest, options = {} } = req.body;
+    
+    if (!ingestionManifest) {
+      return res.status(400).json({ error: 'Missing ingestionManifest' });
+    }
+    
+    const storyboard = generateStoryboard(ingestionManifest, options);
+    const validation = validateStoryboard(storyboard);
+    
+    if (!validation.isValid) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: 'Storyboard validation failed',
+        violations: validation.violations 
+      });
+    }
+    
+    res.json({ ok: true, manifest: storyboard });
+  } catch (err) {
+    console.error('Storyboard error:', err.message);
+    res.status(400).json({ 
+      ok: false, 
+      error: err.message,
+      code: err.message 
+    });
+  }
+});
+
 // --- API Key Middleware ---
 app.use(createAuthMiddleware(gatewayConfig));
 
