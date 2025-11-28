@@ -217,6 +217,39 @@ app.post('/api/storyboard', async (req, res) => {
   }
 });
 
+// --- Extract game name from rulebook text ---
+app.post('/api/extract-game-name', async (req, res) => {
+  try {
+    const { text } = req.body;
+    
+    if (!text || text.length < 50) {
+      return res.status(400).json({ error: 'Insufficient text provided' });
+    }
+    
+    const response = await openai.chat.completions.create({
+      model: DEFAULT_AI_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert at identifying board game names from rulebook text. Extract ONLY the official game name. Return just the game name, nothing else.'
+        },
+        {
+          role: 'user',
+          content: `Extract the board game name from this rulebook text. Return ONLY the game name:\n\n${text}`
+        }
+      ],
+      max_completion_tokens: 50,
+      temperature: 0.1
+    });
+    
+    const gameName = response.choices[0]?.message?.content?.trim() || '';
+    res.json({ gameName });
+  } catch (err) {
+    console.error('Game name extraction error:', err.message);
+    res.status(500).json({ error: 'Failed to extract game name' });
+  }
+});
+
 // --- API Key Middleware ---
 app.use(createAuthMiddleware(gatewayConfig));
 

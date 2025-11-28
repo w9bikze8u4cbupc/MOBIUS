@@ -160,6 +160,7 @@ function App() {
   const [completedStepIds, setCompletedStepIds] = useState([]);
   const [projectImages, setProjectImages] = useState([]);
   const [componentImageLinks, setComponentImageLinks] = useState({});
+  const [extractingName, setExtractingName] = useState(false);
 
 
   // --- Effects ---
@@ -231,15 +232,33 @@ function App() {
     }
   };
 
-  // --- File Handling ---
-  // Process a file (either from drag/drop or file input)
-  const handleFile = async (file) => {
-    // Reset relevant state variables before processing new file
-    setFile(file);
-    // Suggest game name from file name (clean up extension and separators)
-    const name = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
-    setGameName(name);
-    setRulebookText("");
+  // Extract game name from rulebook text using AI
+  const extractGameNameFromText = async (text) => {
+    try {
+      setExtractingName(true);
+      const response = await axios.post(`${BACKEND_URL}/api/extract-game-name`, {
+        text: text.substring(0, 3000)
+      });
+      if (response.data?.gameName) {
+        setGameName(response.data.gameName);
+        const slug = response.data.gameName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        setProjectId(slug);
+      }
+    } catch (err) {
+      console.error('Failed to extract game name:', err);
+    } finally {
+      setExtractingName(false);
+    }
+  };
+
+  // --- File Handling ---
+  // Process a file (either from drag/drop or file input)
+  const handleFile = async (file) => {
+    // Reset relevant state variables before processing new file
+    setFile(file);
+    setGameName("");
+    setProjectId("");
+    setRulebookText("");
     setSummary("");
     setEditedSummary("");
     setSections([]);
@@ -249,27 +268,28 @@ function App() {
     setStoryboardManifest(null);
     setIngestionError("");
     setStoryboardError("");
-    // Reset metadata to empty strings
-    setMetadata({ publisher: "", playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "" });
-    setShowThemePrompt(false);
-    setError("");
-    setTranslationStatus({ isTranslating: false, error: null });
+    // Reset metadata to empty strings
+    setMetadata({ publisher: "", playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "" });
+    setShowThemePrompt(false);
+    setError("");
+    setTranslationStatus({ isTranslating: false, error: null });
 
 
-    try {
-      if (file.type === "application/pdf") {
-        setLoading(true); // Show loading only for PDF extraction
-        const extracted = await extractTextFromPDF(file);
-        setRulebookText(extracted);
-      } else {
-        setError("Please upload a PDF file");
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    try {
+      if (file.type === "application/pdf") {
+        setLoading(true);
+        const extracted = await extractTextFromPDF(file);
+        setRulebookText(extracted);
+        setLoading(false);
+        extractGameNameFromText(extracted);
+      } else {
+        setError("Please upload a PDF file");
+      }
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  };
 
   // Drag and drop handlers
   const handleDrag = (e) => {
@@ -826,8 +846,12 @@ function App() {
 
     switch (stepId) {
       case "project": {
+        if (!rulebookText.trim()) {
+          setError("Upload a rulebook PDF before continuing.");
+          return;
+        }
         if (!gameName.trim()) {
-          setError("Provide a game name before continuing.");
+          setError("Enter a game name before continuing.");
           return;
         }
         setError("");
@@ -939,6 +963,12 @@ function App() {
               setRenderLang={setRenderLang}
               renderResolution={renderResolution}
               setRenderResolution={setRenderResolution}
+              file={file}
+              rulebookText={rulebookText}
+              onFileChange={handleFileChange}
+              onTextChange={handleTextChange}
+              onDrop={handleDrop}
+              extractingName={extractingName}
             />
           )}
 
