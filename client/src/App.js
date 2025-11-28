@@ -440,10 +440,17 @@ function App() {
       });
       
       console.log('Extracted components:', data.components);
-      setGameComponents(data.components || []);
+      
+      // Ensure all components have unique IDs
+      const componentsWithIds = (data.components || []).map((comp, idx) => ({
+        ...comp,
+        id: comp.id || `comp-${Date.now()}-${idx}`
+      }));
+      
+      setGameComponents(componentsWithIds);
       
       // Mark ingestion step as complete if we have components
-      if (data.components?.length > 0 && !completedStepIds.includes('ingestion')) {
+      if (componentsWithIds.length > 0 && !completedStepIds.includes('ingestion')) {
         setCompletedStepIds(prev => [...prev, 'ingestion']);
       }
     } catch (err) {

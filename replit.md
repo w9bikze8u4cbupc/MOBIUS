@@ -65,7 +65,17 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 
 ## Recent Changes (Nov 28, 2025)
 
-### Automatic Metadata Extraction (Latest)
+### AI-Powered Game Component Extraction (Latest)
+- Uses GPT-5 to extract exact physical game components from PDF rulebooks
+- Extracts: component name, exact quantity, category, and details (colors, materials)
+- Categories: cards, tokens, boards, tiles, dice, meeples, miniatures, markers, cubes, other
+- Uses first 12,000 characters of PDF for comprehensive component coverage
+- Components displayed grouped by category with color-coded icons
+- Inline editing: modify name, quantity, or details for any component
+- Add/delete components manually for corrections
+- `/api/extract-game-components` endpoint in backend
+
+### Automatic Metadata Extraction
 - AI-powered game metadata extraction from PDF rulebooks using GPT-5
 - Extracts: game name, publisher, player count, game length, minimum age, theme, edition
 - Uses first 6000 characters of PDF for comprehensive metadata capture
