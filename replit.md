@@ -65,7 +65,27 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 
 ## Recent Changes (Nov 28, 2025)
 
-### AI-Powered Game Component Extraction (Latest)
+### Step 4 Image Pipeline Enhancement (Latest)
+- **Auto-Gather Images**: One-click button to collect images from all available sources
+  - PDF rulebook extraction (converts pages to images)
+  - BoardGameGeek image fetch (requires BGG ID due to API auth changes)
+  - Web search for component-specific images
+- **AI-Powered Component Matching**: GPT-4o analyzes images and automatically matches them to game components
+  - Matches based on image source, tags, and component categories
+  - Fallback to category-based matching if AI unavailable
+- **Enhanced ImagesStep UI**:
+  - Prominent auto-gather and auto-match buttons with progress feedback
+  - Collapsible image galleries grouped by source
+  - Component list showing linked image counts
+  - Click-to-expand component details with image linking
+  - Manual source options collapsed by default
+- **New API Endpoints**:
+  - `POST /api/projects/:projectId/images/extract-pdf` - Extract images from uploaded PDF file
+  - `POST /api/projects/:projectId/images/auto-match` - AI component-to-image matching
+- **BGG Search Improvement**: Now searches by game name (not just ID) with graceful fallback
+- **PDF File Integration**: Auto-gather now uses the PDF file from Step 1 for image extraction
+
+### AI-Powered Game Component Extraction
 - Uses GPT-4o to extract exact physical game components from PDF rulebooks
 - Extracts: component name, exact quantity, category, and details (colors, materials)
 - Categories: cards, tokens, boards, tiles, dice, meeples, miniatures, markers, cubes, other

@@ -10,10 +10,12 @@ import {
   ingestManualImage,
   normalizeImageAsset,
   runImageEnhancement,
+  searchWebForComponentImages,
+  matchComponentsToImages,
 } from '../services/imagePipeline.js';
 import { fetchImagesFromExtractor } from '../services/imageExtractorClient.js';
 
-export function registerImageRoutes(app, { upload, extractorApiKey } = {}) {
+export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {}) {
   const uploadMiddleware = upload || { single: () => (_req, _res, next) => next() };
 
   app.get('/api/projects/:projectId/images', (req, res) => {
@@ -48,6 +50,25 @@ export function registerImageRoutes(app, { upload, extractorApiKey } = {}) {
     } catch (err) {
       console.error('Failed to extract rulebook images', err);
       res.status(400).json({ error: err.message || 'Unable to extract rulebook images' });
+    }
+  });
+
+  // Extract images from uploaded PDF file
+  app.post('/api/projects/:projectId/images/extract-pdf', uploadMiddleware.single('file'), async (req, res) => {
+    const { projectId } = req.params;
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'PDF file is required' });
+      }
+      console.log('Extracting images from uploaded PDF:', req.file.path);
+      const extracted = await extractRulebookImages(projectId, req.file.path);
+      const enhanced = extracted.map(runImageEnhancement);
+      const state = appendImages(projectId, enhanced);
+      console.log('Extracted', enhanced.length, 'images from PDF');
+      res.json({ images: state.images, componentImages: state.componentImages });
+    } catch (err) {
+      console.error('Failed to extract PDF images', err);
+      res.status(400).json({ error: err.message || 'Unable to extract PDF images' });
     }
   });
 
@@ -111,6 +132,122 @@ export function registerImageRoutes(app, { upload, extractorApiKey } = {}) {
     const links = linkImagesToComponent(projectId, componentId, Array.isArray(imageIds) ? imageIds : []);
     const state = listImages(projectId);
     res.json({ images: state.images, componentImages: links });
+  });
+
+  // Auto-gather images from all available sources (PDF, BGG, web search)
+  app.post('/api/projects/:projectId/images/auto-gather', async (req, res) => {
+    const { projectId } = req.params;
+    const { pdfPath, gameName, bggUrl, components = [] } = req.body || {};
+    
+    console.log('Auto-gathering images for:', gameName, 'with', components.length, 'components');
+    
+    const results = {
+      sources: [],
+      totalImages: 0,
+      errors: []
+    };
+    
+    try {
+      // Step 1: Extract images from PDF rulebook
+      if (pdfPath) {
+        try {
+          console.log('Extracting images from PDF:', pdfPath);
+          const extracted = await extractRulebookImages(projectId, pdfPath);
+          const enhanced = extracted.map(runImageEnhancement);
+          appendImages(projectId, enhanced);
+          results.sources.push({ source: 'rulebook', count: enhanced.length });
+          results.totalImages += enhanced.length;
+        } catch (err) {
+          console.error('PDF extraction failed:', err.message);
+          results.errors.push({ source: 'rulebook', error: err.message });
+        }
+      }
+      
+      // Step 2: Fetch BGG images
+      if (bggUrl || gameName) {
+        try {
+          console.log('Fetching BGG images for:', bggUrl || gameName);
+          const fetched = await fetchBggImages(projectId, bggUrl || gameName);
+          const enhanced = fetched.map(runImageEnhancement);
+          appendImages(projectId, enhanced);
+          results.sources.push({ source: 'bgg', count: enhanced.length });
+          results.totalImages += enhanced.length;
+        } catch (err) {
+          console.error('BGG fetch failed:', err.message);
+          results.errors.push({ source: 'bgg', error: err.message });
+        }
+      }
+      
+      // Step 3: Search web for component images if we have components
+      if (gameName && components.length > 0 && openai) {
+        try {
+          console.log('Searching web for component images...');
+          const webImages = await searchWebForComponentImages(gameName, components, openai);
+          if (webImages.length > 0) {
+            const enhanced = webImages.map(runImageEnhancement);
+            appendImages(projectId, enhanced);
+            results.sources.push({ source: 'web-search', count: enhanced.length });
+            results.totalImages += enhanced.length;
+          }
+        } catch (err) {
+          console.error('Web search failed:', err.message);
+          results.errors.push({ source: 'web-search', error: err.message });
+        }
+      }
+      
+      const state = listImages(projectId);
+      res.json({ 
+        ...results,
+        images: state.images, 
+        componentImages: state.componentImages 
+      });
+    } catch (err) {
+      console.error('Auto-gather failed:', err);
+      res.status(500).json({ error: err.message || 'Auto-gather failed' });
+    }
+  });
+
+  // AI-powered automatic component-to-image matching
+  app.post('/api/projects/:projectId/images/auto-match', async (req, res) => {
+    const { projectId } = req.params;
+    const { components = [], gameName } = req.body || {};
+    
+    if (!openai) {
+      return res.status(400).json({ error: 'AI service not configured' });
+    }
+    
+    console.log('Auto-matching', components.length, 'components to images');
+    
+    try {
+      const state = listImages(projectId);
+      const images = state.images || [];
+      
+      if (images.length === 0) {
+        return res.json({ 
+          message: 'No images available for matching',
+          images: [],
+          componentImages: {} 
+        });
+      }
+      
+      // Use AI to match components to images
+      const matches = await matchComponentsToImages(components, images, gameName, openai);
+      
+      // Apply the matches
+      for (const [componentId, imageIds] of Object.entries(matches)) {
+        linkImagesToComponent(projectId, componentId, imageIds);
+      }
+      
+      const updatedState = listImages(projectId);
+      res.json({ 
+        matched: Object.keys(matches).length,
+        images: updatedState.images, 
+        componentImages: updatedState.componentImages 
+      });
+    } catch (err) {
+      console.error('Auto-match failed:', err);
+      res.status(500).json({ error: err.message || 'Auto-match failed' });
+    }
   });
 }
 

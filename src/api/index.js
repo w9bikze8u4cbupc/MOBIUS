@@ -1975,7 +1975,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-registerImageRoutes(app, { upload, extractorApiKey: IMAGE_EXTRACTOR_API_KEY });
+registerImageRoutes(app, { upload, extractorApiKey: IMAGE_EXTRACTOR_API_KEY, openai });
 
 // Helper function to identify components using AI  
 async function identifyComponents(text) {

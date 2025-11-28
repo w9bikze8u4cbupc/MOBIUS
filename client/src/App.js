@@ -1096,13 +1096,16 @@ function App() {
           {activeStepId === "images" && (
             <ImagesStep
               projectId={projectId}
-              components={ingestionManifest?.components || []}
+              components={gameComponents.length > 0 ? gameComponents : (ingestionManifest?.components || [])}
               images={projectImages}
               componentImages={componentImageLinks}
               onImagesUpdated={({ images, componentImages }) => {
                 setProjectImages(images || []);
                 setComponentImageLinks(componentImages || {});
               }}
+              gameName={gameName}
+              bggUrl={bggUrl}
+              pdfFile={file}
             />
           )}
 
