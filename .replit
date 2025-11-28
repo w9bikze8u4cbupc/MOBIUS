@@ -43,3 +43,12 @@ waitForPort = 5000
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 38427
+externalPort = 3000
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "node src/api/index.js & cd client && npx serve -s build -l 5000"]
+build = ["bash", "-c", "cd client && npm run build"]
