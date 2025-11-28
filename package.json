@@ -4,6 +4,10 @@
   "description": "A pipeline for generating game tutorial videos from structured game rules",
   "main": "index.js",
   "scripts": {
+    "start": "NODE_ENV=production node src/api/index.js",
+    "build": "cd client && npm run build",
+    "dev": "node src/api/index.js",
+    "postinstall": "cd client && npm install",
     "compile-shotlist": "node scripts/compile-shotlist.mjs",
     "bind-alignment": "node scripts/bind-alignment.mjs",
     "render": "node scripts/render-ffmpeg.mjs",

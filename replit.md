@@ -61,9 +61,14 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 - Fixed package.json dependency: updated pdf-to-img from ^1.2.4 to ^5.0.0
 - Configured React frontend to run on port 5000 with proper host settings for Replit
 - Added default export to App.js component
-- Set up environment variables for development
+- Set up environment variables for development and production
 - Created workflow for frontend deployment
 - Configured deployment with autoscale target
+- Updated backend to serve React build in production
+- Fixed BACKEND_URL to use relative paths in production
+- Added production scripts: `npm start` sets NODE_ENV=production
+- Updated server to listen on port 5000 by default (production) and 0.0.0.0 host
+- Added catch-all route for React Router SPA support
 
 ## Project Structure
 ```
@@ -85,9 +90,15 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 ```
 
 ## Development Workflow
-1. Frontend runs on port 5000 (Replit webview)
-2. Backend API runs on port 5001 (localhost)
+1. Frontend runs on port 5000 (Replit webview) - React dev server
+2. Backend API runs on port 5001 (localhost) - Express server
 3. Frontend connects to backend via http://localhost:5001
+
+## Production Deployment
+1. Build process: `npm run build` - builds React app to client/build
+2. Single server: Express serves both API and static React build on port 5000
+3. Frontend uses relative URLs to call API on same domain
+4. Environment: NODE_ENV=production
 
 ## Known Dependencies
 - Node.js packages: express, axios, cheerio, openai, multer, sharp, pdf-parse, etc.

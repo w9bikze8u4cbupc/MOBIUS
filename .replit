@@ -16,6 +16,11 @@ DB_DATA_FILE = "./data/projects.json"
 OUTPUT_DIR = "./output/MobiusGames"
 JOB_RESULTS_DIR = "./src/api/uploads/render-jobs"
 
+[userenv.production]
+PORT = "5000"
+HOST = "0.0.0.0"
+NODE_ENV = "production"
+
 [workflows]
 runButton = "Project"
 
@@ -50,5 +55,5 @@ externalPort = 3000
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["bash", "-c", "node src/api/index.js & cd client && npx serve -s build -l 5000"]
-build = ["bash", "-c", "cd client && npm run build"]
+run = ["bash", "-c", "NODE_ENV=production PORT=5000 node src/api/index.js"]
+build = ["bash", "-c", "npm install && npm run build"]

@@ -72,7 +72,9 @@ console.log('Loaded OpenAI key:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
 console.log('API file loaded!');
 
 const app = express();
-const port = process.env.PORT || 5001;
+// Port configuration - use single source of truth
+const defaultPort = process.env.NODE_ENV === 'production' ? 5000 : 5001;
+const port = Number(process.env.PORT) || defaultPort;
 const gatewayConfig = buildGatewayConfig(process.env);
 ensureProductionKeys(gatewayConfig);
 
@@ -94,6 +96,12 @@ app.use(createCorsMiddleware(gatewayConfig));
 app.use(express.json());
 app.use('/static', express.static(path.join(moduleDirname, 'uploads')));
 app.use('/uploads', express.static(path.join(moduleDirname, 'uploads')));
+
+// Serve React build in production
+const clientBuildPath = path.join(process.cwd(), 'client', 'build');
+if (existsSync(clientBuildPath)) {
+  app.use(express.static(clientBuildPath));
+}
 
 // --- API Configuration ---
 const BACKEND_URL = `http://localhost:${port}`;
@@ -3210,12 +3218,27 @@ app.get('/load-project/:id', (req, res) => {
   );
 });
 
+// Catch-all route to serve React app for client-side routing
+app.get('*', (req, res) => {
+  const indexPath = path.join(clientBuildPath, 'index.html');
+  if (existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).send('Frontend not built. Run npm run build first.');
+  }
+});
 
 if (process.env.NODE_ENV !== 'test' && !process.env.JEST_WORKER_ID) {
-  const PORT = process.env.PORT || 5001;
-  app.listen(PORT, () => {
-    console.log(`🚀 Server is running on port ${PORT}`);
-    console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
+  const HOST = process.env.HOST || '0.0.0.0';
+  app.listen(port, HOST, () => {
+    console.log(`🚀 Server is running on ${HOST}:${port}`);
+    console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`📍 Port: ${port}`);
+    if (existsSync(clientBuildPath)) {
+      console.log(`✅ Serving React build from ${clientBuildPath}`);
+    } else {
+      console.log(`⚠️  React build not found. Run 'npm run build' to create it.`);
+    }
   });
 }
 

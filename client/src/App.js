@@ -26,8 +26,10 @@ import "./styles/pipeline.css";
 // Configure PDF.js worker
 GlobalWorkerOptions.workerSrc = pdfWorker;
 
-// Backend URL
-const BACKEND_URL = "http://localhost:5001";
+// Backend URL - use environment variable or relative path in production
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL !== undefined 
+  ? process.env.REACT_APP_BACKEND_URL 
+  : (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5001');
 
 // Updated VOICE_OPTIONS array with the specified ElevenLabs voices
 const VOICE_OPTIONS = [
