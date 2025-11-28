@@ -21,10 +21,7 @@ import {
   getMatchPatterns,
   getLearnedPatterns,
 } from '../services/matchLearning.js';
-import {
-  extractComponentCrops,
-  matchCropsToComponents,
-} from '../services/intelligentCropper.js';
+// AI cropping disabled - produced poor results (text fragments instead of component images)
 import {
   extractAllImages as extractNativeImages,
 } from '../services/nativeImageExtractor.js';
@@ -248,85 +245,35 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
     res.json({ images: state.images, componentImages: links });
   });
 
-  // Intelligent image cropping - uses AI vision to detect and crop component images from PDF
+  // DEPRECATED: AI-based cropping produced poor results. Use extract-native instead.
+  // This endpoint now redirects to page extraction as a fallback.
   app.post('/api/projects/:projectId/images/extract-crops', uploadMiddleware.single('file'), async (req, res) => {
     const { projectId } = req.params;
-    const { components = [] } = req.body;
-    
-    let parsedComponents = components;
-    if (typeof components === 'string') {
-      try {
-        parsedComponents = JSON.parse(components);
-      } catch (e) {
-        parsedComponents = [];
-      }
-    }
     
     try {
       if (!req.file) {
         return res.status(400).json({ error: 'PDF file is required' });
       }
       
-      if (!openai) {
-        return res.status(400).json({ error: 'AI service not configured for vision detection' });
-      }
+      console.log('AI-crop endpoint called - redirecting to page extraction');
       
-      console.log('Extracting component crops from PDF with AI vision...');
-      console.log('Components to find:', parsedComponents.length);
-      
-      const result = await extractComponentCrops(projectId, req.file.path, parsedComponents, openai);
-      
-      if (result.fallbackToPages) {
-        console.log('No AI crops found, falling back to full page extraction');
-        const extracted = await extractRulebookImages(projectId, req.file.path);
-        const enhanced = extracted.map(runImageEnhancement);
-        const state = appendImages(projectId, enhanced);
-        return res.json({ 
-          mode: 'pages',
-          message: 'No distinct component images detected, extracted full pages instead',
-          cropsCount: 0,
-          pagesCount: enhanced.length,
-          images: state.images, 
-          componentImages: state.componentImages 
-        });
-      }
-      
-      const normalizedCrops = result.crops.map(crop => ({
-        id: crop.id,
-        source: crop.source,
-        fileKey: crop.fileKey,
-        width: crop.width,
-        height: crop.height,
-        tags: crop.tags,
-        quality: crop.quality,
-        parentPage: crop.parentPage,
-        bbox: crop.bbox,
-        aiLabels: crop.aiLabels,
-        category: crop.category,
-        confidence: crop.confidence,
-      }));
-      
-      const state = appendImages(projectId, normalizedCrops);
-      
-      const matches = await matchCropsToComponents(result.crops, parsedComponents);
-      for (const [componentId, imageIds] of Object.entries(matches)) {
-        linkImagesToComponent(projectId, componentId, imageIds);
-      }
-      
-      const updatedState = listImages(projectId);
-      
-      console.log(`Extracted ${normalizedCrops.length} component crops, matched to ${Object.keys(matches).length} components`);
+      // Just do page extraction instead of AI cropping
+      const extracted = await extractRulebookImages(projectId, req.file.path);
+      const enhanced = extracted.map(runImageEnhancement);
+      appendImages(projectId, enhanced);
+      const state = listImages(projectId);
       
       res.json({ 
-        mode: 'crops',
-        cropsCount: normalizedCrops.length,
-        matchedComponents: Object.keys(matches).length,
-        images: updatedState.images, 
-        componentImages: updatedState.componentImages 
+        mode: 'pages',
+        message: 'Extracted full pages from PDF',
+        cropsCount: 0,
+        pagesCount: enhanced.length,
+        images: state.images, 
+        componentImages: state.componentImages 
       });
     } catch (err) {
-      console.error('Failed to extract component crops:', err);
-      res.status(500).json({ error: err.message || 'Failed to extract component crops' });
+      console.error('Failed to extract images:', err);
+      res.status(500).json({ error: err.message || 'Failed to extract images' });
     }
   });
 

@@ -73,19 +73,20 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 - **Smart Re-run Prevention**: Only triggers extraction when rulebook content changes
 - **Reset on PDF Change**: Auto-trigger resets when a new PDF is uploaded
 
-### Step 4 Native Image Extraction (Latest)
-- **Native PDF Image Extraction**: Extracts embedded images directly from PDF structure
+### Step 4 Image Extraction (Latest)
+- **Native PDF Image Extraction**: Attempts to extract embedded images directly from PDF structure
   - Uses pdf-lib to parse PDF XObject image references
   - Decodes compressed streams (DCTDecode for JPEG, FlateDecode for raw)
-  - Extracts actual component photographs, not text or page fragments
-  - Images stored in `data/rulebook-images/<projectId>/native/`
-- **Smart Fallback**: If no embedded images found, falls back to full page extraction
+  - Only works for PDFs with actual embedded image objects
+- **Page Extraction Fallback**: Most rulebook PDFs use full-page layouts, so extraction falls back to:
+  - Extracting full pages as high-quality images
+  - 12 pages from a typical rulebook become 12 browsable images
+- **AI Cropping Disabled**: Previous AI-based cropping produced poor results (text fragments instead of component photos). This has been removed.
 - **Quality Filtering**: Only extracts images >= 100x100 pixels
-- **Duplicate Prevention**: Uses hash-based deduplication across pages
 - **Enhanced UI**: 
-  - Green color coding for native embedded images
-  - Displays parent page number for provenance
-  - Shows image dimensions and format
+  - Blue color coding for rulebook page images
+  - Green color coding for native embedded images (when available)
+  - Shows page number for provenance
 - **Image Thumbnails**: Displays actual image thumbnails from extracted rulebook pages
   - Image serving endpoint: `GET /api/projects/:projectId/images/:imageId/file`
   - Secure path validation prevents directory traversal
