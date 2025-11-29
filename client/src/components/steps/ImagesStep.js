@@ -249,11 +249,29 @@ export function ImagesStep({
       return;
     }
     
+    if (!components || components.length === 0) {
+      setCroppingStatus({ 
+        status: 'warning', 
+        message: 'No components found. Go to Step 3 to extract game components first, then return here to crop images.' 
+      });
+      return;
+    }
+    
     setLoading(true);
-    setCroppingStatus({ status: 'cropping', message: `Analyzing ${rulebookImages.length} pages for game components... This may take 1-2 minutes.` });
+    setCroppingStatus({ 
+      status: 'cropping', 
+      message: `Searching ${rulebookImages.length} pages for ${components.length} component photos...` 
+    });
     
     try {
-      const res = await axios.post(`${BACKEND_URL}/api/projects/${projectId}/images/crop-components`);
+      const res = await axios.post(`${BACKEND_URL}/api/projects/${projectId}/images/crop-components`, {
+        components: components.map(c => ({
+          name: c.name,
+          category: c.category,
+          quantity: c.quantity,
+          details: c.details
+        }))
+      });
       
       if (res.data?.images) {
         refreshState(res.data);
