@@ -28,6 +28,8 @@ import {
 import {
   extractComponentsFromAllPages,
   isJobInProgress,
+  clearJobLock,
+  getJobStatus,
 } from '../services/componentCropper.js';
 
 export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {}) {
@@ -190,16 +192,25 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
   // AI-powered component cropping - uses GPT-4o Vision to detect and crop game components
   app.post('/api/projects/:projectId/images/crop-components', async (req, res) => {
     const { projectId } = req.params;
-    const { components = [] } = req.body || {};
+    const { components = [], force = false } = req.body || {};
     
     if (!openai) {
       return res.status(500).json({ error: 'OpenAI not configured' });
     }
     
+    // If force flag is set, clear any stuck job lock
+    if (force) {
+      clearJobLock(projectId);
+      console.log(`Force-cleared job lock for ${projectId}`);
+    }
+    
     if (isJobInProgress(projectId)) {
+      const status = getJobStatus(projectId);
       return res.status(409).json({ 
         error: 'Component detection already in progress. Please wait for it to complete.',
-        inProgress: true
+        inProgress: true,
+        elapsedSeconds: Math.round(status.elapsedMs / 1000),
+        hint: 'If stuck, try adding force: true to your request'
       });
     }
     

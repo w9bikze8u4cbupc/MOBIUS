@@ -236,7 +236,7 @@ export function ImagesStep({
   };
 
   // AI-powered component cropping from rulebook pages
-  const handleCropComponents = async () => {
+  const handleCropComponents = async (forceRetry = false) => {
     if (!projectId) return;
     if (loading) return;
     
@@ -270,7 +270,8 @@ export function ImagesStep({
           category: c.category,
           quantity: c.quantity,
           details: c.details
-        }))
+        })),
+        force: forceRetry
       });
       
       if (res.data?.images) {
@@ -293,8 +294,9 @@ export function ImagesStep({
       const errorData = err.response?.data || {};
       if (errorData.inProgress) {
         setCroppingStatus({ 
-          status: 'info', 
-          message: 'Component detection is already running. Please wait for it to complete.' 
+          status: 'stuck', 
+          message: `Detection in progress (${errorData.elapsedSeconds || '?'}s). Click "Force Retry" if stuck.`,
+          canForce: true
         });
       } else {
         setCroppingStatus({ 
@@ -549,32 +551,56 @@ export function ImagesStep({
             Use GPT-4o Vision to detect and crop individual game component images (cards, tokens, boards) from the rulebook pages.
           </p>
           
-          <button 
-            onClick={handleCropComponents} 
-            disabled={loading}
-            style={{
-              padding: '12px 24px',
-              fontSize: 16,
-              fontWeight: 'bold',
-              background: loading && croppingStatus?.status === 'cropping' ? '#ce93d8' : '#9c27b0',
-              color: 'white',
-              border: 'none',
-              borderRadius: 8,
-              cursor: loading ? 'wait' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8
-            }}
-          >
-            {loading && croppingStatus?.status === 'cropping' ? (
-              <>
-                <span className="loading-spinner" style={{ width: 20, height: 20 }}></span>
-                Detecting Components...
-              </>
-            ) : (
-              <>✂️ Crop Component Images</>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <button 
+              onClick={() => handleCropComponents(false)} 
+              disabled={loading}
+              style={{
+                padding: '12px 24px',
+                fontSize: 16,
+                fontWeight: 'bold',
+                background: loading && croppingStatus?.status === 'cropping' ? '#ce93d8' : '#9c27b0',
+                color: 'white',
+                border: 'none',
+                borderRadius: 8,
+                cursor: loading ? 'wait' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}
+            >
+              {loading && croppingStatus?.status === 'cropping' ? (
+                <>
+                  <span className="loading-spinner" style={{ width: 20, height: 20 }}></span>
+                  Detecting Components...
+                </>
+              ) : (
+                <>Crop Component Images</>
+              )}
+            </button>
+            
+            {croppingStatus?.canForce && (
+              <button 
+                onClick={() => handleCropComponents(true)} 
+                disabled={loading}
+                style={{
+                  padding: '12px 24px',
+                  fontSize: 16,
+                  fontWeight: 'bold',
+                  background: '#ff5722',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: loading ? 'wait' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8
+                }}
+              >
+                Force Retry
+              </button>
             )}
-          </button>
+          </div>
           
           {croppingStatus && (
             <div style={{ 
@@ -582,16 +608,16 @@ export function ImagesStep({
               padding: 12, 
               background: croppingStatus.status === 'error' ? '#ffebee' : 
                          croppingStatus.status === 'warning' ? '#fff8e1' : 
-                         croppingStatus.status === 'info' ? '#e3f2fd' :
+                         croppingStatus.status === 'stuck' ? '#fff3e0' :
                          croppingStatus.status === 'cropping' ? '#f3e5f5' : '#e8f5e9',
               borderRadius: 8,
               fontSize: 14
             }}>
               <strong>
-                {croppingStatus.status === 'error' ? '❌' : 
-                 croppingStatus.status === 'warning' ? '⚠️' : 
-                 croppingStatus.status === 'info' ? 'ℹ️' :
-                 croppingStatus.status === 'cropping' ? '⏳' : '✅'}
+                {croppingStatus.status === 'error' ? '' : 
+                 croppingStatus.status === 'warning' ? '' : 
+                 croppingStatus.status === 'stuck' ? '' :
+                 croppingStatus.status === 'cropping' ? '' : ''}
               </strong> {croppingStatus.message}
             </div>
           )}

@@ -8,6 +8,32 @@ const __dirname = path.dirname(__filename);
 
 const activeJobs = new Map();
 
+// Clear a stuck job lock (useful if job failed without cleanup)
+export function clearJobLock(projectId) {
+  const jobKey = `crop-${projectId}`;
+  if (activeJobs.has(jobKey)) {
+    activeJobs.delete(jobKey);
+    console.log(`Cleared stuck job lock for ${projectId}`);
+    return true;
+  }
+  return false;
+}
+
+// Get job status for debugging
+export function getJobStatus(projectId) {
+  const jobKey = `crop-${projectId}`;
+  if (activeJobs.has(jobKey)) {
+    const job = activeJobs.get(jobKey);
+    return {
+      inProgress: true,
+      startTime: job.startTime,
+      elapsedMs: Date.now() - job.startTime,
+      pageCount: job.pageCount
+    };
+  }
+  return { inProgress: false };
+}
+
 function buildComponentAwarePrompt(components) {
   if (!components || components.length === 0) {
     return `Find clear standalone photographs of game components on this rulebook page.
