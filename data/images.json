@@ -1,6 +1,97 @@
 {
   "imagesByProject": {
-    "jaipur": [],
+    "jaipur": [
+      {
+        "id": "rulebook-1764441609101-1lled6",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/jaipur/page-1.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-1"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764441610738-9rc83v",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/jaipur/page-2.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-2"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764441612064-gss4o5",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/jaipur/page-3.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-3"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764441612937-riqrdw",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/jaipur/page-4.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-4"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764441613532-rkgbdv",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/jaipur/page-5.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-5"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      }
+    ],
     "abyss": [
       {
         "id": "rulebook-1764357912237-g9bp8o",
@@ -8540,6 +8631,782 @@
         },
         "license": null
       }
+    ],
+    "lost-ruins-of-arnak": [
+      {
+        "id": "rulebook-1764452230253-l5njg0",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-1.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-1"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452233045-zn6y7s",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-2.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-2"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452233535-c4bpu5",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-3.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-3"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452234015-a18dt4",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-4.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-4"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452234560-nyi7p1",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-5.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-5"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452234994-egjzf3",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-6.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452235614-qo1z87",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-7.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-7"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452236458-8qbb0r",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-8.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-8"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452237352-r6cy5c",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-9.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-9"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452237885-eg1kvs",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-10.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-10"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452238640-9qjodp",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-11.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-11"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452239135-ew71tw",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-12.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-12"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452239561-91z4ru",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-13.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-13"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452240129-rb9g1o",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-14.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-14"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452240987-mfa9ur",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-15.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-15"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452241700-c55q7s",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-16.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-16"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452242118-9kogjd",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-17.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-17"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452242534-afe36t",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-18.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-18"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452243247-yw1gs6",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-19.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-19"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452243957-m4x549",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-20.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-20"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452244405-aimd2t",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-21.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-21"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452244754-py7afq",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-22.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-22"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452245316-9jcufl",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-23.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-23"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764452245565-9sq956",
+        "source": "rulebook",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/lost-ruins-of-arnak/page-24.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-24"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452295844-7bvtys",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page8-0-Individual_cards.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-8"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452316263-xoi7h6",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page13-0-Parrot_card.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-13"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452316287-va3yo6",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page13-1-Token_collection.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "token",
+          "page-13"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452316338-k1xite",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page13-2-Exile_cards_display.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-13"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452340473-1e6cm3",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page19-0-Board_game_tiles_arranged_for_display.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "tile",
+          "page-19"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452340515-tczoav",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page19-1-Game_box_contents_laid_out.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "other",
+          "page-19"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452340551-1vyiaw",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page19-2-Individual_cards_shown_face-up_with_visi.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-19"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452344985-axg8mq",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page20-1-red_and_green_tiles.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "tile",
+          "page-20"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452362397-yj3yfi",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page23-0-Reserve_Tiles.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "tile",
+          "page-23"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452466030-8skiue",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page6-0-Funding_cards.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452466059-jo0dki",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page6-1-Exploration_cards.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452466084-gjhplj",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page6-2-Fear_cards.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452466104-e67k3x",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page6-3-Research_tokens.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "token",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452474637-49z8hi",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page8-0-Travel_Value_and_Effect_cards.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-8"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452494160-24i3vp",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page13-2-Exile_cards.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-13"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452498824-mfcsae",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page14-1-Lost_Temple_tiles_display.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "tile",
+          "page-14"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452517755-abap3s",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page19-0-Board_game_tiles_display.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "tile",
+          "page-19"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764452517825-di5wmb",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page19-2-Individual_cards_with_visible_artwork.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-19"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      }
     ]
   },
   "componentLinks": {
@@ -8553,6 +9420,26 @@
       "comp-7": [],
       "comp-8": [],
       "comp-9": []
+    },
+    "jaipur": {
+      "comp-1": [
+        "rulebook-1764441609101-1lled6"
+      ],
+      "comp-2": [
+        "rulebook-1764441610738-9rc83v"
+      ],
+      "comp-3": [
+        "rulebook-1764441612064-gss4o5"
+      ],
+      "comp-4": [
+        "rulebook-1764441612937-riqrdw"
+      ],
+      "comp-5": [
+        "rulebook-1764441613532-rkgbdv"
+      ],
+      "comp-6": [
+        "rulebook-1764441613532-rkgbdv"
+      ]
     }
   }
 }

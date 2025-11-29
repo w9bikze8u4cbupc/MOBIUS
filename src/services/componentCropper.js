@@ -8,33 +8,52 @@ const __dirname = path.dirname(__filename);
 
 const activeJobs = new Map();
 
-const DETECTION_PROMPT = `Find ONLY standalone game component photographs in this rulebook page image.
+function buildComponentAwarePrompt(components) {
+  if (!components || components.length === 0) {
+    return `Find clear standalone photographs of game components on this rulebook page.
 
-INCLUDE: Clear photos of physical game items displayed separately (not in-game):
-- Individual cards shown face-up with visible artwork
-- Token/chip collections on neutral backgrounds  
-- Board game tiles arranged for display
-- Game box contents laid out
+INCLUDE ONLY: Photos of physical items like cards, tokens, boards, tiles, dice, meeples
+EXCLUDE: Text paragraphs, diagrams with arrows/labels, icons, decorative borders
 
-EXCLUDE:
-- Gameplay screenshots or in-action photos
-- Diagrams with text labels or arrows
-- Small icons within text paragraphs
-- Decorative page backgrounds or borders
-- Text-heavy regions
+Return JSON:
+{"components": [{"name": "description", "type": "card|token|board|tile|dice|meeple|other", "confidence": 9-10, "bbox": {"x": 0-1, "y": 0-1, "width": 0-1, "height": 0-1}}]}
 
-Return JSON with bounding boxes for ONLY clear standalone component photos:
-{
-  "components": [
-    {"name": "description", "type": "card|token|board|tile|other", "confidence": 8-10, "bbox": {"x": 0-1, "y": 0-1, "width": 0-1, "height": 0-1}}
-  ]
+Only items with confidence 9+. If none found: {"components": []}`;
+  }
+
+  const componentList = components.slice(0, 10).map(c => {
+    const qty = c.quantity ? ` (${c.quantity})` : '';
+    return `- ${c.name}${qty}: ${c.category || 'component'}`;
+  }).join('\n');
+
+  return `This is a board game rulebook page. Find photos of these SPECIFIC game components:
+
+${componentList}
+
+RULES:
+1. Only detect clear PHOTOGRAPHS of physical game pieces - NOT text, diagrams, or icons
+2. Match detected regions to the component list above
+3. Use the component name from the list in your response
+4. Skip text blocks, arrows, labels, decorative elements
+5. Skip small icons embedded in text paragraphs
+
+Return JSON with bounding boxes for each component photo found:
+{"components": [{"name": "exact name from list", "type": "card|token|board|tile|dice|meeple|other", "confidence": 9-10, "bbox": {"x": 0-1, "y": 0-1, "width": 0-1, "height": 0-1}}]}
+
+Only high confidence (9-10). If no matching component photos: {"components": []}`;
 }
 
-Only include items with confidence 9 or 10. If no clear standalone components, return {"components": []}.`;
+function scorePageForComponents(pageIndex, totalPages) {
+  if (pageIndex <= 2) return 1.0;
+  if (pageIndex <= 4) return 0.8;
+  if (pageIndex === totalPages - 1) return 0.3;
+  return 0.5;
+}
 
-export async function detectComponentBoundingBoxes(openai, imageBuffer, pageNum = 1) {
+export async function detectComponentBoundingBoxes(openai, imageBuffer, pageNum, components = []) {
   const base64Image = imageBuffer.toString('base64');
   const mimeType = 'image/png';
+  const prompt = buildComponentAwarePrompt(components);
   
   try {
     const response = await openai.chat.completions.create({
@@ -43,7 +62,7 @@ export async function detectComponentBoundingBoxes(openai, imageBuffer, pageNum 
         {
           role: 'user',
           content: [
-            { type: 'text', text: DETECTION_PROMPT },
+            { type: 'text', text: prompt },
             {
               type: 'image_url',
               image_url: {
@@ -65,12 +84,11 @@ export async function detectComponentBoundingBoxes(openai, imageBuffer, pageNum 
     try {
       detected = JSON.parse(content);
     } catch (parseErr) {
-      console.error(`Page ${pageNum}: Failed to parse JSON:`, content);
+      console.error(`Page ${pageNum}: Failed to parse JSON:`, content.substring(0, 200));
       return [];
     }
     
     if (!detected.components || !Array.isArray(detected.components)) {
-      console.log(`Page ${pageNum}: No components array in response`);
       return [];
     }
     
@@ -81,35 +99,27 @@ export async function detectComponentBoundingBoxes(openai, imageBuffer, pageNum 
           typeof width !== 'number' || typeof height !== 'number') return false;
       
       if (!item.confidence || item.confidence < 9) {
-        console.log(`  Skipping ${item.name}: confidence too low (${item.confidence})`);
         return false;
       }
       
       const area = width * height;
-      if (area < 0.02) {
-        console.log(`  Skipping ${item.name}: too small (area: ${(area * 100).toFixed(1)}%)`);
-        return false;
-      }
-      if (area > 0.6) {
-        console.log(`  Skipping ${item.name}: too large (area: ${(area * 100).toFixed(1)}%)`);
+      if (area < 0.015 || area > 0.65) {
         return false;
       }
       
       const aspectRatio = width / height;
-      if (aspectRatio > 4 || aspectRatio < 0.25) {
-        console.log(`  Skipping ${item.name}: extreme aspect ratio (${aspectRatio.toFixed(2)})`);
+      if (aspectRatio > 5 || aspectRatio < 0.2) {
         return false;
       }
       
       if (x < 0 || y < 0 || x + width > 1.05 || y + height > 1.05) {
-        console.log(`  Skipping ${item.name}: out of bounds`);
         return false;
       }
       
       return true;
     });
     
-    console.log(`Page ${pageNum}: Detected ${valid.length} valid components (from ${detected.components.length} candidates)`);
+    console.log(`Page ${pageNum}: Found ${valid.length} component photos (from ${detected.components.length} candidates)`);
     return valid;
     
   } catch (err) {
@@ -118,10 +128,10 @@ export async function detectComponentBoundingBoxes(openai, imageBuffer, pageNum 
   }
 }
 
-async function calculateImageEntropy(imageBuffer) {
+async function calculateImageQuality(imageBuffer) {
   try {
     const { data, info } = await sharp(imageBuffer)
-      .resize(200, 200, { fit: 'inside' })
+      .resize(150, 150, { fit: 'inside' })
       .grayscale()
       .raw()
       .toBuffer({ resolveWithObject: true });
@@ -140,40 +150,30 @@ async function calculateImageEntropy(imageBuffer) {
       }
     }
 
-    return entropy;
-  } catch (err) {
-    console.error('Entropy check failed:', err.message);
-    return 8;
-  }
-}
-
-async function isLikelyRealPhoto(croppedBuffer) {
-  const entropy = await calculateImageEntropy(croppedBuffer);
-  return entropy > 5.8;
-}
-
-async function hasMinimumColorVariety(croppedBuffer) {
-  try {
-    const { data } = await sharp(croppedBuffer)
+    const { data: colorData } = await sharp(imageBuffer)
       .resize(50, 50, { fit: 'fill' })
       .raw()
       .toBuffer({ resolveWithObject: true });
 
     const colorSet = new Set();
-    for (let i = 0; i < data.length; i += 3) {
-      const r = Math.floor(data[i] / 32);
-      const g = Math.floor(data[i + 1] / 32);
-      const b = Math.floor(data[i + 2] / 32);
+    for (let i = 0; i < colorData.length; i += 3) {
+      const r = Math.floor(colorData[i] / 32);
+      const g = Math.floor(colorData[i + 1] / 32);
+      const b = Math.floor(colorData[i + 2] / 32);
       colorSet.add(`${r}-${g}-${b}`);
     }
-    
-    return colorSet.size > 20;
+
+    return {
+      entropy,
+      colorVariety: colorSet.size,
+      isPhoto: entropy > 5.5 && colorSet.size > 15
+    };
   } catch (err) {
-    return true;
+    return { entropy: 8, colorVariety: 50, isPhoto: true };
   }
 }
 
-export async function cropComponentsFromPage(openai, pageImagePath, projectId, pageNum) {
+export async function cropComponentsFromPage(openai, pageImagePath, projectId, pageNum, components = []) {
   const outputDir = path.join(process.cwd(), 'data', 'component-crops', String(projectId));
   await fs.promises.mkdir(outputDir, { recursive: true });
   
@@ -181,9 +181,9 @@ export async function cropComponentsFromPage(openai, pageImagePath, projectId, p
   const metadata = await sharp(imageBuffer).metadata();
   const { width: imgWidth, height: imgHeight } = metadata;
   
-  console.log(`Processing page ${pageNum} (${imgWidth}x${imgHeight})`);
+  console.log(`Analyzing page ${pageNum} for component photos...`);
   
-  const detections = await detectComponentBoundingBoxes(openai, imageBuffer, pageNum);
+  const detections = await detectComponentBoundingBoxes(openai, imageBuffer, pageNum, components);
   
   if (detections.length === 0) {
     return [];
@@ -200,22 +200,17 @@ export async function cropComponentsFromPage(openai, pageImagePath, projectId, p
     const cropWidth = Math.floor(bbox.width * imgWidth);
     const cropHeight = Math.floor(bbox.height * imgHeight);
     
-    const paddingX = Math.floor(cropWidth * 0.03);
-    const paddingY = Math.floor(cropHeight * 0.03);
+    const paddingX = Math.floor(cropWidth * 0.02);
+    const paddingY = Math.floor(cropHeight * 0.02);
     
     const safeLeft = Math.max(0, left - paddingX);
     const safeTop = Math.max(0, top - paddingY);
     const safeWidth = Math.min(cropWidth + paddingX * 2, imgWidth - safeLeft);
     const safeHeight = Math.min(cropHeight + paddingY * 2, imgHeight - safeTop);
     
-    if (safeWidth < 100 || safeHeight < 100) {
-      console.log(`  Skipping crop ${i}: too small (${safeWidth}x${safeHeight})`);
+    if (safeWidth < 80 || safeHeight < 80) {
       continue;
     }
-    
-    const safeName = (name || 'component').replace(/[^a-zA-Z0-9\-_]/g, '_').slice(0, 40);
-    const filename = `page${pageNum}-${i}-${safeName}.png`;
-    const filePath = path.join(outputDir, filename);
     
     try {
       const croppedBuffer = await sharp(imageBuffer)
@@ -223,17 +218,15 @@ export async function cropComponentsFromPage(openai, pageImagePath, projectId, p
         .png()
         .toBuffer();
       
-      const isPhoto = await isLikelyRealPhoto(croppedBuffer);
-      if (!isPhoto) {
-        console.log(`  Skipping ${filename}: low entropy (likely text/diagram)`);
+      const quality = await calculateImageQuality(croppedBuffer);
+      if (!quality.isPhoto) {
+        console.log(`  Skipping "${name}": not a photo (entropy: ${quality.entropy.toFixed(1)}, colors: ${quality.colorVariety})`);
         continue;
       }
       
-      const hasColors = await hasMinimumColorVariety(croppedBuffer);
-      if (!hasColors) {
-        console.log(`  Skipping ${filename}: insufficient color variety`);
-        continue;
-      }
+      const safeName = (name || 'component').replace(/[^a-zA-Z0-9\-_]/g, '_').slice(0, 40);
+      const filename = `page${pageNum}-${safeName}.png`;
+      const filePath = path.join(outputDir, filename);
       
       await fs.promises.writeFile(filePath, croppedBuffer);
       
@@ -245,27 +238,26 @@ export async function cropComponentsFromPage(openai, pageImagePath, projectId, p
         name: name || '',
         confidence: detection.confidence,
         pageNum,
-        cropIndex: i,
         dimensions: { width: safeWidth, height: safeHeight },
         tags: ['component-crop', type || 'other', `page-${pageNum}`]
       });
       
-      console.log(`  Saved: ${filename} (${safeWidth}x${safeHeight}) - ${type}: ${name}`);
+      console.log(`  Cropped: "${name}" (${safeWidth}x${safeHeight})`);
     } catch (cropErr) {
-      console.error(`  Failed to crop ${filename}:`, cropErr.message);
+      console.error(`  Failed to crop "${name}":`, cropErr.message);
     }
   }
   
   return croppedImages;
 }
 
-export async function extractComponentsFromAllPages(openai, projectId, pageImagePaths) {
+export async function extractComponentsFromAllPages(openai, projectId, pageImagePaths, components = []) {
   const jobKey = `crop-${projectId}`;
   
   if (activeJobs.has(jobKey)) {
     const existing = activeJobs.get(jobKey);
     if (Date.now() - existing.startTime < 300000) {
-      console.log(`Cropping job already in progress for ${projectId}, skipping duplicate request`);
+      console.log(`Cropping already in progress for ${projectId}`);
       throw new Error('Component detection already in progress. Please wait for it to complete.');
     }
   }
@@ -279,30 +271,52 @@ export async function extractComponentsFromAllPages(openai, projectId, pageImage
       for (const file of existingFiles) {
         await fs.promises.unlink(path.join(outputDir, file));
       }
-      console.log(`Cleared ${existingFiles.length} existing crops`);
+      console.log(`Cleared ${existingFiles.length} previous crops`);
     }
     
-    console.log(`Starting component extraction from ${pageImagePaths.length} pages`);
+    const componentNames = components.map(c => c.name).join(', ');
+    console.log(`\nSearching ${pageImagePaths.length} pages for: ${componentNames || 'any components'}`);
+    
+    const scoredPages = pageImagePaths.map((pagePath, index) => ({
+      pagePath,
+      pageNum: index + 1,
+      score: scorePageForComponents(index, pageImagePaths.length)
+    }));
+    
+    scoredPages.sort((a, b) => b.score - a.score);
+    
+    const priorityPages = scoredPages.filter(p => p.score >= 0.5);
+    console.log(`Prioritizing ${priorityPages.length} pages likely to contain component photos`);
     
     const allCrops = [];
+    const foundComponentNames = new Set();
     
-    for (let i = 0; i < pageImagePaths.length; i++) {
-      const pagePath = pageImagePaths[i];
-      const pageNum = i + 1;
-      
+    for (const { pagePath, pageNum } of priorityPages) {
       try {
-        const crops = await cropComponentsFromPage(openai, pagePath, projectId, pageNum);
-        allCrops.push(...crops);
+        const crops = await cropComponentsFromPage(openai, pagePath, projectId, pageNum, components);
+        
+        for (const crop of crops) {
+          if (foundComponentNames.has(crop.name)) {
+            console.log(`  Skipping duplicate: "${crop.name}"`);
+            continue;
+          }
+          foundComponentNames.add(crop.name);
+          allCrops.push(crop);
+        }
+        
+        if (components.length > 0 && allCrops.length >= components.length) {
+          console.log(`Found all ${components.length} expected components, stopping early`);
+          break;
+        }
+        
       } catch (err) {
         console.error(`Failed to process page ${pageNum}:`, err.message);
       }
       
-      if (i < pageImagePaths.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
     
-    console.log(`Extraction complete: ${allCrops.length} components cropped from ${pageImagePaths.length} pages`);
+    console.log(`\nExtraction complete: ${allCrops.length} component photos from ${priorityPages.length} pages`);
     return allCrops;
   } finally {
     activeJobs.delete(jobKey);

@@ -189,6 +189,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
   // AI-powered component cropping - uses GPT-4o Vision to detect and crop game components
   app.post('/api/projects/:projectId/images/crop-components', async (req, res) => {
     const { projectId } = req.params;
+    const { components = [] } = req.body || {};
     
     if (!openai) {
       return res.status(500).json({ error: 'OpenAI not configured' });
@@ -214,9 +215,10 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
       }
       
       const pagePaths = pageImages.map(img => img.fileKey);
-      console.log(`Starting component cropping for ${pagePaths.length} pages`);
+      const componentCount = components.length;
+      console.log(`Starting component-guided cropping: ${pagePaths.length} pages, ${componentCount} target components`);
       
-      const crops = await extractComponentsFromAllPages(openai, projectId, pagePaths);
+      const crops = await extractComponentsFromAllPages(openai, projectId, pagePaths, components);
       
       if (crops.length === 0) {
         return res.json({
