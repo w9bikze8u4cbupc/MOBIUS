@@ -21,10 +21,14 @@ Return JSON:
 Only items with confidence 9+. If none found: {"components": []}`;
   }
 
-  const componentList = components.slice(0, 10).map(c => {
+  const componentList = components.map(c => {
     const qty = c.quantity ? ` (${c.quantity})` : '';
     return `- ${c.name}${qty}: ${c.category || 'component'}`;
   }).join('\n');
+  
+  if (components.length > 20) {
+    console.log(`Note: Large component list (${components.length} items) included in vision prompt`);
+  }
 
   return `This is a board game rulebook page. Find photos of these SPECIFIC game components:
 
