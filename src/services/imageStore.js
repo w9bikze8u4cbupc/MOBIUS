@@ -100,6 +100,16 @@ function appendImages(projectId, newImages = []) {
   return saveImages(projectId, merged);
 }
 
+function removeImagesBySource(projectId, source) {
+  const { images } = listImages(projectId);
+  const filtered = images.filter(img => img.source !== source);
+  const removedCount = images.length - filtered.length;
+  if (removedCount > 0) {
+    console.log(`Removed ${removedCount} images with source "${source}" from ${projectId}`);
+  }
+  return saveImages(projectId, filtered);
+}
+
 function linkImagesToComponent(projectId, componentId, imageIds = []) {
   const key = getProjectKey(projectId);
   const links = { ...(store.componentLinks[key] || {}) };
@@ -121,6 +131,7 @@ export {
   saveImages,
   upsertImage,
   appendImages,
+  removeImagesBySource,
   linkImagesToComponent,
   resetImageStore,
 };

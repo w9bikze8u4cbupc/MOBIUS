@@ -5,6 +5,7 @@ import {
   linkImagesToComponent,
   listImages,
   upsertImage,
+  removeImagesBySource,
 } from '../services/imageStore.js';
 import {
   extractRulebookImages,
@@ -217,6 +218,8 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
       const pagePaths = pageImages.map(img => img.fileKey);
       const componentCount = components.length;
       console.log(`Starting component-guided cropping: ${pagePaths.length} pages, ${componentCount} target components`);
+      
+      removeImagesBySource(projectId, 'ai-component-crop');
       
       const crops = await extractComponentsFromAllPages(openai, projectId, pagePaths, components);
       

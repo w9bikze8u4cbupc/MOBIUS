@@ -170,7 +170,7 @@ async function calculateImageQuality(imageBuffer) {
     return {
       entropy,
       colorVariety: colorSet.size,
-      isPhoto: entropy > 5.5 && colorSet.size > 15
+      isPhoto: entropy > 4.8 && colorSet.size > 12
     };
   } catch (err) {
     return { entropy: 8, colorVariety: 50, isPhoto: true };

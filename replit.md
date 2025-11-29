@@ -70,16 +70,17 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 - **Targeted Prompts**: Each detection prompt includes the full component list (name, quantity, category)
 - **Page Prioritization**: Contents/Setup pages (first 3) scanned first, then ordered by likelihood
 - **Early Stopping**: Stops scanning once all expected components are found (saves API calls)
+- **Image Store Cleanup**: Removes old AI-crop entries before adding new ones (prevents broken images)
 - **Quality Filtering**: 
   - Confidence threshold 9+ (out of 10)
-  - Entropy check (≥5.5) to reject text/diagrams
-  - Color variety check (≥15 unique color buckets) to reject grayscale
+  - Entropy check (≥4.8) to allow component thumbnails while rejecting pure text
+  - Color variety check (≥12 unique color buckets) to reject grayscale
   - Minimum size 80x80 pixels
 - **Deduplication**: Skips duplicate component names across pages
 - **Frontend Integration**: ImagesStep passes component data to backend; shows warning if Step 3 not completed
 - **Tested Results**:
-  - Abyss: 12 components -> 15 crops in 11 pages
-  - Lost Ruins of Arnak: 11 components -> 15 crops in 8 pages
+  - Abyss: 12 components -> unique crops per component
+  - Lost Ruins of Arnak: 11 components -> 7 unique crops (Main Board, Player Boards, Item Cards, Artifact Cards, Fear Cards, Temple Tiles)
 
 ### Previous AI Component Cropping
 - **Simplified GPT-4o Vision Prompt**: Reduced prompt complexity to avoid Azure content filter blocks
