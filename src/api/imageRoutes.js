@@ -26,6 +26,7 @@ import {
 } from '../services/nativeImageExtractor.js';
 import {
   extractComponentsFromAllPages,
+  isJobInProgress,
 } from '../services/componentCropper.js';
 
 export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {}) {
@@ -191,6 +192,13 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
     
     if (!openai) {
       return res.status(500).json({ error: 'OpenAI not configured' });
+    }
+    
+    if (isJobInProgress(projectId)) {
+      return res.status(409).json({ 
+        error: 'Component detection already in progress. Please wait for it to complete.',
+        inProgress: true
+      });
     }
     
     try {

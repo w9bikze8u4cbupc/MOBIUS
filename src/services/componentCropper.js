@@ -6,24 +6,31 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DETECTION_PROMPT = `Analyze this image and find rectangular regions containing product photographs.
+const activeJobs = new Map();
 
-FIND: Photos of cards, game pieces, boards, or similar items with realistic lighting and shadows.
-SKIP: Text paragraphs, diagrams, icons, decorative elements.
+const DETECTION_PROMPT = `Find ONLY standalone game component photographs in this rulebook page image.
 
-Return JSON:
+INCLUDE: Clear photos of physical game items displayed separately (not in-game):
+- Individual cards shown face-up with visible artwork
+- Token/chip collections on neutral backgrounds  
+- Board game tiles arranged for display
+- Game box contents laid out
+
+EXCLUDE:
+- Gameplay screenshots or in-action photos
+- Diagrams with text labels or arrows
+- Small icons within text paragraphs
+- Decorative page backgrounds or borders
+- Text-heavy regions
+
+Return JSON with bounding boxes for ONLY clear standalone component photos:
 {
   "components": [
-    {
-      "name": "brief description",
-      "type": "card|token|board|tile|piece|other",
-      "confidence": 8-10,
-      "bbox": {"x": 0.0-1.0, "y": 0.0-1.0, "width": 0.0-1.0, "height": 0.0-1.0}
-    }
+    {"name": "description", "type": "card|token|board|tile|other", "confidence": 8-10, "bbox": {"x": 0-1, "y": 0-1, "width": 0-1, "height": 0-1}}
   ]
 }
 
-Coordinates are normalized 0-1. If none found, return {"components": []}.`;
+Only include items with confidence 9 or 10. If no clear standalone components, return {"components": []}.`;
 
 export async function detectComponentBoundingBoxes(openai, imageBuffer, pageNum = 1) {
   const base64Image = imageBuffer.toString('base64');
@@ -73,23 +80,23 @@ export async function detectComponentBoundingBoxes(openai, imageBuffer, pageNum 
       if (typeof x !== 'number' || typeof y !== 'number' || 
           typeof width !== 'number' || typeof height !== 'number') return false;
       
-      if (item.confidence && item.confidence < 8) {
-        console.log(`  Skipping ${item.name}: low confidence (${item.confidence})`);
+      if (!item.confidence || item.confidence < 9) {
+        console.log(`  Skipping ${item.name}: confidence too low (${item.confidence})`);
         return false;
       }
       
       const area = width * height;
-      if (area < 0.01) {
+      if (area < 0.02) {
         console.log(`  Skipping ${item.name}: too small (area: ${(area * 100).toFixed(1)}%)`);
         return false;
       }
-      if (area > 0.7) {
+      if (area > 0.6) {
         console.log(`  Skipping ${item.name}: too large (area: ${(area * 100).toFixed(1)}%)`);
         return false;
       }
       
       const aspectRatio = width / height;
-      if (aspectRatio > 6 || aspectRatio < 0.16) {
+      if (aspectRatio > 4 || aspectRatio < 0.25) {
         console.log(`  Skipping ${item.name}: extreme aspect ratio (${aspectRatio.toFixed(2)})`);
         return false;
       }
@@ -102,7 +109,7 @@ export async function detectComponentBoundingBoxes(openai, imageBuffer, pageNum 
       return true;
     });
     
-    console.log(`Page ${pageNum}: Detected ${valid.length} component regions (filtered from ${detected.components.length})`);
+    console.log(`Page ${pageNum}: Detected ${valid.length} valid components (from ${detected.components.length} candidates)`);
     return valid;
     
   } catch (err) {
@@ -111,20 +118,21 @@ export async function detectComponentBoundingBoxes(openai, imageBuffer, pageNum 
   }
 }
 
-async function isLikelyRealPhoto(croppedImagePath) {
+async function calculateImageEntropy(imageBuffer) {
   try {
-    const { data, info } = await sharp(croppedImagePath)
+    const { data, info } = await sharp(imageBuffer)
+      .resize(200, 200, { fit: 'inside' })
+      .grayscale()
       .raw()
       .toBuffer({ resolveWithObject: true });
 
     const histogram = new Array(256).fill(0);
-    for (let i = 0; i < data.length; i += 3) {
-      const gray = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
-      histogram[gray]++;
+    for (let i = 0; i < data.length; i++) {
+      histogram[data[i]]++;
     }
 
     let entropy = 0;
-    const totalPixels = info.width * info.height;
+    const totalPixels = data.length;
     for (const count of histogram) {
       if (count > 0) {
         const p = count / totalPixels;
@@ -132,9 +140,35 @@ async function isLikelyRealPhoto(croppedImagePath) {
       }
     }
 
-    return entropy > 5.5;
+    return entropy;
   } catch (err) {
     console.error('Entropy check failed:', err.message);
+    return 8;
+  }
+}
+
+async function isLikelyRealPhoto(croppedBuffer) {
+  const entropy = await calculateImageEntropy(croppedBuffer);
+  return entropy > 5.8;
+}
+
+async function hasMinimumColorVariety(croppedBuffer) {
+  try {
+    const { data } = await sharp(croppedBuffer)
+      .resize(50, 50, { fit: 'fill' })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const colorSet = new Set();
+    for (let i = 0; i < data.length; i += 3) {
+      const r = Math.floor(data[i] / 32);
+      const g = Math.floor(data[i + 1] / 32);
+      const b = Math.floor(data[i + 2] / 32);
+      colorSet.add(`${r}-${g}-${b}`);
+    }
+    
+    return colorSet.size > 20;
+  } catch (err) {
     return true;
   }
 }
@@ -166,16 +200,16 @@ export async function cropComponentsFromPage(openai, pageImagePath, projectId, p
     const cropWidth = Math.floor(bbox.width * imgWidth);
     const cropHeight = Math.floor(bbox.height * imgHeight);
     
-    const paddingX = Math.floor(cropWidth * 0.02);
-    const paddingY = Math.floor(cropHeight * 0.02);
+    const paddingX = Math.floor(cropWidth * 0.03);
+    const paddingY = Math.floor(cropHeight * 0.03);
     
     const safeLeft = Math.max(0, left - paddingX);
     const safeTop = Math.max(0, top - paddingY);
     const safeWidth = Math.min(cropWidth + paddingX * 2, imgWidth - safeLeft);
     const safeHeight = Math.min(cropHeight + paddingY * 2, imgHeight - safeTop);
     
-    if (safeWidth < 80 || safeHeight < 80) {
-      console.log(`  Skipping crop ${i}: too small after bounds check (${safeWidth}x${safeHeight})`);
+    if (safeWidth < 100 || safeHeight < 100) {
+      console.log(`  Skipping crop ${i}: too small (${safeWidth}x${safeHeight})`);
       continue;
     }
     
@@ -184,17 +218,24 @@ export async function cropComponentsFromPage(openai, pageImagePath, projectId, p
     const filePath = path.join(outputDir, filename);
     
     try {
-      await sharp(imageBuffer)
+      const croppedBuffer = await sharp(imageBuffer)
         .extract({ left: safeLeft, top: safeTop, width: safeWidth, height: safeHeight })
         .png()
-        .toFile(filePath);
+        .toBuffer();
       
-      const isPhoto = await isLikelyRealPhoto(filePath);
+      const isPhoto = await isLikelyRealPhoto(croppedBuffer);
       if (!isPhoto) {
-        console.log(`  Removing ${filename}: failed entropy check (likely not a photo)`);
-        await fs.promises.unlink(filePath);
+        console.log(`  Skipping ${filename}: low entropy (likely text/diagram)`);
         continue;
       }
+      
+      const hasColors = await hasMinimumColorVariety(croppedBuffer);
+      if (!hasColors) {
+        console.log(`  Skipping ${filename}: insufficient color variety`);
+        continue;
+      }
+      
+      await fs.promises.writeFile(filePath, croppedBuffer);
       
       croppedImages.push({
         id: `crop-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
@@ -209,7 +250,7 @@ export async function cropComponentsFromPage(openai, pageImagePath, projectId, p
         tags: ['component-crop', type || 'other', `page-${pageNum}`]
       });
       
-      console.log(`  Saved: ${filename} (${safeWidth}x${safeHeight}) - ${type}: ${name} [confidence: ${detection.confidence}]`);
+      console.log(`  Saved: ${filename} (${safeWidth}x${safeHeight}) - ${type}: ${name}`);
     } catch (cropErr) {
       console.error(`  Failed to crop ${filename}:`, cropErr.message);
     }
@@ -219,26 +260,60 @@ export async function cropComponentsFromPage(openai, pageImagePath, projectId, p
 }
 
 export async function extractComponentsFromAllPages(openai, projectId, pageImagePaths) {
-  console.log(`Starting component extraction from ${pageImagePaths.length} pages`);
+  const jobKey = `crop-${projectId}`;
   
-  const allCrops = [];
-  
-  for (let i = 0; i < pageImagePaths.length; i++) {
-    const pagePath = pageImagePaths[i];
-    const pageNum = i + 1;
-    
-    try {
-      const crops = await cropComponentsFromPage(openai, pagePath, projectId, pageNum);
-      allCrops.push(...crops);
-    } catch (err) {
-      console.error(`Failed to process page ${pageNum}:`, err.message);
-    }
-    
-    if (i < pageImagePaths.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+  if (activeJobs.has(jobKey)) {
+    const existing = activeJobs.get(jobKey);
+    if (Date.now() - existing.startTime < 300000) {
+      console.log(`Cropping job already in progress for ${projectId}, skipping duplicate request`);
+      throw new Error('Component detection already in progress. Please wait for it to complete.');
     }
   }
   
-  console.log(`Extraction complete: ${allCrops.length} components cropped from ${pageImagePaths.length} pages`);
-  return allCrops;
+  activeJobs.set(jobKey, { startTime: Date.now(), pageCount: pageImagePaths.length });
+  
+  try {
+    const outputDir = path.join(process.cwd(), 'data', 'component-crops', String(projectId));
+    if (fs.existsSync(outputDir)) {
+      const existingFiles = await fs.promises.readdir(outputDir);
+      for (const file of existingFiles) {
+        await fs.promises.unlink(path.join(outputDir, file));
+      }
+      console.log(`Cleared ${existingFiles.length} existing crops`);
+    }
+    
+    console.log(`Starting component extraction from ${pageImagePaths.length} pages`);
+    
+    const allCrops = [];
+    
+    for (let i = 0; i < pageImagePaths.length; i++) {
+      const pagePath = pageImagePaths[i];
+      const pageNum = i + 1;
+      
+      try {
+        const crops = await cropComponentsFromPage(openai, pagePath, projectId, pageNum);
+        allCrops.push(...crops);
+      } catch (err) {
+        console.error(`Failed to process page ${pageNum}:`, err.message);
+      }
+      
+      if (i < pageImagePaths.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    console.log(`Extraction complete: ${allCrops.length} components cropped from ${pageImagePaths.length} pages`);
+    return allCrops;
+  } finally {
+    activeJobs.delete(jobKey);
+  }
+}
+
+export function isJobInProgress(projectId) {
+  const jobKey = `crop-${projectId}`;
+  if (activeJobs.has(jobKey)) {
+    const existing = activeJobs.get(jobKey);
+    return Date.now() - existing.startTime < 300000;
+  }
+  return false;
 }

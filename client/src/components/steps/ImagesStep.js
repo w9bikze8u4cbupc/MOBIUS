@@ -238,6 +238,7 @@ export function ImagesStep({
   // AI-powered component cropping from rulebook pages
   const handleCropComponents = async () => {
     if (!projectId) return;
+    if (loading) return;
     
     const rulebookImages = localImages.filter(img => img.source === 'rulebook');
     if (rulebookImages.length === 0) {
@@ -249,7 +250,7 @@ export function ImagesStep({
     }
     
     setLoading(true);
-    setCroppingStatus({ status: 'cropping', message: `Analyzing ${rulebookImages.length} pages for game components...` });
+    setCroppingStatus({ status: 'cropping', message: `Analyzing ${rulebookImages.length} pages for game components... This may take 1-2 minutes.` });
     
     try {
       const res = await axios.post(`${BACKEND_URL}/api/projects/${projectId}/images/crop-components`);
@@ -271,10 +272,18 @@ export function ImagesStep({
       }
     } catch (err) {
       console.error('Component cropping failed:', err);
-      setCroppingStatus({ 
-        status: 'error', 
-        message: err.response?.data?.error || 'Failed to detect components in images' 
-      });
+      const errorData = err.response?.data || {};
+      if (errorData.inProgress) {
+        setCroppingStatus({ 
+          status: 'info', 
+          message: 'Component detection is already running. Please wait for it to complete.' 
+        });
+      } else {
+        setCroppingStatus({ 
+          status: 'error', 
+          message: errorData.error || 'Failed to detect components in images' 
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -554,13 +563,17 @@ export function ImagesStep({
               marginTop: 12, 
               padding: 12, 
               background: croppingStatus.status === 'error' ? '#ffebee' : 
-                         croppingStatus.status === 'warning' ? '#fff8e1' : '#e8f5e9',
+                         croppingStatus.status === 'warning' ? '#fff8e1' : 
+                         croppingStatus.status === 'info' ? '#e3f2fd' :
+                         croppingStatus.status === 'cropping' ? '#f3e5f5' : '#e8f5e9',
               borderRadius: 8,
               fontSize: 14
             }}>
               <strong>
                 {croppingStatus.status === 'error' ? '❌' : 
-                 croppingStatus.status === 'warning' ? '⚠️' : '✅'}
+                 croppingStatus.status === 'warning' ? '⚠️' : 
+                 croppingStatus.status === 'info' ? 'ℹ️' :
+                 croppingStatus.status === 'cropping' ? '⏳' : '✅'}
               </strong> {croppingStatus.message}
             </div>
           )}
