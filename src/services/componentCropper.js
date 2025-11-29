@@ -6,45 +6,24 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DETECTION_PROMPT = `You are an expert in board game rulebook analysis. Your task is to detect ONLY real photographic images of physical game components on this page. Ignore everything else.
+const DETECTION_PROMPT = `Analyze this image and find rectangular regions containing product photographs.
 
-Extract ONLY components that meet ALL these criteria:
-- It is a real photograph (not a drawing, illustration, diagram, icon, or digital render)
-- It shows a physical game piece with realistic lighting, shadows, texture, and material (plastic, wood, cardboard, metal)
-- It is a complete component or a clear group of identical components (not a tiny icon in text)
-- Common examples: full-size cards, tokens, miniatures, dice, punchboards, tiles, player boards, the main game board — photographed on a table or neutral background
+FIND: Photos of cards, game pieces, boards, or similar items with realistic lighting and shadows.
+SKIP: Text paragraphs, diagrams, icons, decorative elements.
 
-DO NOT detect:
-- Text blocks, rules, diagrams, flowcharts
-- Stylized illustrations or digital art of components
-- Small icons next to bullet points
-- Component diagrams with arrows/labels
-- Decorative borders or page furniture
-- Headers, footers, page numbers
-
-Return a JSON object with this exact structure:
+Return JSON:
 {
   "components": [
     {
-      "name": "short descriptive name (e.g., Resource Tokens, Character Cards, Main Game Board)",
-      "type": "card|token|board|dice|miniature|tile|meeple|other",
-      "confidence": 1-10 (10 = absolutely certain it's a real photo),
-      "bbox": {
-        "x": float (0-1 normalized left coordinate),
-        "y": float (0-1 normalized top coordinate),
-        "width": float (0-1 normalized width),
-        "height": float (0-1 normalized height)
-      }
+      "name": "brief description",
+      "type": "card|token|board|tile|piece|other",
+      "confidence": 8-10,
+      "bbox": {"x": 0.0-1.0, "y": 0.0-1.0, "width": 0.0-1.0, "height": 0.0-1.0}
     }
   ]
 }
 
-CRITICAL RULES:
-- Only include items with confidence >= 8
-- Coordinates are normalized (0.0 to 1.0) relative to image dimensions
-- Be pixel-accurate with bounding boxes — crop tightly but include slight margin
-- If no real photographic components are present, return: {"components": []}
-- ONLY return valid JSON, no explanations`;
+Coordinates are normalized 0-1. If none found, return {"components": []}.`;
 
 export async function detectComponentBoundingBoxes(openai, imageBuffer, pageNum = 1) {
   const base64Image = imageBuffer.toString('base64');

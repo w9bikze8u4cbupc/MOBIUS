@@ -217,6 +217,386 @@
           "notes": "pending"
         },
         "license": null
+      },
+      {
+        "id": "crop-1764430877434-r47am1",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page2-3-Game_board_with_cards.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "board",
+          "page-2"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430877457-2zu4y7",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page2-6-Court_cards.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-2"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430884820-q3afvd",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page3-0-The_Exploration_Track_cards.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-3"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430884836-rpjofa",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page3-1-Monster_tokens__front_and_back_.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "token",
+          "page-3"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430884857-4l3msy",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page3-2-The_Court_cards.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-3"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430884872-irtlcd",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page3-4-Location_tiles__front_and_back_.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "tile",
+          "page-3"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430890263-z3u3nn",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page4-0-Exploration_cards_and_game_pieces.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-4"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430890289-ogt8vd",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page4-1-Game_board_with_cards_and_tokens.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "board",
+          "page-4"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430904644-xahztq",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page6-0-Cards_on_the_left_board.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430904666-e1a80j",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page6-1-Cards_on_the_right_board.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430904736-877p9i",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page6-2-Game_board_background.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "board",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430914097-1wdgt5",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page7-6-Master_of_Magic_card.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-7"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430919935-sievc2",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page8-0-Row_of_Lord_cards.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-8"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430919954-ravcak",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page8-1-Active_player_s_hand.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-8"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430926463-p1t8cl",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page9-0-Sargasso_Field_card.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-9"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430926484-0ffx28",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page9-1-Card_set_with_multiple_cards.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-9"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430945246-236d8k",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page11-5-Card_with_Elder_character_illustration.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-11"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430945274-uxqqct",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page11-6-Board_with_Sanctuary_illustration.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "board",
+          "page-11"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430945289-j5xkd7",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page11-7-Card_with_Centipede_character_illustrati.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-11"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764430945312-5t5y8l",
+        "source": "ai-component-crop",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/abyss/page11-8-Scoreboard_with_player_scores.png",
+        "width": null,
+        "height": null,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "other",
+          "page-11"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
       }
     ]
   },

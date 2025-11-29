@@ -63,7 +63,17 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 - `DB_DATA_DIR` - Database directory (default: ./data)
 - `OUTPUT_DIR` - Output directory (default: ./output/MobiusGames)
 
-## Recent Changes (Nov 28, 2025)
+## Recent Changes (Nov 29, 2025)
+
+### AI Component Cropping Fixed
+- **Simplified GPT-4o Vision Prompt**: Reduced prompt complexity to avoid Azure content filter blocks
+- **Multi-Layer Validation**: Filters by confidence (≥8), area (1-70%), aspect ratio, and minimum size (80px)
+- **Entropy-Based Post-Processing**: Rejects low-entropy crops (text/diagrams have lower entropy than photos)
+- **Normalized Coordinates**: Uses 0-1 normalized bounding boxes for reliability
+- **JSON Mode**: Uses `response_format: { type: 'json_object' }` for reliable parsing
+- **Successfully tested on Abyss**: Extracted 20 component images from 12 pages
+
+## Previous Changes (Nov 28, 2025)
 
 ### Step 3 Automation (Latest)
 - **Automatic Component Extraction**: When entering Step 3 (Ingestion Review), MOBIUS automatically:
