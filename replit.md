@@ -65,13 +65,28 @@ A comprehensive pipeline for generating professional game tutorial videos from s
 
 ## Recent Changes (Nov 29, 2025)
 
-### AI Component Cropping Fixed
+### Component-Guided Image Cropping (Latest)
+- **Component-Aware Detection**: Uses Step 3 component list to guide GPT-4o Vision detection
+- **Targeted Prompts**: Each detection prompt includes the full component list (name, quantity, category)
+- **Page Prioritization**: Contents/Setup pages (first 3) scanned first, then ordered by likelihood
+- **Early Stopping**: Stops scanning once all expected components are found (saves API calls)
+- **Quality Filtering**: 
+  - Confidence threshold 9+ (out of 10)
+  - Entropy check (≥5.5) to reject text/diagrams
+  - Color variety check (≥15 unique color buckets) to reject grayscale
+  - Minimum size 80x80 pixels
+- **Deduplication**: Skips duplicate component names across pages
+- **Frontend Integration**: ImagesStep passes component data to backend; shows warning if Step 3 not completed
+- **Tested Results**:
+  - Abyss: 12 components -> 15 crops in 11 pages
+  - Lost Ruins of Arnak: 11 components -> 15 crops in 8 pages
+
+### Previous AI Component Cropping
 - **Simplified GPT-4o Vision Prompt**: Reduced prompt complexity to avoid Azure content filter blocks
 - **Multi-Layer Validation**: Filters by confidence (≥8), area (1-70%), aspect ratio, and minimum size (80px)
 - **Entropy-Based Post-Processing**: Rejects low-entropy crops (text/diagrams have lower entropy than photos)
 - **Normalized Coordinates**: Uses 0-1 normalized bounding boxes for reliability
 - **JSON Mode**: Uses `response_format: { type: 'json_object' }` for reliable parsing
-- **Successfully tested on Abyss**: Extracted 20 component images from 12 pages
 
 ## Previous Changes (Nov 28, 2025)
 
