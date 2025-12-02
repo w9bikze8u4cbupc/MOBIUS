@@ -9256,7 +9256,7 @@
         "license": null
       },
       {
-        "id": "crop-1764455777193-8uztbd",
+        "id": "crop-1764456597069-e9auon",
         "source": "ai-component-crop",
         "name": "Main Board (1)",
         "originalUrl": null,
@@ -9264,11 +9264,11 @@
         "width": null,
         "height": null,
         "dimensions": {
-          "width": 168,
+          "width": 201,
           "height": 376
         },
         "pageNum": 2,
-        "confidence": 10,
+        "confidence": 9,
         "crops": [],
         "tags": [
           "component-crop",
@@ -9282,7 +9282,7 @@
         "license": null
       },
       {
-        "id": "crop-1764455777215-t90s5o",
+        "id": "crop-1764456597095-e7y7mm",
         "source": "ai-component-crop",
         "name": "Player Boards (4)",
         "originalUrl": null,
@@ -9290,11 +9290,11 @@
         "width": null,
         "height": null,
         "dimensions": {
-          "width": 168,
+          "width": 201,
           "height": 282
         },
         "pageNum": 2,
-        "confidence": 10,
+        "confidence": 9,
         "crops": [],
         "tags": [
           "component-crop",
@@ -9308,24 +9308,24 @@
         "license": null
       },
       {
-        "id": "crop-1764455777240-4yj7br",
+        "id": "crop-1764456614669-c570t0",
         "source": "ai-component-crop",
-        "name": "Item Cards (40)",
+        "name": "Guardian Tiles (15)",
         "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page2-Item_Cards__40_.png",
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page5-Guardian_Tiles__15_.png",
         "width": null,
         "height": null,
         "dimensions": {
-          "width": 168,
+          "width": 134,
           "height": 140
         },
-        "pageNum": 2,
-        "confidence": 10,
+        "pageNum": 5,
+        "confidence": 9,
         "crops": [],
         "tags": [
           "component-crop",
-          "card",
-          "page-2"
+          "tiles",
+          "page-5"
         ],
         "quality": {
           "score": 0.8,
@@ -9334,50 +9334,102 @@
         "license": null
       },
       {
-        "id": "crop-1764455777264-zk2946",
+        "id": "crop-1764456614693-f7j9vy",
         "source": "ai-component-crop",
-        "name": "Artifact Cards (35)",
+        "name": "Level 1 Site Tiles (10)",
         "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page2-Artifact_Cards__35_.png",
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page5-Level_1_Site_Tiles__10_.png",
         "width": null,
         "height": null,
         "dimensions": {
-          "width": 168,
-          "height": 139
-        },
-        "pageNum": 2,
-        "confidence": 10,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "card",
-          "page-2"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764455777281-hasdh4",
-        "source": "ai-component-crop",
-        "name": "Fear Cards (19)",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page2-Fear_Cards__19_.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 168,
+          "width": 134,
           "height": 92
         },
-        "pageNum": 2,
-        "confidence": 10,
+        "pageNum": 5,
+        "confidence": 9,
         "crops": [],
         "tags": [
           "component-crop",
-          "card",
-          "page-2"
+          "tiles",
+          "page-5"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764456614720-90ksqn",
+        "source": "ai-component-crop",
+        "name": "Level 2 Site Tiles (6)",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page5-Level_2_Site_Tiles__6_.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 134,
+          "height": 92
+        },
+        "pageNum": 5,
+        "confidence": 9,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "tiles",
+          "page-5"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764456614744-vfshyn",
+        "source": "ai-component-crop",
+        "name": "Assistant Tiles (12)",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page5-Assistant_Tiles__12_.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 134,
+          "height": 92
+        },
+        "pageNum": 5,
+        "confidence": 9,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "tiles",
+          "page-5"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764456614762-bj096s",
+        "source": "ai-component-crop",
+        "name": "Temple Tiles (24)",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page5-Temple_Tiles__24_.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 201,
+          "height": 187
+        },
+        "pageNum": 5,
+        "confidence": 9,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "tiles",
+          "page-5"
         ],
         "quality": {
           "score": 0.8,
