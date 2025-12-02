@@ -15,19 +15,21 @@ export async function extractTextFromImage(imageBuffer) {
     const w = await getWorker();
     const { data } = await w.recognize(imageBuffer);
     
+    const words = (data.words || []).map(word => ({
+      text: word.text || '',
+      confidence: word.confidence || 0,
+      bbox: word.bbox ? {
+        x: word.bbox.x0 || 0,
+        y: word.bbox.y0 || 0,
+        width: (word.bbox.x1 || 0) - (word.bbox.x0 || 0),
+        height: (word.bbox.y1 || 0) - (word.bbox.y0 || 0)
+      } : { x: 0, y: 0, width: 0, height: 0 }
+    }));
+    
     return {
-      text: data.text,
-      words: data.words.map(word => ({
-        text: word.text,
-        confidence: word.confidence,
-        bbox: {
-          x: word.bbox.x0,
-          y: word.bbox.y0,
-          width: word.bbox.x1 - word.bbox.x0,
-          height: word.bbox.y1 - word.bbox.y0
-        }
-      })),
-      confidence: data.confidence
+      text: data.text || '',
+      words,
+      confidence: data.confidence || 0
     };
   } catch (err) {
     console.error('OCR extraction error:', err.message);
@@ -48,10 +50,10 @@ export async function extractTextNearRegion(pageImageBuffer, region, marginPerce
     const marginX = Math.floor(regionW * marginPercent);
     const marginY = Math.floor(regionH * marginPercent);
     
-    const expandedLeft = Math.max(0, regionX - marginX);
-    const expandedTop = Math.max(0, regionY - marginY - regionH * 0.5);
-    const expandedWidth = Math.min(regionW + marginX * 2, pageWidth - expandedLeft);
-    const expandedHeight = Math.min(regionH + marginY * 2 + regionH * 0.5, pageHeight - expandedTop);
+    const expandedLeft = Math.max(0, Math.floor(regionX - marginX));
+    const expandedTop = Math.max(0, Math.floor(regionY - marginY - regionH * 0.5));
+    const expandedWidth = Math.floor(Math.min(regionW + marginX * 2, pageWidth - expandedLeft));
+    const expandedHeight = Math.floor(Math.min(regionH + marginY * 2 + regionH * 0.5, pageHeight - expandedTop));
     
     if (expandedWidth < 50 || expandedHeight < 50) {
       return { text: '', words: [], nearbyLabels: [] };

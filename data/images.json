@@ -9256,184 +9256,83 @@
         "license": null
       },
       {
-        "id": "crop-1764456597069-e9auon",
+        "id": "crop-1764698846193-8rac8h",
         "source": "ai-component-crop",
-        "name": "Main Board (1)",
+        "name": "Player Boards",
         "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page2-Main_Board__1_.png",
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page4-Player_Boards-1764698846191.png",
         "width": null,
         "height": null,
         "dimensions": {
-          "width": 201,
-          "height": 376
+          "width": 141,
+          "height": 265
         },
-        "pageNum": 2,
-        "confidence": 9,
+        "pageNum": 4,
+        "confidence": 0.705,
         "crops": [],
         "tags": [
           "component-crop",
-          "board",
-          "page-2"
+          "physical_photo",
+          "page-4",
+          "high-confidence"
         ],
         "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
+          "score": 0.705,
+          "notes": "High confidence detection"
         },
         "license": null
       },
       {
-        "id": "crop-1764456597095-e7y7mm",
+        "id": "crop-1764698846195-04nj5c",
         "source": "ai-component-crop",
-        "name": "Player Boards (4)",
+        "name": "Item Cards",
         "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page2-Player_Boards__4_.png",
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page4-Item_Cards-1764698846193.png",
         "width": null,
         "height": null,
         "dimensions": {
-          "width": 201,
-          "height": 282
+          "width": 141,
+          "height": 265
         },
-        "pageNum": 2,
-        "confidence": 9,
+        "pageNum": 4,
+        "confidence": 0.885,
         "crops": [],
         "tags": [
           "component-crop",
-          "board",
-          "page-2"
+          "physical_photo",
+          "page-4",
+          "high-confidence"
         ],
         "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
+          "score": 0.885,
+          "notes": "High confidence detection"
         },
         "license": null
       },
       {
-        "id": "crop-1764456614669-c570t0",
+        "id": "crop-1764698846196-qjnlt7",
         "source": "ai-component-crop",
-        "name": "Guardian Tiles (15)",
+        "name": "Main Board",
         "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page5-Guardian_Tiles__15_.png",
+        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page5-Main_Board-1764698846195.png",
         "width": null,
         "height": null,
         "dimensions": {
-          "width": 134,
-          "height": 140
+          "width": 297,
+          "height": 265
         },
         "pageNum": 5,
-        "confidence": 9,
+        "confidence": 0.8025,
         "crops": [],
         "tags": [
           "component-crop",
-          "tiles",
-          "page-5"
+          "physical_photo",
+          "page-5",
+          "high-confidence"
         ],
         "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764456614693-f7j9vy",
-        "source": "ai-component-crop",
-        "name": "Level 1 Site Tiles (10)",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page5-Level_1_Site_Tiles__10_.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 134,
-          "height": 92
-        },
-        "pageNum": 5,
-        "confidence": 9,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "tiles",
-          "page-5"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764456614720-90ksqn",
-        "source": "ai-component-crop",
-        "name": "Level 2 Site Tiles (6)",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page5-Level_2_Site_Tiles__6_.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 134,
-          "height": 92
-        },
-        "pageNum": 5,
-        "confidence": 9,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "tiles",
-          "page-5"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764456614744-vfshyn",
-        "source": "ai-component-crop",
-        "name": "Assistant Tiles (12)",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page5-Assistant_Tiles__12_.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 134,
-          "height": 92
-        },
-        "pageNum": 5,
-        "confidence": 9,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "tiles",
-          "page-5"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764456614762-bj096s",
-        "source": "ai-component-crop",
-        "name": "Temple Tiles (24)",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/lost-ruins-of-arnak/page5-Temple_Tiles__24_.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 201,
-          "height": 187
-        },
-        "pageNum": 5,
-        "confidence": 9,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "tiles",
-          "page-5"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
+          "score": 0.8025,
+          "notes": "High confidence detection"
         },
         "license": null
       }

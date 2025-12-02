@@ -31,6 +31,11 @@ import {
   clearJobLock,
   getJobStatus,
 } from '../services/componentCropper.js';
+import {
+  extractComponentsWithPipeline,
+  isJobInProgress as isPipelineInProgress,
+  clearJobLock as clearPipelineLock,
+} from '../services/componentPipeline.js';
 
 export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {}) {
   const uploadMiddleware = upload || { single: () => (_req, _res, next) => next() };
@@ -264,6 +269,81 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
     } catch (err) {
       console.error('Component cropping failed:', err);
       res.status(500).json({ error: err.message || 'Failed to crop components' });
+    }
+  });
+
+  // NEW: Multi-stage pipeline for component detection (CV + OCR + LLM)
+  app.post('/api/projects/:projectId/images/detect-components', async (req, res) => {
+    const { projectId } = req.params;
+    const { components = [], force = false } = req.body || {};
+    
+    if (!openai) {
+      return res.status(500).json({ error: 'OpenAI not configured' });
+    }
+    
+    if (force) {
+      clearPipelineLock(projectId);
+      console.log(`Force-cleared pipeline lock for ${projectId}`);
+    }
+    
+    if (isPipelineInProgress(projectId)) {
+      return res.status(409).json({ 
+        error: 'Component detection pipeline already in progress.',
+        inProgress: true,
+        hint: 'Click "Force Retry" to restart'
+      });
+    }
+    
+    try {
+      const state = listImages(projectId);
+      const pageImages = (state.images || []).filter(img => 
+        img.source === 'rulebook' && img.fileKey && fs.existsSync(img.fileKey)
+      );
+      
+      if (pageImages.length === 0) {
+        return res.status(400).json({ 
+          error: 'No rulebook page images found. Please extract pages from PDF first.' 
+        });
+      }
+      
+      const pagePaths = pageImages.map(img => img.fileKey);
+      console.log(`Starting multi-stage component pipeline: ${pagePaths.length} pages, ${components.length} target components`);
+      
+      removeImagesBySource(projectId, 'ai-component-crop');
+      
+      const result = await extractComponentsWithPipeline(openai, projectId, pagePaths, components);
+      
+      if (result.crops.length === 0) {
+        return res.json({
+          success: true,
+          message: 'No component images detected in rulebook pages',
+          stats: result.stats,
+          images: state.images,
+          componentImages: state.componentImages
+        });
+      }
+      
+      const normalized = result.crops.map(crop => normalizeImageAsset({
+        ...crop,
+        quality: { score: crop.confidence, notes: crop.tags.includes('high-confidence') ? 'High confidence detection' : 'Needs review' }
+      }));
+      
+      const enhanced = normalized.map(runImageEnhancement);
+      appendImages(projectId, enhanced);
+      const updatedState = listImages(projectId);
+      
+      console.log(`Multi-stage pipeline complete: ${enhanced.length} components extracted`);
+      res.json({
+        success: true,
+        message: `Extracted ${enhanced.length} component images using multi-stage pipeline`,
+        stats: result.stats,
+        cropsCount: enhanced.length,
+        images: updatedState.images,
+        componentImages: updatedState.componentImages
+      });
+    } catch (err) {
+      console.error('Multi-stage pipeline failed:', err);
+      res.status(500).json({ error: err.message || 'Pipeline failed' });
     }
   });
 

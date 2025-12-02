@@ -242,10 +242,10 @@ export async function extractRegionImage(imageBuffer, region, padding = 0.1) {
   const padX = Math.floor(px.width * padding);
   const padY = Math.floor(px.height * padding);
   
-  const left = Math.max(0, px.x - padX);
-  const top = Math.max(0, px.y - padY);
-  const extractWidth = Math.min(px.width + padX * 2, width - left);
-  const extractHeight = Math.min(px.height + padY * 2, height - top);
+  const left = Math.floor(Math.max(0, px.x - padX));
+  const top = Math.floor(Math.max(0, px.y - padY));
+  const extractWidth = Math.floor(Math.min(px.width + padX * 2, width - left));
+  const extractHeight = Math.floor(Math.min(px.height + padY * 2, height - top));
   
   if (extractWidth < 40 || extractHeight < 40) {
     return null;

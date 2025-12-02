@@ -235,7 +235,92 @@ export function ImagesStep({
     }
   };
 
-  // AI-powered component cropping from rulebook pages
+  // NEW: Multi-stage pipeline for component detection (CV + OCR + LLM)
+  const handleDetectComponents = async (forceRetry = false) => {
+    if (!projectId) return;
+    if (loading) return;
+    
+    const rulebookImages = localImages.filter(img => img.source === 'rulebook');
+    if (rulebookImages.length === 0) {
+      setCroppingStatus({ 
+        status: 'error', 
+        message: 'No rulebook pages found. Click "Auto-Gather All Images" first to extract pages from the PDF.' 
+      });
+      return;
+    }
+    
+    if (!components || components.length === 0) {
+      setCroppingStatus({ 
+        status: 'warning', 
+        message: 'No components found. Go to Step 3 to extract game components first, then return here to detect images.' 
+      });
+      return;
+    }
+    
+    setLoading(true);
+    setCroppingStatus({ 
+      status: 'cropping', 
+      message: `Running multi-stage pipeline on ${rulebookImages.length} pages for ${components.length} components...` 
+    });
+    
+    try {
+      const res = await axios.post(`${BACKEND_URL}/api/projects/${projectId}/images/detect-components`, {
+        components: components.map(c => ({
+          name: c.name,
+          category: c.category,
+          quantity: c.quantity,
+          details: c.details
+        })),
+        force: forceRetry
+      });
+      
+      if (res.data?.images) {
+        refreshState(res.data);
+      }
+      
+      if (res.data.cropsCount > 0) {
+        const stats = res.data.stats || {};
+        const highConf = stats.highConfidence || 0;
+        const needsReview = stats.needsReview || 0;
+        const missing = stats.componentsMissing?.length || 0;
+        
+        let statusMessage = `Found ${res.data.cropsCount} component images!`;
+        if (highConf > 0) statusMessage += ` (${highConf} high confidence)`;
+        if (needsReview > 0) statusMessage += ` (${needsReview} need review)`;
+        if (missing > 0) statusMessage += ` Missing: ${stats.componentsMissing.join(', ')}`;
+        
+        setCroppingStatus({
+          status: 'complete',
+          message: statusMessage,
+          stats: stats
+        });
+      } else {
+        setCroppingStatus({
+          status: 'warning',
+          message: 'No component photos detected. The rulebook may use illustrations rather than photos.'
+        });
+      }
+    } catch (err) {
+      console.error('Component detection failed:', err);
+      const errorData = err.response?.data || {};
+      if (errorData.inProgress) {
+        setCroppingStatus({ 
+          status: 'stuck', 
+          message: `Pipeline in progress. Click "Force Retry" to restart.`,
+          canForce: true
+        });
+      } else {
+        setCroppingStatus({ 
+          status: 'error', 
+          message: errorData.error || 'Failed to detect components' 
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Legacy: AI-powered component cropping (single-pass method)
   const handleCropComponents = async (forceRetry = false) => {
     if (!projectId) return;
     if (loading) return;
@@ -536,30 +621,32 @@ export function ImagesStep({
         )}
       </div>
 
-      {/* AI Component Cropping Section */}
+      {/* AI Component Detection Section - Multi-Stage Pipeline */}
       {localImages.filter(img => img.source === 'rulebook').length > 0 && (
         <div style={{ 
-          background: 'linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%)', 
+          background: 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)', 
           padding: 20, 
           borderRadius: 12, 
-          marginBottom: 20 
+          marginBottom: 20,
+          border: '2px solid #4caf50'
         }}>
-          <h4 style={{ margin: '0 0 8px 0', color: '#7b1fa2' }}>
-            AI Component Detection
+          <h4 style={{ margin: '0 0 8px 0', color: '#2e7d32' }}>
+            Smart Component Detection (Recommended)
           </h4>
           <p style={{ margin: '0 0 16px 0', color: '#555', fontSize: 14 }}>
-            Use GPT-4o Vision to detect and crop individual game component images (cards, tokens, boards) from the rulebook pages.
+            Multi-stage AI pipeline: Page triage → CV region detection → Photo classification → OCR matching.
+            More accurate than single-pass detection.
           </p>
           
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <button 
-              onClick={() => handleCropComponents(false)} 
+              onClick={() => handleDetectComponents(false)} 
               disabled={loading}
               style={{
                 padding: '12px 24px',
                 fontSize: 16,
                 fontWeight: 'bold',
-                background: loading && croppingStatus?.status === 'cropping' ? '#ce93d8' : '#9c27b0',
+                background: loading && croppingStatus?.status === 'cropping' ? '#81c784' : '#4caf50',
                 color: 'white',
                 border: 'none',
                 borderRadius: 8,
@@ -572,16 +659,16 @@ export function ImagesStep({
               {loading && croppingStatus?.status === 'cropping' ? (
                 <>
                   <span className="loading-spinner" style={{ width: 20, height: 20 }}></span>
-                  Detecting Components...
+                  Running Pipeline...
                 </>
               ) : (
-                <>Crop Component Images</>
+                <>Detect Component Images</>
               )}
             </button>
             
             {croppingStatus?.canForce && (
               <button 
-                onClick={() => handleCropComponents(true)} 
+                onClick={() => handleDetectComponents(true)} 
                 disabled={loading}
                 style={{
                   padding: '12px 24px',
@@ -609,7 +696,7 @@ export function ImagesStep({
               background: croppingStatus.status === 'error' ? '#ffebee' : 
                          croppingStatus.status === 'warning' ? '#fff8e1' : 
                          croppingStatus.status === 'stuck' ? '#fff3e0' :
-                         croppingStatus.status === 'cropping' ? '#f3e5f5' : '#e8f5e9',
+                         croppingStatus.status === 'cropping' ? '#e8f5e9' : '#e8f5e9',
               borderRadius: 8,
               fontSize: 14
             }}>
@@ -619,9 +706,59 @@ export function ImagesStep({
                  croppingStatus.status === 'stuck' ? '' :
                  croppingStatus.status === 'cropping' ? '' : ''}
               </strong> {croppingStatus.message}
+              
+              {croppingStatus.stats && (
+                <div style={{ marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  {croppingStatus.stats.highConfidence > 0 && (
+                    <span style={{ background: '#c8e6c9', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>
+                      High confidence: {croppingStatus.stats.highConfidence}
+                    </span>
+                  )}
+                  {croppingStatus.stats.needsReview > 0 && (
+                    <span style={{ background: '#fff9c4', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>
+                      Needs review: {croppingStatus.stats.needsReview}
+                    </span>
+                  )}
+                  {croppingStatus.stats.pagesAnalyzed && (
+                    <span style={{ background: '#e3f2fd', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>
+                      Pages analyzed: {croppingStatus.stats.pagesAnalyzed}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
+      )}
+      
+      {/* Legacy AI Component Cropping (fallback) */}
+      {localImages.filter(img => img.source === 'rulebook').length > 0 && (
+        <details style={{ marginBottom: 20 }}>
+          <summary style={{ cursor: 'pointer', color: '#666', fontSize: 14, marginBottom: 8 }}>
+            Legacy Single-Pass Detection (if new method fails)
+          </summary>
+          <div style={{ 
+            background: 'linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%)', 
+            padding: 16, 
+            borderRadius: 8
+          }}>
+            <button 
+              onClick={() => handleCropComponents(false)} 
+              disabled={loading}
+              style={{
+                padding: '10px 20px',
+                fontSize: 14,
+                background: loading ? '#ce93d8' : '#9c27b0',
+                color: 'white',
+                border: 'none',
+                borderRadius: 6,
+                cursor: loading ? 'wait' : 'pointer'
+              }}
+            >
+              {loading ? 'Detecting...' : 'Legacy Crop Components'}
+            </button>
+          </div>
+        </details>
       )}
 
       {/* Image gallery */}
