@@ -764,7 +764,29 @@ export function ImagesStep({
       {/* Image gallery */}
       {localImages.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <h4>Available Images ({localImages.length})</h4>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <h4 style={{ margin: 0 }}>Available Images ({localImages.length})</h4>
+            <button
+              onClick={async () => {
+                try {
+                  const res = await axios.get(`${BACKEND_URL}/api/projects/${projectId}/images`);
+                  refreshState(res.data || {});
+                } catch (err) {
+                  console.error('Failed to refresh images', err);
+                }
+              }}
+              style={{
+                padding: '6px 12px',
+                fontSize: 13,
+                background: '#f5f5f5',
+                border: '1px solid #ddd',
+                borderRadius: 4,
+                cursor: 'pointer'
+              }}
+            >
+              🔄 Refresh
+            </button>
+          </div>
           {Object.entries(groupedImages).map(([source, imgs]) => (
             <div key={source} style={{ marginBottom: 16 }}>
               <div 
@@ -838,9 +860,22 @@ export function ImagesStep({
                             <span style={{ color: '#999' }}>📷</span>
                           )}
                         </div>
-                        <div style={{ color: '#666', wordBreak: 'break-all', fontWeight: img.source === 'ai-crop' ? 600 : 400 }}>
-                          {img.aiLabels?.[0] || (img.tags || []).find(t => t.startsWith('page-')) || img.id.substring(0, 15)}
+                        <div style={{ color: '#666', wordBreak: 'break-all', fontWeight: (img.source === 'ai-crop' || img.source === 'ai-component-crop') ? 600 : 400 }}>
+                          {img.name || img.aiLabels?.[0] || (img.tags || []).find(t => t.startsWith('page-')) || img.id.substring(0, 15)}
                         </div>
+                        {img.source === 'ai-component-crop' && img.confidence && (
+                          <div style={{ 
+                            display: 'inline-block',
+                            padding: '2px 6px', 
+                            background: img.confidence >= 0.7 ? '#e8f5e9' : img.confidence >= 0.5 ? '#fff3e0' : '#fce4ec',
+                            color: img.confidence >= 0.7 ? '#2e7d32' : img.confidence >= 0.5 ? '#f57c00' : '#c62828',
+                            borderRadius: 4,
+                            fontSize: 9,
+                            marginTop: 4
+                          }}>
+                            {(img.confidence * 100).toFixed(0)}% confidence
+                          </div>
+                        )}
                         {img.source === 'ai-crop' && img.confidence && (
                           <div style={{ 
                             display: 'inline-block',

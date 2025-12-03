@@ -9336,6 +9336,1600 @@
         },
         "license": null
       }
+    ],
+    "scythe": [
+      {
+        "id": "rulebook-1764700105312-qz59yt",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-1.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-1"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700106928-7ztgmo",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-2.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-2"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700113852-v2073b",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-3.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-3"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700114435-wo4z05",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-4.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-4"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700115064-068djw",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-5.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-5"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700115638-4ydahh",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-6.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700116256-cpwatc",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-7.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-7"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700117392-m4qy7h",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-8.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-8"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700117851-7uw0hu",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-9.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-9"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700118653-xwey6q",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-10.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-10"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700119238-o8sq9y",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-11.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-11"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700119810-wjt40e",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-12.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-12"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700120450-k8ewhw",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-13.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-13"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700120890-flp495",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-14.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-14"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700121487-530gva",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-15.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-15"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700122072-rcodfq",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-16.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-16"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700122652-axsu5w",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-17.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-17"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700123010-vl1fj3",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-18.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-18"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700123715-mvxve1",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-19.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-19"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700124114-9tf90j",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-20.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-20"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700124498-uvf2u8",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-21.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-21"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700125149-keiuvw",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-22.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-22"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700125676-elgox5",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-23.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-23"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700126393-jkik3w",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-24.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-24"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700127097-ejlzvw",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-25.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-25"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700128081-dpu966",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-26.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-26"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700129176-7ihhf0",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-27.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-27"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700129563-bx8a7u",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-28.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-28"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700130087-gq0uta",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-29.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-29"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700130497-hiixbx",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-30.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-30"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700130827-hqg3q6",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-31.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-31"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764700131347-nd1ehy",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/scythe/page-32.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-32"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764700525305-3o548r",
+        "source": "ai-component-crop",
+        "name": "Game Board",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/scythe/page7-Game_Board-1764700525304.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 202,
+          "height": 248
+        },
+        "pageNum": 7,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-7",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764700669085-6h63gr",
+        "source": "ai-component-crop",
+        "name": "Game Board",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/scythe/page7-Game_Board-1764700669084.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 202,
+          "height": 248
+        },
+        "pageNum": 7,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-7",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      }
+    ],
+    "7-wonders-duel": [
+      {
+        "id": "rulebook-1764787958667-jp8huy",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-1.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-1"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787959539-sb85m8",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-2.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-2"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787960120-xrek4s",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-3.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-3"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787960754-phy1hv",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-4.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-4"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787961367-sd372b",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-5.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-5"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787961772-dft3f9",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-6.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787962357-r0carl",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-7.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-7"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787962811-bkm6xv",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-8.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-8"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787963167-v0pedq",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-9.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-9"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787963701-4ovddq",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-10.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-10"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787964200-j8eplr",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-11.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-11"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787964726-0r5pu0",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-12.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-12"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787965526-uao1qb",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-13.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-13"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787965795-2yv5ka",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-14.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-14"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787966281-ouh0ys",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-15.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-15"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787966790-wpzkyj",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-16.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-16"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787967166-nrk4s7",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-17.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-17"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787967882-7eyyj3",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-18.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-18"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787968252-4kono7",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-19.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-19"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "rulebook-1764787968438-ubs0u3",
+        "source": "rulebook",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/rulebook-images/7-wonders-duel/page-20.png",
+        "width": null,
+        "height": null,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "rulebook",
+          "page-20"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788056271-5do3za",
+        "source": "ai-component-crop",
+        "name": "Game Board (1)",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Game_Board__1_.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 334,
+          "height": 111
+        },
+        "pageNum": 2,
+        "confidence": 10,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "board",
+          "page-2"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788056296-rgbwja",
+        "source": "ai-component-crop",
+        "name": "Age I Cards (23)",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_I_Cards__23_.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 111,
+          "height": 82
+        },
+        "pageNum": 2,
+        "confidence": 10,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-2"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788056319-6p0bnc",
+        "source": "ai-component-crop",
+        "name": "Age II Cards (23)",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_II_Cards__23_.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 111,
+          "height": 82
+        },
+        "pageNum": 2,
+        "confidence": 10,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-2"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788056344-zlaf3z",
+        "source": "ai-component-crop",
+        "name": "Age III Cards (20)",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_III_Cards__20_.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 111,
+          "height": 82
+        },
+        "pageNum": 2,
+        "confidence": 10,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-2"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788056374-blvyjd",
+        "source": "ai-component-crop",
+        "name": "Guild Cards (7)",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Guild_Cards__7_.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 111,
+          "height": 82
+        },
+        "pageNum": 2,
+        "confidence": 10,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-2"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788056393-0yk48x",
+        "source": "ai-component-crop",
+        "name": "Wonder Cards (12)",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Wonder_Cards__12_.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 111,
+          "height": 82
+        },
+        "pageNum": 2,
+        "confidence": 10,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-2"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788084962-nqcq8a",
+        "source": "ai-component-crop",
+        "name": "Game Board",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Game_Board.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 502,
+          "height": 138
+        },
+        "pageNum": 6,
+        "confidence": 10,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "board",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788084977-i6na5h",
+        "source": "ai-component-crop",
+        "name": "Age I Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Age_I_Cards.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 82,
+          "height": 111
+        },
+        "pageNum": 6,
+        "confidence": 10,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788084993-p59oz8",
+        "source": "ai-component-crop",
+        "name": "Age II Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Age_II_Cards.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 82,
+          "height": 111
+        },
+        "pageNum": 6,
+        "confidence": 10,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788085008-86xobm",
+        "source": "ai-component-crop",
+        "name": "Age III Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Age_III_Cards.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 82,
+          "height": 111
+        },
+        "pageNum": 6,
+        "confidence": 10,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788085022-9m4owp",
+        "source": "ai-component-crop",
+        "name": "Guild Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Guild_Cards.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 82,
+          "height": 111
+        },
+        "pageNum": 6,
+        "confidence": 10,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788085038-x9bd2b",
+        "source": "ai-component-crop",
+        "name": "Wonder Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Wonder_Cards.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 82,
+          "height": 111
+        },
+        "pageNum": 6,
+        "confidence": 10,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "card",
+          "page-6"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788091217-en14m4",
+        "source": "ai-component-crop",
+        "name": "Wonder Tiles",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page7-Wonder_Tiles.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 223,
+          "height": 223
+        },
+        "pageNum": 7,
+        "confidence": 9,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "tile",
+          "page-7"
+        ],
+        "quality": {
+          "score": 0.8,
+          "notes": "AI-cropped component"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788304896-940d8z",
+        "source": "ai-component-crop",
+        "name": "Wonder Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Wonder_Cards-1764788304894.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 245,
+          "height": 245
+        },
+        "pageNum": 6,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-6",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764788304897-aissuf",
+        "source": "ai-component-crop",
+        "name": "Age I Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_I_Cards-1764788304896.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 117,
+          "height": 157
+        },
+        "pageNum": 2,
+        "confidence": 0.7849999999999999,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-2",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.7849999999999999,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      }
     ]
   },
   "componentLinks": {
@@ -9400,6 +10994,14 @@
       "comp-27": [],
       "comp-28": [],
       "comp-29": []
+    },
+    "7-wonders-duel": {
+      "comp-1": [],
+      "comp-2": [],
+      "comp-3": [],
+      "comp-4": [],
+      "comp-5": [],
+      "comp-14": []
     }
   }
 }
