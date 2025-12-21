@@ -215,14 +215,27 @@ async function matchComponentsToImages(components, images, gameName, openai) {
   
   const matches = {};
   
-  // Create a description of available images
-  const imageDescriptions = images.map((img, idx) => ({
-    id: img.id,
-    index: idx,
-    source: img.source,
-    tags: img.tags || [],
-    description: `Image ${idx + 1}: source=${img.source}, tags=[${(img.tags || []).join(', ')}]`
-  }));
+  // Create rich description of available images using HEPHAESTUS metadata
+  const imageDescriptions = images.map((img, idx) => {
+    const meta = img.metadata || {};
+    const dims = img.width && img.height ? `${img.width}x${img.height}` : '';
+    const classification = meta.classification || (img.tags || []).find(t => 
+      ['card', 'token', 'board', 'tile', 'die', 'icon'].includes(t)
+    ) || '';
+    const label = meta.label || '';
+    const conf = meta.confidence ? `${Math.round(meta.confidence * 100)}%` : '';
+    const page = meta.page !== undefined ? `page ${meta.page}` : '';
+    
+    let desc = `[${img.id}] ${img.source}`;
+    if (classification) desc += `, type=${classification}`;
+    if (label) desc += `, label="${label}"`;
+    if (dims) desc += `, size=${dims}`;
+    if (conf) desc += `, conf=${conf}`;
+    if (page) desc += `, ${page}`;
+    if (img.tags && img.tags.length > 0) desc += `, tags=[${img.tags.slice(0, 5).join(', ')}]`;
+    
+    return { id: img.id, index: idx, description: desc };
+  });
   
   // Create component list for AI
   const componentList = components.map(c => ({
@@ -239,27 +252,28 @@ async function matchComponentsToImages(components, images, gameName, openai) {
       messages: [
         {
           role: 'user',
-          content: `You are matching game components to images for "${gameName}".
+          content: `Match game components to extracted images for "${gameName}".
 
-COMPONENTS:
+COMPONENTS TO MATCH:
 ${componentList.map(c => `- ${c.id}: "${c.name}" (${c.category}, qty: ${c.quantity}${c.details ? ', ' + c.details : ''})`).join('\n')}
 
-AVAILABLE IMAGES:
+AVAILABLE IMAGES (with metadata from PDF extraction):
 ${imageDescriptions.map(img => img.description).join('\n')}
 
-For each component, identify which images are most likely to show that component based on:
-1. Image source (rulebook pages often show components)
-2. Image tags (matching category or keywords)
-3. Logical matching (cards → card images, dice → dice images, etc.)
+MATCHING RULES:
+1. Match by type: cards→card images, tokens→token images, boards→board images, tiles→tile images
+2. Match by label: if image label matches or relates to component name
+3. Match by size: cards are typically tall (portrait), tokens are square, boards are large
+4. Prioritize "hephaestus" source images (directly extracted from rulebook)
+5. Each component can have multiple images; each image can match multiple components
 
-Return a JSON object where keys are component IDs and values are arrays of image IDs that match.
-If a component has no matching image, omit it or use an empty array.
-Focus on high-confidence matches only.
+Return a JSON object where keys are component IDs and values are arrays of matching image IDs.
+Only include confident matches. Omit components with no matches.
 
-Return ONLY the JSON object, no other text.`
+Return ONLY valid JSON, no markdown or explanations.`
         }
       ],
-      max_completion_tokens: 1500
+      max_completion_tokens: 2000
     });
     
     let content = response.choices[0]?.message?.content?.trim() || '{}';

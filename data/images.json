@@ -9335,6 +9335,1961 @@
           "notes": "High confidence detection"
         },
         "license": null
+      },
+      {
+        "id": "heph_p0_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p0_img0.png",
+        "width": 679,
+        "height": 945,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p0_img1",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p0_img1.png",
+        "width": 499,
+        "height": 184,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p1_img0.png",
+        "width": 236,
+        "height": 149,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img12",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p1_img12.png",
+        "width": 150,
+        "height": 117,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img68",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p1_img68.png",
+        "width": 219,
+        "height": 103,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img80",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p1_img80.png",
+        "width": 289,
+        "height": 407,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img92",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p1_img92.png",
+        "width": 318,
+        "height": 136,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img93",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p1_img93.png",
+        "width": 318,
+        "height": 136,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img103",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p1_img103.png",
+        "width": 679,
+        "height": 945,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img114",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p1_img114.png",
+        "width": 689,
+        "height": 963,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p2_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p2_img0.png",
+        "width": 681,
+        "height": 947,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p2_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p2_img2.png",
+        "width": 679,
+        "height": 945,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p3_img0.png",
+        "width": 829,
+        "height": 1025,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p3_img3.png",
+        "width": 681,
+        "height": 947,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img10",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p3_img10.png",
+        "width": 199,
+        "height": 239,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p4_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p4_img0.png",
+        "width": 328,
+        "height": 148,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p4_img1",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p4_img1.png",
+        "width": 821,
+        "height": 988,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p4_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p4_img2.png",
+        "width": 681,
+        "height": 947,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p5_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p5_img0.png",
+        "width": 319,
+        "height": 316,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p5_img1",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p5_img1.png",
+        "width": 149,
+        "height": 208,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p5_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p5_img2.png",
+        "width": 149,
+        "height": 208,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p5_img4",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p5_img4.png",
+        "width": 149,
+        "height": 208,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p5_img7",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p5_img7.png",
+        "width": 474,
+        "height": 345,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p5_img9",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p5_img9.png",
+        "width": 249,
+        "height": 172,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p5_img22",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p5_img22.png",
+        "width": 163,
+        "height": 113,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p6_img7",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p6_img7.png",
+        "width": 310,
+        "height": 391,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p6_img9",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p6_img9.png",
+        "width": 681,
+        "height": 947,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p7_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p7_img0.png",
+        "width": 591,
+        "height": 236,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p7_img1",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p7_img1.png",
+        "width": 643,
+        "height": 477,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p7_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p7_img2.png",
+        "width": 681,
+        "height": 947,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p7_img23",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p7_img23.png",
+        "width": 689,
+        "height": 963,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p8_img14",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p8_img14.png",
+        "width": 132,
+        "height": 165,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p8_img21",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p8_img21.png",
+        "width": 249,
+        "height": 341,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p8_img28",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p8_img28.png",
+        "width": 372,
+        "height": 520,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p8_img29",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p8_img29.png",
+        "width": 288,
+        "height": 402,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p8_img30",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p8_img30.png",
+        "width": 279,
+        "height": 390,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p8_img31",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p8_img31.png",
+        "width": 210,
+        "height": 296,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p8_img32",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p8_img32.png",
+        "width": 279,
+        "height": 390,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p8_img39",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p8_img39.png",
+        "width": 279,
+        "height": 390,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p8_img41",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p8_img41.png",
+        "width": 279,
+        "height": 390,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p8_img43",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p8_img43.png",
+        "width": 279,
+        "height": 390,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p9_img17",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p9_img17.png",
+        "width": 185,
+        "height": 188,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p9_img18",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p9_img18.png",
+        "width": 185,
+        "height": 188,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p9_img27",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p9_img27.png",
+        "width": 185,
+        "height": 188,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p9_img28",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p9_img28.png",
+        "width": 185,
+        "height": 188,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p10_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p10_img3.png",
+        "width": 647,
+        "height": 290,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p10_img4",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p10_img4.png",
+        "width": 126,
+        "height": 200,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p10_img6",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p10_img6.png",
+        "width": 126,
+        "height": 200,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p10_img7",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p10_img7.png",
+        "width": 126,
+        "height": 200,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p10_img13",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p10_img13.png",
+        "width": 213,
+        "height": 213,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p10_img17",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p10_img17.png",
+        "width": 298,
+        "height": 336,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p11_img7",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p11_img7.png",
+        "width": 126,
+        "height": 200,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p11_img17",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p11_img17.png",
+        "width": 624,
+        "height": 185,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p11_img22",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p11_img22.png",
+        "width": 299,
+        "height": 167,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p11_img25",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p11_img25.png",
+        "width": 598,
+        "height": 334,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p11_img28",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p11_img28.png",
+        "width": 438,
+        "height": 144,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p12_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p12_img0.png",
+        "width": 186,
+        "height": 260,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p12_img6",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p12_img6.png",
+        "width": 302,
+        "height": 394,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p13_img5",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p13_img5.png",
+        "width": 245,
+        "height": 816,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p13_img17",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p13_img17.png",
+        "width": 352,
+        "height": 199,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p14_img4",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p14_img4.png",
+        "width": 681,
+        "height": 947,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p14_img6",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p14_img6.png",
+        "width": 680,
+        "height": 816,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p14_img10",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p14_img10.png",
+        "width": 374,
+        "height": 238,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p14_img11",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p14_img11.png",
+        "width": 375,
+        "height": 238,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p14_img13",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p14_img13.png",
+        "width": 435,
+        "height": 324,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p14_img14",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p14_img14.png",
+        "width": 103,
+        "height": 136,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p14_img16",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p14_img16.png",
+        "width": 102,
+        "height": 136,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p15_img9",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p15_img9.png",
+        "width": 467,
+        "height": 1274,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p15_img10",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p15_img10.png",
+        "width": 681,
+        "height": 947,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p15_img24",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p15_img24.png",
+        "width": 268,
+        "height": 161,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p15_img25",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p15_img25.png",
+        "width": 152,
+        "height": 153,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p15_img33",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p15_img33.png",
+        "width": 119,
+        "height": 148,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p16_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p16_img0.png",
+        "width": 236,
+        "height": 590,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p16_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p16_img3.png",
+        "width": 139,
+        "height": 195,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p16_img14",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p16_img14.png",
+        "width": 269,
+        "height": 114,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p17_img16",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p17_img16.png",
+        "width": 680,
+        "height": 945,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p17_img20",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p17_img20.png",
+        "width": 249,
+        "height": 236,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p18_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p18_img0.png",
+        "width": 231,
+        "height": 326,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p18_img4",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p18_img4.png",
+        "width": 2353,
+        "height": 354,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p18_img5",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p18_img5.png",
+        "width": 680,
+        "height": 945,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p19_img9",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p19_img9.png",
+        "width": 319,
+        "height": 316,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p20_img7",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p20_img7.png",
+        "width": 681,
+        "height": 947,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p22_img11",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p22_img11.png",
+        "width": 302,
+        "height": 397,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p22_img13",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p22_img13.png",
+        "width": 681,
+        "height": 947,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p23_img19",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/lost-ruins-of-arnak/hephaestus/images/all/component_p23_img19.png",
+        "width": 679,
+        "height": 945,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
       }
     ],
     "scythe": [
