@@ -374,12 +374,28 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         minHeight: parseInt(minHeight)
       });
       
-      if (!result.success) {
-        return res.status(500).json({ error: result.error || 'Extraction failed' });
+      // Handle extraction errors vs empty results
+      if (!result.success && result.error) {
+        return res.status(500).json({ error: result.error });
       }
       
       // Remove old HEPHAESTUS images
       removeImagesBySource(projectId, 'hephaestus');
+      
+      // Handle zero-image extraction (valid but empty)
+      if (!result.images || result.images.length === 0) {
+        const state = listImages(projectId);
+        return res.json({
+          success: true,
+          mode: 'hephaestus',
+          message: 'No component images found in PDF. Try adjusting size thresholds or use page extraction instead.',
+          stats: result.stats || {},
+          manifestPath: result.manifest_path,
+          imagesCount: 0,
+          images: state.images,
+          componentImages: state.componentImages
+        });
+      }
       
       // Convert HEPHAESTUS output to MOBIUS image format
       const images = (result.images || []).map(img => normalizeImageAsset({

@@ -14,6 +14,21 @@ The system employs a client-server architecture. The frontend is a React applica
 - **Text-to-Speech**: ElevenLabs API
 - **Database**: Local file-based storage (`./data`)
 - **Image Processing**: `sharp` library
-- **PDF Parsing**: `pdf-parse`, `pdf-lib` libraries
+- **PDF Parsing**: `pdf-parse`, `pdf-lib` libraries, PyMuPDF (via HEPHAESTUS)
 - **Web Scraping**: `axios`, `cheerio` (for BoardGameGeek integration)
 - **OCR**: Tesseract.js (for text extraction from images)
+
+## HEPHAESTUS Integration (December 2025)
+The project now includes HEPHAESTUS, a Python-based PDF component extraction system that provides:
+- **PyMuPDF-based extraction**: More robust than the previous pdf-parse approach
+- **Hybrid classification**: Combines heuristics with AI-ready classification for component detection
+- **Perceptual deduplication**: Uses imagehash to identify and remove duplicate images
+- **Structured manifest output**: JSON manifests with complete metadata for all extracted components
+
+### HEPHAESTUS Files
+- `hephaestus/` - Python source code for the extraction system
+- `hephaestus/extract_api.py` - JSON API wrapper for Node.js integration
+- `src/services/hephaestusService.js` - Node.js service that spawns Python subprocess
+
+### API Endpoint
+- `POST /api/projects/:projectId/images/extract-hephaestus` - Extracts images using HEPHAESTUS pipeline
