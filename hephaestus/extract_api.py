@@ -1,36 +1,158 @@
 #!/usr/bin/env python3
 """
 HEPHAESTUS API for MOBIUS integration.
-Provides a simple JSON API for extracting component images from PDFs.
+Simplified wrapper that uses PyMuPDF directly for PDF image extraction.
 """
 
 import json
 import sys
+import os
+import hashlib
 from pathlib import Path
+from typing import Dict, List, Any, Optional
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
+import fitz  # PyMuPDF
+from PIL import Image
+import imagehash
 
-from pdf.ingestion import PdfDocument, PdfOpenError, EncryptedPdfError
-from pdf.images import extract_embedded_images, save_images_flat
-from classifier.model import HybridClassifier
-from metadata.annotator import annotate_components
-from dedup.model import deduplicate_images
-from output.manifest import build_manifest, write_manifest_json
+
+def extract_embedded_images(pdf_path: str, min_width: int = 50, min_height: int = 50) -> List[Dict[str, Any]]:
+    """Extract embedded raster images from PDF pages."""
+    images = []
+    
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception as e:
+        raise Exception(f"Failed to open PDF: {e}")
+    
+    if doc.needs_pass:
+        doc.close()
+        raise Exception("PDF is encrypted")
+    
+    for page_idx in range(doc.page_count):
+        page = doc.load_page(page_idx)
+        img_list = page.get_images(full=True)
+        
+        for img_idx, img_info in enumerate(img_list):
+            xref = img_info[0]
+            try:
+                pix = fitz.Pixmap(doc, xref)
+                width, height = pix.width, pix.height
+                
+                if width < min_width or height < min_height:
+                    continue
+                
+                images.append({
+                    'id': f'p{page_idx}_img{img_idx}',
+                    'page_index': page_idx,
+                    'width': width,
+                    'height': height,
+                    'xref': xref,
+                    'pixmap': pix
+                })
+            except Exception as e:
+                print(f"Warning: Failed to extract image {img_idx} on page {page_idx}: {e}", file=sys.stderr)
+                continue
+    
+    doc.close()
+    return images
+
+
+def classify_image(img: Dict[str, Any]) -> Dict[str, Any]:
+    """Simple heuristic classification of images."""
+    width = img['width']
+    height = img['height']
+    aspect = width / height if height > 0 else 1
+    area = width * height
+    
+    if area < 10000:
+        return {'label': 'icon', 'is_component': False, 'confidence': 0.7}
+    elif area > 1000000:
+        return {'label': 'board', 'is_component': True, 'confidence': 0.6}
+    elif 0.6 < aspect < 0.8:
+        return {'label': 'card', 'is_component': True, 'confidence': 0.8}
+    elif 0.9 < aspect < 1.1:
+        return {'label': 'token', 'is_component': True, 'confidence': 0.7}
+    elif area > 50000:
+        return {'label': 'tile', 'is_component': True, 'confidence': 0.6}
+    else:
+        return {'label': 'unknown', 'is_component': True, 'confidence': 0.5}
+
+
+def compute_phash(pil_image: Image.Image) -> str:
+    """Compute perceptual hash for deduplication."""
+    try:
+        return str(imagehash.phash(pil_image))
+    except:
+        return ""
+
+
+def save_images(images: List[Dict[str, Any]], output_dir: Path) -> Dict[str, Path]:
+    """Save images as PNG files and return path mapping."""
+    images_dir = output_dir / "images" / "all"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    
+    path_mapping = {}
+    
+    for img in images:
+        pix = img['pixmap']
+        img_id = img['id']
+        filename = f"component_{img_id}.png"
+        filepath = images_dir / filename
+        
+        try:
+            if pix.alpha:
+                pix = fitz.Pixmap(pix, 0)
+            
+            if pix.n - pix.alpha > 3:
+                pix = fitz.Pixmap(fitz.csRGB, pix)
+            
+            pix.save(str(filepath))
+            path_mapping[img_id] = filepath
+        except Exception as e:
+            print(f"Warning: Failed to save {img_id}: {e}", file=sys.stderr)
+            continue
+    
+    return path_mapping
+
+
+def deduplicate_images(images: List[Dict[str, Any]], path_mapping: Dict[str, Path], threshold: int = 8) -> Dict[str, str]:
+    """Find duplicate images using perceptual hashing."""
+    hashes = {}
+    dedup_map = {}
+    
+    for img in images:
+        img_id = img['id']
+        filepath = path_mapping.get(img_id)
+        
+        if not filepath or not filepath.exists():
+            continue
+        
+        try:
+            pil_img = Image.open(filepath)
+            phash = imagehash.phash(pil_img)
+            
+            is_dup = False
+            for other_id, other_hash in hashes.items():
+                if phash - other_hash <= threshold:
+                    dedup_map[img_id] = other_id
+                    is_dup = True
+                    break
+            
+            if not is_dup:
+                hashes[img_id] = phash
+                dedup_map[img_id] = img_id
+                
+        except Exception as e:
+            print(f"Warning: Failed to hash {img_id}: {e}", file=sys.stderr)
+            dedup_map[img_id] = img_id
+    
+    return dedup_map
 
 
 def extract_components(pdf_path: str, output_dir: str, min_width: int = 50, min_height: int = 50) -> dict:
     """
     Extract component images from a PDF file.
-    
-    Args:
-        pdf_path: Path to the PDF file
-        output_dir: Directory to save extracted images
-        min_width: Minimum image width in pixels
-        min_height: Minimum image height in pixels
-        
-    Returns:
-        Dictionary with extraction results
     """
     pdf_path = Path(pdf_path)
     output_dir = Path(output_dir)
@@ -46,82 +168,77 @@ def extract_components(pdf_path: str, output_dir: str, min_width: int = 50, min_
     }
     
     try:
-        # Open PDF
-        pdf = PdfDocument(pdf_path)
-        
-        # Extract embedded images
-        images = extract_embedded_images(pdf, min_width=min_width, min_height=min_height)
+        print(f"[HEPHAESTUS] Opening PDF: {pdf_path}", file=sys.stderr)
+        images = extract_embedded_images(str(pdf_path), min_width, min_height)
+        print(f"[HEPHAESTUS] Found {len(images)} embedded images", file=sys.stderr)
         
         if not images:
             result["success"] = True
-            result["stats"] = {"total_images": 0, "components": 0}
+            result["stats"] = {"total_items": 0, "components": 0, "non_components": 0}
             return result
         
-        # Save images to disk
-        path_mapping, health_metrics = save_images_flat(
-            images, 
-            output_dir, 
-            rulebook_id=pdf_path.stem
-        )
+        print(f"[HEPHAESTUS] Saving images...", file=sys.stderr)
+        path_mapping = save_images(images, output_dir)
+        print(f"[HEPHAESTUS] Saved {len(path_mapping)} images", file=sys.stderr)
         
-        # Classify images
-        classifier = HybridClassifier(enable_vision=False)  # Disable vision for speed
-        classifications = {}
-        for image in images:
-            try:
-                classification = classifier.classify(image)
-                classifications[image.id] = classification
-            except Exception as e:
-                print(f"Warning: Classification failed for {image.id}: {e}", file=sys.stderr)
+        print(f"[HEPHAESTUS] Deduplicating...", file=sys.stderr)
+        dedup_map = deduplicate_images(images, path_mapping, threshold=8)
         
-        # Annotate with metadata (labels, quantities)
-        metadata_list = annotate_components(images, classifications, {})
+        print(f"[HEPHAESTUS] Classifying...", file=sys.stderr)
+        components = 0
+        non_components = 0
         
-        # Deduplicate
-        dedup_map = deduplicate_images(images, threshold=8)
+        for img in images:
+            img_id = img['id']
+            filepath = path_mapping.get(img_id)
+            
+            if not filepath:
+                continue
+            
+            classification = classify_image(img)
+            is_canonical = dedup_map.get(img_id) == img_id
+            
+            if classification['is_component']:
+                components += 1
+            else:
+                non_components += 1
+            
+            if is_canonical:
+                result["images"].append({
+                    "id": img_id,
+                    "file_name": filepath.name,
+                    "file_path": str(filepath),
+                    "page_index": img['page_index'],
+                    "classification": classification['label'],
+                    "is_component": classification['is_component'],
+                    "confidence": classification['confidence'],
+                    "label": classification['label'],
+                    "quantity": None,
+                    "dimensions": {
+                        "width": img['width'],
+                        "height": img['height']
+                    }
+                })
         
-        # Build manifest
-        manifest = build_manifest(
-            source_pdf_path=pdf_path,
-            images=images,
-            classifications=classifications,
-            metadata=metadata_list,
-            dedup_map=dedup_map,
-            path_mapping=path_mapping,
-            health_metrics=health_metrics
-        )
+        unique_count = len([i for i in result["images"]])
+        dup_count = len(images) - unique_count
         
-        # Write manifest
-        manifest_path = write_manifest_json(manifest, output_dir)
-        
-        # Build result
         result["success"] = True
+        result["stats"] = {
+            "total_items": len(images),
+            "components": components,
+            "non_components": non_components,
+            "duplicates_removed": dup_count,
+            "unique_images": unique_count
+        }
+        
+        manifest_path = output_dir / "manifest.json"
+        with open(manifest_path, 'w') as f:
+            json.dump(result, f, indent=2)
         result["manifest_path"] = str(manifest_path)
-        result["stats"] = manifest.summary
-        result["images"] = []
         
-        for item in manifest.items:
-            if not item.is_duplicate:  # Only include canonical images
-                img_data = {
-                    "id": item.image_id,
-                    "file_name": item.file_name,
-                    "file_path": str(path_mapping.get(item.image_id, "")),
-                    "page_index": item.page_index,
-                    "classification": item.classification,
-                    "is_component": item.classification not in ["icon", "decorative", "non-component", "unknown"],
-                    "confidence": item.classification_confidence,
-                    "label": item.label,
-                    "quantity": item.quantity,
-                    "dimensions": item.dimensions
-                }
-                result["images"].append(img_data)
+        print(f"[HEPHAESTUS] Complete: {unique_count} unique images ({dup_count} duplicates removed)", file=sys.stderr)
         
-        pdf.close()
-        
-    except EncryptedPdfError as e:
-        result["error"] = f"PDF is encrypted: {e}"
-    except PdfOpenError as e:
-        result["error"] = f"Failed to open PDF: {e}"
     except Exception as e:
         result["error"] = str(e)
         import traceback

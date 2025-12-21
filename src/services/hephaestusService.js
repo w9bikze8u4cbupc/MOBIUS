@@ -21,8 +21,7 @@ export async function extractWithHephaestus(pdfPath, outputDir, options = {}) {
     console.log(`[HEPHAESTUS] Output to: ${outputDir}`);
     
     const proc = spawn('python3', args, {
-      cwd: HEPHAESTUS_DIR,
-      env: { ...process.env, PYTHONPATH: HEPHAESTUS_DIR }
+      cwd: HEPHAESTUS_DIR
     });
     
     let stdout = '';
