@@ -8,7 +8,7 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL !== undefined
 const getImageUrl = (projectId, image) => {
   if (!image) return null;
   if (image.originalUrl) return image.originalUrl;
-  if (image.fileKey || image.source === 'rulebook' || image.source === 'manual' || image.source === 'ai-crop' || image.source === 'native-pdf' || image.source === 'ai-component-crop') {
+  if (image.fileKey || image.source === 'rulebook' || image.source === 'manual' || image.source === 'ai-crop' || image.source === 'native-pdf' || image.source === 'ai-component-crop' || image.source === 'hephaestus') {
     return `${BACKEND_URL}/api/projects/${projectId}/images/${image.id}/file`;
   }
   return null;
@@ -23,7 +23,8 @@ const getSourceLabel = (source) => {
     'bgg': 'BoardGameGeek',
     'manual': 'Manual Upload',
     'bgg-components': 'BGG Components',
-    'web-search': 'Web Search'
+    'web-search': 'Web Search',
+    'hephaestus': 'HEPHAESTUS'
   };
   return labels[source] || source;
 };
@@ -37,7 +38,8 @@ const getSourceColor = (source) => {
     'bgg': '#ff9800',
     'manual': '#673ab7',
     'bgg-components': '#ff5722',
-    'web-search': '#00bcd4'
+    'web-search': '#00bcd4',
+    'hephaestus': '#f44336'
   };
   return colors[source] || '#757575';
 };
@@ -65,6 +67,7 @@ export function ImagesStep({
   const [expandedSources, setExpandedSources] = useState({});
   const [feedbackMode, setFeedbackMode] = useState(false);
   const [feedbackStatus, setFeedbackStatus] = useState({});
+  const [hephaestusStatus, setHephaestusStatus] = useState(null);
 
   useEffect(() => {
     setLocalImages(images || []);
@@ -468,6 +471,43 @@ export function ImagesStep({
     }
   };
 
+  const handleHephaestusExtract = async () => {
+    if (!projectId || !pdfFile) return;
+    setLoading(true);
+    setHephaestusStatus({ status: 'extracting', message: 'Running HEPHAESTUS extraction pipeline...' });
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', pdfFile);
+      formData.append('minWidth', '100');
+      formData.append('minHeight', '100');
+      
+      const res = await axios.post(
+        `${BACKEND_URL}/api/projects/${projectId}/images/extract-hephaestus`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      
+      refreshState(res.data || {});
+      
+      const count = res.data?.imagesCount || 0;
+      const stats = res.data?.stats || {};
+      setHephaestusStatus({
+        status: 'complete',
+        message: `Extracted ${count} component images using HEPHAESTUS`,
+        stats
+      });
+    } catch (err) {
+      console.error('HEPHAESTUS extraction failed:', err);
+      setHephaestusStatus({ 
+        status: 'error', 
+        message: err.response?.data?.error || 'HEPHAESTUS extraction failed' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleComponentLink = async (componentId, imageId) => {
     if (!projectId || !componentId) return;
     const next = new Set(localLinks[componentId] || []);
@@ -722,6 +762,88 @@ export function ImagesStep({
                   {croppingStatus.stats.pagesAnalyzed && (
                     <span style={{ background: '#e3f2fd', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>
                       Pages analyzed: {croppingStatus.stats.pagesAnalyzed}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* HEPHAESTUS: PyMuPDF-based Component Extraction */}
+      {pdfFile && (
+        <div style={{ 
+          background: 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)', 
+          padding: 20, 
+          borderRadius: 12, 
+          marginBottom: 20,
+          border: '2px solid #f44336'
+        }}>
+          <h4 style={{ margin: '0 0 8px 0', color: '#c62828' }}>
+            HEPHAESTUS Extraction (Recommended for PDFs)
+          </h4>
+          <p style={{ margin: '0 0 16px 0', color: '#555', fontSize: 14 }}>
+            Advanced PyMuPDF-based extraction with hybrid classification and perceptual deduplication.
+            Directly extracts embedded images from PDF with smart component detection.
+          </p>
+          
+          <button 
+            onClick={handleHephaestusExtract} 
+            disabled={loading}
+            style={{
+              padding: '12px 24px',
+              fontSize: 16,
+              fontWeight: 'bold',
+              background: loading && hephaestusStatus?.status === 'extracting' ? '#ef9a9a' : '#f44336',
+              color: 'white',
+              border: 'none',
+              borderRadius: 8,
+              cursor: loading ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}
+          >
+            {loading && hephaestusStatus?.status === 'extracting' ? (
+              <>
+                <span className="loading-spinner" style={{ width: 20, height: 20 }}></span>
+                Running HEPHAESTUS...
+              </>
+            ) : (
+              <>Extract with HEPHAESTUS</>
+            )}
+          </button>
+          
+          {hephaestusStatus && (
+            <div style={{ 
+              marginTop: 12, 
+              padding: 12, 
+              background: hephaestusStatus.status === 'error' ? '#ffebee' : 
+                         hephaestusStatus.status === 'extracting' ? '#fff3e0' : '#e8f5e9',
+              borderRadius: 8,
+              fontSize: 14
+            }}>
+              <strong>
+                {hephaestusStatus.status === 'error' ? 'Error: ' : 
+                 hephaestusStatus.status === 'extracting' ? 'Processing: ' : 'Success: '}
+              </strong> {hephaestusStatus.message}
+              
+              {hephaestusStatus.stats && (
+                <div style={{ marginTop: 8, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  {hephaestusStatus.stats.components > 0 && (
+                    <span style={{ background: '#c8e6c9', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>
+                      Components: {hephaestusStatus.stats.components}
+                    </span>
+                  )}
+                  {hephaestusStatus.stats.non_components > 0 && (
+                    <span style={{ background: '#fff9c4', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>
+                      Non-components: {hephaestusStatus.stats.non_components}
+                    </span>
+                  )}
+                  {hephaestusStatus.stats.total_items > 0 && (
+                    <span style={{ background: '#e3f2fd', padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>
+                      Total images: {hephaestusStatus.stats.total_items}
                     </span>
                   )}
                 </div>

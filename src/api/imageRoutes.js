@@ -36,6 +36,10 @@ import {
   isJobInProgress as isPipelineInProgress,
   clearJobLock as clearPipelineLock,
 } from '../services/componentPipeline.js';
+import {
+  extractWithHephaestus,
+  isHephaestusAvailable,
+} from '../services/hephaestusService.js';
 
 export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {}) {
   const uploadMiddleware = upload || { single: () => (_req, _res, next) => next() };
@@ -344,6 +348,78 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
     } catch (err) {
       console.error('Multi-stage pipeline failed:', err);
       res.status(500).json({ error: err.message || 'Pipeline failed' });
+    }
+  });
+
+  // HEPHAESTUS: PyMuPDF-based component extraction with hybrid classification
+  app.post('/api/projects/:projectId/images/extract-hephaestus', uploadMiddleware.single('file'), async (req, res) => {
+    const { projectId } = req.params;
+    const { minWidth = 100, minHeight = 100 } = req.body || {};
+    
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'PDF file is required' });
+      }
+      
+      const available = await isHephaestusAvailable();
+      if (!available) {
+        return res.status(500).json({ error: 'HEPHAESTUS system not available' });
+      }
+      
+      console.log('[HEPHAESTUS] Starting extraction from:', req.file.path);
+      
+      const outputDir = path.join(process.cwd(), 'data', projectId, 'hephaestus');
+      const result = await extractWithHephaestus(req.file.path, outputDir, {
+        minWidth: parseInt(minWidth),
+        minHeight: parseInt(minHeight)
+      });
+      
+      if (!result.success) {
+        return res.status(500).json({ error: result.error || 'Extraction failed' });
+      }
+      
+      // Remove old HEPHAESTUS images
+      removeImagesBySource(projectId, 'hephaestus');
+      
+      // Convert HEPHAESTUS output to MOBIUS image format
+      const images = (result.images || []).map(img => normalizeImageAsset({
+        id: `heph_${img.id}`,
+        fileKey: img.file_path,
+        source: 'hephaestus',
+        width: img.dimensions?.width,
+        height: img.dimensions?.height,
+        tags: [
+          img.classification,
+          img.is_component ? 'component' : 'non-component',
+          img.label || 'unlabeled'
+        ].filter(Boolean),
+        metadata: {
+          page: img.page_index,
+          confidence: img.confidence,
+          label: img.label,
+          quantity: img.quantity,
+          classification: img.classification
+        }
+      }));
+      
+      const enhanced = images.map(runImageEnhancement);
+      appendImages(projectId, enhanced);
+      const updatedState = listImages(projectId);
+      
+      console.log(`[HEPHAESTUS] Extraction complete: ${enhanced.length} images`);
+      res.json({
+        success: true,
+        mode: 'hephaestus',
+        message: `Extracted ${enhanced.length} images using HEPHAESTUS`,
+        stats: result.stats,
+        manifestPath: result.manifest_path,
+        imagesCount: enhanced.length,
+        images: updatedState.images,
+        componentImages: updatedState.componentImages
+      });
+    } catch (err) {
+      console.error('[HEPHAESTUS] Extraction failed:', err);
+      res.status(500).json({ error: err.message || 'HEPHAESTUS extraction failed' });
     }
   });
 
