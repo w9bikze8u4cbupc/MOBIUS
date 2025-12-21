@@ -12023,6 +12023,2467 @@
           "notes": "High confidence detection"
         },
         "license": null
+      },
+      {
+        "id": "heph_p0_img1",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p0_img1.png",
+        "width": 889,
+        "height": 103,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p0_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p0_img2.png",
+        "width": 1315,
+        "height": 1685,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "board",
+          "component",
+          "board"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p0_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p0_img3.png",
+        "width": 572,
+        "height": 498,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p0_img4",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p0_img4.png",
+        "width": 835,
+        "height": 961,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p0_img5",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p0_img5.png",
+        "width": 665,
+        "height": 215,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p0_img6",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p0_img6.png",
+        "width": 582,
+        "height": 294,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p1_img0.png",
+        "width": 169,
+        "height": 107,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img16",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p1_img16.png",
+        "width": 571,
+        "height": 301,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img17",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p1_img17.png",
+        "width": 856,
+        "height": 470,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img18",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p1_img18.png",
+        "width": 177,
+        "height": 113,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img20",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p1_img20.png",
+        "width": 190,
+        "height": 145,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img21",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p1_img21.png",
+        "width": 169,
+        "height": 111,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img22",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p1_img22.png",
+        "width": 169,
+        "height": 108,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img27",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p1_img27.png",
+        "width": 223,
+        "height": 165,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img28",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p1_img28.png",
+        "width": 169,
+        "height": 108,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img29",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p1_img29.png",
+        "width": 248,
+        "height": 149,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img30",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p1_img30.png",
+        "width": 179,
+        "height": 114,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img33",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p1_img33.png",
+        "width": 169,
+        "height": 107,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p1_img36",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p1_img36.png",
+        "width": 2584,
+        "height": 1681,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "board",
+          "component",
+          "board"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p2_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p2_img0.png",
+        "width": 108,
+        "height": 101,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p2_img1",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p2_img1.png",
+        "width": 108,
+        "height": 187,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p2_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p2_img2.png",
+        "width": 117,
+        "height": 128,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p2_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p2_img3.png",
+        "width": 125,
+        "height": 110,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p2_img4",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p2_img4.png",
+        "width": 135,
+        "height": 136,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p2_img5",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p2_img5.png",
+        "width": 106,
+        "height": 102,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p2_img6",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p2_img6.png",
+        "width": 109,
+        "height": 103,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p2_img7",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p2_img7.png",
+        "width": 109,
+        "height": 144,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p2_img8",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p2_img8.png",
+        "width": 164,
+        "height": 134,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p2_img9",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p2_img9.png",
+        "width": 131,
+        "height": 181,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img0.png",
+        "width": 127,
+        "height": 138,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img1",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img1.png",
+        "width": 250,
+        "height": 235,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img2.png",
+        "width": 101,
+        "height": 101,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img3.png",
+        "width": 528,
+        "height": 237,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img4",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img4.png",
+        "width": 101,
+        "height": 101,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img5",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img5.png",
+        "width": 101,
+        "height": 101,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img6",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img6.png",
+        "width": 300,
+        "height": 138,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img7",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img7.png",
+        "width": 656,
+        "height": 425,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img8",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img8.png",
+        "width": 300,
+        "height": 138,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img9",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img9.png",
+        "width": 237,
+        "height": 138,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img10",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img10.png",
+        "width": 237,
+        "height": 138,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img12",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img12.png",
+        "width": 101,
+        "height": 103,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img13",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img13.png",
+        "width": 127,
+        "height": 138,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img16",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img16.png",
+        "width": 101,
+        "height": 101,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p3_img17",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p3_img17.png",
+        "width": 101,
+        "height": 101,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p4_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p4_img2.png",
+        "width": 484,
+        "height": 308,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p6_img8",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p6_img8.png",
+        "width": 213,
+        "height": 110,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p6_img9",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p6_img9.png",
+        "width": 213,
+        "height": 136,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p6_img10",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p6_img10.png",
+        "width": 530,
+        "height": 350,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p6_img11",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p6_img11.png",
+        "width": 525,
+        "height": 206,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p6_img14",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p6_img14.png",
+        "width": 269,
+        "height": 169,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p6_img15",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p6_img15.png",
+        "width": 525,
+        "height": 195,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p7_img6",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p7_img6.png",
+        "width": 865,
+        "height": 273,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p7_img9",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p7_img9.png",
+        "width": 687,
+        "height": 726,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p8_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p8_img3.png",
+        "width": 155,
+        "height": 109,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p9_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p9_img0.png",
+        "width": 1074,
+        "height": 422,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p9_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p9_img2.png",
+        "width": 1310,
+        "height": 1684,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "board",
+          "component",
+          "board"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p9_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p9_img3.png",
+        "width": 252,
+        "height": 382,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p10_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p10_img0.png",
+        "width": 150,
+        "height": 228,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p10_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p10_img2.png",
+        "width": 528,
+        "height": 219,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p10_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p10_img3.png",
+        "width": 1310,
+        "height": 1684,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "board",
+          "component",
+          "board"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p11_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p11_img0.png",
+        "width": 683,
+        "height": 412,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p11_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p11_img2.png",
+        "width": 236,
+        "height": 359,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p12_img12",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p12_img12.png",
+        "width": 1148,
+        "height": 171,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p12_img13",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p12_img13.png",
+        "width": 237,
+        "height": 359,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p14_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p14_img0.png",
+        "width": 665,
+        "height": 214,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p14_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p14_img2.png",
+        "width": 805,
+        "height": 302,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p15_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p15_img0.png",
+        "width": 804,
+        "height": 301,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p15_img1",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p15_img1.png",
+        "width": 683,
+        "height": 222,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p15_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p15_img3.png",
+        "width": 683,
+        "height": 221,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p16_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p16_img0.png",
+        "width": 683,
+        "height": 222,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p16_img1",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p16_img1.png",
+        "width": 798,
+        "height": 299,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p16_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p16_img2.png",
+        "width": 683,
+        "height": 222,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p16_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p16_img3.png",
+        "width": 804,
+        "height": 301,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p18_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p18_img2.png",
+        "width": 410,
+        "height": 710,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p18_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p18_img3.png",
+        "width": 253,
+        "height": 162,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p18_img9",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p18_img9.png",
+        "width": 253,
+        "height": 162,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p18_img10",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p18_img10.png",
+        "width": 801,
+        "height": 434,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p19_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p19_img0.png",
+        "width": 233,
+        "height": 135,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p20_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p20_img0.png",
+        "width": 174,
+        "height": 174,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p20_img1",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p20_img1.png",
+        "width": 174,
+        "height": 174,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p20_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p20_img2.png",
+        "width": 174,
+        "height": 174,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p20_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p20_img3.png",
+        "width": 174,
+        "height": 174,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p20_img4",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p20_img4.png",
+        "width": 174,
+        "height": 174,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p21_img1",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p21_img1.png",
+        "width": 162,
+        "height": 162,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p21_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p21_img2.png",
+        "width": 194,
+        "height": 194,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p21_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p21_img3.png",
+        "width": 559,
+        "height": 558,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p21_img9",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p21_img9.png",
+        "width": 252,
+        "height": 120,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p23_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p23_img3.png",
+        "width": 159,
+        "height": 141,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p23_img5",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p23_img5.png",
+        "width": 693,
+        "height": 991,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p24_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p24_img0.png",
+        "width": 256,
+        "height": 395,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p24_img6",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p24_img6.png",
+        "width": 252,
+        "height": 269,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p24_img12",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p24_img12.png",
+        "width": 528,
+        "height": 991,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p25_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p25_img0.png",
+        "width": 451,
+        "height": 628,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p25_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p25_img3.png",
+        "width": 163,
+        "height": 145,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p25_img7",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p25_img7.png",
+        "width": 617,
+        "height": 450,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p26_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p26_img0.png",
+        "width": 219,
+        "height": 162,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p26_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p26_img2.png",
+        "width": 1081,
+        "height": 294,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p26_img7",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p26_img7.png",
+        "width": 219,
+        "height": 157,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p26_img8",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p26_img8.png",
+        "width": 453,
+        "height": 157,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p26_img9",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p26_img9.png",
+        "width": 286,
+        "height": 628,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p26_img10",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p26_img10.png",
+        "width": 612,
+        "height": 606,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p26_img13",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p26_img13.png",
+        "width": 619,
+        "height": 639,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "token",
+          "component",
+          "token"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p27_img1",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p27_img1.png",
+        "width": 419,
+        "height": 639,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p28_img0",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p28_img0.png",
+        "width": 141,
+        "height": 244,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "unknown",
+          "component",
+          "unknown"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p28_img3",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p28_img3.png",
+        "width": 206,
+        "height": 248,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p28_img7",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p28_img7.png",
+        "width": 334,
+        "height": 1018,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "tile",
+          "component",
+          "tile"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
+      },
+      {
+        "id": "heph_p29_img2",
+        "source": "hephaestus",
+        "name": null,
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/scythe/hephaestus/images/all/component_p29_img2.png",
+        "width": 221,
+        "height": 286,
+        "dimensions": null,
+        "pageNum": null,
+        "confidence": null,
+        "crops": [],
+        "tags": [
+          "card",
+          "component",
+          "card"
+        ],
+        "quality": {
+          "score": 0.5,
+          "notes": "pending"
+        },
+        "license": null
       }
     ],
     "7-wonders-duel": [
@@ -13189,27 +15650,399 @@
     },
     "scythe": {
       "comp-1": [],
-      "comp-2": [],
-      "comp-3": [],
-      "comp-4": [],
-      "comp-5": [],
-      "comp-6": [],
-      "comp-7": [],
-      "comp-8": [],
-      "comp-9": [],
-      "comp-10": [],
-      "comp-11": [],
-      "comp-12": [],
+      "comp-2": [
+        "heph_p6_img11"
+      ],
+      "comp-3": [
+        "heph_p1_img20"
+      ],
+      "comp-4": [
+        "heph_p2_img0",
+        "heph_p2_img2",
+        "heph_p2_img4",
+        "heph_p2_img5",
+        "heph_p2_img6",
+        "heph_p3_img0",
+        "heph_p3_img1",
+        "heph_p3_img2",
+        "heph_p3_img4",
+        "heph_p3_img5",
+        "heph_p3_img12",
+        "heph_p3_img13",
+        "heph_p3_img16",
+        "heph_p3_img17",
+        "heph_p7_img9",
+        "heph_p20_img0",
+        "heph_p20_img1",
+        "heph_p20_img2",
+        "heph_p20_img3",
+        "heph_p20_img4",
+        "heph_p21_img1",
+        "heph_p21_img2",
+        "heph_p21_img3",
+        "heph_p24_img6",
+        "heph_p26_img10",
+        "heph_p26_img13"
+      ],
+      "comp-5": [
+        "heph_p0_img2",
+        "heph_p1_img36",
+        "heph_p2_img7",
+        "heph_p2_img9",
+        "heph_p9_img2",
+        "heph_p9_img3",
+        "heph_p10_img0",
+        "heph_p10_img3",
+        "heph_p11_img2",
+        "heph_p12_img13",
+        "heph_p23_img5",
+        "heph_p24_img0",
+        "heph_p25_img0",
+        "heph_p27_img1",
+        "heph_p29_img2"
+      ],
+      "comp-6": [
+        "heph_p2_img0",
+        "heph_p2_img2",
+        "heph_p2_img4",
+        "heph_p2_img5",
+        "heph_p2_img6",
+        "heph_p3_img0",
+        "heph_p3_img1",
+        "heph_p3_img2",
+        "heph_p3_img4",
+        "heph_p3_img5",
+        "heph_p3_img12",
+        "heph_p3_img13",
+        "heph_p3_img16",
+        "heph_p3_img17",
+        "heph_p7_img9",
+        "heph_p20_img0",
+        "heph_p20_img1",
+        "heph_p20_img2",
+        "heph_p20_img3",
+        "heph_p20_img4",
+        "heph_p21_img1",
+        "heph_p21_img2",
+        "heph_p21_img3",
+        "heph_p24_img6",
+        "heph_p26_img10",
+        "heph_p26_img13"
+      ],
+      "comp-7": [
+        "heph_p2_img0",
+        "heph_p2_img2",
+        "heph_p2_img4",
+        "heph_p2_img5",
+        "heph_p2_img6",
+        "heph_p3_img0",
+        "heph_p3_img1",
+        "heph_p3_img2",
+        "heph_p3_img4",
+        "heph_p3_img5",
+        "heph_p3_img12",
+        "heph_p3_img13",
+        "heph_p3_img16",
+        "heph_p3_img17",
+        "heph_p7_img9",
+        "heph_p20_img0",
+        "heph_p20_img1",
+        "heph_p20_img2",
+        "heph_p20_img3",
+        "heph_p20_img4",
+        "heph_p21_img1",
+        "heph_p21_img2",
+        "heph_p21_img3",
+        "heph_p24_img6",
+        "heph_p26_img10",
+        "heph_p26_img13"
+      ],
+      "comp-8": [
+        "heph_p0_img1",
+        "heph_p0_img3",
+        "heph_p0_img4",
+        "heph_p0_img5",
+        "heph_p0_img6",
+        "heph_p1_img16",
+        "heph_p1_img17",
+        "heph_p3_img3",
+        "heph_p3_img7",
+        "heph_p4_img2",
+        "heph_p6_img10",
+        "heph_p6_img11",
+        "heph_p6_img15",
+        "heph_p7_img6",
+        "heph_p9_img0",
+        "heph_p10_img2",
+        "heph_p11_img0",
+        "heph_p12_img12",
+        "heph_p14_img0",
+        "heph_p14_img2",
+        "heph_p15_img0",
+        "heph_p15_img1",
+        "heph_p15_img3",
+        "heph_p16_img0",
+        "heph_p16_img1",
+        "heph_p16_img2",
+        "heph_p16_img3",
+        "heph_p18_img2",
+        "heph_p18_img10",
+        "heph_p24_img12",
+        "heph_p25_img7",
+        "heph_p26_img2",
+        "heph_p26_img8",
+        "heph_p26_img9",
+        "heph_p28_img3",
+        "heph_p28_img7"
+      ],
+      "comp-9": [
+        "heph_p2_img7",
+        "heph_p2_img9",
+        "heph_p9_img3",
+        "heph_p10_img0",
+        "heph_p11_img2",
+        "heph_p12_img13",
+        "heph_p23_img5",
+        "heph_p24_img0",
+        "heph_p25_img0",
+        "heph_p27_img1",
+        "heph_p29_img2"
+      ],
+      "comp-10": [
+        "heph_p2_img7",
+        "heph_p2_img9",
+        "heph_p9_img3",
+        "heph_p10_img0",
+        "heph_p11_img2",
+        "heph_p12_img13",
+        "heph_p23_img5",
+        "heph_p24_img0",
+        "heph_p25_img0",
+        "heph_p27_img1",
+        "heph_p29_img2"
+      ],
+      "comp-11": [
+        "heph_p2_img7",
+        "heph_p2_img9",
+        "heph_p9_img3",
+        "heph_p10_img0",
+        "heph_p11_img2",
+        "heph_p12_img13",
+        "heph_p23_img5",
+        "heph_p24_img0",
+        "heph_p25_img0",
+        "heph_p27_img1",
+        "heph_p29_img2"
+      ],
+      "comp-12": [
+        "heph_p2_img7",
+        "heph_p2_img9",
+        "heph_p9_img3",
+        "heph_p10_img0",
+        "heph_p11_img2",
+        "heph_p12_img13",
+        "heph_p23_img5",
+        "heph_p24_img0",
+        "heph_p25_img0",
+        "heph_p27_img1",
+        "heph_p29_img2"
+      ],
       "comp-13": [],
-      "comp-14": [],
-      "comp-15": [],
+      "comp-14": [
+        "heph_p2_img7",
+        "heph_p2_img9",
+        "heph_p9_img3",
+        "heph_p10_img0",
+        "heph_p11_img2",
+        "heph_p12_img13",
+        "heph_p23_img5",
+        "heph_p24_img0",
+        "heph_p25_img0",
+        "heph_p27_img1",
+        "heph_p29_img2"
+      ],
+      "comp-15": [
+        "heph_p2_img7",
+        "heph_p2_img9",
+        "heph_p9_img3",
+        "heph_p10_img0",
+        "heph_p11_img2",
+        "heph_p12_img13",
+        "heph_p23_img5",
+        "heph_p24_img0",
+        "heph_p25_img0",
+        "heph_p27_img1",
+        "heph_p29_img2"
+      ],
       "comp-16": [],
-      "comp-17": [],
-      "comp-18": [],
-      "comp-19": [],
-      "comp-20": [],
-      "comp-21": [],
-      "comp-22": [],
+      "comp-17": [
+        "heph_p2_img0",
+        "heph_p2_img2",
+        "heph_p2_img4",
+        "heph_p2_img5",
+        "heph_p2_img6",
+        "heph_p3_img0",
+        "heph_p3_img1",
+        "heph_p3_img2",
+        "heph_p3_img4",
+        "heph_p3_img5",
+        "heph_p3_img12",
+        "heph_p3_img13",
+        "heph_p3_img16",
+        "heph_p3_img17",
+        "heph_p7_img9",
+        "heph_p20_img0",
+        "heph_p20_img1",
+        "heph_p20_img2",
+        "heph_p20_img3",
+        "heph_p20_img4",
+        "heph_p21_img1",
+        "heph_p21_img2",
+        "heph_p21_img3",
+        "heph_p24_img6",
+        "heph_p26_img10",
+        "heph_p26_img13"
+      ],
+      "comp-18": [
+        "heph_p2_img0",
+        "heph_p2_img2",
+        "heph_p2_img4",
+        "heph_p2_img5",
+        "heph_p2_img6",
+        "heph_p3_img0",
+        "heph_p3_img1",
+        "heph_p3_img2",
+        "heph_p3_img4",
+        "heph_p3_img5",
+        "heph_p3_img12",
+        "heph_p3_img13",
+        "heph_p3_img16",
+        "heph_p3_img17",
+        "heph_p7_img9",
+        "heph_p20_img0",
+        "heph_p20_img1",
+        "heph_p20_img2",
+        "heph_p20_img3",
+        "heph_p20_img4",
+        "heph_p21_img1",
+        "heph_p21_img2",
+        "heph_p21_img3",
+        "heph_p24_img6",
+        "heph_p26_img10",
+        "heph_p26_img13"
+      ],
+      "comp-19": [
+        "heph_p2_img0",
+        "heph_p2_img2",
+        "heph_p2_img4",
+        "heph_p2_img5",
+        "heph_p2_img6",
+        "heph_p3_img0",
+        "heph_p3_img1",
+        "heph_p3_img2",
+        "heph_p3_img4",
+        "heph_p3_img5",
+        "heph_p3_img12",
+        "heph_p3_img13",
+        "heph_p3_img16",
+        "heph_p3_img17",
+        "heph_p7_img9",
+        "heph_p20_img0",
+        "heph_p20_img1",
+        "heph_p20_img2",
+        "heph_p20_img3",
+        "heph_p20_img4",
+        "heph_p21_img1",
+        "heph_p21_img2",
+        "heph_p21_img3",
+        "heph_p24_img6",
+        "heph_p26_img10",
+        "heph_p26_img13"
+      ],
+      "comp-20": [
+        "heph_p2_img0",
+        "heph_p2_img2",
+        "heph_p2_img4",
+        "heph_p2_img5",
+        "heph_p2_img6",
+        "heph_p3_img0",
+        "heph_p3_img1",
+        "heph_p3_img2",
+        "heph_p3_img4",
+        "heph_p3_img5",
+        "heph_p3_img12",
+        "heph_p3_img13",
+        "heph_p3_img16",
+        "heph_p3_img17",
+        "heph_p7_img9",
+        "heph_p20_img0",
+        "heph_p20_img1",
+        "heph_p20_img2",
+        "heph_p20_img3",
+        "heph_p20_img4",
+        "heph_p21_img1",
+        "heph_p21_img2",
+        "heph_p21_img3",
+        "heph_p24_img6",
+        "heph_p26_img10",
+        "heph_p26_img13"
+      ],
+      "comp-21": [
+        "heph_p2_img0",
+        "heph_p2_img2",
+        "heph_p2_img4",
+        "heph_p2_img5",
+        "heph_p2_img6",
+        "heph_p3_img0",
+        "heph_p3_img1",
+        "heph_p3_img2",
+        "heph_p3_img4",
+        "heph_p3_img5",
+        "heph_p3_img12",
+        "heph_p3_img13",
+        "heph_p3_img16",
+        "heph_p3_img17",
+        "heph_p7_img9",
+        "heph_p20_img0",
+        "heph_p20_img1",
+        "heph_p20_img2",
+        "heph_p20_img3",
+        "heph_p20_img4",
+        "heph_p21_img1",
+        "heph_p21_img2",
+        "heph_p21_img3",
+        "heph_p24_img6",
+        "heph_p26_img10",
+        "heph_p26_img13"
+      ],
+      "comp-22": [
+        "heph_p2_img0",
+        "heph_p2_img2",
+        "heph_p2_img4",
+        "heph_p2_img5",
+        "heph_p2_img6",
+        "heph_p3_img0",
+        "heph_p3_img1",
+        "heph_p3_img2",
+        "heph_p3_img4",
+        "heph_p3_img5",
+        "heph_p3_img12",
+        "heph_p3_img13",
+        "heph_p3_img16",
+        "heph_p3_img17",
+        "heph_p7_img9",
+        "heph_p20_img0",
+        "heph_p20_img1",
+        "heph_p20_img2",
+        "heph_p20_img3",
+        "heph_p20_img4",
+        "heph_p21_img1",
+        "heph_p21_img2",
+        "heph_p21_img3",
+        "heph_p24_img6",
+        "heph_p26_img10",
+        "heph_p26_img13"
+      ],
       "comp-23": [],
       "comp-24": [],
       "comp-25": []
