@@ -10043,38 +10043,11 @@
         "license": null
       },
       {
-        "id": "crop-1764700525305-3o548r",
+        "id": "crop-1765052427717-4b66gi",
         "source": "ai-component-crop",
         "name": "Game Board",
         "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/scythe/page7-Game_Board-1764700525304.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 202,
-          "height": 248
-        },
-        "pageNum": 7,
-        "confidence": 0.735,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "physical_photo",
-          "page-7",
-          "high-confidence"
-        ],
-        "quality": {
-          "score": 0.735,
-          "notes": "High confidence detection"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764700669085-6h63gr",
-        "source": "ai-component-crop",
-        "name": "Game Board",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/scythe/page7-Game_Board-1764700669084.png",
+        "fileKey": "/home/runner/workspace/data/component-crops/scythe/page7-Game_Board-1765052427715.png",
         "width": null,
         "height": null,
         "dimensions": {
@@ -10539,349 +10512,11 @@
         "license": null
       },
       {
-        "id": "crop-1764788056271-5do3za",
-        "source": "ai-component-crop",
-        "name": "Game Board (1)",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Game_Board__1_.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 334,
-          "height": 111
-        },
-        "pageNum": 2,
-        "confidence": 10,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "board",
-          "page-2"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764788056296-rgbwja",
-        "source": "ai-component-crop",
-        "name": "Age I Cards (23)",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_I_Cards__23_.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 111,
-          "height": 82
-        },
-        "pageNum": 2,
-        "confidence": 10,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "card",
-          "page-2"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764788056319-6p0bnc",
-        "source": "ai-component-crop",
-        "name": "Age II Cards (23)",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_II_Cards__23_.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 111,
-          "height": 82
-        },
-        "pageNum": 2,
-        "confidence": 10,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "card",
-          "page-2"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764788056344-zlaf3z",
-        "source": "ai-component-crop",
-        "name": "Age III Cards (20)",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_III_Cards__20_.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 111,
-          "height": 82
-        },
-        "pageNum": 2,
-        "confidence": 10,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "card",
-          "page-2"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764788056374-blvyjd",
-        "source": "ai-component-crop",
-        "name": "Guild Cards (7)",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Guild_Cards__7_.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 111,
-          "height": 82
-        },
-        "pageNum": 2,
-        "confidence": 10,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "card",
-          "page-2"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764788056393-0yk48x",
-        "source": "ai-component-crop",
-        "name": "Wonder Cards (12)",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Wonder_Cards__12_.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 111,
-          "height": 82
-        },
-        "pageNum": 2,
-        "confidence": 10,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "card",
-          "page-2"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764788084962-nqcq8a",
-        "source": "ai-component-crop",
-        "name": "Game Board",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Game_Board.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 502,
-          "height": 138
-        },
-        "pageNum": 6,
-        "confidence": 10,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "board",
-          "page-6"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764788084977-i6na5h",
-        "source": "ai-component-crop",
-        "name": "Age I Cards",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Age_I_Cards.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 82,
-          "height": 111
-        },
-        "pageNum": 6,
-        "confidence": 10,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "card",
-          "page-6"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764788084993-p59oz8",
-        "source": "ai-component-crop",
-        "name": "Age II Cards",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Age_II_Cards.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 82,
-          "height": 111
-        },
-        "pageNum": 6,
-        "confidence": 10,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "card",
-          "page-6"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764788085008-86xobm",
-        "source": "ai-component-crop",
-        "name": "Age III Cards",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Age_III_Cards.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 82,
-          "height": 111
-        },
-        "pageNum": 6,
-        "confidence": 10,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "card",
-          "page-6"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764788085022-9m4owp",
-        "source": "ai-component-crop",
-        "name": "Guild Cards",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Guild_Cards.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 82,
-          "height": 111
-        },
-        "pageNum": 6,
-        "confidence": 10,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "card",
-          "page-6"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764788085038-x9bd2b",
+        "id": "crop-1764794170552-7nf54u",
         "source": "ai-component-crop",
         "name": "Wonder Cards",
         "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Wonder_Cards.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 82,
-          "height": 111
-        },
-        "pageNum": 6,
-        "confidence": 10,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "card",
-          "page-6"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764788091217-en14m4",
-        "source": "ai-component-crop",
-        "name": "Wonder Tiles",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page7-Wonder_Tiles.png",
-        "width": null,
-        "height": null,
-        "dimensions": {
-          "width": 223,
-          "height": 223
-        },
-        "pageNum": 7,
-        "confidence": 9,
-        "crops": [],
-        "tags": [
-          "component-crop",
-          "tile",
-          "page-7"
-        ],
-        "quality": {
-          "score": 0.8,
-          "notes": "AI-cropped component"
-        },
-        "license": null
-      },
-      {
-        "id": "crop-1764788304896-940d8z",
-        "source": "ai-component-crop",
-        "name": "Wonder Cards",
-        "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Wonder_Cards-1764788304894.png",
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Wonder_Cards-1764794170551.png",
         "width": null,
         "height": null,
         "dimensions": {
@@ -10904,11 +10539,11 @@
         "license": null
       },
       {
-        "id": "crop-1764788304897-aissuf",
+        "id": "crop-1764794170553-sbz8td",
         "source": "ai-component-crop",
         "name": "Age I Cards",
         "originalUrl": null,
-        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_I_Cards-1764788304896.png",
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_I_Cards-1764794170552.png",
         "width": null,
         "height": null,
         "dimensions": {
@@ -10916,7 +10551,7 @@
           "height": 157
         },
         "pageNum": 2,
-        "confidence": 0.7849999999999999,
+        "confidence": 0.7549999999999999,
         "crops": [],
         "tags": [
           "component-crop",
@@ -10925,7 +10560,601 @@
           "high-confidence"
         ],
         "quality": {
-          "score": 0.7849999999999999,
+          "score": 0.7549999999999999,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764794401894-34vwen",
+        "source": "ai-component-crop",
+        "name": "Wonder Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Wonder_Cards-1764794401891.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 245,
+          "height": 245
+        },
+        "pageNum": 6,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-6",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764794401896-ulhm59",
+        "source": "ai-component-crop",
+        "name": "Age I Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_I_Cards-1764794401894.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 117,
+          "height": 157
+        },
+        "pageNum": 2,
+        "confidence": 0.9349999999999999,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-2",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.9349999999999999,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764794522454-24wnu0",
+        "source": "ai-component-crop",
+        "name": "Wonder Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Wonder_Cards-1764794522451.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 245,
+          "height": 245
+        },
+        "pageNum": 6,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-6",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764794522457-ntfwt4",
+        "source": "ai-component-crop",
+        "name": "Coins",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Coins-1764794522454.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 117,
+          "height": 157
+        },
+        "pageNum": 6,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-6",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764794522458-esfnmx",
+        "source": "ai-component-crop",
+        "name": "Age I Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_I_Cards-1764794522457.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 117,
+          "height": 157
+        },
+        "pageNum": 2,
+        "confidence": 0.7549999999999999,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-2",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.7549999999999999,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764794590390-hmsldo",
+        "source": "ai-component-crop",
+        "name": "Wonder Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Wonder_Cards-1764794590389.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 245,
+          "height": 245
+        },
+        "pageNum": 6,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-6",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764794590391-ftcxlq",
+        "source": "ai-component-crop",
+        "name": "Age I Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_I_Cards-1764794590390.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 117,
+          "height": 157
+        },
+        "pageNum": 2,
+        "confidence": 0.9349999999999999,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-2",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.9349999999999999,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764794651896-u5cs6g",
+        "source": "ai-component-crop",
+        "name": "Wonder Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Wonder_Cards-1764794651886.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 245,
+          "height": 245
+        },
+        "pageNum": 6,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-6",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764794651900-u4mq2o",
+        "source": "ai-component-crop",
+        "name": "Age I Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_I_Cards-1764794651896.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 117,
+          "height": 157
+        },
+        "pageNum": 2,
+        "confidence": 0.7549999999999999,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-2",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.7549999999999999,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764794826636-pk09i5",
+        "source": "ai-component-crop",
+        "name": "Wonder Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Wonder_Cards-1764794826634.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 161,
+          "height": 157
+        },
+        "pageNum": 6,
+        "confidence": 0.7525000000000001,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-6",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.7525000000000001,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764794826636-rf0ay6",
+        "source": "ai-component-crop",
+        "name": "Age I Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_I_Cards-1764794826636.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 117,
+          "height": 157
+        },
+        "pageNum": 2,
+        "confidence": 0.7549999999999999,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-2",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.7549999999999999,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764794831135-qobek4",
+        "source": "ai-component-crop",
+        "name": "Wonder Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Wonder_Cards-1764794831134.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 245,
+          "height": 245
+        },
+        "pageNum": 6,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-6",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764794831136-mjmpgl",
+        "source": "ai-component-crop",
+        "name": "Coins",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Coins-1764794831135.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 117,
+          "height": 157
+        },
+        "pageNum": 6,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-6",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764794831136-e4byc6",
+        "source": "ai-component-crop",
+        "name": "Age I Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_I_Cards-1764794831136.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 117,
+          "height": 157
+        },
+        "pageNum": 2,
+        "confidence": 0.7549999999999999,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-2",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.7549999999999999,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764795002214-apgs38",
+        "source": "ai-component-crop",
+        "name": "Wonder Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Wonder_Cards-1764795002212.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 245,
+          "height": 245
+        },
+        "pageNum": 6,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-6",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764795002215-f6xcam",
+        "source": "ai-component-crop",
+        "name": "Coins",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Coins-1764795002214.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 117,
+          "height": 157
+        },
+        "pageNum": 6,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-6",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764795002216-bye60c",
+        "source": "ai-component-crop",
+        "name": "Age I Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_I_Cards-1764795002215.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 117,
+          "height": 157
+        },
+        "pageNum": 2,
+        "confidence": 0.7549999999999999,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-2",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.7549999999999999,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764795019959-oukp3h",
+        "source": "ai-component-crop",
+        "name": "Wonder Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Wonder_Cards-1764795019957.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 245,
+          "height": 245
+        },
+        "pageNum": 6,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-6",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764795019960-daf5s5",
+        "source": "ai-component-crop",
+        "name": "Coins",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Coins-1764795019959.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 117,
+          "height": 157
+        },
+        "pageNum": 6,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-6",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764795019961-pv9r4v",
+        "source": "ai-component-crop",
+        "name": "Age I Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_I_Cards-1764795019961.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 117,
+          "height": 157
+        },
+        "pageNum": 2,
+        "confidence": 0.7549999999999999,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-2",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.7549999999999999,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764795073062-8he5dm",
+        "source": "ai-component-crop",
+        "name": "Wonder Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page6-Wonder_Cards-1764795073061.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 245,
+          "height": 245
+        },
+        "pageNum": 6,
+        "confidence": 0.735,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-6",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.735,
+          "notes": "High confidence detection"
+        },
+        "license": null
+      },
+      {
+        "id": "crop-1764795073063-ga9sl8",
+        "source": "ai-component-crop",
+        "name": "Age I Cards",
+        "originalUrl": null,
+        "fileKey": "/home/runner/workspace/data/component-crops/7-wonders-duel/page2-Age_I_Cards-1764795073062.png",
+        "width": null,
+        "height": null,
+        "dimensions": {
+          "width": 117,
+          "height": 157
+        },
+        "pageNum": 2,
+        "confidence": 0.7549999999999999,
+        "crops": [],
+        "tags": [
+          "component-crop",
+          "physical_photo",
+          "page-2",
+          "high-confidence"
+        ],
+        "quality": {
+          "score": 0.7549999999999999,
           "notes": "High confidence detection"
         },
         "license": null
@@ -11002,6 +11231,33 @@
       "comp-4": [],
       "comp-5": [],
       "comp-14": []
+    },
+    "scythe": {
+      "comp-1": [],
+      "comp-2": [],
+      "comp-3": [],
+      "comp-4": [],
+      "comp-5": [],
+      "comp-6": [],
+      "comp-7": [],
+      "comp-8": [],
+      "comp-9": [],
+      "comp-10": [],
+      "comp-11": [],
+      "comp-12": [],
+      "comp-13": [],
+      "comp-14": [],
+      "comp-15": [],
+      "comp-16": [],
+      "comp-17": [],
+      "comp-18": [],
+      "comp-19": [],
+      "comp-20": [],
+      "comp-21": [],
+      "comp-22": [],
+      "comp-23": [],
+      "comp-24": [],
+      "comp-25": []
     }
   }
 }
