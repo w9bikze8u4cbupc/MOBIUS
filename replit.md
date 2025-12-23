@@ -24,11 +24,26 @@ The project now includes HEPHAESTUS, a Python-based PDF component extraction sys
 - **Hybrid classification**: Combines heuristics with AI-ready classification for component detection
 - **Perceptual deduplication**: Uses imagehash to identify and remove duplicate images
 - **Structured manifest output**: JSON manifests with complete metadata for all extracted components
+- **Small component detection**: Lowered thresholds (16px min dimension, 400px² min area) to capture tokens, coins, and resource markers
+- **Reference sheet rasterization**: Detects and rasterizes vector-drawn player aids and reference sheets
+- **Enhanced classification**: Recognizes tokens, cards, tiles, boards, and reference sheets with improved heuristics
 
 ### HEPHAESTUS Files
 - `hephaestus/` - Python source code for the extraction system
-- `hephaestus/extract_api.py` - JSON API wrapper for Node.js integration
+- `hephaestus/extract_api.py` - JSON API wrapper for Node.js integration (main extraction logic)
+- `hephaestus/pdf/images.py` - Core image extraction with rasterization support
+- `hephaestus/classifier/heuristics.py` - Heuristic-based component classification
+- `hephaestus/classifier/model.py` - Hybrid classifier combining heuristics with vision
 - `src/services/hephaestusService.js` - Node.js service that spawns Python subprocess
 
 ### API Endpoint
 - `POST /api/projects/:projectId/images/extract-hephaestus` - Extracts images using HEPHAESTUS pipeline
+
+### Classification Types
+- `token` - Small near-square components (coins, resource markers, tokens)
+- `card` - Standard card aspect ratios
+- `tile` - Medium square-ish game tiles
+- `board` - Large game boards
+- `reference-sheet` - Player aids and reference cards (detected via page rasterization)
+- `icon` - Non-component decorative icons
+- `noise` - Artifacts filtered out
