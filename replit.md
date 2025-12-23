@@ -25,9 +25,11 @@ The project now includes HEPHAESTUS, a Python-based PDF component extraction sys
 - **Perceptual deduplication**: Uses imagehash to identify and remove duplicate images
 - **Structured manifest output**: JSON manifests with complete metadata for all extracted components
 - **Small component detection**: Lowered thresholds (16px min dimension, 400px² min area) to capture tokens, coins, and resource markers
-- **Component overview page detection**: Automatically identifies pages showing all game components (meeples, tokens, cards) and rasterizes them at high resolution
+- **Component overview page detection**: Keyword-gated detection (pieces, tokens, meeples, etc.) with high-DPI rasterization (300 DPI) to capture vector-drawn game components
 - **Reference sheet rasterization**: Detects and rasterizes vector-drawn player aids and reference sheets
 - **Enhanced classification**: Recognizes tokens, cards, tiles, boards, reference sheets, and component overview pages
+- **Background filtering**: Conservative filter to reject obvious backgrounds (high uniformity, smooth gradients) while preserving solid-color game pieces
+- **Cache clearing**: Automatic cache clearing between extraction sessions to prevent stale data interference
 
 ### HEPHAESTUS Files
 - `hephaestus/` - Python source code for the extraction system

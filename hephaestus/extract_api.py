@@ -496,7 +496,7 @@ def save_images(images: List[Dict[str, Any]], output_dir: Path) -> Dict[str, Pat
     """Save images as PNG files and return path mapping.
     
     Handles both PyMuPDF pixmaps and PIL images from segmentation.
-    Also filters out background images.
+    Also filters out background images (but NOT rasterized pages which are explicitly captured).
     """
     images_dir = output_dir / "images" / "all"
     images_dir.mkdir(parents=True, exist_ok=True)
@@ -509,13 +509,18 @@ def save_images(images: List[Dict[str, Any]], output_dir: Path) -> Dict[str, Pat
         filename = f"component_{img_id}.png"
         filepath = images_dir / filename
         
+        # Check if this is a rasterized page (component overview or reference sheet)
+        # These should NEVER be filtered - they're explicitly captured for vector content
+        is_rasterized = img.get('is_rasterized', False)
+        is_component_overview = img.get('is_component_overview', False)
+        
         try:
             # Check if this is a PIL image (from segmentation) or pixmap
             if 'pil_image' in img:
                 pil_img = img['pil_image']
                 
-                # Background filter for segments
-                if is_background_image(pil_img, uniformity_threshold=0.65):
+                # Only filter segments, not rasterized pages
+                if not is_rasterized and is_background_image(pil_img, uniformity_threshold=0.65):
                     filtered_count += 1
                     continue
                 
@@ -525,17 +530,18 @@ def save_images(images: List[Dict[str, Any]], output_dir: Path) -> Dict[str, Pat
                 # PyMuPDF pixmap
                 pix = img['pixmap']
                 
-                # Convert to PIL for background check
-                try:
-                    img_data = pix.tobytes("png")
-                    pil_img = Image.open(io.BytesIO(img_data))
-                    
-                    # Skip background images
-                    if is_background_image(pil_img, uniformity_threshold=0.55):
-                        filtered_count += 1
-                        continue
-                except:
-                    pass  # If conversion fails, keep the image
+                # Skip background check for rasterized pages - these are explicitly captured
+                if not is_rasterized:
+                    try:
+                        img_data = pix.tobytes("png")
+                        pil_img = Image.open(io.BytesIO(img_data))
+                        
+                        # Skip background images (but not rasterized pages)
+                        if is_background_image(pil_img, uniformity_threshold=0.55):
+                            filtered_count += 1
+                            continue
+                    except:
+                        pass  # If conversion fails, keep the image
                 
                 if pix.alpha:
                     pix = fitz.Pixmap(pix, 0)
@@ -545,6 +551,9 @@ def save_images(images: List[Dict[str, Any]], output_dir: Path) -> Dict[str, Pat
                 
                 pix.save(str(filepath))
                 path_mapping[img_id] = filepath
+                
+                if is_component_overview:
+                    print(f"[HEPHAESTUS] Saved component overview: {img_id}", file=sys.stderr)
                 
         except Exception as e:
             print(f"Warning: Failed to save {img_id}: {e}", file=sys.stderr)
