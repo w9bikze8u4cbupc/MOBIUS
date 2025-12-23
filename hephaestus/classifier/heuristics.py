@@ -29,6 +29,8 @@ def classify_heuristic(image: ExtractedImage) -> Dict[str, Any]:
             "likely_token": bool,
             "likely_card": bool, 
             "likely_board": bool,
+            "likely_tile": bool,
+            "likely_reference_sheet": bool,
             "likely_icon": bool,
             "noise": bool,
             "confidence": float
@@ -38,6 +40,8 @@ def classify_heuristic(image: ExtractedImage) -> Dict[str, Any]:
         "likely_token": False,
         "likely_card": False,
         "likely_board": False,
+        "likely_tile": False,
+        "likely_reference_sheet": False,
         "likely_icon": False,
         "noise": False,
         "confidence": 0.0
@@ -52,22 +56,49 @@ def classify_heuristic(image: ExtractedImage) -> Dict[str, Any]:
         aspect_ratio = width / height if height > 0 else 1.0
         area = width * height
         
-        # Size-based heuristics
-        if area < 2500:  # Very small images likely icons or noise (50x50 threshold)
+        # Improved size-based heuristics for component detection
+        # Small components (tokens, coins, resource markers): 400-10000 px²
+        if area < 400:  # Tiny artifacts
+            signals["noise"] = True
+            signals["confidence"] = 0.8
+        elif area < 10000 and 0.6 <= aspect_ratio <= 1.67:
+            # Small near-square images are likely TOKENS not icons
+            # Tokens/coins are typically 20x20 to 100x100
+            signals["likely_token"] = True
+            signals["confidence"] = 0.65
+        elif area < 2500 and (aspect_ratio < 0.6 or aspect_ratio > 1.67):
+            # Small non-square images might be icons
             signals["likely_icon"] = True
-            signals["confidence"] = 0.7
-        elif area > 100000:  # Large images likely boards or full pages
-            signals["likely_board"] = True
-            signals["confidence"] = 0.6
-        elif 0.7 <= aspect_ratio <= 1.4:  # Square-ish, likely tokens (includes 100x120 = 0.83)
+            signals["confidence"] = 0.5
+        elif area > 200000:  # Very large images
+            # Check if it's a reference sheet (landscape, near page size)
+            if 1.2 <= aspect_ratio <= 1.6 and area > 400000:
+                signals["likely_reference_sheet"] = True
+                signals["confidence"] = 0.7
+            else:
+                signals["likely_board"] = True
+                signals["confidence"] = 0.6
+        elif area > 40000:  # Medium-large images
+            # Could be tiles, player mats, or reference sheets
+            if 1.3 <= aspect_ratio <= 1.5:
+                signals["likely_reference_sheet"] = True
+                signals["confidence"] = 0.55
+            elif 0.8 <= aspect_ratio <= 1.25:
+                signals["likely_tile"] = True
+                signals["confidence"] = 0.5
+            else:
+                signals["likely_board"] = True
+                signals["confidence"] = 0.5
+        elif 0.7 <= aspect_ratio <= 1.4:  # Square-ish medium images
             signals["likely_token"] = True
             signals["confidence"] = 0.5
-        elif 0.6 <= aspect_ratio <= 0.75:  # Card-like aspect ratio (narrower range)
+        elif 0.55 <= aspect_ratio <= 0.75 or 1.33 <= aspect_ratio <= 1.82:
+            # Card-like aspect ratio (standard card is ~0.64 or 1.56)
             signals["likely_card"] = True
-            signals["confidence"] = 0.5
+            signals["confidence"] = 0.55
             
-        # Aspect ratio analysis
-        if aspect_ratio < 0.3 or aspect_ratio > 3.0:  # Extreme ratios often decorative
+        # Aspect ratio analysis - extreme ratios often decorative banners
+        if aspect_ratio < 0.25 or aspect_ratio > 4.0:  # Extreme ratios often decorative
             signals["noise"] = True
             signals["confidence"] = max(signals["confidence"], 0.6)
             

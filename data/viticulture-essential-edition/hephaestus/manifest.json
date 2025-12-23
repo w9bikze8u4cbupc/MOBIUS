@@ -1,0 +1,675 @@
+{
+  "success": true,
+  "pdf_path": "/home/runner/workspace/src/api/uploads/1766499486381_a5_viticulture_essential_edition_rulebook.pdf",
+  "output_dir": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus",
+  "images": [
+    {
+      "id": "p0_img0",
+      "file_name": "component_p0_img0.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p0_img0.png",
+      "page_index": 0,
+      "classification": "tile",
+      "is_component": true,
+      "confidence": 0.6,
+      "label": "tile",
+      "quantity": null,
+      "dimensions": {
+        "width": 1237,
+        "height": 395
+      }
+    },
+    {
+      "id": "p0_img1",
+      "file_name": "component_p0_img1.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p0_img1.png",
+      "page_index": 0,
+      "classification": "board",
+      "is_component": true,
+      "confidence": 0.6,
+      "label": "board",
+      "quantity": null,
+      "dimensions": {
+        "width": 2435,
+        "height": 1535
+      }
+    },
+    {
+      "id": "p1_img0",
+      "file_name": "component_p1_img0.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p1_img0.png",
+      "page_index": 1,
+      "classification": "unknown",
+      "is_component": true,
+      "confidence": 0.5,
+      "label": "unknown",
+      "quantity": null,
+      "dimensions": {
+        "width": 150,
+        "height": 100
+      }
+    },
+    {
+      "id": "p1_img17",
+      "file_name": "component_p1_img17.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p1_img17.png",
+      "page_index": 1,
+      "classification": "tile",
+      "is_component": true,
+      "confidence": 0.6,
+      "label": "tile",
+      "quantity": null,
+      "dimensions": {
+        "width": 300,
+        "height": 240
+      }
+    },
+    {
+      "id": "p3_img0",
+      "file_name": "component_p3_img0.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p3_img0.png",
+      "page_index": 3,
+      "classification": "tile",
+      "is_component": true,
+      "confidence": 0.6,
+      "label": "tile",
+      "quantity": null,
+      "dimensions": {
+        "width": 307,
+        "height": 220
+      }
+    },
+    {
+      "id": "p3_img1",
+      "file_name": "component_p3_img1.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p3_img1.png",
+      "page_index": 3,
+      "classification": "tile",
+      "is_component": true,
+      "confidence": 0.6,
+      "label": "tile",
+      "quantity": null,
+      "dimensions": {
+        "width": 833,
+        "height": 461
+      }
+    },
+    {
+      "id": "p3_img2",
+      "file_name": "component_p3_img2.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p3_img2.png",
+      "page_index": 3,
+      "classification": "tile",
+      "is_component": true,
+      "confidence": 0.6,
+      "label": "tile",
+      "quantity": null,
+      "dimensions": {
+        "width": 547,
+        "height": 410
+      }
+    },
+    {
+      "id": "p3_img3",
+      "file_name": "component_p3_img3.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p3_img3.png",
+      "page_index": 3,
+      "classification": "board",
+      "is_component": true,
+      "confidence": 0.6,
+      "label": "board",
+      "quantity": null,
+      "dimensions": {
+        "width": 1238,
+        "height": 1535
+      }
+    },
+    {
+      "id": "p3_img4",
+      "file_name": "component_p3_img4.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p3_img4.png",
+      "page_index": 3,
+      "classification": "tile",
+      "is_component": true,
+      "confidence": 0.6,
+      "label": "tile",
+      "quantity": null,
+      "dimensions": {
+        "width": 307,
+        "height": 220
+      }
+    },
+    {
+      "id": "p3_img5",
+      "file_name": "component_p3_img5.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p3_img5.png",
+      "page_index": 3,
+      "classification": "tile",
+      "is_component": true,
+      "confidence": 0.6,
+      "label": "tile",
+      "quantity": null,
+      "dimensions": {
+        "width": 833,
+        "height": 461
+      }
+    },
+    {
+      "id": "p4_img0",
+      "file_name": "component_p4_img0.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p4_img0.png",
+      "page_index": 4,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 135,
+        "height": 206
+      }
+    },
+    {
+      "id": "p4_img1",
+      "file_name": "component_p4_img1.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p4_img1.png",
+      "page_index": 4,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 135,
+        "height": 206
+      }
+    },
+    {
+      "id": "p4_img2",
+      "file_name": "component_p4_img2.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p4_img2.png",
+      "page_index": 4,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 135,
+        "height": 206
+      }
+    },
+    {
+      "id": "p4_img5",
+      "file_name": "component_p4_img5.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p4_img5.png",
+      "page_index": 4,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 196,
+        "height": 289
+      }
+    },
+    {
+      "id": "p4_img6",
+      "file_name": "component_p4_img6.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p4_img6.png",
+      "page_index": 4,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 196,
+        "height": 289
+      }
+    },
+    {
+      "id": "p4_img7",
+      "file_name": "component_p4_img7.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p4_img7.png",
+      "page_index": 4,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 196,
+        "height": 289
+      }
+    },
+    {
+      "id": "p4_img9",
+      "file_name": "component_p4_img9.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p4_img9.png",
+      "page_index": 4,
+      "classification": "unknown",
+      "is_component": true,
+      "confidence": 0.5,
+      "label": "unknown",
+      "quantity": null,
+      "dimensions": {
+        "width": 129,
+        "height": 380
+      }
+    },
+    {
+      "id": "p4_img10",
+      "file_name": "component_p4_img10.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p4_img10.png",
+      "page_index": 4,
+      "classification": "board",
+      "is_component": true,
+      "confidence": 0.6,
+      "label": "board",
+      "quantity": null,
+      "dimensions": {
+        "width": 1238,
+        "height": 1535
+      }
+    },
+    {
+      "id": "p4_img17",
+      "file_name": "component_p4_img17.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p4_img17.png",
+      "page_index": 4,
+      "classification": "token",
+      "is_component": true,
+      "confidence": 0.7,
+      "label": "token",
+      "quantity": null,
+      "dimensions": {
+        "width": 103,
+        "height": 103
+      }
+    },
+    {
+      "id": "p5_img0",
+      "file_name": "component_p5_img0.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p5_img0.png",
+      "page_index": 5,
+      "classification": "tile",
+      "is_component": true,
+      "confidence": 0.6,
+      "label": "tile",
+      "quantity": null,
+      "dimensions": {
+        "width": 208,
+        "height": 453
+      }
+    },
+    {
+      "id": "p6_img1",
+      "file_name": "component_p6_img1.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p6_img1.png",
+      "page_index": 6,
+      "classification": "token",
+      "is_component": true,
+      "confidence": 0.7,
+      "label": "token",
+      "quantity": null,
+      "dimensions": {
+        "width": 268,
+        "height": 268
+      }
+    },
+    {
+      "id": "p6_img2",
+      "file_name": "component_p6_img2.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p6_img2.png",
+      "page_index": 6,
+      "classification": "unknown",
+      "is_component": true,
+      "confidence": 0.5,
+      "label": "unknown",
+      "quantity": null,
+      "dimensions": {
+        "width": 257,
+        "height": 161
+      }
+    },
+    {
+      "id": "p6_img3",
+      "file_name": "component_p6_img3.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p6_img3.png",
+      "page_index": 6,
+      "classification": "token",
+      "is_component": true,
+      "confidence": 0.7,
+      "label": "token",
+      "quantity": null,
+      "dimensions": {
+        "width": 263,
+        "height": 245
+      }
+    },
+    {
+      "id": "p8_img3",
+      "file_name": "component_p8_img3.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p8_img3.png",
+      "page_index": 8,
+      "classification": "unknown",
+      "is_component": true,
+      "confidence": 0.5,
+      "label": "unknown",
+      "quantity": null,
+      "dimensions": {
+        "width": 124,
+        "height": 239
+      }
+    },
+    {
+      "id": "p8_img27",
+      "file_name": "component_p8_img27.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p8_img27.png",
+      "page_index": 8,
+      "classification": "unknown",
+      "is_component": true,
+      "confidence": 0.5,
+      "label": "unknown",
+      "quantity": null,
+      "dimensions": {
+        "width": 233,
+        "height": 113
+      }
+    },
+    {
+      "id": "p8_img29",
+      "file_name": "component_p8_img29.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p8_img29.png",
+      "page_index": 8,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 530,
+        "height": 787
+      }
+    },
+    {
+      "id": "p9_img0",
+      "file_name": "component_p9_img0.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p9_img0.png",
+      "page_index": 9,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 182,
+        "height": 277
+      }
+    },
+    {
+      "id": "p9_img1",
+      "file_name": "component_p9_img1.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p9_img1.png",
+      "page_index": 9,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 181,
+        "height": 277
+      }
+    },
+    {
+      "id": "p9_img2",
+      "file_name": "component_p9_img2.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p9_img2.png",
+      "page_index": 9,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 191,
+        "height": 290
+      }
+    },
+    {
+      "id": "p10_img0",
+      "file_name": "component_p10_img0.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p10_img0.png",
+      "page_index": 10,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 182,
+        "height": 277
+      }
+    },
+    {
+      "id": "p10_img1",
+      "file_name": "component_p10_img1.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p10_img1.png",
+      "page_index": 10,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 182,
+        "height": 277
+      }
+    },
+    {
+      "id": "p10_img2",
+      "file_name": "component_p10_img2.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p10_img2.png",
+      "page_index": 10,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 182,
+        "height": 277
+      }
+    },
+    {
+      "id": "p10_img3",
+      "file_name": "component_p10_img3.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p10_img3.png",
+      "page_index": 10,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 182,
+        "height": 277
+      }
+    },
+    {
+      "id": "p10_img4",
+      "file_name": "component_p10_img4.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p10_img4.png",
+      "page_index": 10,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 182,
+        "height": 277
+      }
+    },
+    {
+      "id": "p10_img5",
+      "file_name": "component_p10_img5.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p10_img5.png",
+      "page_index": 10,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 182,
+        "height": 277
+      }
+    },
+    {
+      "id": "p10_img6",
+      "file_name": "component_p10_img6.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p10_img6.png",
+      "page_index": 10,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 182,
+        "height": 277
+      }
+    },
+    {
+      "id": "p10_img7",
+      "file_name": "component_p10_img7.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p10_img7.png",
+      "page_index": 10,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 182,
+        "height": 277
+      }
+    },
+    {
+      "id": "p11_img1",
+      "file_name": "component_p11_img1.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p11_img1.png",
+      "page_index": 11,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 116,
+        "height": 176
+      }
+    },
+    {
+      "id": "p12_img1",
+      "file_name": "component_p12_img1.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p12_img1.png",
+      "page_index": 12,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 530,
+        "height": 787
+      }
+    },
+    {
+      "id": "p14_img0",
+      "file_name": "component_p14_img0.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p14_img0.png",
+      "page_index": 14,
+      "classification": "tile",
+      "is_component": true,
+      "confidence": 0.6,
+      "label": "tile",
+      "quantity": null,
+      "dimensions": {
+        "width": 679,
+        "height": 202
+      }
+    },
+    {
+      "id": "p15_img0",
+      "file_name": "component_p15_img0.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p15_img0.png",
+      "page_index": 15,
+      "classification": "tile",
+      "is_component": true,
+      "confidence": 0.6,
+      "label": "tile",
+      "quantity": null,
+      "dimensions": {
+        "width": 631,
+        "height": 279
+      }
+    },
+    {
+      "id": "p15_img1",
+      "file_name": "component_p15_img1.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p15_img1.png",
+      "page_index": 15,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 153,
+        "height": 234
+      }
+    },
+    {
+      "id": "p15_img2",
+      "file_name": "component_p15_img2.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p15_img2.png",
+      "page_index": 15,
+      "classification": "token",
+      "is_component": true,
+      "confidence": 0.7,
+      "label": "token",
+      "quantity": null,
+      "dimensions": {
+        "width": 284,
+        "height": 284
+      }
+    },
+    {
+      "id": "p17_img0",
+      "file_name": "component_p17_img0.png",
+      "file_path": "/home/runner/workspace/data/viticulture-essential-edition/hephaestus/images/all/component_p17_img0.png",
+      "page_index": 17,
+      "classification": "card",
+      "is_component": true,
+      "confidence": 0.8,
+      "label": "card",
+      "quantity": null,
+      "dimensions": {
+        "width": 208,
+        "height": 291
+      }
+    }
+  ],
+  "stats": {
+    "total_items": 83,
+    "components": 83,
+    "non_components": 0,
+    "duplicates_removed": 39,
+    "unique_images": 44
+  },
+  "error": null
+}

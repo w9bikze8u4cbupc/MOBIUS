@@ -23,6 +23,7 @@ class ComponentType(Enum):
     CARD = "card"
     BOARD = "board"
     TILE = "tile"
+    REFERENCE_SHEET = "reference-sheet"
     DIE = "die"
     MEEPLE = "meeple"
     ICON = "icon"
@@ -168,8 +169,12 @@ class HybridClassifier:
         """Extract primary label from heuristic signals."""
         if signals.get("noise", False):
             return "non-component"
+        elif signals.get("likely_reference_sheet", False):
+            return "reference-sheet"
         elif signals.get("likely_board", False):
             return "board"
+        elif signals.get("likely_tile", False):
+            return "tile"
         elif signals.get("likely_card", False):
             return "card"
         elif signals.get("likely_token", False):
@@ -211,6 +216,7 @@ class HybridClassifier:
             "card": ComponentType.CARD,
             "board": ComponentType.BOARD,
             "tile": ComponentType.TILE,
+            "reference-sheet": ComponentType.REFERENCE_SHEET,
             "die": ComponentType.DIE,
             "meeple": ComponentType.MEEPLE,
             "icon": ComponentType.ICON,

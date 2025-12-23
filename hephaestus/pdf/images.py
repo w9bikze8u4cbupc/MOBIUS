@@ -29,14 +29,20 @@ class ExtractedImage:
 
 def extract_embedded_images(
     pdf: PdfDocument,
-    min_width: int = 50,
-    min_height: int = 50,
+    min_width: int = 16,
+    min_height: int = 16,
+    min_area: int = 400,
 ) -> list[ExtractedImage]:
-    """Extract embedded raster images from PDF pages with dimensional filtering."""
+    """Extract embedded raster images from PDF pages with dimensional filtering.
+    
+    Uses relaxed thresholds to capture small components like tokens and coins:
+    - min_width/min_height: 16px (down from 50px)
+    - min_area: 400px² (20x20 equivalent) to filter tiny artifacts
+    """
     images: list[ExtractedImage] = []
     total_found = 0
     
-    logger.info(f"Processing {pdf.page_count} pages for embedded images")
+    logger.info(f"Processing {pdf.page_count} pages for embedded images (min: {min_width}x{min_height}, area>{min_area})")
     
     for page in pdf.pages():
         raw_page = page.as_pymupdf_page()
@@ -51,6 +57,7 @@ def extract_embedded_images(
             try:
                 pix = fitz.Pixmap(pdf._doc, xref)  # type: ignore[attr-defined]
                 width, height = pix.width, pix.height
+                area = width * height
                 
                 if width < min_width or height < min_height:
                     logger.debug(
@@ -58,6 +65,14 @@ def extract_embedded_images(
                         f"filtered out ({width}x{height} < {min_width}x{min_height})"
                     )
                     pix = None  # Release memory
+                    continue
+                
+                if area < min_area:
+                    logger.debug(
+                        f"Page {page.index}, image {local_idx}: "
+                        f"filtered out (area {area} < {min_area})"
+                    )
+                    pix = None
                     continue
                 
                 # Try to get image placement bounding box
@@ -91,6 +106,127 @@ def extract_embedded_images(
     
     logger.info(f"Found {total_found} total images, retained {len(images)} after filtering")
     return images
+
+
+def rasterize_vector_content(
+    pdf: PdfDocument,
+    output_dir: Path,
+    dpi: int = 150,
+    min_text_density: float = 0.1,
+) -> list[ExtractedImage]:
+    """
+    Rasterize pages that may contain vector-drawn content (reference sheets, player aids).
+    
+    This captures content that isn't embedded as bitmap images but is drawn using
+    vector graphics (text, lines, shapes). Reference sheets often fall into this category.
+    
+    Args:
+        pdf: PdfDocument to process
+        output_dir: Directory to save rasterized images
+        dpi: Resolution for rasterization (higher = better quality, larger files)
+        min_text_density: Minimum text density to consider page as potential reference sheet
+        
+    Returns:
+        List of ExtractedImage objects from rasterized pages
+    """
+    rasterized_images: list[ExtractedImage] = []
+    
+    logger.info(f"Scanning {pdf.page_count} pages for vector content to rasterize")
+    
+    for page in pdf.pages():
+        raw_page = page.as_pymupdf_page()
+        page_rect = raw_page.rect
+        page_width = page_rect.width
+        page_height = page_rect.height
+        page_area = page_width * page_height
+        
+        # Check if page has significant vector content
+        embedded_images = raw_page.get_images(full=True)
+        text_blocks = raw_page.get_text("blocks")
+        drawings = raw_page.get_drawings() if hasattr(raw_page, 'get_drawings') else []
+        
+        # Calculate content metrics
+        text_area = sum(
+            (b[2] - b[0]) * (b[3] - b[1]) 
+            for b in text_blocks 
+            if len(b) >= 5 and b[4]  # Text blocks with content
+        )
+        text_density = text_area / page_area if page_area > 0 else 0
+        
+        # Heuristics for reference sheet detection:
+        # 1. Few embedded images (< 5 large ones)
+        # 2. Significant text density (player aid text)
+        # 3. Has drawings (icons, tables, dividers)
+        large_images = sum(1 for img in embedded_images 
+                          if _is_large_image(pdf._doc, img[0], page_area * 0.05))
+        
+        is_potential_reference = (
+            large_images < 5 and
+            text_density > min_text_density and
+            (len(drawings) > 10 or text_density > 0.3)  # Has structure or lots of text
+        )
+        
+        # Also check for pages with tables (common in reference sheets)
+        has_table_structure = _detect_table_structure(text_blocks)
+        
+        if is_potential_reference or has_table_structure:
+            logger.info(
+                f"Page {page.index}: Potential reference sheet detected "
+                f"(text_density={text_density:.2f}, large_images={large_images}, "
+                f"drawings={len(drawings)}, has_tables={has_table_structure})"
+            )
+            
+            # Rasterize the page at specified DPI
+            try:
+                zoom = dpi / 72.0  # PDF default is 72 DPI
+                mat = fitz.Matrix(zoom, zoom)
+                pix = raw_page.get_pixmap(matrix=mat)
+                
+                img_id = f"p{page.index}_raster"
+                rasterized_images.append(
+                    ExtractedImage(
+                        id=img_id,
+                        page_index=page.index,
+                        source_type="embedded",  # Treat as embedded for compatibility
+                        width=pix.width,
+                        height=pix.height,
+                        pixmap=pix,
+                        bbox=BBox(x0=0, y0=0, x1=page_width, y1=page_height),
+                    )
+                )
+                logger.debug(f"Rasterized page {page.index} as {img_id} ({pix.width}x{pix.height})")
+                
+            except Exception as exc:
+                logger.warning(f"Failed to rasterize page {page.index}: {exc}")
+    
+    logger.info(f"Rasterized {len(rasterized_images)} pages with vector content")
+    return rasterized_images
+
+
+def _is_large_image(doc, xref: int, min_area: float) -> bool:
+    """Check if an image is large enough to be considered significant."""
+    try:
+        pix = fitz.Pixmap(doc, xref)
+        area = pix.width * pix.height
+        pix = None
+        return area > min_area
+    except:
+        return False
+
+
+def _detect_table_structure(text_blocks: list) -> bool:
+    """
+    Detect if text blocks suggest a table structure.
+    Tables typically have aligned text in columns.
+    """
+    if len(text_blocks) < 10:
+        return False
+    
+    # Get x-coordinates of text block starts
+    x_starts = sorted(set(round(b[0] / 10) * 10 for b in text_blocks if len(b) >= 4))
+    
+    # If there are multiple distinct column positions, likely a table
+    return len(x_starts) >= 3
 
 
 def _get_image_bbox(page: fitz.Page, xref: int) -> Optional[BBox]:
