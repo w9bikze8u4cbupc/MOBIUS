@@ -1204,17 +1204,21 @@ export function ImagesStep({
                         <div 
                           key={imgId}
                           style={{
-                            width: 32,
-                            height: 32,
+                            width: 36,
+                            height: 36,
                             borderRadius: 4,
                             overflow: 'hidden',
-                            border: '1px solid #ddd'
+                            border: '1px solid #ddd',
+                            background: '#f5f5f5',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
                           }}
                         >
                           <img 
                             src={imgUrl} 
                             alt=""
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
                           />
                         </div>
                       ) : null;
@@ -1264,10 +1268,10 @@ export function ImagesStep({
                               >
                                 <div style={{
                                   width: 100,
-                                  height: 75,
+                                  height: 80,
                                   borderRadius: 4,
                                   overflow: 'hidden',
-                                  background: '#e0e0e0',
+                                  background: '#f5f5f5',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center'
@@ -1276,14 +1280,14 @@ export function ImagesStep({
                                     <img 
                                       src={imgUrl} 
                                       alt=""
-                                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
                                     />
                                   ) : (
                                     <span style={{ color: '#999' }}>📷</span>
                                   )}
                                 </div>
                                 <div style={{ fontSize: 10, color: '#666', textAlign: 'center', marginTop: 4 }}>
-                                  {img?.tags?.find(t => t.startsWith('page-')) || 'Image'}
+                                  {img?.metadata?.classification || img?.tags?.find(t => t.startsWith('page-')) || 'Image'}
                                 </div>
                                 
                                 {/* Feedback buttons in learning mode */}
@@ -1386,10 +1390,10 @@ export function ImagesStep({
                           >
                             <div style={{
                               width: '100%',
-                              height: 60,
+                              height: 80,
                               borderRadius: 4,
                               overflow: 'hidden',
-                              background: '#e0e0e0',
+                              background: '#f5f5f5',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center'
@@ -1398,15 +1402,15 @@ export function ImagesStep({
                                 <img 
                                   src={imgUrl} 
                                   alt=""
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
                                 />
                               ) : (
                                 <span style={{ color: '#999' }}>📷</span>
                               )}
                             </div>
-                            <div style={{ fontSize: 9, color: '#666', marginTop: 4 }}>
+                            <div style={{ fontSize: 9, color: '#666', marginTop: 4, textAlign: 'center' }}>
                               {isLinked && <span style={{ color: '#4caf50' }}>✓ </span>}
-                              {img.tags?.find(t => t.startsWith('page-')) || img.source}
+                              {img.metadata?.classification || img.tags?.find(t => t.startsWith('page-')) || img.source}
                             </div>
                           </button>
                         );
