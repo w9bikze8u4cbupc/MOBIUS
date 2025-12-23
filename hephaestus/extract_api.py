@@ -7,13 +7,15 @@ Simplified wrapper that uses PyMuPDF directly for PDF image extraction.
 import json
 import sys
 import os
+import io
 import hashlib
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 import fitz  # PyMuPDF
-from PIL import Image
+from PIL import Image, ImageFilter, ImageOps
 import imagehash
+import numpy as np
 
 
 def extract_embedded_images(pdf_path: str, min_width: int = 16, min_height: int = 16, min_area: int = 400):
@@ -142,6 +144,184 @@ def compute_phash(pil_image: Image.Image) -> str:
         return ""
 
 
+def is_background_image(pil_image: Image.Image, uniformity_threshold: float = 0.6) -> bool:
+    """
+    Detect if an image is likely a background/decorative element.
+    
+    Backgrounds typically have:
+    - High color uniformity (>60% similar colors)
+    - Low edge complexity
+    - Large uniform regions
+    """
+    try:
+        # Convert to RGB if needed
+        if pil_image.mode != 'RGB':
+            pil_image = pil_image.convert('RGB')
+        
+        # Resize for faster analysis
+        small = pil_image.resize((50, 50), Image.Resampling.LANCZOS)
+        pixels = np.array(small)
+        
+        # Calculate color uniformity
+        # Get the most common color
+        pixels_flat = pixels.reshape(-1, 3)
+        unique_colors, counts = np.unique(pixels_flat, axis=0, return_counts=True)
+        
+        if len(counts) == 0:
+            return True
+        
+        most_common_pct = counts.max() / counts.sum()
+        
+        # Check for gradient-like patterns (common in backgrounds)
+        # Calculate standard deviation of pixel values
+        std_dev = np.std(pixels)
+        
+        # Backgrounds have either:
+        # 1. Very uniform color (>60% same color)
+        # 2. Smooth gradients (low local variance but high global variance)
+        if most_common_pct > uniformity_threshold:
+            return True
+        
+        # Check edge complexity - backgrounds have fewer edges
+        gray = pil_image.convert('L').resize((100, 100))
+        edges = gray.filter(ImageFilter.FIND_EDGES)
+        edge_pixels = np.array(edges)
+        edge_density = np.mean(edge_pixels > 30) / 255.0  # Edges above threshold
+        
+        # Low edge density suggests background
+        if edge_density < 0.05 and std_dev < 50:
+            return True
+        
+        return False
+        
+    except Exception as e:
+        print(f"Warning: Background detection failed: {e}", file=sys.stderr)
+        return False
+
+
+def segment_component_page(pix, page_idx: int, min_component_size: int = 30) -> List[Dict[str, Any]]:
+    """
+    Segment a rasterized component overview page into individual component crops.
+    
+    Uses edge detection and connected component analysis to find distinct objects.
+    """
+    segments = []
+    
+    try:
+        # Convert pixmap to PIL Image
+        img_data = pix.tobytes("png")
+        pil_image = Image.open(io.BytesIO(img_data))
+        
+        # Convert to grayscale for edge detection
+        gray = pil_image.convert('L')
+        
+        # Find edges
+        edges = gray.filter(ImageFilter.FIND_EDGES)
+        edges_np = np.array(edges)
+        
+        # Threshold to get binary edge map
+        binary = (edges_np > 20).astype(np.uint8) * 255
+        
+        # Find connected regions using a simple flood-fill approach
+        from PIL import ImageDraw
+        
+        # Create a mask for detecting regions with content
+        # We'll use a grid-based approach to find areas with significant content
+        grid_size = 50  # Check 50x50 pixel regions
+        width, height = pil_image.size
+        
+        content_regions = []
+        
+        for y in range(0, height - grid_size, grid_size // 2):
+            for x in range(0, width - grid_size, grid_size // 2):
+                region = binary[y:y+grid_size, x:x+grid_size]
+                edge_density = np.mean(region) / 255.0
+                
+                # If this region has significant edges, it contains content
+                if edge_density > 0.05:  # >5% edge pixels
+                    content_regions.append((x, y, x + grid_size, y + grid_size))
+        
+        # Merge overlapping regions into bounding boxes
+        merged_boxes = merge_overlapping_boxes(content_regions)
+        
+        # Filter and extract segments
+        for idx, (x0, y0, x1, y1) in enumerate(merged_boxes):
+            w = x1 - x0
+            h = y1 - y0
+            
+            # Skip tiny regions
+            if w < min_component_size or h < min_component_size:
+                continue
+            
+            # Skip regions that are too large (probably page backgrounds)
+            if w > width * 0.8 and h > height * 0.8:
+                continue
+            
+            # Extract the segment with some padding
+            pad = 5
+            crop_x0 = max(0, x0 - pad)
+            crop_y0 = max(0, y0 - pad)
+            crop_x1 = min(width, x1 + pad)
+            crop_y1 = min(height, y1 + pad)
+            
+            cropped = pil_image.crop((crop_x0, crop_y0, crop_x1, crop_y1))
+            
+            # Check if this crop is mostly background
+            if is_background_image(cropped, uniformity_threshold=0.7):
+                continue
+            
+            segments.append({
+                'id': f'p{page_idx}_seg{idx}',
+                'page_index': page_idx,
+                'width': crop_x1 - crop_x0,
+                'height': crop_y1 - crop_y0,
+                'pil_image': cropped,
+                'is_segment': True,
+                'is_component_overview': True
+            })
+        
+        print(f"[HEPHAESTUS] Segmented page {page_idx} into {len(segments)} component regions", file=sys.stderr)
+        
+    except Exception as e:
+        print(f"Warning: Segmentation failed for page {page_idx}: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+    
+    return segments
+
+
+def merge_overlapping_boxes(boxes: List[tuple], overlap_threshold: int = 20) -> List[tuple]:
+    """Merge overlapping or nearby bounding boxes."""
+    if not boxes:
+        return []
+    
+    # Sort by x coordinate
+    boxes = sorted(boxes, key=lambda b: (b[1], b[0]))
+    
+    merged = []
+    current = list(boxes[0])
+    
+    for box in boxes[1:]:
+        x0, y0, x1, y1 = box
+        
+        # Check if boxes overlap or are close
+        if (x0 <= current[2] + overlap_threshold and 
+            y0 <= current[3] + overlap_threshold and
+            x1 >= current[0] - overlap_threshold and
+            y1 >= current[1] - overlap_threshold):
+            # Merge
+            current[0] = min(current[0], x0)
+            current[1] = min(current[1], y0)
+            current[2] = max(current[2], x1)
+            current[3] = max(current[3], y1)
+        else:
+            merged.append(tuple(current))
+            current = list(box)
+    
+    merged.append(tuple(current))
+    return merged
+
+
 def rasterize_reference_pages(doc, min_text_density: float = 0.1, dpi: int = 150) -> List[Dict[str, Any]]:
     """
     Rasterize pages that may contain vector-drawn reference sheets/player aids.
@@ -224,28 +404,30 @@ def rasterize_reference_pages(doc, min_text_density: float = 0.1, dpi: int = 150
     return rasterized
 
 
-def rasterize_component_overview_pages(doc, dpi: int = 200) -> List[Dict[str, Any]]:
+def rasterize_component_overview_pages(doc, dpi: int = 300) -> List[Dict[str, Any]]:
     """
-    Detect and rasterize pages that show component overviews.
+    Detect and rasterize pages that show component overviews, then segment into individual components.
     
     Component overview pages typically:
     - Have many small embedded images or vector drawings
     - Contain keywords like "components", "cards", "tokens", "pieces"
     - Show a grid/list of game pieces with labels
     - First few pages of rulebook
-    """
-    rasterized = []
     
+    After rasterization, we segment the page into individual component crops.
+    """
+    all_segments = []
+    
+    # Stricter keywords that indicate component listing pages
     component_keywords = [
-        'component', 'pieces', 'cards', 'tokens', 'meeple', 'board', 
-        'contents', 'game material', 'box contents', 'inventory',
-        'coins', 'workers', 'tiles', 'deck', 'victory point',
-        'wooden', 'cardboard', 'punch', 'total'
+        'pieces', 'components', 'tokens', 'meeple', 'meeples',
+        'coins', 'workers', 'contents', 'wooden', 'cardboard',
+        'punch board', 'victory point', 'player', 'resource'
     ]
     
-    print(f"[HEPHAESTUS] Scanning for component overview pages...", file=sys.stderr)
+    print(f"[HEPHAESTUS] Scanning for component overview pages with segmentation...", file=sys.stderr)
     
-    for page_idx in range(min(doc.page_count, 8)):
+    for page_idx in range(min(doc.page_count, 6)):  # First 6 pages only
         page = doc.load_page(page_idx)
         page_rect = page.rect
         page_area = page_rect.width * page_rect.height
@@ -254,71 +436,115 @@ def rasterize_component_overview_pages(doc, dpi: int = 200) -> List[Dict[str, An
             continue
         
         text = page.get_text().lower().replace("'", "'").replace(""", '"').replace(""", '"')
-        embedded_images = page.get_images(full=True)
         drawings = page.get_drawings()
         
+        # Count keyword matches
         keyword_count = sum(1 for kw in component_keywords if kw in text)
-        has_images = len(embedded_images) >= 3
-        has_drawings = len(drawings) >= 10
-        has_visual_content = has_images or has_drawings
         
+        # Stricter detection: need many drawings (vector graphics) AND keywords
         is_component_page = (
-            has_visual_content and keyword_count >= 3
+            len(drawings) >= 50 and keyword_count >= 3  # Many vector drawings + component keywords
         ) or (
-            keyword_count >= 4 and (len(embedded_images) >= 1 or len(drawings) >= 5)
-        ) or (
-            len(embedded_images) >= 8 and keyword_count >= 2
+            keyword_count >= 5  # Very strong keyword signal
         )
         
         if is_component_page:
-            print(f"[HEPHAESTUS] Page {page_idx}: Component overview detected (keywords={keyword_count}, images={len(embedded_images)}, drawings={len(drawings)})", file=sys.stderr)
+            print(f"[HEPHAESTUS] Page {page_idx}: Component overview detected (keywords={keyword_count}, drawings={len(drawings)})", file=sys.stderr)
             
             try:
+                # Rasterize at higher DPI for better segmentation
                 zoom = dpi / 72.0
                 mat = fitz.Matrix(zoom, zoom)
                 pix = page.get_pixmap(matrix=mat)
                 
-                rasterized.append({
-                    'id': f'p{page_idx}_components',
-                    'page_index': page_idx,
-                    'width': pix.width,
-                    'height': pix.height,
-                    'pixmap': pix,
-                    'is_rasterized': True,
-                    'is_component_overview': True
-                })
+                # Segment the page into individual components
+                segments = segment_component_page(pix, page_idx, min_component_size=40)
+                
+                if segments:
+                    all_segments.extend(segments)
+                    print(f"[HEPHAESTUS] Page {page_idx}: Extracted {len(segments)} component segments", file=sys.stderr)
+                else:
+                    # Fallback: add full page if segmentation fails
+                    print(f"[HEPHAESTUS] Page {page_idx}: Segmentation found 0 components, adding full page", file=sys.stderr)
+                    all_segments.append({
+                        'id': f'p{page_idx}_components',
+                        'page_index': page_idx,
+                        'width': pix.width,
+                        'height': pix.height,
+                        'pixmap': pix,
+                        'is_rasterized': True,
+                        'is_component_overview': True
+                    })
+                    
             except Exception as e:
-                print(f"Warning: Failed to rasterize component page {page_idx}: {e}", file=sys.stderr)
+                print(f"Warning: Failed to process component page {page_idx}: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
     
-    print(f"[HEPHAESTUS] Found {len(rasterized)} component overview pages", file=sys.stderr)
-    return rasterized
+    print(f"[HEPHAESTUS] Found {len(all_segments)} component segments from overview pages", file=sys.stderr)
+    return all_segments
 
 
 def save_images(images: List[Dict[str, Any]], output_dir: Path) -> Dict[str, Path]:
-    """Save images as PNG files and return path mapping."""
+    """Save images as PNG files and return path mapping.
+    
+    Handles both PyMuPDF pixmaps and PIL images from segmentation.
+    Also filters out background images.
+    """
     images_dir = output_dir / "images" / "all"
     images_dir.mkdir(parents=True, exist_ok=True)
     
     path_mapping = {}
+    filtered_count = 0
     
     for img in images:
-        pix = img['pixmap']
         img_id = img['id']
         filename = f"component_{img_id}.png"
         filepath = images_dir / filename
         
         try:
-            if pix.alpha:
-                pix = fitz.Pixmap(pix, 0)
-            
-            if pix.n - pix.alpha > 3:
-                pix = fitz.Pixmap(fitz.csRGB, pix)
-            
-            pix.save(str(filepath))
-            path_mapping[img_id] = filepath
+            # Check if this is a PIL image (from segmentation) or pixmap
+            if 'pil_image' in img:
+                pil_img = img['pil_image']
+                
+                # Background filter for segments
+                if is_background_image(pil_img, uniformity_threshold=0.65):
+                    filtered_count += 1
+                    continue
+                
+                pil_img.save(str(filepath), 'PNG')
+                path_mapping[img_id] = filepath
+            else:
+                # PyMuPDF pixmap
+                pix = img['pixmap']
+                
+                # Convert to PIL for background check
+                try:
+                    img_data = pix.tobytes("png")
+                    pil_img = Image.open(io.BytesIO(img_data))
+                    
+                    # Skip background images
+                    if is_background_image(pil_img, uniformity_threshold=0.55):
+                        filtered_count += 1
+                        continue
+                except:
+                    pass  # If conversion fails, keep the image
+                
+                if pix.alpha:
+                    pix = fitz.Pixmap(pix, 0)
+                
+                if pix.n - pix.alpha > 3:
+                    pix = fitz.Pixmap(fitz.csRGB, pix)
+                
+                pix.save(str(filepath))
+                path_mapping[img_id] = filepath
+                
         except Exception as e:
             print(f"Warning: Failed to save {img_id}: {e}", file=sys.stderr)
             continue
+    
+    if filtered_count > 0:
+        print(f"[HEPHAESTUS] Filtered out {filtered_count} background images", file=sys.stderr)
     
     return path_mapping
 
