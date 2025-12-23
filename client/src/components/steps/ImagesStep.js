@@ -598,6 +598,17 @@ export function ImagesStep({
 
   return (
     <div className="pipeline-section">
+      <style>{`
+        .image-thumbnail-btn {
+          transition: transform 0.2s ease, z-index 0s;
+          position: relative;
+        }
+        .image-thumbnail-btn:hover {
+          transform: scale(2.5);
+          z-index: 100;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+      `}</style>
       <h3>Images</h3>
       <p className="pipeline-muted">
         Gather images from the PDF rulebook, BoardGameGeek, and other sources. 
@@ -1360,6 +1371,7 @@ export function ImagesStep({
                         return (
                           <button
                             key={img.id}
+                            className="image-thumbnail-btn"
                             onClick={() => handleComponentLink(component.id, img.id)}
                             style={{
                               padding: 4,
