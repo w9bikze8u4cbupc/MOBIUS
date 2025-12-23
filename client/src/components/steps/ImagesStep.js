@@ -68,6 +68,7 @@ export function ImagesStep({
   const [feedbackMode, setFeedbackMode] = useState(false);
   const [feedbackStatus, setFeedbackStatus] = useState({});
   const [hephaestusStatus, setHephaestusStatus] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     setLocalImages(images || []);
@@ -915,23 +916,29 @@ export function ImagesStep({
             <h4 style={{ margin: 0 }}>Available Images ({localImages.length})</h4>
             <button
               onClick={async () => {
+                setRefreshing(true);
                 try {
                   const res = await axios.get(`${BACKEND_URL}/api/projects/${projectId}/images`);
+                  console.log('Refresh loaded', res.data?.images?.length, 'images');
                   refreshState(res.data || {});
                 } catch (err) {
                   console.error('Failed to refresh images', err);
+                } finally {
+                  setRefreshing(false);
                 }
               }}
+              disabled={refreshing}
               style={{
                 padding: '6px 12px',
                 fontSize: 13,
-                background: '#f5f5f5',
+                background: refreshing ? '#e3f2fd' : '#f5f5f5',
                 border: '1px solid #ddd',
                 borderRadius: 4,
-                cursor: 'pointer'
+                cursor: refreshing ? 'wait' : 'pointer',
+                opacity: refreshing ? 0.7 : 1
               }}
             >
-              🔄 Refresh
+              {refreshing ? '⏳ Loading...' : '🔄 Refresh'}
             </button>
           </div>
           {Object.entries(groupedImages).map(([source, imgs]) => (
