@@ -397,11 +397,11 @@ export function ImagesStep({
     }
   };
 
-  // Automatic component-to-image matching
+  // Hybrid component-to-image matching (rule-based + AI vision)
   const handleAutoMatch = async () => {
     if (!projectId || localImages.length === 0) return;
     setLoading(true);
-    setMatchingStatus({ status: 'matching', message: 'AI is analyzing images and matching to components...' });
+    setMatchingStatus({ status: 'matching', message: 'Stage 1: Rule-based matching by component type...' });
     
     try {
       const res = await axios.post(`${BACKEND_URL}/api/projects/${projectId}/images/auto-match`, {
@@ -411,10 +411,24 @@ export function ImagesStep({
       
       refreshState(res.data || {});
       
+      const stats = res.data.stats || {};
       const matched = res.data.matched || 0;
+      const total = stats.total || components.length;
+      const ruleMatched = stats.ruleMatched || 0;
+      const visionMatched = stats.visionMatched || 0;
+      
+      let message = `Matched ${matched}/${total} components`;
+      if (ruleMatched > 0 || visionMatched > 0) {
+        message += ` (${ruleMatched} by rules, ${visionMatched} by AI vision)`;
+      }
+      if (stats.unmatched > 0) {
+        message += `. ${stats.unmatched} need manual matching.`;
+      }
+      
       setMatchingStatus({
-        status: 'complete',
-        message: `Matched ${matched} components to images`
+        status: matched === total ? 'complete' : 'partial',
+        message,
+        stats
       });
     } catch (err) {
       console.error('Auto-match failed:', err);
@@ -1070,11 +1084,23 @@ export function ImagesStep({
             <div style={{ 
               marginTop: 12, 
               padding: 12, 
-              background: matchingStatus.status === 'error' ? '#ffebee' : '#e8f5e9',
+              background: matchingStatus.status === 'error' ? '#ffebee' : 
+                         matchingStatus.status === 'partial' ? '#fff3e0' : '#e8f5e9',
               borderRadius: 8,
               fontSize: 14
             }}>
-              <strong>{matchingStatus.status === 'error' ? '❌' : '✅'}</strong> {matchingStatus.message}
+              <strong>
+                {matchingStatus.status === 'error' ? '❌' : 
+                 matchingStatus.status === 'partial' ? '⚠️' : 
+                 matchingStatus.status === 'matching' ? '🔄' : '✅'}
+              </strong> {matchingStatus.message}
+              {matchingStatus.stats && matchingStatus.status !== 'matching' && (
+                <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
+                  <span style={{ marginRight: 16 }}>📋 Rule-based: {matchingStatus.stats.ruleMatched || 0}</span>
+                  <span style={{ marginRight: 16 }}>👁️ AI Vision: {matchingStatus.stats.visionMatched || 0}</span>
+                  <span>❓ Unmatched: {matchingStatus.stats.unmatched || 0}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1313,7 +1339,22 @@ export function ImagesStep({
                       gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', 
                       gap: 8 
                     }}>
-                      {localImages.map((img) => {
+                      {[...localImages]
+                        .sort((a, b) => {
+                          // Prioritize HEPHAESTUS images
+                          if (a.source === 'hephaestus' && b.source !== 'hephaestus') return -1;
+                          if (b.source === 'hephaestus' && a.source !== 'hephaestus') return 1;
+                          // Then sort by classification match with component category
+                          const compCat = (component.category || '').toLowerCase();
+                          const aClass = (a.metadata?.classification || '').toLowerCase();
+                          const bClass = (b.metadata?.classification || '').toLowerCase();
+                          const aMatch = compCat.includes(aClass) || aClass.includes(compCat);
+                          const bMatch = compCat.includes(bClass) || bClass.includes(compCat);
+                          if (aMatch && !bMatch) return -1;
+                          if (bMatch && !aMatch) return 1;
+                          return 0;
+                        })
+                        .map((img) => {
                         const isLinked = linkedImageIds.includes(img.id);
                         const imgUrl = getImageUrl(projectId, img);
                         return (

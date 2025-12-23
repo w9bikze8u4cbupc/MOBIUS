@@ -40,6 +40,9 @@ import {
   extractWithHephaestus,
   isHephaestusAvailable,
 } from '../services/hephaestusService.js';
+import {
+  hybridMatch,
+} from '../services/hybridMatcher.js';
 
 export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {}) {
   const uploadMiddleware = upload || { single: () => (_req, _res, next) => next() };
@@ -606,16 +609,12 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
     }
   });
 
-  // AI-powered automatic component-to-image matching
+  // Hybrid automatic component-to-image matching (rule-based + vision)
   app.post('/api/projects/:projectId/images/auto-match', async (req, res) => {
     const { projectId } = req.params;
     const { components = [], gameName } = req.body || {};
     
-    if (!openai) {
-      return res.status(400).json({ error: 'AI service not configured' });
-    }
-    
-    console.log('Auto-matching', components.length, 'components to images');
+    console.log('[HybridMatch] Starting for', components.length, 'components');
     
     try {
       const state = listImages(projectId);
@@ -624,27 +623,34 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
       if (images.length === 0) {
         return res.json({ 
           message: 'No images available for matching',
+          matched: 0,
+          stats: { total: components.length, totalMatched: 0 },
           images: [],
           componentImages: {} 
         });
       }
       
-      // Use AI to match components to images
-      const matches = await matchComponentsToImages(components, images, gameName, openai);
+      // Use hybrid matching: rule-based first, then AI vision for remaining
+      const result = await hybridMatch(components, images, gameName, openai);
       
       // Apply the matches
-      for (const [componentId, imageIds] of Object.entries(matches)) {
-        linkImagesToComponent(projectId, componentId, imageIds);
+      for (const [componentId, imageIds] of Object.entries(result.matches)) {
+        if (imageIds && imageIds.length > 0) {
+          linkImagesToComponent(projectId, componentId, imageIds);
+        }
       }
       
       const updatedState = listImages(projectId);
+      console.log('[HybridMatch] Complete:', result.stats);
+      
       res.json({ 
-        matched: Object.keys(matches).length,
+        matched: result.stats.totalMatched,
+        stats: result.stats,
         images: updatedState.images, 
         componentImages: updatedState.componentImages 
       });
     } catch (err) {
-      console.error('Auto-match failed:', err);
+      console.error('Hybrid match failed:', err);
       res.status(500).json({ error: err.message || 'Auto-match failed' });
     }
   });
