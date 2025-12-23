@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "python-3.12", "bash"]
+modules = ["nodejs-20", "python-3.12", "bash", "python3"]
 [agent]
 expertMode = true
 integrations = ["javascript_openai_ai_integrations:1.0.0"]

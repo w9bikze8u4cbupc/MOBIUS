@@ -152,18 +152,24 @@ def is_background_image(pil_image: Image.Image, uniformity_threshold: float = 0.
     - High color uniformity (>60% similar colors)
     - Low edge complexity
     - Large uniform regions
+    
+    NOTE: This is conservative - we only filter obvious backgrounds.
+    Solid-color game pieces (meeples, tokens) should NOT be filtered.
     """
     try:
         # Convert to RGB if needed
         if pil_image.mode != 'RGB':
             pil_image = pil_image.convert('RGB')
         
+        # Very small images are likely tokens, not backgrounds
+        if pil_image.size[0] < 100 and pil_image.size[1] < 100:
+            return False
+        
         # Resize for faster analysis
         small = pil_image.resize((50, 50), Image.Resampling.LANCZOS)
         pixels = np.array(small)
         
         # Calculate color uniformity
-        # Get the most common color
         pixels_flat = pixels.reshape(-1, 3)
         unique_colors, counts = np.unique(pixels_flat, axis=0, return_counts=True)
         
@@ -172,24 +178,25 @@ def is_background_image(pil_image: Image.Image, uniformity_threshold: float = 0.
         
         most_common_pct = counts.max() / counts.sum()
         
-        # Check for gradient-like patterns (common in backgrounds)
-        # Calculate standard deviation of pixel values
-        std_dev = np.std(pixels)
-        
-        # Backgrounds have either:
-        # 1. Very uniform color (>60% same color)
-        # 2. Smooth gradients (low local variance but high global variance)
-        if most_common_pct > uniformity_threshold:
+        # Very high uniformity (>80%) suggests background - but NOT solid color tokens
+        # Backgrounds often have slight gradients, so we look for VERY high uniformity
+        if most_common_pct > 0.85:
             return True
         
-        # Check edge complexity - backgrounds have fewer edges
-        gray = pil_image.convert('L').resize((100, 100))
-        edges = gray.filter(ImageFilter.FIND_EDGES)
-        edge_pixels = np.array(edges)
-        edge_density = np.mean(edge_pixels > 30) / 255.0  # Edges above threshold
+        # Check if it's a gradient (typical of backgrounds)
+        # Gradients have low local variance but colors spread across the image
+        gray = np.array(pil_image.convert('L').resize((50, 50)))
         
-        # Low edge density suggests background
-        if edge_density < 0.05 and std_dev < 50:
+        # Calculate gradient magnitude
+        grad_x = np.abs(np.diff(gray, axis=1))
+        grad_y = np.abs(np.diff(gray, axis=0))
+        
+        # Smooth gradients have low max gradient but spread values
+        max_grad = max(grad_x.max(), grad_y.max())
+        mean_grad = (grad_x.mean() + grad_y.mean()) / 2
+        
+        # Low gradient variation + low contrast = likely background
+        if max_grad < 20 and mean_grad < 5:
             return True
         
         return False
@@ -418,16 +425,18 @@ def rasterize_component_overview_pages(doc, dpi: int = 300) -> List[Dict[str, An
     """
     all_segments = []
     
-    # Stricter keywords that indicate component listing pages
+    # Keywords that indicate component listing pages
     component_keywords = [
         'pieces', 'components', 'tokens', 'meeple', 'meeples',
         'coins', 'workers', 'contents', 'wooden', 'cardboard',
-        'punch board', 'victory point', 'player', 'resource'
+        'punch', 'victory point', 'player', 'resource', 'cards',
+        'worker', 'grande', 'glass', 'rooster', 'cork', 'bottle',
+        'structure', 'lira', 'grapes', 'tile', 'board'
     ]
     
-    print(f"[HEPHAESTUS] Scanning for component overview pages with segmentation...", file=sys.stderr)
+    print(f"[HEPHAESTUS] Scanning for component overview pages...", file=sys.stderr)
     
-    for page_idx in range(min(doc.page_count, 6)):  # First 6 pages only
+    for page_idx in range(min(doc.page_count, 8)):  # First 8 pages
         page = doc.load_page(page_idx)
         page_rect = page.rect
         page_area = page_rect.width * page_rect.height
@@ -441,47 +450,45 @@ def rasterize_component_overview_pages(doc, dpi: int = 300) -> List[Dict[str, An
         # Count keyword matches
         keyword_count = sum(1 for kw in component_keywords if kw in text)
         
-        # Stricter detection: need many drawings (vector graphics) AND keywords
+        # Detection: looser thresholds to catch component pages
+        # 1. Strong keyword signal (4+) with some drawings (10+)
+        # 2. Very strong keyword signal (6+)
+        # 3. Moderate keywords (3+) with many drawings (15+)
         is_component_page = (
-            len(drawings) >= 50 and keyword_count >= 3  # Many vector drawings + component keywords
+            keyword_count >= 4 and len(drawings) >= 10
         ) or (
-            keyword_count >= 5  # Very strong keyword signal
+            keyword_count >= 6
+        ) or (
+            keyword_count >= 3 and len(drawings) >= 15
         )
         
         if is_component_page:
             print(f"[HEPHAESTUS] Page {page_idx}: Component overview detected (keywords={keyword_count}, drawings={len(drawings)})", file=sys.stderr)
             
             try:
-                # Rasterize at higher DPI for better segmentation
+                # Rasterize at high DPI to capture vector graphics clearly
                 zoom = dpi / 72.0
                 mat = fitz.Matrix(zoom, zoom)
                 pix = page.get_pixmap(matrix=mat)
                 
-                # Segment the page into individual components
-                segments = segment_component_page(pix, page_idx, min_component_size=40)
-                
-                if segments:
-                    all_segments.extend(segments)
-                    print(f"[HEPHAESTUS] Page {page_idx}: Extracted {len(segments)} component segments", file=sys.stderr)
-                else:
-                    # Fallback: add full page if segmentation fails
-                    print(f"[HEPHAESTUS] Page {page_idx}: Segmentation found 0 components, adding full page", file=sys.stderr)
-                    all_segments.append({
-                        'id': f'p{page_idx}_components',
-                        'page_index': page_idx,
-                        'width': pix.width,
-                        'height': pix.height,
-                        'pixmap': pix,
-                        'is_rasterized': True,
-                        'is_component_overview': True
-                    })
+                # Add the full page rasterization - AI/frontend can crop components later
+                all_segments.append({
+                    'id': f'p{page_idx}_components',
+                    'page_index': page_idx,
+                    'width': pix.width,
+                    'height': pix.height,
+                    'pixmap': pix,
+                    'is_rasterized': True,
+                    'is_component_overview': True
+                })
+                print(f"[HEPHAESTUS] Page {page_idx}: Rasterized component overview ({pix.width}x{pix.height})", file=sys.stderr)
                     
             except Exception as e:
                 print(f"Warning: Failed to process component page {page_idx}: {e}", file=sys.stderr)
                 import traceback
                 traceback.print_exc()
     
-    print(f"[HEPHAESTUS] Found {len(all_segments)} component segments from overview pages", file=sys.stderr)
+    print(f"[HEPHAESTUS] Found {len(all_segments)} component overview pages", file=sys.stderr)
     return all_segments
 
 

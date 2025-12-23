@@ -5,8 +5,36 @@ import fs from 'fs';
 const HEPHAESTUS_DIR = path.join(process.cwd(), 'hephaestus');
 const PYTHON_SCRIPT = path.join(HEPHAESTUS_DIR, 'extract_api.py');
 
+export async function clearHephaestusCache(outputDir) {
+  const imagesDir = path.join(outputDir, 'images', 'all');
+  const manifestPath = path.join(outputDir, 'manifest.json');
+  
+  try {
+    if (fs.existsSync(imagesDir)) {
+      const files = fs.readdirSync(imagesDir);
+      for (const file of files) {
+        if (file.startsWith('component_')) {
+          fs.unlinkSync(path.join(imagesDir, file));
+        }
+      }
+      console.log(`[HEPHAESTUS] Cleared ${files.length} cached images from ${imagesDir}`);
+    }
+    
+    if (fs.existsSync(manifestPath)) {
+      fs.unlinkSync(manifestPath);
+      console.log(`[HEPHAESTUS] Cleared cached manifest`);
+    }
+  } catch (err) {
+    console.warn(`[HEPHAESTUS] Cache clear warning: ${err.message}`);
+  }
+}
+
 export async function extractWithHephaestus(pdfPath, outputDir, options = {}) {
-  const { minWidth = 50, minHeight = 50 } = options;
+  // Use lower thresholds to capture small components
+  const { minWidth = 16, minHeight = 16 } = options;
+  
+  // Clear cache before extraction
+  await clearHephaestusCache(outputDir);
   
   return new Promise((resolve, reject) => {
     const args = [
