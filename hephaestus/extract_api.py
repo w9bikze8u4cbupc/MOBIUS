@@ -84,8 +84,10 @@ def classify_image(img: Dict[str, Any]) -> Dict[str, Any]:
     area = width * height
     is_rasterized = img.get('is_rasterized', False)
     
-    # Handle rasterized pages (potential reference sheets)
+    # Handle rasterized pages
     if is_rasterized:
+        if img.get('is_component_overview'):
+            return {'label': 'component-overview', 'is_component': True, 'confidence': 0.9}
         return {'label': 'reference-sheet', 'is_component': True, 'confidence': 0.75}
     
     # Tiny artifacts (< 400 px²)
@@ -222,6 +224,76 @@ def rasterize_reference_pages(doc, min_text_density: float = 0.1, dpi: int = 150
     return rasterized
 
 
+def rasterize_component_overview_pages(doc, dpi: int = 200) -> List[Dict[str, Any]]:
+    """
+    Detect and rasterize pages that show component overviews.
+    
+    Component overview pages typically:
+    - Have many small embedded images or vector drawings
+    - Contain keywords like "components", "cards", "tokens", "pieces"
+    - Show a grid/list of game pieces with labels
+    - First few pages of rulebook
+    """
+    rasterized = []
+    
+    component_keywords = [
+        'component', 'pieces', 'cards', 'tokens', 'meeple', 'board', 
+        'contents', 'game material', 'box contents', 'inventory',
+        'coins', 'workers', 'tiles', 'deck', 'victory point',
+        'wooden', 'cardboard', 'punch', 'total'
+    ]
+    
+    print(f"[HEPHAESTUS] Scanning for component overview pages...", file=sys.stderr)
+    
+    for page_idx in range(min(doc.page_count, 8)):
+        page = doc.load_page(page_idx)
+        page_rect = page.rect
+        page_area = page_rect.width * page_rect.height
+        
+        if page_area == 0:
+            continue
+        
+        text = page.get_text().lower().replace("'", "'").replace(""", '"').replace(""", '"')
+        embedded_images = page.get_images(full=True)
+        drawings = page.get_drawings()
+        
+        keyword_count = sum(1 for kw in component_keywords if kw in text)
+        has_images = len(embedded_images) >= 3
+        has_drawings = len(drawings) >= 10
+        has_visual_content = has_images or has_drawings
+        
+        is_component_page = (
+            has_visual_content and keyword_count >= 3
+        ) or (
+            keyword_count >= 4 and (len(embedded_images) >= 1 or len(drawings) >= 5)
+        ) or (
+            len(embedded_images) >= 8 and keyword_count >= 2
+        )
+        
+        if is_component_page:
+            print(f"[HEPHAESTUS] Page {page_idx}: Component overview detected (keywords={keyword_count}, images={len(embedded_images)}, drawings={len(drawings)})", file=sys.stderr)
+            
+            try:
+                zoom = dpi / 72.0
+                mat = fitz.Matrix(zoom, zoom)
+                pix = page.get_pixmap(matrix=mat)
+                
+                rasterized.append({
+                    'id': f'p{page_idx}_components',
+                    'page_index': page_idx,
+                    'width': pix.width,
+                    'height': pix.height,
+                    'pixmap': pix,
+                    'is_rasterized': True,
+                    'is_component_overview': True
+                })
+            except Exception as e:
+                print(f"Warning: Failed to rasterize component page {page_idx}: {e}", file=sys.stderr)
+    
+    print(f"[HEPHAESTUS] Found {len(rasterized)} component overview pages", file=sys.stderr)
+    return rasterized
+
+
 def save_images(images: List[Dict[str, Any]], output_dir: Path) -> Dict[str, Path]:
     """Save images as PNG files and return path mapping."""
     images_dir = output_dir / "images" / "all"
@@ -312,7 +384,13 @@ def extract_components(pdf_path, output_dir, min_width: int = 16, min_height: in
         images, doc = extract_embedded_images(str(pdf_path), min_width, min_height)
         print(f"[HEPHAESTUS] Found {len(images)} embedded images", file=sys.stderr)
         
-        # Phase 2: Rasterize potential reference sheets
+        # Phase 2: Rasterize component overview pages (first ~8 pages)
+        component_pages = rasterize_component_overview_pages(doc)
+        if component_pages:
+            print(f"[HEPHAESTUS] Adding {len(component_pages)} component overview pages", file=sys.stderr)
+            images.extend(component_pages)
+        
+        # Phase 3: Rasterize potential reference sheets
         reference_pages = rasterize_reference_pages(doc)
         if reference_pages:
             print(f"[HEPHAESTUS] Adding {len(reference_pages)} rasterized reference sheets", file=sys.stderr)
@@ -335,6 +413,7 @@ def extract_components(pdf_path, output_dir, min_width: int = 16, min_height: in
         non_components = 0
         tokens = 0
         reference_sheets = 0
+        component_overviews = 0
         
         for img in images:
             img_id = img['id']
@@ -352,6 +431,8 @@ def extract_components(pdf_path, output_dir, min_width: int = 16, min_height: in
                     tokens += 1
                 elif classification['label'] == 'reference-sheet':
                     reference_sheets += 1
+                elif classification['label'] == 'component-overview':
+                    component_overviews += 1
             else:
                 non_components += 1
             
@@ -383,6 +464,7 @@ def extract_components(pdf_path, output_dir, min_width: int = 16, min_height: in
             "non_components": non_components,
             "tokens": tokens,
             "reference_sheets": reference_sheets,
+            "component_overviews": component_overviews,
             "duplicates_removed": dup_count,
             "unique_images": unique_count
         }
