@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
-import pdfWorker from "pdfjs-dist/build/pdf.worker.entry";
 import { GenesisFeedbackPanel } from "./GenesisFeedbackPanel";
 import { GenesisHealthPanel } from "./GenesisHealthPanel";
 import { GenesisArtifactsPanel } from "./GenesisArtifactsPanel";
@@ -24,7 +23,7 @@ import { RenderExportStep } from "./components/steps/RenderExportStep";
 import "./styles/pipeline.css";
 
 // Configure PDF.js worker
-GlobalWorkerOptions.workerSrc = pdfWorker;
+GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
 // Backend URL - use environment variable or relative path in production
 // In development, connects to Express backend on port 8000
@@ -313,7 +312,7 @@ function App() {
       }
       return fullText;
     } catch (err) {
-      console.error('PDF extraction error:', err);
+      console.error('PDF extraction error message:', err?.message || 'No message'); console.error('PDF extraction error stack:', err?.stack || 'No stack');
       // Re-throw with a user-friendly message
       throw new Error("Failed to extract text from PDF. Please ensure it's a text-based PDF, not just images.");
     }
