@@ -319,3 +319,38 @@ Write-Host "`nQuarantine complete!" -ForegroundColor Green
 Write-Host "  Moved: $movedCount files" -ForegroundColor Green
 Write-Host "  Failed: $failedCount files" -ForegroundColor $(if ($failedCount -gt 0) { "Red" } else { "Green" })
 Write-Host "  Location: $quarantineDir" -ForegroundColor Cyan
+Write-Host ""
+
+# Post-move verification summary
+Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "POST-MOVE VERIFICATION" -ForegroundColor Cyan
+Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Files moved to quarantine:" -ForegroundColor Yellow
+$toQuarantine | ForEach-Object { 
+    $targetPath = Join-Path $quarantineDir $_
+    if (Test-Path $targetPath) {
+        Write-Host "  ✓ $_" -ForegroundColor Green
+    } else {
+        Write-Host "  ✗ $_ (FAILED)" -ForegroundColor Red
+    }
+}
+Write-Host ""
+Write-Host "Next steps:" -ForegroundColor Yellow
+Write-Host "1. Run 'git status' to verify workspace cleaned" -ForegroundColor White
+Write-Host "2. Verify quarantine-candidates removed from untracked list" -ForegroundColor White
+Write-Host "3. Confirm commit-candidates still present (not moved)" -ForegroundColor White
+Write-Host ""
+
+if ($failedCount -gt 0) {
+    Write-Host "⚠️  REMEDIATION REQUIRED" -ForegroundColor Red
+    Write-Host "Some files failed to move. Possible causes:" -ForegroundColor Yellow
+    Write-Host "  - File is locked by another process" -ForegroundColor Gray
+    Write-Host "  - Insufficient permissions" -ForegroundColor Gray
+    Write-Host "  - File was deleted/moved during operation" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "To retry:" -ForegroundColor Yellow
+    Write-Host "  1. Close any applications that may have files open" -ForegroundColor White
+    Write-Host "  2. Re-run: .\quarantine-untracked.ps1 -Confirm -Acknowledge `"I_UNDERSTAND_THIS_WILL_MOVE_FILES`"" -ForegroundColor White
+    Write-Host ""
+}
