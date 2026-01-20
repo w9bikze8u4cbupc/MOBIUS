@@ -50,12 +50,17 @@
 # ===================================================================
 # STEP 4: Actually Quarantine Artifacts (REQUIRES TOKEN)
 # ===================================================================
+# Interactive mode (recommended for human operators):
 .\scripts\workspace\quarantine-untracked.ps1 -Confirm -Acknowledge "I_UNDERSTAND_THIS_WILL_MOVE_FILES" -SnapshotFirst
+
+# Non-interactive mode (for automation/CI only):
+# .\scripts\workspace\quarantine-untracked.ps1 -Confirm -Acknowledge "I_UNDERSTAND_THIS_WILL_MOVE_FILES" -NonInteractive
 ```
 **[STOP]** After execution:
 1. Review the post-move summary (files moved count)
 2. Verify quarantine location shown in output
-3. Press any key when prompted to confirm the move
+3. In interactive mode: Press any key when prompted to confirm the move
+4. In non-interactive mode: Move proceeds automatically
 
 ```powershell
 # ===================================================================
@@ -262,8 +267,11 @@ Located in `scripts/workspace/`:
 # Dry run (safe, see what would be moved)
 .\scripts\workspace\quarantine-untracked.ps1
 
-# Actually move files (requires explicit acknowledgement)
+# Interactive mode (human operator - requires keypress confirmation)
 .\scripts\workspace\quarantine-untracked.ps1 -Confirm -Acknowledge "I_UNDERSTAND_THIS_WILL_MOVE_FILES" -SnapshotFirst
+
+# Non-interactive mode (automation/CI only - no keypress required)
+.\scripts\workspace\quarantine-untracked.ps1 -Confirm -Acknowledge "I_UNDERSTAND_THIS_WILL_MOVE_FILES" -NonInteractive
 ```
 
 **What it does:**
@@ -277,8 +285,9 @@ Located in `scripts/workspace/`:
 **Safety gates:**
 - Requires `-Confirm` flag (not default)
 - Requires `-Acknowledge "I_UNDERSTAND_THIS_WILL_MOVE_FILES"` exact token
-- Shows final file list and waits for keypress before moving
-- Recommended: use `-SnapshotFirst` for safety
+- Shows final file list before moving
+- **Interactive mode (default):** Waits for keypress confirmation before moving
+- **Non-interactive mode (`-NonInteractive`):** Proceeds automatically (use only for trusted automation)
 
 **Protected files (never auto-quarantined):**
 - Client config: `postcss.config.js`, `tailwind.config.js`

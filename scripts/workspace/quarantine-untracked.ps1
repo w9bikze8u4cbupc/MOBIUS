@@ -18,6 +18,10 @@
     Required safety token. Must be exactly "I_UNDERSTAND_THIS_WILL_MOVE_FILES".
     This prevents accidental execution.
 
+.PARAMETER NonInteractive
+    Skip the interactive keypress confirmation. Use only for automation/CI.
+    Human operators should omit this flag to get the final confirmation prompt.
+
 .PARAMETER QuarantinePath
     Base path for quarantine. Defaults to quarantine/artifacts/
 
@@ -28,14 +32,18 @@
     # Dry run (safe, shows what would happen)
     .\quarantine-untracked.ps1
     
-    # Actually move files (requires explicit acknowledgement)
+    # Interactive mode (human operator - requires keypress)
     .\quarantine-untracked.ps1 -Confirm -Acknowledge "I_UNDERSTAND_THIS_WILL_MOVE_FILES" -SnapshotFirst
+    
+    # Non-interactive mode (automation/CI only)
+    .\quarantine-untracked.ps1 -Confirm -Acknowledge "I_UNDERSTAND_THIS_WILL_MOVE_FILES" -NonInteractive
 #>
 
 [CmdletBinding()]
 param(
     [switch]$Confirm,
     [string]$Acknowledge,
+    [switch]$NonInteractive,
     [string]$QuarantinePath = "quarantine/artifacts",
     [switch]$SnapshotFirst
 )
@@ -266,8 +274,21 @@ Write-Host ""
 Write-Host "Files to be moved:" -ForegroundColor Yellow
 $toQuarantine | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
 Write-Host ""
-Write-Host "Proceeding with move operation..." -ForegroundColor Green
-Write-Host ""
+
+# Interactive confirmation (unless -NonInteractive specified)
+if (-not $NonInteractive) {
+    Write-Host "Press Ctrl+C now to abort, or any key to continue..." -ForegroundColor Yellow
+    try {
+        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    } catch {
+        Write-Host "Unable to read key input. Use -NonInteractive flag for automation." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host ""
+} else {
+    Write-Host "Non-interactive mode: Proceeding automatically..." -ForegroundColor Cyan
+    Write-Host ""
+}
 
 # Actually move files
 Write-Host "Moving files to quarantine..." -ForegroundColor Cyan
