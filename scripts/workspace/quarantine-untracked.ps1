@@ -257,17 +257,16 @@ if (-not $Confirm) {
 
 # Final confirmation before moving
 Write-Host ""
-Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Yellow
+Write-Host "===================================================================" -ForegroundColor Yellow
 Write-Host "FINAL CONFIRMATION: About to move $($toQuarantine.Count) files" -ForegroundColor Yellow
-Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Yellow
+Write-Host "===================================================================" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Destination: $quarantineDir" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Files to be moved:" -ForegroundColor Yellow
 $toQuarantine | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
 Write-Host ""
-Write-Host "Press Ctrl+C now to abort, or any key to continue..." -ForegroundColor Yellow
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+Write-Host "Proceeding with move operation..." -ForegroundColor Green
 Write-Host ""
 
 # Actually move files
