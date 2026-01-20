@@ -50,16 +50,38 @@ if (-not $Confirm) {
 # Get all untracked files
 $untrackedFiles = git ls-files --others --exclude-standard
 
-# Define patterns for clearly-generated artifacts
+# Define patterns for clearly-generated artifacts (conservative)
+# Only auto-quarantine obvious artifacts; leave potential source/config alone
 $artifactPatterns = @(
-    # Logs
+    # Zip archives (logs, backups)
+    '\.zip$',
+    
+    # Test data files
+    '^data/test-.*\.txt$',
+    '^data/test_.*\.txt$',
+    
+    # Ad-hoc test scripts (root level only)
+    '^test-.*\.js$',
+    '^check-db\.js$',
+    '^run-batch2-.*\.js$',
+    
+    # Backup files
+    '\.bak$',
+    
+    # Validation artifacts
+    '^validation/.*/artifacts/.*',
+    
+    # Branch verification scripts (ad-hoc)
+    '^verify-test-branches\.(ps1|sh)$',
+    
+    # Logs (if untracked)
     '\.log$',
     'logs/.*\.log$',
     'validation/.*/logs/.*',
     'stabilization-logs/.*',
     'branch-protection\.logs/.*',
     
-    # Data outputs
+    # Data outputs (if untracked)
     'data/output/.*',
     'data/exports/.*',
     'data/previews/.*',
@@ -67,19 +89,14 @@ $artifactPatterns = @(
     'data/projects\.db$',
     'data/cache/.*',
     
-    # Validation artifacts
-    'validation/.*/artifacts/.*',
-    'validation/.*/logs/.*\.zip$',
-    'artifacts/.*',
-    
-    # Build outputs
+    # Build outputs (if untracked)
     'coverage/.*',
     'dist/.*',
     'out/.*',
     'build/.*',
     '\.cache/.*',
     
-    # Generated media
+    # Generated media (if untracked)
     '.*\.mp3$',
     '.*\.mp4$',
     '.*\.wav$',
@@ -88,25 +105,24 @@ $artifactPatterns = @(
     'dynaudnorm_test\.wav$',
     'test_audio\.(mp3|wav)$',
     
-    # Test/temp files
+    # Test PDFs (if untracked)
     'test-.*\.pdf$',
     'empty-fixture\.pdf$',
     'broken-test\.pdf$',
     'tmp/.*',
     'temp/.*',
     
-    # Training data and large binaries
+    # Training data and large binaries (if untracked)
     '.*\.traineddata$',
-    '.*\.zip$',
     'lychee\.zip$',
     
-    # Node modules and dependencies (if untracked)
+    # Dependencies (if untracked)
     'node_modules/.*',
     'ffmpeg/.*',
     'ffmpeg-bin/.*',
     '__pycache__/.*',
     
-    # Specific known generated files
+    # Specific known generated files (if untracked)
     'server\.log$',
     'ui_output\.log$',
     'security-cleanup\.log$',
@@ -115,11 +131,52 @@ $artifactPatterns = @(
     'PR_URLS\.txt$'
 )
 
+# Define patterns for files that should NEVER be auto-quarantined
+# These are likely source/config files that need manual review
+$protectedPatterns = @(
+    # Client config and source
+    '^client/postcss\.config\.js$',
+    '^client/tailwind\.config\.js$',
+    '^client/src/.*\.css$',
+    '^client/src/ErrorBoundary\.js$',
+    '^client/public/favicon\.ico$',
+    
+    # Server API endpoints
+    '^src/api/.*\.js$',
+    
+    # UI components
+    '^src/ui/.*\.jsx$',
+    
+    # Scripts (launcher and utilities)
+    '^scripts/launch-mobius\.bat$',
+    '^scripts/update-desktop-shortcut-icon\.ps1$',
+    '^scripts/test_backend_expansion\.ps1$',
+    '^scripts/test_endpoints\.(ps1|sh)$',
+    
+    # Validation scripts
+    '^validation/scripts/.*\.(ps1|sh)$'
+)
+
 # Classify files
 $toQuarantine = @()
 $toReview = @()
 
 foreach ($file in $untrackedFiles) {
+    # Check if file is protected (never auto-quarantine)
+    $isProtected = $false
+    foreach ($pattern in $protectedPatterns) {
+        if ($file -match $pattern) {
+            $isProtected = $true
+            break
+        }
+    }
+    
+    if ($isProtected) {
+        $toReview += $file
+        continue
+    }
+    
+    # Check if file matches artifact patterns
     $isArtifact = $false
     foreach ($pattern in $artifactPatterns) {
         if ($file -match $pattern) {

@@ -23,17 +23,28 @@ This document defines the canonical workspace structure, artifact management pol
 
 ## Artifact Classification
 
-### Tracked Source Files (Commit These)
+The triage system classifies untracked files into three buckets:
+
+### 1. Commit-Candidates (Source/Config Files)
+
+Files that appear to be legitimate source code or configuration:
 
 - Application code (`src/`, `client/src/`)
-- Configuration files (`package.json`, `tsconfig.json`, etc.)
+- Configuration files (`package.json`, `tsconfig.json`, `postcss.config.js`, `tailwind.config.js`)
+- Client source: `client/src/*.css`, `client/src/ErrorBoundary.js`, `client/public/favicon.ico`
+- API endpoints: `src/api/*.js`
+- UI components: `src/ui/*.jsx`
 - Documentation (`docs/`, `README.md`)
 - Test fixtures (`data/fixtures/`, `tests/fixtures/`)
 - CI/CD workflows (`.github/workflows/`)
 - Infrastructure as code (`k8s/`, `systemd/`)
-- Essential scripts (`scripts/`)
+- Essential scripts: `scripts/launch-mobius.bat`, `scripts/test_endpoints.ps1`
 
-### Generated Artifacts (Do NOT Commit)
+**Action:** Review and stage with `git add <file>` if appropriate.
+
+### 2. Quarantine-Candidates (Artifacts/Logs/Scratch)
+
+Files that are clearly generated artifacts safe to auto-quarantine:
 
 - **Logs:** `*.log`, `logs/`, `validation/**/logs/`
 - **Build outputs:** `dist/`, `build/`, `out/`, `coverage/`
@@ -41,15 +52,37 @@ This document defines the canonical workspace structure, artifact management pol
 - **Database files:** `data/projects.db`, `*.db`
 - **Media files:** `*.mp3`, `*.mp4`, `*.wav` (except fixtures)
 - **Test PDFs:** `test-*.pdf`, generated test files
+- **Zip archives:** `*.zip` (logs, backups)
+- **Test data:** `data/test-*.txt`
+- **Ad-hoc test scripts:** `test-*.js`, `check-db.js`, `run-batch2-*.js`
+- **Backup files:** `*.bak`
 - **Caches:** `node_modules/`, `__pycache__/`, `.cache/`
-- **Temporary files:** `tmp/`, `temp/`, `quarantine/`
+- **Temporary files:** `tmp/`, `temp/`
 
-### Review Required (Manual Decision)
+**Action:** Auto-quarantine with `.\scripts\workspace\quarantine-untracked.ps1 -Confirm`
 
-- New documentation files in root
-- New scripts without clear purpose
-- Configuration changes
-- Patch files (`.patch`)
+### 3. Hold-Candidates (Documentation/Notes)
+
+Files that can remain but may clutter the workspace:
+
+- Root-level markdown docs (status reports, planning: `PHASE-F-*.md`, `BATCH2_*.md`)
+- Validation documentation: `validation/batch2/*.md`, `validation/batch2/*.json`
+- Validation tracker: `validation_tracker.md`
+- Phase/feature descriptions: `phase_f_*.md`
+
+**Action:** Keep if actively used, move to `docs/` if archival, or quarantine if obsolete.
+
+### Protected Files (Never Auto-Quarantine)
+
+These files require manual review and will never be auto-quarantined:
+
+- Client configuration: `client/postcss.config.js`, `client/tailwind.config.js`
+- Client source: `client/src/*.css`, `client/src/ErrorBoundary.js`
+- API endpoints: `src/api/*.js`
+- UI components: `src/ui/*.jsx`
+- Launcher scripts: `scripts/launch-mobius.bat`
+- Utility scripts: `scripts/test_endpoints.ps1`, `scripts/update-desktop-shortcut-icon.ps1`
+- Validation scripts: `validation/scripts/*.ps1`
 
 ## Quarantine System
 
@@ -78,7 +111,27 @@ quarantine/
 
 Located in `scripts/workspace/`:
 
-#### 1. Snapshot Local State
+#### 1. Triage Untracked Files (NEW)
+
+```powershell
+# Analyze and classify all untracked files
+.\scripts\workspace\triage-untracked.ps1
+```
+
+**What it does:**
+- Reads latest snapshot's untracked file list
+- Classifies files into commit/quarantine/hold buckets
+- Generates detailed report in `quarantine/reports/`
+- Shows counts and file lists for each bucket
+
+**When to use:**
+- Before deciding what to commit or quarantine
+- To understand what's cluttering your workspace
+- After major development work to review artifacts
+
+#### 2. Snapshot Local State
+
+#### 2. Snapshot Local State
 
 ```powershell
 # Create safety snapshot (manifest only)
@@ -93,7 +146,7 @@ Located in `scripts/workspace/`:
 - Before major git operations (rebase, merge, reset)
 - When you want to preserve current state for reference
 
-#### 2. Quarantine Untracked Files
+#### 3. Quarantine Untracked Files
 
 ```powershell
 # Dry run (see what would be moved)
@@ -104,13 +157,20 @@ Located in `scripts/workspace/`:
 ```
 
 **What it does:**
-- Identifies clearly-generated artifacts using pattern matching
-- Moves them to `quarantine/artifacts/<timestamp>/`
+- Identifies clearly-generated artifacts using conservative pattern matching
+- Protects source/config files from accidental quarantine
+- Moves only quarantine-candidates to `quarantine/artifacts/<timestamp>/`
 - Preserves original directory structure
-- Leaves source files and docs for manual review
+- Leaves commit-candidates and hold-candidates for manual review
 - Creates manifest for restoration
 
-#### 3. Restore from Quarantine
+**Protected files (never auto-quarantined):**
+- Client config: `postcss.config.js`, `tailwind.config.js`
+- Source files: `src/api/*.js`, `src/ui/*.jsx`, `client/src/*.css`
+- Launcher scripts: `scripts/launch-mobius.bat`
+- Utility scripts: `scripts/test_endpoints.ps1`
+
+#### 4. Restore from Quarantine
 
 ```powershell
 # Dry run (see what would be restored)
@@ -133,17 +193,26 @@ Located in `scripts/workspace/`:
 # 1. Create safety snapshot
 .\scripts\workspace\snapshot-local-state.ps1 -BackupUntracked
 
-# 2. Review what will be quarantined (dry run)
+# 2. Triage untracked files to see what's what
+.\scripts\workspace\triage-untracked.ps1
+
+# 3. Review triage report (opens in notepad or view in terminal)
+Get-Content quarantine\reports\untracked-triage-*.txt | Select-Object -Last 1
+
+# 4. Review what will be quarantined (dry run)
 .\scripts\workspace\quarantine-untracked.ps1
 
-# 3. Actually quarantine artifacts
+# 5. Actually quarantine artifacts
 .\scripts\workspace\quarantine-untracked.ps1 -Confirm
 
-# 4. Check git status (should be much cleaner)
+# 6. Check git status (should be much cleaner)
 git status
 
-# 5. Review remaining untracked files manually
-git ls-files --others --exclude-standard
+# 7. Review commit-candidates from triage report
+# Stage appropriate files: git add <file>
+
+# 8. Review hold-candidates (docs/notes)
+# Decide: keep, move to docs/, or quarantine
 ```
 
 ### Daily Development
