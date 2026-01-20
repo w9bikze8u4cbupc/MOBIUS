@@ -322,17 +322,17 @@ Write-Host "  Location: $quarantineDir" -ForegroundColor Cyan
 Write-Host ""
 
 # Post-move verification summary
-Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "===================================================================" -ForegroundColor Cyan
 Write-Host "POST-MOVE VERIFICATION" -ForegroundColor Cyan
-Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "===================================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Files moved to quarantine:" -ForegroundColor Yellow
 $toQuarantine | ForEach-Object { 
     $targetPath = Join-Path $quarantineDir $_
     if (Test-Path $targetPath) {
-        Write-Host "  ✓ $_" -ForegroundColor Green
+        Write-Host "  [OK] $_" -ForegroundColor Green
     } else {
-        Write-Host "  ✗ $_ (FAILED)" -ForegroundColor Red
+        Write-Host "  [FAIL] $_ (FAILED)" -ForegroundColor Red
     }
 }
 Write-Host ""
@@ -343,7 +343,7 @@ Write-Host "3. Confirm commit-candidates still present (not moved)" -ForegroundC
 Write-Host ""
 
 if ($failedCount -gt 0) {
-    Write-Host "⚠️  REMEDIATION REQUIRED" -ForegroundColor Red
+    Write-Host "WARNING: REMEDIATION REQUIRED" -ForegroundColor Red
     Write-Host "Some files failed to move. Possible causes:" -ForegroundColor Yellow
     Write-Host "  - File is locked by another process" -ForegroundColor Gray
     Write-Host "  - Insufficient permissions" -ForegroundColor Gray

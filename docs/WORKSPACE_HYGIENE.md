@@ -5,7 +5,7 @@
 
 ---
 
-## 🚀 NEXT ACTIONS (Start Here)
+## NEXT ACTIONS (Start Here)
 
 **For Daniel:** Follow these exact steps to clean your workspace safely.
 
@@ -17,75 +17,75 @@
 ### Step-by-Step Execution
 
 ```powershell
-# ═══════════════════════════════════════════════════════════════
+# ===================================================================
 # STEP 1: Create Safety Snapshot
-# ═══════════════════════════════════════════════════════════════
+# ===================================================================
 .\scripts\workspace\snapshot-local-state.ps1
 ```
-**✋ STOP:** Verify snapshot created. Look for output showing path like `quarantine\snapshots\YYYYMMDD_HHMMSS`
+**[STOP]** Verify snapshot created. Look for output showing path like `quarantine\snapshots\YYYYMMDD_HHMMSS`
 
 ```powershell
-# ═══════════════════════════════════════════════════════════════
+# ===================================================================
 # STEP 2: Review Classification
-# ═══════════════════════════════════════════════════════════════
+# ===================================================================
 .\scripts\workspace\triage-untracked.ps1
 ```
-**✋ STOP:** Confirm counts match expectations:
+**[STOP]** Confirm counts match expectations:
 - Quarantine-candidates: ~14 files (artifacts/logs/scratch)
 - Commit-candidates: ~17 files (source/config)
 - Hold-candidates: ~54 files (docs/notes)
 
 ```powershell
-# ═══════════════════════════════════════════════════════════════
+# ===================================================================
 # STEP 3: Dry-Run Quarantine (Safe Preview)
-# ═══════════════════════════════════════════════════════════════
+# ===================================================================
 .\scripts\workspace\quarantine-untracked.ps1
 ```
-**✋ STOP:** Review the list of files to be quarantined. Verify:
+**[STOP]** Review the list of files to be quarantined. Verify:
 - Only artifacts/logs/scratch files are listed
 - NO source files (*.js, *.jsx, *.css from src/ or client/src/)
 - NO config files (postcss.config.js, tailwind.config.js)
 
 ```powershell
-# ═══════════════════════════════════════════════════════════════
+# ===================================================================
 # STEP 4: Actually Quarantine Artifacts (REQUIRES TOKEN)
-# ═══════════════════════════════════════════════════════════════
+# ===================================================================
 .\scripts\workspace\quarantine-untracked.ps1 -Confirm -Acknowledge "I_UNDERSTAND_THIS_WILL_MOVE_FILES" -SnapshotFirst
 ```
-**✋ STOP:** After execution:
+**[STOP]** After execution:
 1. Review the post-move summary (files moved count)
 2. Verify quarantine location shown in output
 3. Press any key when prompted to confirm the move
 
 ```powershell
-# ═══════════════════════════════════════════════════════════════
+# ===================================================================
 # STEP 5: Verify Workspace Cleaned
-# ═══════════════════════════════════════════════════════════════
+# ===================================================================
 git status
 ```
-**✋ STOP:** Verify:
+**[STOP]** Verify:
 - Quarantine-candidates are NO LONGER in untracked list
 - Commit-candidates (17 files) still appear as untracked
 - NO new staged changes (only existing tracked modifications remain)
 - Untracked count reduced by ~14 files
 
 ```powershell
-# ═══════════════════════════════════════════════════════════════
+# ===================================================================
 # STEP 6: Review Commit-Candidates (Optional)
-# ═══════════════════════════════════════════════════════════════
+# ===================================================================
 .\scripts\workspace\review-commit-candidates.ps1
 ```
-**✋ STOP:** Read the generated report. Decide if you want to commit these files in a separate PR.
+**[STOP]** Read the generated report. Decide if you want to commit these files in a separate PR.
 
 ---
 
-### ⚠️ Command Trust Policy
+### Command Trust Policy
 
 When Kiro prompts to add commands to the trust list:
 
-- ✅ **APPROVE:** "Full command" option only
-- ❌ **REJECT:** "Base: git *" or any wildcard base patterns
-- ❌ **REJECT:** "Partial: git add *" or similar broad patterns
+- **APPROVE:** "Full command" option only
+- **REJECT:** "Base: git *" or any wildcard base patterns  
+- **REJECT:** "Partial: git add *" or similar broad patterns
 
 **Why:** Broad patterns could allow unintended commands. Only trust exact commands you understand.
 
