@@ -15,15 +15,20 @@
 .PARAMETER OutputPath
     Base path for triage reports. Defaults to quarantine/reports/
 
+.PARAMETER ShowDiffHints
+    Display suggested git add commands for commit-candidates (does not execute).
+
 .EXAMPLE
     .\triage-untracked.ps1
+    .\triage-untracked.ps1 -ShowDiffHints
     .\triage-untracked.ps1 -SnapshotPath "quarantine/snapshots/20260120_063502"
 #>
 
 [CmdletBinding()]
 param(
     [string]$SnapshotPath,
-    [string]$OutputPath = "quarantine/reports"
+    [string]$OutputPath = "quarantine/reports",
+    [switch]$ShowDiffHints
 )
 
 $ErrorActionPreference = "Stop"
@@ -298,7 +303,29 @@ if ($quarantineCandidates.Count -gt 0) {
 
 Write-Host "Full report saved to: $reportPath" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Next: Review commit-candidates and run quarantine script" -ForegroundColor White
+
+if ($ShowDiffHints -and $commitCandidates.Count -gt 0) {
+    Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "SUGGESTED GIT COMMANDS (review before executing)" -ForegroundColor Cyan
+    Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "# Review each file individually before staging:" -ForegroundColor Yellow
+    foreach ($file in $commitCandidates) {
+        Write-Host "git diff -- $file" -ForegroundColor Gray
+    }
+    Write-Host ""
+    Write-Host "# Stage commit-candidates (review output above first!):" -ForegroundColor Yellow
+    Write-Host "git add ``" -ForegroundColor White
+    foreach ($file in $commitCandidates) {
+        Write-Host "  $file ``" -ForegroundColor White
+    }
+    Write-Host ""
+    Write-Host "# Or use the review helper script:" -ForegroundColor Yellow
+    Write-Host ".\scripts\workspace\review-commit-candidates.ps1" -ForegroundColor White
+    Write-Host ""
+} else {
+    Write-Host "Next: Review commit-candidates and run quarantine script" -ForegroundColor White
+}
 
 return @{
     CommitCandidates = $commitCandidates

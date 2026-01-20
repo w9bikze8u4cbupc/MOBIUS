@@ -86,6 +86,28 @@ These files require manual review and will never be auto-quarantined:
 
 ## Quarantine System
 
+**IMPORTANT: Operator Gates and Safety**
+
+All quarantine operations require explicit confirmation to prevent accidental file moves:
+- Dry-run mode is the default (safe, shows what would happen)
+- Actual moves require BOTH `-Confirm` AND `-Acknowledge "I_UNDERSTAND_THIS_WILL_MOVE_FILES"`
+- Snapshots are recommended before any move operation
+
+### Required Gates
+
+**STOP Checkpoints:**
+1. ✋ **After Triage** - Review the classification report before proceeding
+2. ✋ **After Dry-Run** - Verify the quarantine list is correct
+3. ✋ **Before Move** - Confirm you have a snapshot and understand files will be moved
+4. ✋ **Before Commit** - Review each commit-candidate file individually
+
+**Command Trust Policy:**
+- ❌ **NEVER approve** `Base: git *` or broad partial patterns
+- ✅ **ONLY approve** exact full commands you understand
+- ⚠️ When prompted, select "Full command" option only
+
+## Quarantine System
+
 The quarantine system safely moves generated artifacts out of the working tree without data loss.
 
 ### Directory Structure
@@ -149,11 +171,11 @@ Located in `scripts/workspace/`:
 #### 3. Quarantine Untracked Files
 
 ```powershell
-# Dry run (see what would be moved)
+# Dry run (safe, see what would be moved)
 .\scripts\workspace\quarantine-untracked.ps1
 
-# Actually move files (with safety snapshot)
-.\scripts\workspace\quarantine-untracked.ps1 -Confirm -SnapshotFirst
+# Actually move files (requires explicit acknowledgement)
+.\scripts\workspace\quarantine-untracked.ps1 -Confirm -Acknowledge "I_UNDERSTAND_THIS_WILL_MOVE_FILES" -SnapshotFirst
 ```
 
 **What it does:**
@@ -164,13 +186,38 @@ Located in `scripts/workspace/`:
 - Leaves commit-candidates and hold-candidates for manual review
 - Creates manifest for restoration
 
+**Safety gates:**
+- Requires `-Confirm` flag (not default)
+- Requires `-Acknowledge "I_UNDERSTAND_THIS_WILL_MOVE_FILES"` exact token
+- Shows final file list and waits for keypress before moving
+- Recommended: use `-SnapshotFirst` for safety
+
 **Protected files (never auto-quarantined):**
 - Client config: `postcss.config.js`, `tailwind.config.js`
 - Source files: `src/api/*.js`, `src/ui/*.jsx`, `client/src/*.css`
 - Launcher scripts: `scripts/launch-mobius.bat`
 - Utility scripts: `scripts/test_endpoints.ps1`
 
-#### 4. Restore from Quarantine
+#### 4. Review Commit-Candidates (NEW)
+
+```powershell
+# Generate detailed review report for commit-candidates
+.\scripts\workspace\review-commit-candidates.ps1
+```
+
+**What it does:**
+- Lists all commit-candidate files with sizes and timestamps
+- Shows git diff for any modified tracked files
+- Previews first 10 lines of text files
+- Generates suggested `git add` commands (does NOT execute)
+- Saves full report to `quarantine/reports/`
+
+**When to use:**
+- Before staging any commit-candidates
+- To understand what new files are being added
+- To review changes before committing
+
+#### 5. Restore from Quarantine
 
 ```powershell
 # Dry run (see what would be restored)
@@ -187,32 +234,97 @@ Located in `scripts/workspace/`:
 
 ## Workflow: Clean Workspace
 
+### Recommended Sequence (STOP-Gated)
+
+This workflow has explicit STOP checkpoints to prevent accidental actions.
+
 ### Initial Cleanup (One-Time)
 
 ```powershell
-# 1. Create safety snapshot
+# ═══════════════════════════════════════════════════════════════
+# STEP 1: Create Safety Snapshot
+# ═══════════════════════════════════════════════════════════════
 .\scripts\workspace\snapshot-local-state.ps1 -BackupUntracked
 
-# 2. Triage untracked files to see what's what
+# ✋ STOP: Verify snapshot created in quarantine/snapshots/
+
+# ═══════════════════════════════════════════════════════════════
+# STEP 2: Triage Untracked Files
+# ═══════════════════════════════════════════════════════════════
 .\scripts\workspace\triage-untracked.ps1
 
-# 3. Review triage report (opens in notepad or view in terminal)
-Get-Content quarantine\reports\untracked-triage-*.txt | Select-Object -Last 1
+# ✋ STOP: Review the triage report
+# - Check commit-candidates list (should be source/config files)
+# - Check quarantine-candidates list (should be artifacts only)
+# - Verify no important files are in quarantine list
 
-# 4. Review what will be quarantined (dry run)
+# ═══════════════════════════════════════════════════════════════
+# STEP 3: Dry-Run Quarantine (Safe Preview)
+# ═══════════════════════════════════════════════════════════════
 .\scripts\workspace\quarantine-untracked.ps1
 
-# 5. Actually quarantine artifacts
-.\scripts\workspace\quarantine-untracked.ps1 -Confirm
+# ✋ STOP: Review what will be moved
+# - Verify list matches quarantine-candidates from triage
+# - Ensure no source/config files are in the list
+# - Check that protected files are NOT being moved
 
-# 6. Check git status (should be much cleaner)
+# ═══════════════════════════════════════════════════════════════
+# STEP 4: Actually Quarantine Artifacts
+# ═══════════════════════════════════════════════════════════════
+# REQUIRES EXPLICIT ACKNOWLEDGEMENT:
+.\scripts\workspace\quarantine-untracked.ps1 -Confirm -Acknowledge "I_UNDERSTAND_THIS_WILL_MOVE_FILES" -SnapshotFirst
+
+# Script will:
+# 1. Create another snapshot (if -SnapshotFirst used)
+# 2. Show final file list
+# 3. Wait for keypress confirmation
+# 4. Move files to quarantine/artifacts/<timestamp>/
+
+# ✋ STOP: Verify quarantine completed successfully
+git status  # Should show fewer untracked files
+
+# ═══════════════════════════════════════════════════════════════
+# STEP 5: Review Commit-Candidates
+# ═══════════════════════════════════════════════════════════════
+.\scripts\workspace\review-commit-candidates.ps1
+
+# ✋ STOP: Review the generated report
+# - Read quarantine/reports/commit-candidates-review-*.txt
+# - Examine each file individually
+# - Verify these are files you want to commit
+
+# Optional: Show suggested git commands
+.\scripts\workspace\triage-untracked.ps1 -ShowDiffHints
+
+# ═══════════════════════════════════════════════════════════════
+# STEP 6: Stage and Commit Source Files (Separate PR)
+# ═══════════════════════════════════════════════════════════════
+# Review each file before staging:
+git diff -- client/postcss.config.js
+git diff -- src/api/assets.js
+# ... etc
+
+# Stage appropriate files:
+git add client/postcss.config.js client/tailwind.config.js
+git add src/api/assets.js src/api/projects.js src/api/summarize.js src/api/tts.js
+git add src/ui/ErrorBoundary.jsx
+# ... etc
+
+# ✋ STOP: Review what will be committed
 git status
+git diff --cached
 
-# 7. Review commit-candidates from triage report
-# Stage appropriate files: git add <file>
+# Commit with descriptive message:
+git commit -m "Add new API endpoints and client configuration"
 
-# 8. Review hold-candidates (docs/notes)
-# Decide: keep, move to docs/, or quarantine
+# ═══════════════════════════════════════════════════════════════
+# STEP 7: Handle Hold-Candidates (Documentation)
+# ═══════════════════════════════════════════════════════════════
+# Review the 54 hold-candidates (docs/notes)
+# Options:
+# - Keep in place if actively used
+# - Move to docs/ if archival
+# - Quarantine if obsolete (manually move to quarantine/)
 ```
 
 ### Daily Development
