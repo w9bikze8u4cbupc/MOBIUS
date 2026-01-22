@@ -14,8 +14,10 @@ import { performIngestion } from './handlers/performIngestion.js';
 import { runJanitor } from '../jobs/janitor.js';
 import { previewChapterHandler } from './handlers/previewChapter.js';
 
-// Import the ingest API router
+// Import the API routers
 import ingestApiRouter from './ingest.js';
+import projectsApiRouter from './projects.js';
+import assetsApiRouter from './assets.js';
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 5001;
@@ -80,8 +82,10 @@ app.use('/preview', previewRouter);
 app.use('/summarize', (await import('./summarize.js')).default);
 app.use('/tts', (await import('./tts.js')).default);
 
-// Mount the ingest API router
+// Mount the API routers
 app.use('/api/ingest', ingestApiRouter);
+app.use('/api/projects', projectsApiRouter);
+app.use('/api/assets', assetsApiRouter);
 
 // Preview endpoint
 app.post(
@@ -89,35 +93,6 @@ app.post(
   express.json({ limit: '2mb' }),
   previewChapterHandler
 );
-
-// Finalized /api/ingest endpoint
-app.post('/api/ingest', upload.single('file'), async (req, res) => {
-  const logger = req.logger;
-  const retryAfterSec = 15;
-  if (ingestQueue.isSaturated()) {
-    Metrics.inc('ingest_rejected_saturated_total');
-    logger.warn('ingest_saturated', { queueSize: ingestQueue.size() });
-    res.setHeader('Retry-After', String(retryAfterSec));
-    return res.status(503).json({ error: 'Server busy, try again later' });
-  }
-  try {
-    const result = await ingestQueue.submit(async () => {
-      // existing ingestion logic here (parse PDF → fetch BGG → storyboard → persist)
-      // Return the final payload you currently send back.
-      // For example: return finalResponseObject;
-      return await performIngestion(req, logger); // extract existing logic into this fn
-    });
-    return res.json(result);
-  } catch (err) {
-    if (String(err?.message).includes('queue_saturated')) {
-      res.setHeader('Retry-After', String(retryAfterSec));
-      return res.status(503).json({ error: 'Server busy, try again later' });
-    }
-    logger.error('ingest_failed', { error: String(err?.stack || err) });
-    Metrics.inc('ingest_errors_total');
-    return res.status(500).json({ error: 'Ingestion failed' });
-  }
-});
 
 // Export endpoint
 app.post('/api/export', (req, res) => {
