@@ -2,22 +2,10 @@
 on:
   workflow_dispatch: {}
   pull_request:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'run-golden')
-    types: [opened, synchronize, reopened, labeled]
-  workflow_dispatch:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'run-golden')
-    inputs:
-      games:
-        description: "Comma-separated list of games (e.g. hanamikoji,sushi-go,love-letter)"
-        required: true
-        default: "hanamikoji"
-      perOs:
-        description: "Use per-OS baselines"
-        type: boolean
-        default: true
+    if: github.event_name == 'workflow_dispatch' || (github.event.action == 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-golden'))
+    types: [labeled]
 
-jobs:
-  approve:
+jobs:  approve:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'run-golden')
     name: Approve baselines (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -73,3 +61,4 @@ jobs:
           name: golden-baselines-${{ matrix.os }}
           path: tests/golden/**
           if-no-files-found: ignore
+

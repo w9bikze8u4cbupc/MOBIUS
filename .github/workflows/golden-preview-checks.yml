@@ -1,13 +1,11 @@
 ﻿name: Golden Preview Checks
 on:
   workflow_dispatch: {}
-  push:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'run-golden')
   pull_request:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'run-golden')
-    types: [opened, synchronize, reopened, labeled]
-jobs:
-  check:
+    if: github.event_name == 'workflow_dispatch' || (github.event.action == 'labeled' && contains(github.event.pull_request.labels.*.name, 'run-golden'))
+    types: [labeled]
+
+jobs:  check:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'run-golden')
     name: Golden checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -73,3 +71,4 @@ jobs:
             tests/golden/**/debug/**
             tests/golden/reports/*.xml
           if-no-files-found: ignore
+
