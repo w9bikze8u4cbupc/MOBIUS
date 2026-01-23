@@ -4,6 +4,24 @@
 **Last Updated:** 2025-01-20  
 **Applies To:** All golden test workflows (macOS, Windows, Linux)
 
+## Current Implementation Status
+
+**⚠️ IMPORTANT:** The golden workflows currently trigger on **any label addition** to a pull request. The `run-golden` label-specific gating described in this document represents the **intended** implementation but is not yet active.
+
+**Current Behavior:**
+- Golden workflows run when ANY label is added to a PR
+- No label-specific filtering is implemented
+- Cost control is limited to manual dispatch only
+
+**Planned Behavior (Not Yet Implemented):**
+- Golden workflows should only run with `run-golden` label
+- Job-level `if:` conditions should check for specific label
+- This document describes the target state
+
+**Action Required:** Implement job-level gating conditions in golden workflows before relying on this documentation.
+
+---
+
 ## Purpose
 
 Golden workflows execute comprehensive end-to-end tests that generate reference outputs ("golden files") for regression detection. These workflows:
@@ -14,18 +32,22 @@ Golden workflows execute comprehensive end-to-end tests that generate reference 
 
 **Cost Control:** Golden workflows are gated to run only when explicitly requested, preventing automatic execution on every push/PR.
 
-## Trigger Mechanisms
+## Trigger Mechanisms (Planned)
 
-Golden workflows run **only** under these conditions:
+**⚠️ Note:** This section describes the intended behavior. See "Current Implementation Status" above for actual behavior.
 
-### 1. PR Label: `run-golden`
+Golden workflows should run **only** under these conditions:
 
-When a pull request is labeled with `run-golden`:
+### 1. PR Label: `run-golden` (Not Yet Implemented)
+
+**Intended behavior:** When a pull request is labeled with `run-golden`:
 - All golden workflows execute on the PR's head commit
 - Workflows run in parallel across all platforms
 - Results appear in the PR's "Checks" tab
 
-**Usage:**
+**Current behavior:** Golden workflows run when ANY label is added to a PR.
+
+**Usage (once implemented):**
 ```
 1. Open the pull request in GitHub UI
 2. Add label: "run-golden"
@@ -43,9 +65,22 @@ Maintainers can manually trigger golden workflows from the Actions tab:
 4. Click "Run workflow" button
 ```
 
-### 3. NOT Triggered By
+### 3. Current Actual Behavior
 
-Golden workflows **do not** run on:
+**⚠️ As of 2025-01-20:**
+- Golden workflows trigger on `pull_request: types: [labeled]`
+- No job-level `if:` condition filters by label name
+- ANY label addition triggers golden workflows
+- Manual dispatch works as documented
+
+**To verify current behavior:**
+```bash
+# Check workflow triggers
+grep -A 3 "^on:" .github/workflows/golden-*.yml
+
+# Check for job-level if conditions
+grep -A 2 "^jobs:" .github/workflows/golden-*.yml | grep -A 1 "if:"
+```
 - ❌ Push to any branch (including `main`)
 - ❌ Pull request open/sync without `run-golden` label
 - ❌ Scheduled/cron triggers
