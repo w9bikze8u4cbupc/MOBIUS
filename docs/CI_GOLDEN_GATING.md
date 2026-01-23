@@ -4,29 +4,25 @@
 **Last Updated:** 2025-01-20  
 **Applies To:** All golden test workflows (macOS, Windows, Linux)
 
-## Current Implementation Status - REGRESSION IDENTIFIED
+## Current Implementation Status
 
-**🚨 CRITICAL: Job-Level Gating Removed in Error**
+**✅ FIXED:** Job-level gating restored as of this commit
 
-**Regression introduced:** Commit `9765bf2` ("ci: repair golden workflows") on 2026-01-23  
-**Impact:** Golden workflows now run on ANY label addition to PRs (not cost-controlled)  
-**Root cause:** Job-level `if:` conditions were deleted instead of preserved
+**Regression history:**
+- **2026-01-23:** Commit `9765bf2` accidentally removed job-level `if:` conditions
+- **Impact:** Golden workflows ran on ANY label (cost control broken)
+- **Fixed:** Job-level gating restored with proper YAML structure
 
-**Current Actual Behavior (BROKEN):**
+**Current Working Behavior:**
 ```yaml
 # .github/workflows/golden-approve.yml
+name: Golden Approve
+
 on:
   workflow_dispatch:
   pull_request:
     types: [labeled]
 
-jobs:approve:  # ❌ NO if: condition - runs on ANY label!
-    name: Approve baselines (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-```
-
-**Required Fix (Restore Gating):**
-```yaml
 jobs:
   approve:
     if: |
@@ -36,18 +32,12 @@ jobs:
     runs-on: ${{ matrix.os }}
 ```
 
-**Action Required:** 
-1. Restore job-level `if:` conditions to both golden workflows
-2. Verify with label toggle test (add non-golden label, confirm no run)
-3. Update this documentation to reflect corrected state
-
-**Verification Commands:**
+**Verification:**
 ```bash
-# Check for job-level if conditions (should exist, currently missing)
-grep -A 2 "^jobs:" .github/workflows/golden-*.yml | grep "if:"
+# Confirm job-level if conditions are present
+grep -A 3 "^jobs:" .github/workflows/golden-*.yml | grep -A 2 "if:"
 
-# View the regression commit
-git show 9765bf2 .github/workflows/golden-approve.yml
+# Should show if conditions for both approve and check jobs
 ```
 
 ---
@@ -62,25 +52,18 @@ Golden workflows execute comprehensive end-to-end tests that generate reference 
 
 **Cost Control:** Golden workflows are gated to run only when explicitly requested, preventing automatic execution on every push/PR.
 
-## Trigger Mechanisms (Intended - Currently Broken)
+## Trigger Mechanisms
 
-**⚠️ Note:** This section describes the intended behavior. Due to regression in commit `9765bf2`, job-level gating is currently missing. See "Current Implementation Status" above.
+Golden workflows run **only** under these conditions:
 
-Golden workflows should run **only** under these conditions:
+### 1. PR Label: `run-golden`
 
-### 1. PR Label: `run-golden` (Regression - Not Working)
-
-**Intended behavior:** When a pull request is labeled with `run-golden`:
+When a pull request is labeled with `run-golden`:
 - All golden workflows execute on the PR's head commit
 - Workflows run in parallel across all platforms
 - Results appear in the PR's "Checks" tab
 
-**Current broken behavior (since commit `9765bf2`):** 
-- Golden workflows run when ANY label is added to a PR
-- Job-level `if:` condition was accidentally removed
-- Cost control is broken
-
-**Usage (once regression fixed):**
+**Usage:**
 ```
 1. Open the pull request in GitHub UI
 2. Add label: "run-golden"
@@ -98,30 +81,14 @@ Maintainers can manually trigger golden workflows from the Actions tab:
 4. Click "Run workflow" button
 ```
 
-### 3. Current Actual Behavior (Broken Since 2026-01-23)
+### 3. NOT Triggered By
 
-**🚨 Regression in commit `9765bf2`:**
-- Golden workflows trigger on `pull_request: types: [labeled]`
-- Job-level `if:` conditions were **deleted** (not added as commit message claimed)
-- ANY label addition triggers golden workflows
-- Manual dispatch still works correctly
-
-**Historical Context:**
-- Prior to `9765bf2`: Job-level gating existed and worked
-- Commit `9765bf2`: Claimed to "repair" but actually removed gating
-- Current state: Ungated and running on every label
-
-**To verify regression:**
-```bash
-# Check current state (no if: conditions present)
-grep -A 5 "^jobs:" .github/workflows/golden-*.yml
-
-# View the breaking commit
-git show 9765bf2
-
-# See what was removed
-git diff 9765bf2~1 9765bf2 .github/workflows/golden-approve.yml
-```
+Golden workflows **do not** run on:
+- ❌ Push to any branch (including `main`)
+- ❌ Pull request open/sync without `run-golden` label
+- ❌ Adding labels other than `run-golden`
+- ❌ Scheduled/cron triggers
+- ❌ Other workflow completion events
 - ❌ Push to any branch (including `main`)
 - ❌ Pull request open/sync without `run-golden` label
 - ❌ Scheduled/cron triggers
