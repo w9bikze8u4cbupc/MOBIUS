@@ -1,12 +1,9 @@
-﻿name: Golden Approve
-on:
-  workflow_dispatch: {}
+﻿on:
+  workflow_dispatch:
   pull_request:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'run-golden')
     types: [labeled]
 
-jobs:  approve:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'run-golden')
+jobs:approve:
     name: Approve baselines (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -61,5 +58,6 @@ jobs:  approve:
           name: golden-baselines-${{ matrix.os }}
           path: tests/golden/**
           if-no-files-found: ignore
+
 
 
