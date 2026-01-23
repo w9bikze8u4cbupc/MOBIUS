@@ -97,12 +97,14 @@ npm test -- tests/api/ingest.integration.test.js
 Golden tests generate reference outputs for regression detection and run on expensive CI runners. These tests are **gated** and only run when explicitly requested.
 
 **Trigger golden tests on a PR:**
-1. **Current:** Adding ANY label triggers golden workflows (not cost-controlled)
-2. **Planned:** Add the `run-golden` label specifically (requires implementation)
+1. **Current (BROKEN):** Adding ANY label triggers golden workflows - cost control failure
+2. **Required Fix:** Restore job-level `if:` conditions to gate on `run-golden` label only
+
+**⚠️ REGRESSION:** Golden workflow gating was accidentally removed in commit `9765bf2`
 
 **For detailed information:**
-- See [CI Golden Gating Documentation](docs/CI_GOLDEN_GATING.md) for planned implementation
-- **Note:** Label-specific gating not yet implemented
+- See [CI Golden Gating Documentation](docs/CI_GOLDEN_GATING.md) for regression details and fix requirements
+- **Action Required:** Restore job-level gating before next release
 - See [CI Troubleshooting Guide](docs/automation/ci-troubleshooting-guide.md) for debugging
 
 ### Testing the Ingest API

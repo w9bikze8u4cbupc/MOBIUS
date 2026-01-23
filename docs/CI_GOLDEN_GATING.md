@@ -4,21 +4,51 @@
 **Last Updated:** 2025-01-20  
 **Applies To:** All golden test workflows (macOS, Windows, Linux)
 
-## Current Implementation Status
+## Current Implementation Status - REGRESSION IDENTIFIED
 
-**⚠️ IMPORTANT:** The golden workflows currently trigger on **any label addition** to a pull request. The `run-golden` label-specific gating described in this document represents the **intended** implementation but is not yet active.
+**🚨 CRITICAL: Job-Level Gating Removed in Error**
 
-**Current Behavior:**
-- Golden workflows run when ANY label is added to a PR
-- No label-specific filtering is implemented
-- Cost control is limited to manual dispatch only
+**Regression introduced:** Commit `9765bf2` ("ci: repair golden workflows") on 2026-01-23  
+**Impact:** Golden workflows now run on ANY label addition to PRs (not cost-controlled)  
+**Root cause:** Job-level `if:` conditions were deleted instead of preserved
 
-**Planned Behavior (Not Yet Implemented):**
-- Golden workflows should only run with `run-golden` label
-- Job-level `if:` conditions should check for specific label
-- This document describes the target state
+**Current Actual Behavior (BROKEN):**
+```yaml
+# .github/workflows/golden-approve.yml
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
 
-**Action Required:** Implement job-level gating conditions in golden workflows before relying on this documentation.
+jobs:approve:  # ❌ NO if: condition - runs on ANY label!
+    name: Approve baselines (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+```
+
+**Required Fix (Restore Gating):**
+```yaml
+jobs:
+  approve:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'run-golden')
+    name: Approve baselines (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+```
+
+**Action Required:** 
+1. Restore job-level `if:` conditions to both golden workflows
+2. Verify with label toggle test (add non-golden label, confirm no run)
+3. Update this documentation to reflect corrected state
+
+**Verification Commands:**
+```bash
+# Check for job-level if conditions (should exist, currently missing)
+grep -A 2 "^jobs:" .github/workflows/golden-*.yml | grep "if:"
+
+# View the regression commit
+git show 9765bf2 .github/workflows/golden-approve.yml
+```
 
 ---
 
@@ -32,22 +62,25 @@ Golden workflows execute comprehensive end-to-end tests that generate reference 
 
 **Cost Control:** Golden workflows are gated to run only when explicitly requested, preventing automatic execution on every push/PR.
 
-## Trigger Mechanisms (Planned)
+## Trigger Mechanisms (Intended - Currently Broken)
 
-**⚠️ Note:** This section describes the intended behavior. See "Current Implementation Status" above for actual behavior.
+**⚠️ Note:** This section describes the intended behavior. Due to regression in commit `9765bf2`, job-level gating is currently missing. See "Current Implementation Status" above.
 
 Golden workflows should run **only** under these conditions:
 
-### 1. PR Label: `run-golden` (Not Yet Implemented)
+### 1. PR Label: `run-golden` (Regression - Not Working)
 
 **Intended behavior:** When a pull request is labeled with `run-golden`:
 - All golden workflows execute on the PR's head commit
 - Workflows run in parallel across all platforms
 - Results appear in the PR's "Checks" tab
 
-**Current behavior:** Golden workflows run when ANY label is added to a PR.
+**Current broken behavior (since commit `9765bf2`):** 
+- Golden workflows run when ANY label is added to a PR
+- Job-level `if:` condition was accidentally removed
+- Cost control is broken
 
-**Usage (once implemented):**
+**Usage (once regression fixed):**
 ```
 1. Open the pull request in GitHub UI
 2. Add label: "run-golden"
@@ -65,21 +98,29 @@ Maintainers can manually trigger golden workflows from the Actions tab:
 4. Click "Run workflow" button
 ```
 
-### 3. Current Actual Behavior
+### 3. Current Actual Behavior (Broken Since 2026-01-23)
 
-**⚠️ As of 2025-01-20:**
+**🚨 Regression in commit `9765bf2`:**
 - Golden workflows trigger on `pull_request: types: [labeled]`
-- No job-level `if:` condition filters by label name
+- Job-level `if:` conditions were **deleted** (not added as commit message claimed)
 - ANY label addition triggers golden workflows
-- Manual dispatch works as documented
+- Manual dispatch still works correctly
 
-**To verify current behavior:**
+**Historical Context:**
+- Prior to `9765bf2`: Job-level gating existed and worked
+- Commit `9765bf2`: Claimed to "repair" but actually removed gating
+- Current state: Ungated and running on every label
+
+**To verify regression:**
 ```bash
-# Check workflow triggers
-grep -A 3 "^on:" .github/workflows/golden-*.yml
+# Check current state (no if: conditions present)
+grep -A 5 "^jobs:" .github/workflows/golden-*.yml
 
-# Check for job-level if conditions
-grep -A 2 "^jobs:" .github/workflows/golden-*.yml | grep -A 1 "if:"
+# View the breaking commit
+git show 9765bf2
+
+# See what was removed
+git diff 9765bf2~1 9765bf2 .github/workflows/golden-approve.yml
 ```
 - ❌ Push to any branch (including `main`)
 - ❌ Pull request open/sync without `run-golden` label
