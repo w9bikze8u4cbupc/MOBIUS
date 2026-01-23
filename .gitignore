@@ -213,3 +213,6 @@ __pycache__/
 !/0001-harden-preview-worker-manifests.patch
 !/0002-add-rbac-configuration.patch
 !/0003-add-smoke-test-script.patch
+# Local scratch
+PR_URLS.txt
+
