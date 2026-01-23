@@ -10,7 +10,7 @@ This checklist provides a structured approach to validate the Mobius Tutorial Ge
 - [ ] A-04: Validate project metadata persistence
 
 ## Section B: BGG Metadata Integration
-- [⚠️] B-01: Enter valid BGG ID/URL in UI (API endpoint not accessible)
+- [✅] B-01: Enter valid BGG ID/URL in UI (API endpoint accessible)
 - [✅] B-02: Fetch BGG metadata successfully (Module level test successful)
 - [ ] B-03: Display metadata in UI (title, description, year, min/max players)
 - [ ] B-04: Store metadata in project database
