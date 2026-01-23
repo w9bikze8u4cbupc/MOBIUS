@@ -92,6 +92,19 @@ npm test -- src/ui/__tests__/App.test.jsx
 npm test -- tests/api/ingest.integration.test.js
 ```
 
+### Golden Tests and CI Gating
+
+Golden tests generate reference outputs for regression detection and run on expensive CI runners. These tests are **gated** and only run when explicitly requested.
+
+**Trigger golden tests on a PR:**
+1. **Current:** Adding ANY label triggers golden workflows (not cost-controlled)
+2. **Planned:** Add the `run-golden` label specifically (requires implementation)
+
+**For detailed information:**
+- See [CI Golden Gating Documentation](docs/CI_GOLDEN_GATING.md) for planned implementation
+- **Note:** Label-specific gating not yet implemented
+- See [CI Troubleshooting Guide](docs/automation/ci-troubleshooting-guide.md) for debugging
+
 ### Testing the Ingest API
 #### On Unix/Linux/macOS:
 ```bash
