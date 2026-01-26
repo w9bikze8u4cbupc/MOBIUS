@@ -162,6 +162,49 @@ Each golden workflow must:
    - `windows-latest` for Windows golden tests
    - `ubuntu-latest` for Linux golden tests
 
+## GitHub Actions Base-Branch Workflow Selection
+
+**CRITICAL:** Understanding how GitHub Actions selects workflow files is essential for
+verifying golden workflow changes.
+
+### How Workflow Selection Works
+
+For `pull_request` events, GitHub Actions uses workflow files from the **base branch**
+(the branch being merged into), NOT the PR's head branch.
+
+**Example:**
+- PR #380: `chore/quarantine-noninteractive-gate` → `main`
+- Label added: `run-golden`
+- **Workflows executed:** From `main` branch, NOT from PR branch
+- **Result:** PR's workflow changes won't take effect until merged to `main`
+
+### Implications for Verification
+
+**Pre-Merge Verification:**
+- ❌ Cannot test label-triggered workflows by adding labels to the PR
+- ❌ PR checks will use old workflow definitions from base branch
+- ✅ CAN test via `workflow_dispatch` (manual trigger) on PR branch
+- ✅ CAN validate YAML syntax and structure
+
+**Post-Merge Verification:**
+- ✅ Create a new test PR after merging to `main`
+- ✅ Label-triggered workflows will use updated definitions
+- ✅ Full verification procedure can be executed
+
+### Recommended Verification Sequence
+
+**Before Merge:**
+1. Validate YAML syntax locally
+2. Review workflow structure against invariants
+3. Test via `workflow_dispatch` on PR branch (if applicable)
+4. Document expected behavior changes
+
+**After Merge:**
+1. Create verification PR (empty commit or docs-only)
+2. Execute full verification procedure (see below)
+3. Confirm workflows behave as expected
+4. Close verification PR
+
 ## Verification Procedure
 
 ### Pre-Deployment Checklist
@@ -186,6 +229,9 @@ Before merging changes to golden workflows:
    - [ ] Verify workflow starts and completes
 
 ### Post-Deployment Verification
+
+**IMPORTANT:** This verification must be performed AFTER merging workflow changes to the
+base branch (typically `main`), as label-triggered workflows execute from the base branch.
 
 After merging workflow changes, verify gating works correctly:
 

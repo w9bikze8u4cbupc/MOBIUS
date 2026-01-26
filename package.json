@@ -22,6 +22,7 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:render": "node --experimental-vm-modules node_modules/jest/bin/jest.js src/__tests__/render.orchestration.test.js -i",
     "test:ingest": "node scripts/test-ingestion.js",
+    "test:preview-payloads": "node scripts/testPreviewPayloads.mjs",
     "migrate": "node scripts/migrate-data.js",
     "gen:shotlists": "node scripts/compile-shotlist.mjs gigs/hanamikoji.json > tmp/shotlist.json",
     "gen:timelines": "echo 'Generating timelines...'",
@@ -42,7 +43,7 @@
     "security:check": "node -e \"process.platform === 'win32' ? require('child_process').execSync('powershell -ExecutionPolicy Bypass -File scripts/security-check.ps1', {stdio:'inherit'}) : require('child_process').execSync('bash scripts/security-check.sh', {stdio:'inherit'})\"",
     "security:clean": "node -e \"process.platform === 'win32' ? require('child_process').execSync('powershell -Command \\\"Remove-Item Env:\\GITHUB_TOKEN -ErrorAction SilentlyContinue\\\"', {stdio:'inherit'}) : require('child_process').execSync('unset GITHUB_TOKEN', {stdio:'inherit'})\"",
     "docs:lint": "npm run docs:lint:markdown && npm run docs:lint:links",
-    "docs:lint:markdown": "npx markdownlint-cli2 --config .markdownlint.jsonc \"docs/**/*.{md,mdx}\" README.md",
+    "docs:lint:markdown": "npx markdownlint-cli2 --config .markdownlint.jsonc \"docs/**/*.{md,mdx}\" README.md \"!validation/**\"",
     "docs:lint:links": "node scripts/check-lychee.js && lychee --config lychee.toml docs README.md"
   },
   "keywords": [
