@@ -122,6 +122,19 @@ export async function fetchBggMetadata(bggIdOrUrl, opts = {}) {
 
 // New fetchBGG function for the ingestion pipeline
 export async function fetchBGG({ bggId, bggUrl, titleGuess }) {
+  // Validate input: at least one identifier must be provided
+  if (!bggId && !bggUrl && !titleGuess) {
+    throw new Error('fetchBGG requires at least one of: bggId, bggUrl, or titleGuess');
+  }
+
+  // Validate bggId if provided
+  if (bggId !== undefined && bggId !== null) {
+    const numericId = parseInt(bggId, 10);
+    if (isNaN(numericId) || numericId <= 0 || String(numericId) !== String(bggId)) {
+      throw new Error(`Invalid BGG ID: ${bggId}. Must be a positive integer.`);
+    }
+  }
+
   const key = bggId || bggUrl || (titleGuess ? `title:${titleGuess.toLowerCase()}` : null);
   if (key) {
     const cached = cacheGet(safeKey(key));

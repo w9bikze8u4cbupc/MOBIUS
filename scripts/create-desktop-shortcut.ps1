@@ -15,15 +15,18 @@ $lnkPath = Join-Path $desktop ("$Name.lnk")
 # escape embedded double-quotes in $Url
 $escapedUrl = $Url -replace '"', '\"'
 
+# Create path to the launcher script
+$launcherPath = Join-Path $PSScriptRoot "launch-mobius.bat"
+
 $WshShell = New-Object -ComObject WScript.Shell
 $Shortcut = $WshShell.CreateShortcut($lnkPath)
-$Shortcut.TargetPath = "C:\Windows\System32\cmd.exe"
-$Shortcut.Arguments = "/c start `"$escapedUrl`""
-if ($IconPath -ne "") { $Shortcut.IconLocation = $IconPath }
+$Shortcut.TargetPath = $launcherPath
 $Shortcut.WorkingDirectory = $desktop
 $Shortcut.Description = $Name
+if ($IconPath -ne "") { $Shortcut.IconLocation = $IconPath }
 $Shortcut.Save()
 
 Write-Output "Created: $lnkPath"
+# Note: For preferred green Japanese dragon icon, see DESKTOP_SHORTCUT_CUSTOMIZATION.md
 # Quick verification: open it (comment out if you don't want to auto-open)
 # Start-Process -FilePath $lnkPath

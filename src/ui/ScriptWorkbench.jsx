@@ -3,7 +3,8 @@ import ScriptEditor from './ScriptEditor';
 import ImageMatcher from './components/ImageMatcher';
 import { loadInitial, persist } from '../utils/scriptUtils';
 
-const AUTOSAVE_MS = Number(process.env.REACT_APP_AUTOSAVE_INTERVAL_MS ?? 4000);
+// Use a default value instead of process.env which isn't available in Vite
+const AUTOSAVE_MS = 4000;
 
 export default function ScriptWorkbench({ projectId }) {
   const [isSaving, setIsSaving] = useState(false);

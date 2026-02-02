@@ -36,7 +36,7 @@ import { fetchBGGMetadata, ingestPDF } from './api-validation-harness.js';
 
 ### Environment Variables
 
-- `MOBIUS_API_URL` - Base URL for the Mobius API (defaults to http://localhost:5001)
+- `MOBIUS_API_URL` - Base URL for the Mobius API (defaults to <http://localhost:5001>)
 
 ## Adding New Tools
 

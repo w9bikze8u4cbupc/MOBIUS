@@ -1,6 +1,7 @@
 // ESM module: src/ingest/pdf.js
 // Responsibilities:
 // - Extract text from PDFs using pdf-parse when possible
+// - Extract images from PDFs
 // - Fallback to OCR using system Tesseract (if available) or tesseract.js if installed
 // - Expose a single high-level function: ingestPdf(pdfPath, options)
 
@@ -30,15 +31,53 @@ async function runTesseractOnPdf(pdfPath, pageIndex = null) {
     // Try tesseract.js fallback if installed
     try {
       const { createWorker } = await import('tesseract.js');
-      const worker = await createWorker();
-      await worker.load();
-      await worker.loadLanguage('eng');
-      await worker.initialize('eng');
-      const { data } = await worker.recognize(pdfPath);
-      await worker.terminate();
-      return data?.text || '';
+      
+      // For PDF files, we need to convert to images first
+      // Check if we have pdftoppm available
+      if (hasPdftoppm) {
+        // Use pdftoppm to convert PDF to images
+        const tmpDir = os.tmpdir();
+        const timestamp = Date.now();
+        const tmpPrefix = path.join(tmpDir, `mobius_ingest_${timestamp}`);
+        const args = ['-png', pdfPath, tmpPrefix];
+        if (pageIndex !== null) {
+          // pdftoppm supports -f and -l
+          args.unshift('-f', String(pageIndex + 1), '-l', String(pageIndex + 1));
+        }
+        const pdftoppm = spawnSync('pdftoppm', args);
+        if (pdftoppm.status !== 0 && pdftoppm.stderr) {
+          // continue - sometimes pdftoppm returns non-zero but still produced files
+          // fall through
+        }
+
+        // Find generated PNG files
+        const files = fs.readdirSync(tmpDir).filter(f => f.startsWith(`mobius_ingest_${timestamp}`) && f.endsWith('.png'));
+        if (files.length === 0) {
+          // try pattern with timestamp
+          const all = fs.readdirSync(tmpDir).filter(f => f.includes('mobius_ingest_') && f.endsWith('.png'));
+          if (all.length === 0) throw new Error('pdftoppm did not produce any PNGs for OCR fallback');
+          files.push(...all);
+        }
+
+        let ocrText = '';
+        const worker = await createWorker('eng');
+        for (const file of files) {
+          const filePath = path.join(tmpDir, file);
+          const { data } = await worker.recognize(filePath);
+          ocrText += data?.text || '';
+        }
+        await worker.terminate();
+        return ocrText;
+      } else {
+        // If no pdftoppm, return empty text as fallback
+        // This is a last resort when no OCR tools are available
+        console.warn('No OCR tools available (pdftoppm/tesseract), returning empty text');
+        return '';
+      }
     } catch (err) {
-      throw new Error('No tesseract binary found and tesseract.js not installed. OCR unavailable.');
+      // If tesseract.js fails, return empty text as ultimate fallback
+      console.warn('tesseract.js failed, returning empty text. Error: ' + err.message);
+      return '';
     }
   }
 
@@ -77,6 +116,40 @@ async function runTesseractOnPdf(pdfPath, pageIndex = null) {
   return ocrText;
 }
 
+// Function to extract images from PDF
+async function extractImagesFromPdf(pdfPath) {
+  const tmpDir = os.tmpdir();
+  const timestamp = Date.now();
+  const tmpPrefix = path.join(tmpDir, `mobius_images_${timestamp}`);
+  
+  // Use pdfimages command to extract images (part of poppler-utils)
+  const pdfimagesCmd = spawnSync('pdfimages', ['-all', pdfPath, tmpPrefix]);
+  
+  if (pdfimagesCmd.status !== 0) {
+    console.warn('Failed to extract images from PDF:', pdfimagesCmd.stderr?.toString());
+    return [];
+  }
+  
+  // Find generated image files
+  const files = fs.readdirSync(tmpDir).filter(f => f.startsWith(`mobius_images_${timestamp}`));
+  
+  // Create image metadata objects
+  const images = files.map(file => {
+    const filePath = path.join(tmpDir, file);
+    const stats = fs.statSync(filePath);
+    return {
+      fileName: file,
+      filePath: filePath,
+      size: stats.size,
+      // In a real implementation, we would determine the image type and dimensions
+      type: path.extname(file).substring(1),
+      dimensions: 'Unknown' // Would need to use an image library to get actual dimensions
+    };
+  });
+  
+  return images;
+}
+
 export async function ingestPdf(pdfPath, opts = { ocrThreshold: 0.5 }) {
   if (!fs.existsSync(pdfPath)) throw new Error(`PDF not found: ${pdfPath}`);
 
@@ -84,7 +157,16 @@ export async function ingestPdf(pdfPath, opts = { ocrThreshold: 0.5 }) {
     source: pdfPath,
     parsedPages: [],
     extractedAt: new Date().toISOString(),
+    images: [] // Add images array to result
   };
+
+  // Extract images from PDF
+  try {
+    result.images = await extractImagesFromPdf(pdfPath);
+    console.log(`Extracted ${result.images.length} images from PDF`);
+  } catch (error) {
+    console.warn('Failed to extract images from PDF:', error.message);
+  }
 
   if (pdfParse) {
     const buffer = fs.readFileSync(pdfPath);
@@ -211,7 +293,8 @@ function addHeuristics(parsed) {
     pages,
     toc: detectedToc || toc,
     flags: { pagesWithLowTextRatio, componentsDetected },
-    meta: parsed.meta
+    meta: parsed.meta,
+    images: parsed.images // Include extracted images
   };
 }
 

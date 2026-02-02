@@ -1,0 +1,7 @@
+# Quarantine Directory
+
+This directory holds local artifacts, generated outputs, and work-in-progress files that should not be committed to the repository.
+
+Structure:
+- snapshots/    - Timestamped manifests of workspace state
+- artifacts/    - Moved untracked generated files (logs, outputs, etc.)

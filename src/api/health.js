@@ -5,7 +5,7 @@ import { Metrics } from '../metrics/metrics.js';
 
 const router = Router();
 
-router.get('/health', (req, res) => {
+router.get('/', (req, res) => {
   res.json({
     status: 'ok',
     time: new Date().toISOString(),

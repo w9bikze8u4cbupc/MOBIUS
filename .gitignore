@@ -87,3 +87,132 @@ Thumbs.db
 site/
 .overrides/
 .cache/
+
+# ============================================
+# MOBIUS Workspace Hygiene Rules
+# Added: 2025-01-20
+# See: docs/WORKSPACE_HYGIENE.md
+# ============================================
+
+# Quarantine directory (local artifacts)
+/quarantine/**
+!/quarantine/.keep
+
+# Database files (local state)
+/data/projects.db
+/data/projects.db-*
+/data/*.db
+/data/*.db-*
+
+# Data outputs and caches
+/data/output/
+/data/cache/
+/data/previews/
+/data/batch2-cyclades/
+!/data/output/.gitkeep
+!/data/cache/.gitkeep
+!/data/previews/.gitkeep
+
+# Uploads (except fixtures)
+/data/uploads/*.pdf
+/data/uploads/*.txt
+/data/uploads/*.wav
+/data/uploads/*.mp3
+/data/uploads/images/
+/data/uploads/MobiusGames/
+/data/uploads/temp/
+/data/uploads/tmp/
+!/data/uploads/.gitkeep
+
+# Validation artifacts and logs
+/validation/**/artifacts/
+/validation/**/logs/*.zip
+/validation/**/logs/*.log
+/validation/batch*/logs/
+/validation/logs/
+!/validation/**/artifacts/.gitkeep
+!/validation/**/logs/.gitkeep
+
+# Stabilization and branch protection logs
+/stabilization-logs/
+/branch-protection.logs/
+/branch-protection-backups/
+
+# Build and distribution
+/dist/
+/out/
+/build/
+/client/build/
+/coverage/
+
+# Generated media files (test outputs)
+/*.mp3
+/*.mp4
+/*.wav
+/test*.mp3
+/test*.wav
+/output.mp4
+/trimmed_audio.mp3
+/dynaudnorm_test.wav
+/test_audio.*
+/work/*.mp3
+
+# Test PDFs (generated)
+/test-*.pdf
+/empty-fixture.pdf
+/broken-test.pdf
+/create-test-pdf.js
+
+# Training data and large binaries
+/*.traineddata
+/eng.traineddata
+
+# Zip archives (local backups)
+/*.zip
+/lychee.zip
+
+# FFmpeg binaries (download separately)
+/ffmpeg/
+/ffmpeg-bin/
+!/ffmpeg/README.md
+!/ffmpeg-bin/README.md
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Temporary directories
+/tmp/
+/temp/
+/cache/
+/uploads/batch*/
+/your_upload_path_here/
+
+# Specific generated files
+/server.log
+/ui_output.log
+/security-cleanup.log
+/macos_golden.log
+/root_md_files.txt
+/PR_URLS.txt
+/create_pr_command.txt
+
+# Artifacts directory
+/artifacts/
+
+# Work directory (scratch space)
+/work/
+!/work/.gitkeep
+
+# Client environment (local overrides)
+/client/.env.local
+
+# Patch files (generated)
+/*.patch
+!/0001-harden-preview-worker-manifests.patch
+!/0002-add-rbac-configuration.patch
+!/0003-add-smoke-test-script.patch
+# Local scratch
+PR_URLS.txt
+

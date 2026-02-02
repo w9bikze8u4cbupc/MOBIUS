@@ -22,6 +22,7 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:render": "node --experimental-vm-modules node_modules/jest/bin/jest.js src/__tests__/render.orchestration.test.js -i",
     "test:ingest": "node scripts/test-ingestion.js",
+    "test:preview-payloads": "node scripts/testPreviewPayloads.mjs",
     "migrate": "node scripts/migrate-data.js",
     "gen:shotlists": "node scripts/compile-shotlist.mjs gigs/hanamikoji.json > tmp/shotlist.json",
     "gen:timelines": "echo 'Generating timelines...'",
@@ -38,10 +39,11 @@
     "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.cjs --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\"",
     "desktop:create": "node scripts/create-desktop-shortcut.mjs",
     "desktop:verify": "node scripts/verify-desktop-shortcuts.mjs",
+    "desktop:update-icon": "powershell -ExecutionPolicy Bypass -File scripts/update-desktop-shortcut-icon.ps1",
     "security:check": "node -e \"process.platform === 'win32' ? require('child_process').execSync('powershell -ExecutionPolicy Bypass -File scripts/security-check.ps1', {stdio:'inherit'}) : require('child_process').execSync('bash scripts/security-check.sh', {stdio:'inherit'})\"",
     "security:clean": "node -e \"process.platform === 'win32' ? require('child_process').execSync('powershell -Command \\\"Remove-Item Env:\\GITHUB_TOKEN -ErrorAction SilentlyContinue\\\"', {stdio:'inherit'}) : require('child_process').execSync('unset GITHUB_TOKEN', {stdio:'inherit'})\"",
     "docs:lint": "npm run docs:lint:markdown && npm run docs:lint:links",
-    "docs:lint:markdown": "npx markdownlint-cli2 --config .markdownlint.jsonc \"docs/**/*.{md,mdx}\" README.md",
+    "docs:lint:markdown": "npx markdownlint-cli2 --config .markdownlint.jsonc \"docs/**/*.{md,mdx}\" README.md \"!validation/**\"",
     "docs:lint:links": "node scripts/check-lychee.js && lychee --config lychee.toml docs README.md"
   },
   "keywords": [
@@ -56,13 +58,17 @@
   "dependencies": {
     "better-sqlite3": "^9.4.3",
     "bullmq": "^5.61.0",
+    "ffmpeg-static": "^5.2.0",
     "ioredis": "^5.8.1",
     "minimist": "^1.2.8",
     "multer": "^2.0.2",
     "pdf-parse": "^1.1.1",
+    "pdfkit": "^0.17.2",
     "prom-client": "^15.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "sqlite3": "^5.1.7",
+    "tesseract.js": "^6.0.1",
     "typescript": "^5.0.0",
     "vite": "^4.4.9",
     "xml2js": "^0.6.2"
