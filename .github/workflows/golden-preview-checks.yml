@@ -7,14 +7,12 @@ on:
       - "scripts/**render**"
       - "src/render/**"
       - "tests/golden/**"
-      - ".github/workflows/golden-preview-checks.yml"
   push:
     paths:
       - "scripts/check_golden.js"
       - "scripts/**render**"
       - "src/render/**"
       - "tests/golden/**"
-      - ".github/workflows/golden-preview-checks.yml"
 
 jobs:
   check:

@@ -7,14 +7,12 @@ on:
       - "scripts/**render**"
       - "src/render/**"
       - "tests/golden/**"
-      - ".github/workflows/rendering-consistency.yml"
   push:
     paths:
       - "scripts/check_rendering_consistency.cjs"
       - "scripts/**render**"
       - "src/render/**"
       - "tests/golden/**"
-      - ".github/workflows/rendering-consistency.yml"
 
 jobs:
   consistency:
