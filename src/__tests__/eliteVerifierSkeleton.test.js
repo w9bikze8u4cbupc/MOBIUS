@@ -300,6 +300,95 @@ describe('Elite Verifier Skeleton', () => {
     });
   });
 
+  describe('S4 Combinatorial Compression', () => {
+    test('evaluates combinatorial_compression_required operator correctly', () => {
+      const rule = contract.rules.find(r => r.id === 'S4');
+      expect(rule).toBeDefined();
+      expect(rule.threshold.op).toBe('combinatorial_compression_required');
+
+      // Test: No subsystem exceeds thresholds - should pass
+      const metricsPass = {
+        S4: {
+          actual: {
+            max_branch_count: 3,
+            max_exception_layers: 2,
+            max_interaction_variables: 3,
+            max_projected_runtime_seconds: 180,
+            subsystems_with_referral: []
+          }
+        }
+      };
+      const resultPass = evaluateRule(rule, metricsPass);
+      expect(resultPass.passed).toBe(true);
+      expect(resultPass.points_awarded).toBe(50);
+
+      // Test: Subsystem exceeds branch count threshold without referral - should fail
+      const metricsFail = {
+        S4: {
+          actual: {
+            max_branch_count: 6, // Exceeds threshold of 5
+            max_exception_layers: 2,
+            max_interaction_variables: 3,
+            max_projected_runtime_seconds: 180,
+            subsystems_with_referral: [] // No referral provided
+          }
+        }
+      };
+      const resultFail = evaluateRule(rule, metricsFail);
+      expect(resultFail.passed).toBe(false);
+      expect(resultFail.points_awarded).toBe(0);
+
+      // Test: Subsystem exceeds threshold but has referral - should pass
+      const metricsPassWithReferral = {
+        S4: {
+          actual: {
+            max_branch_count: 6,
+            max_exception_layers: 2,
+            max_interaction_variables: 3,
+            max_projected_runtime_seconds: 180,
+            subsystems_with_referral: ['combat_system'] // Referral provided
+          }
+        }
+      };
+      const resultPassWithReferral = evaluateRule(rule, metricsPassWithReferral);
+      expect(resultPassWithReferral.passed).toBe(true);
+      expect(resultPassWithReferral.points_awarded).toBe(50);
+    });
+
+    test('S4 included in sample metrics and passes', () => {
+      const report = verifyElite(contract, sampleMetrics);
+      const s4Result = report.rules.find(r => r.id === 'S4');
+      expect(s4Result).toBeDefined();
+      expect(s4Result.passed).toBe(true);
+      expect(s4Result.points_awarded).toBe(50);
+    });
+
+    test('S4 triggers on any threshold exceeded', () => {
+      const rule = contract.rules.find(r => r.id === 'S4');
+
+      // Test each trigger independently
+      const triggers = [
+        { max_branch_count: 5, max_exception_layers: 2, max_interaction_variables: 3, max_projected_runtime_seconds: 180 },
+        { max_branch_count: 3, max_exception_layers: 3, max_interaction_variables: 3, max_projected_runtime_seconds: 180 },
+        { max_branch_count: 3, max_exception_layers: 2, max_interaction_variables: 4, max_projected_runtime_seconds: 180 },
+        { max_branch_count: 3, max_exception_layers: 2, max_interaction_variables: 3, max_projected_runtime_seconds: 240 }
+      ];
+
+      triggers.forEach((triggerData, idx) => {
+        const metricsNoReferral = {
+          S4: {
+            actual: {
+              ...triggerData,
+              subsystems_with_referral: []
+            }
+          }
+        };
+        const result = evaluateRule(rule, metricsNoReferral);
+        expect(result.passed).toBe(false); // Should fail without referral
+      });
+    });
+  });
+
   describe('Contract Integration', () => {
     test('evaluates all contract rules', () => {
       const report = verifyElite(contract, sampleMetrics);
