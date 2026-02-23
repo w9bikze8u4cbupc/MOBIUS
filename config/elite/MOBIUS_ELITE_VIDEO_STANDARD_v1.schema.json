@@ -1,0 +1,283 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mobius.games/schemas/elite-video-standard-v1.json",
+  "title": "MOBIUS Elite Video Standard v1 Contract Schema",
+  "description": "JSON Schema for validating the Elite Video Standard contract structure",
+  "type": "object",
+  "required": [
+    "contract_id",
+    "contract_version",
+    "created_at",
+    "elite_threshold_score",
+    "score_total",
+    "categories",
+    "rule_severity_order",
+    "rules"
+  ],
+  "properties": {
+    "contract_id": {
+      "type": "string",
+      "const": "MOBIUS_ELITE_VIDEO_STANDARD_v1"
+    },
+    "contract_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "description": {
+      "type": "string"
+    },
+    "elite_threshold_score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000
+    },
+    "score_total": {
+      "type": "integer",
+      "const": 1000
+    },
+    "categories": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "weight"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z_]+$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "rule_severity_order": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["HARD_FAIL", "SOFT_WARN"]
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "scoring_notes": {
+      "type": "string"
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "category_id",
+          "title",
+          "severity",
+          "rationale",
+          "metric",
+          "threshold",
+          "scoring"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Z]\\d+$"
+          },
+          "category_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["HARD_FAIL", "SOFT_WARN"]
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "elite_mode_escalates_to_hard_fail": {
+            "type": "boolean"
+          },
+          "mode_scope": {
+            "type": "string",
+            "enum": ["elite", "standard"]
+          },
+          "metric": {
+            "type": "object",
+            "required": ["id", "unit", "extractor_hint"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "unit": {
+                "type": "string"
+              },
+              "extractor_hint": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "threshold": {
+            "type": "object",
+            "required": ["op", "unit"],
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "==",
+                  "<=",
+                  ">=",
+                  "<",
+                  ">",
+                  "within_tolerance",
+                  "within_range",
+                  "matches_sequence",
+                  "intro_duration_lte_or_cold_open",
+                  "combinatorial_compression_required"
+                ]
+              },
+              "target": {
+                "type": ["number", "boolean", "string"]
+              },
+              "tolerance": {
+                "type": "number"
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "hard_max": {
+                "type": "number"
+              },
+              "min_width": {
+                "type": "integer"
+              },
+              "min_height": {
+                "type": "integer"
+              },
+              "required_sequence": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "optional_segments": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "intro_max": {
+                "type": "number"
+              },
+              "cold_open_acceptable": {
+                "type": "boolean"
+              },
+              "triggers": {
+                "type": "object",
+                "properties": {
+                  "branch_count": {
+                    "type": "integer"
+                  },
+                  "exception_layers": {
+                    "type": "integer"
+                  },
+                  "interaction_variables": {
+                    "type": "integer"
+                  },
+                  "projected_runtime_seconds": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "note": {
+                "type": "string"
+              },
+              "unit": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "requirement": {
+            "type": "object",
+            "properties": {
+              "when_triggered": {
+                "type": "string"
+              },
+              "referral_structure": {
+                "type": "object"
+              },
+              "approved_wording_pattern": {
+                "type": "string"
+              },
+              "anti_patterns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "scoring": {
+            "type": "object",
+            "required": ["points", "hard_fail_blocks_release"],
+            "properties": {
+              "points": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "hard_fail_blocks_release": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "exit_codes": {
+      "type": "object",
+      "properties": {
+        "0": {
+          "type": "string"
+        },
+        "2": {
+          "type": "string"
+        },
+        "3": {
+          "type": "string"
+        }
+      }
+    },
+    "measurement_notes": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}
