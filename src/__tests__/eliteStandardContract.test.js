@@ -194,7 +194,8 @@ describe('Elite Standard Contract Validation', () => {
       const validOps = [
         '==', '<=', '>=', '<', '>',
         'within_tolerance', 'within_range',
-        'matches_sequence', 'intro_duration_lte_or_cold_open'
+        'matches_sequence', 'intro_duration_lte_or_cold_open',
+        'combinatorial_compression_required'
       ];
       contract.rules.forEach(rule => {
         expect(validOps).toContain(rule.threshold.op);
@@ -247,6 +248,7 @@ describe('Elite Standard Contract Validation', () => {
         'contract_id',
         'contract_version',
         'created_at',
+        'updated_at',
         'description',
         'elite_threshold_score',
         'score_total',
@@ -333,6 +335,69 @@ describe('Elite Standard Contract Validation', () => {
       trustRules.forEach(rule => {
         expect(rule.severity).toBe('HARD_FAIL');
       });
+    });
+  });
+
+  describe('S4 Combinatorial Compression Rule', () => {
+    let s4Rule;
+
+    beforeAll(() => {
+      s4Rule = contract.rules.find(r => r.id === 'S4');
+    });
+
+    test('S4 rule exists', () => {
+      expect(s4Rule).toBeDefined();
+    });
+
+    test('S4 is in pedagogy category', () => {
+      expect(s4Rule.category_id).toBe('pedagogy');
+    });
+
+    test('S4 is SOFT_WARN with elite escalation', () => {
+      expect(s4Rule.severity).toBe('SOFT_WARN');
+      expect(s4Rule.elite_mode_escalates_to_hard_fail).toBe(true);
+    });
+
+    test('S4 has combinatorial_compression_required operator', () => {
+      expect(s4Rule.threshold.op).toBe('combinatorial_compression_required');
+    });
+
+    test('S4 has deterministic trigger thresholds', () => {
+      expect(s4Rule.threshold.triggers).toBeDefined();
+      expect(s4Rule.threshold.triggers.branch_count).toBe(5);
+      expect(s4Rule.threshold.triggers.exception_layers).toBe(3);
+      expect(s4Rule.threshold.triggers.interaction_variables).toBe(4);
+      expect(s4Rule.threshold.triggers.projected_runtime_seconds).toBe(240);
+    });
+
+    test('S4 has requirement structure', () => {
+      expect(s4Rule.requirement).toBeDefined();
+      expect(s4Rule.requirement.when_triggered).toBe('must_include_rulebook_referral_block');
+      expect(s4Rule.requirement.referral_structure).toBeDefined();
+      expect(s4Rule.requirement.approved_wording_pattern).toBeDefined();
+      expect(s4Rule.requirement.anti_patterns).toBeDefined();
+      expect(Array.isArray(s4Rule.requirement.anti_patterns)).toBe(true);
+    });
+
+    test('S4 points allocation is correct', () => {
+      expect(s4Rule.scoring.points).toBe(50);
+      expect(s4Rule.scoring.hard_fail_blocks_release).toBe(false);
+    });
+
+    test('pedagogy category total remains 200 with S4', () => {
+      const pedagogyRules = contract.rules.filter(r => r.category_id === 'pedagogy');
+      const pedagogyPoints = pedagogyRules.reduce((sum, r) => sum + r.scoring.points, 0);
+      expect(pedagogyPoints).toBe(200);
+    });
+
+    test('S4 is sorted correctly in rule list', () => {
+      const ruleIds = contract.rules.map(r => r.id);
+      const s4Index = ruleIds.indexOf('S4');
+      const s3Index = ruleIds.indexOf('S3');
+      const t1Index = ruleIds.indexOf('T1');
+      
+      expect(s4Index).toBeGreaterThan(s3Index);
+      expect(s4Index).toBeLessThan(t1Index);
     });
   });
 });

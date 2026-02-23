@@ -1,7 +1,8 @@
 {
   "contract_id": "MOBIUS_ELITE_VIDEO_STANDARD_v1",
-  "contract_version": "1.0.0",
+  "contract_version": "1.1.0",
   "created_at": "2026-02-23T00:00:00Z",
+  "updated_at": "2026-02-23T12:00:00Z",
   "description": "Machine-enforceable quality standard for elite board game tutorial videos",
   "elite_threshold_score": 900,
   "score_total": 1000,
@@ -341,7 +342,7 @@
         "unit": "sequence"
       },
       "scoring": {
-        "points": 80,
+        "points": 50,
         "hard_fail_blocks_release": true
       }
     },
@@ -363,7 +364,7 @@
         "unit": "seconds"
       },
       "scoring": {
-        "points": 60,
+        "points": 50,
         "hard_fail_blocks_release": false
       }
     },
@@ -384,7 +385,52 @@
         "unit": "seconds"
       },
       "scoring": {
-        "points": 60,
+        "points": 50,
+        "hard_fail_blocks_release": false
+      }
+    },
+    {
+      "id": "S4",
+      "category_id": "pedagogy",
+      "title": "Combinatorial Compression",
+      "severity": "SOFT_WARN",
+      "rationale": "Complex subsystems with many interactions must use rulebook referral + abstraction pattern to maintain pacing and avoid overwhelming viewers",
+      "elite_mode_escalates_to_hard_fail": true,
+      "metric": {
+        "id": "combinatorial_complexity",
+        "unit": "composite",
+        "extractor_hint": "script:subsystem_complexity_metadata"
+      },
+      "threshold": {
+        "op": "combinatorial_compression_required",
+        "triggers": {
+          "branch_count": 5,
+          "exception_layers": 3,
+          "interaction_variables": 4,
+          "projected_runtime_seconds": 240
+        },
+        "note": "Triggers if ANY threshold exceeded",
+        "unit": "composite"
+      },
+      "requirement": {
+        "when_triggered": "must_include_rulebook_referral_block",
+        "referral_structure": {
+          "rulebook_section_reference": "string (e.g., 'See rulebook page 12, Combat Resolution')",
+          "core_principle_summary": "string (1-2 sentences explaining the abstraction)",
+          "representative_examples_count": {
+            "min": 1,
+            "max": 2
+          }
+        },
+        "approved_wording_pattern": "For [subsystem], the rulebook covers [X] edge cases on page [Y]. The core principle is: [principle]. Here's a representative example: [example].",
+        "anti_patterns": [
+          "Attempting to enumerate all permutations",
+          "Saying 'it's complicated, check the rulebook' without explanation",
+          "Omitting representative examples"
+        ]
+      },
+      "scoring": {
+        "points": 50,
         "hard_fail_blocks_release": false
       }
     },

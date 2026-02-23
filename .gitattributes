@@ -1,0 +1,26 @@
+# Enforce LF line endings for text files to ensure deterministic diffs and prevent CRLF drift
+# This is critical for Elite contract JSON fixtures and verification outputs
+
+# Source code
+*.js text eol=lf
+*.mjs text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.jsx text eol=lf
+
+# Configuration and data
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Documentation
+*.md text eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Windows scripts (keep CRLF)
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf

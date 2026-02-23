@@ -1,8 +1,9 @@
-# MOBIUS Elite Video Standard v1.0
+# MOBIUS Elite Video Standard v1.1
 
-**Version**: 1.0.0  
+**Version**: 1.1.0  
 **Date**: 2026-02-23  
-**Status**: Active
+**Status**: Active  
+**Changes from v1.0**: Added S4 Combinatorial Compression rule
 
 ## Overview
 
@@ -135,6 +136,65 @@ ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of json 
 - **Requirement**: ≤ 20 minutes (1200s)
 - **Measurement**: FFprobe format duration
 - **Rationale**: Maintain engagement
+
+## Structure & Pedagogy Rules (200 points)
+
+### S1: Required Segment Order (50 pts, HARD_FAIL)
+**Consistent Tutorial Structure**
+
+- **Requirement**: Segments must follow canonical order:
+  1. Objective
+  2. Turn Structure
+  3. Core Mechanic
+  4. Secondary Mechanics
+  5. Scoring
+  6. Edge Cases
+  (Setup is optional and can appear anywhere)
+- **Measurement**: Script segment type sequence analysis
+- **Rationale**: Consistent structure aids learning and reduces cognitive load
+
+### S2: Recap/Reset Frequency (50 pts, SOFT_WARN, Elite escalates to HARD_FAIL)
+**Pacing and Cognitive Load Management**
+
+- **Requirement**: No content block exceeds 5 minutes (300s) without recap or reset
+- **Measurement**: Script segment duration analysis
+- **Rationale**: Prevents information overload; maintains viewer comprehension
+
+### S3: Visual Reinforcement Frequency (50 pts, SOFT_WARN)
+**Visual Learning Support**
+
+- **Requirement**: Visual reinforcement at least every 30 seconds
+- **Measurement**: Render image timestamp gaps
+- **Rationale**: Visual cues improve retention and comprehension
+
+### S4: Combinatorial Compression (50 pts, SOFT_WARN, Elite escalates to HARD_FAIL)
+**Managing Complex Subsystems**
+
+- **Requirement**: When complexity exceeds thresholds, must use rulebook referral + abstraction pattern
+- **Triggers** (ANY condition triggers requirement):
+  - Branch count ≥ 5 (decision paths in subsystem)
+  - Exception layers ≥ 3 (nested conditional logic)
+  - Interaction variables ≥ 4 (independent factors affecting outcome)
+  - Projected runtime ≥ 240 seconds (4 minutes for subsystem explanation)
+- **Required Structure**:
+  - Rulebook section reference (e.g., "See rulebook page 12, Combat Resolution")
+  - Core principle summary (1-2 sentences explaining the abstraction)
+  - Representative examples (1-2 concrete cases, not exhaustive enumeration)
+- **Approved Wording Pattern**:
+  > "For [subsystem], the rulebook covers [X] edge cases on page [Y]. The core principle is: [principle]. Here's a representative example: [example]."
+- **Anti-Patterns** (DO NOT):
+  - Attempt to enumerate all permutations
+  - Say "it's complicated, check the rulebook" without explanation
+  - Omit representative examples
+- **Measurement**: Script subsystem complexity metadata + referral block presence
+- **Rationale**: Complex subsystems with many interactions violate S2 pacing constraints if explained exhaustively. Rulebook referral + abstraction maintains tutorial flow while respecting viewer attention limits.
+
+**Example Trigger Scenario**:
+- Combat system with 5 weapon types, 3 armor types, 4 terrain modifiers
+- Branch count: 5 (weapon choices)
+- Interaction variables: 4 (weapon, armor, terrain, initiative)
+- Projected runtime: 6 minutes if all combinations explained
+- **Solution**: Explain core principle ("higher weapon value minus armor value, modified by terrain"), show 1-2 examples, refer to rulebook table for complete matrix
 
 ## Retention & Engagement Rules (200 points)
 

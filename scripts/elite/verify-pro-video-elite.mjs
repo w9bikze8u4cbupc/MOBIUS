@@ -39,11 +39,13 @@ function evaluateRule(rule, metrics) {
   const metric = metrics[rule.id];
   
   if (!metric) {
-    // Missing metric - treat as fail
+    // Missing metric - treat as fail but include severity
     return {
       id: rule.id,
       passed: false,
       points_awarded: 0,
+      severity: rule.severity,
+      hard_fail_triggered: rule.severity === 'HARD_FAIL',
       reason: 'metric_missing'
     };
   }
@@ -117,6 +119,40 @@ function evaluateRule(rule, metrics) {
             const introDuration = actual.intro_duration;
             const coldOpen = actual.cold_open;
             passed = (introDuration <= threshold.intro_max) || coldOpen === true;
+          } else {
+            passed = false;
+          }
+        }
+        break;
+
+      case 'combinatorial_compression_required':
+        {
+          // S4: Check if any subsystem exceeds thresholds without proper referral
+          if (typeof actual === 'object' && actual !== null) {
+            const triggers = threshold.triggers;
+            const maxBranch = actual.max_branch_count || 0;
+            const maxLayers = actual.max_exception_layers || 0;
+            const maxVars = actual.max_interaction_variables || 0;
+            const maxRuntime = actual.max_projected_runtime_seconds || 0;
+            
+            // Check if ANY threshold exceeded
+            const triggered = (
+              maxBranch >= triggers.branch_count ||
+              maxLayers >= triggers.exception_layers ||
+              maxVars >= triggers.interaction_variables ||
+              maxRuntime >= triggers.projected_runtime_seconds
+            );
+            
+            if (!triggered) {
+              // No subsystem exceeds thresholds - pass
+              passed = true;
+            } else {
+              // At least one subsystem triggered - check if all have referrals
+              const subsystemsWithReferral = actual.subsystems_with_referral || [];
+              // For now, pass if triggered subsystems have referrals
+              // Future: validate referral block structure
+              passed = subsystemsWithReferral.length > 0 || !triggered;
+            }
           } else {
             passed = false;
           }

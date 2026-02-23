@@ -27,6 +27,10 @@
       "type": "string",
       "format": "date-time"
     },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
     "description": {
       "type": "string"
     },
@@ -150,7 +154,8 @@
                   "within_tolerance",
                   "within_range",
                   "matches_sequence",
-                  "intro_duration_lte_or_cold_open"
+                  "intro_duration_lte_or_cold_open",
+                  "combinatorial_compression_required"
                 ]
               },
               "target": {
@@ -192,11 +197,51 @@
               "cold_open_acceptable": {
                 "type": "boolean"
               },
+              "triggers": {
+                "type": "object",
+                "properties": {
+                  "branch_count": {
+                    "type": "integer"
+                  },
+                  "exception_layers": {
+                    "type": "integer"
+                  },
+                  "interaction_variables": {
+                    "type": "integer"
+                  },
+                  "projected_runtime_seconds": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "note": {
+                "type": "string"
+              },
               "unit": {
                 "type": "string"
               }
             },
             "additionalProperties": false
+          },
+          "requirement": {
+            "type": "object",
+            "properties": {
+              "when_triggered": {
+                "type": "string"
+              },
+              "referral_structure": {
+                "type": "object"
+              },
+              "approved_wording_pattern": {
+                "type": "string"
+              },
+              "anti_patterns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "scoring": {
             "type": "object",

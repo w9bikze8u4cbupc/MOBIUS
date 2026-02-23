@@ -295,9 +295,23 @@ class ProV001Runner {
 
       this.log(`  Extracting Elite metrics from: ${mp4Path}`);
       
-      // Import and run extractor
-      const { extractEliteMetrics } = await import('../elite/extract-elite-metrics.mjs');
+      // Use injected implementations if provided (test mode only)
+      // _eliteOverrides is an internal-only hook for testing, not exposed to users
+      let extractEliteMetrics, verifyEliteMetrics;
       
+      if (this.config._eliteOverrides) {
+        // Test mode: use injected stubs
+        extractEliteMetrics = this.config._eliteOverrides.extractEliteMetrics;
+        verifyEliteMetrics = this.config._eliteOverrides.verifyEliteMetrics;
+      } else {
+        // Production mode: use real implementations
+        const extractorModule = await import('../elite/extract-elite-metrics.mjs');
+        const verifierModule = await import('../elite/verify-pro-video-elite.mjs');
+        extractEliteMetrics = extractorModule.extractEliteMetrics;
+        verifyEliteMetrics = verifierModule.verifyEliteMetrics;
+      }
+      
+      // Run extractor
       const metrics = await extractEliteMetrics({
         mp4Path,
         outputPath: metricsPath,
@@ -313,8 +327,7 @@ class ProV001Runner {
 
       this.log(`  Running Elite verifier...`);
       
-      // Import and run verifier
-      const { verifyEliteMetrics } = await import('../elite/verify-pro-video-elite.mjs');
+      // Run verifier (using injected or real implementation)
       const contractPath = join(REPO_ROOT, 'config/elite/MOBIUS_ELITE_VIDEO_STANDARD_v1.json');
       
       const report = await verifyEliteMetrics({
@@ -990,3 +1003,7 @@ if (import.meta.url === scriptUrl) {
     process.exit(1);
   });
 }
+
+
+// Export for testing
+export { ProV001Runner };
