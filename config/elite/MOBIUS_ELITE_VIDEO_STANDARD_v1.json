@@ -1,0 +1,571 @@
+{
+  "contract_id": "MOBIUS_ELITE_VIDEO_STANDARD_v1",
+  "contract_version": "1.0.0",
+  "created_at": "2026-02-23T00:00:00Z",
+  "description": "Machine-enforceable quality standard for elite board game tutorial videos",
+  "elite_threshold_score": 900,
+  "score_total": 1000,
+  "categories": [
+    {
+      "id": "audio",
+      "name": "Audio Quality",
+      "weight": 200,
+      "description": "Audio clarity, loudness normalization, and technical quality"
+    },
+    {
+      "id": "visual",
+      "name": "Visual Quality",
+      "weight": 150,
+      "description": "Video technical quality and caption presentation"
+    },
+    {
+      "id": "pedagogy",
+      "name": "Structure & Pedagogy",
+      "weight": 200,
+      "description": "Tutorial structure, segment ordering, and teaching effectiveness"
+    },
+    {
+      "id": "retention",
+      "name": "Retention & Engagement",
+      "weight": 150,
+      "description": "Pacing, hooks, and viewer engagement"
+    },
+    {
+      "id": "chapters",
+      "name": "Chapters & Navigation",
+      "weight": 100,
+      "description": "Chapter structure, density, and naming"
+    },
+    {
+      "id": "accessibility",
+      "name": "Accessibility",
+      "weight": 100,
+      "description": "Captions, chapters, and inclusive design"
+    },
+    {
+      "id": "trust",
+      "name": "Trust & Provenance",
+      "weight": 100,
+      "description": "Governance, traceability, and artifact integrity"
+    }
+  ],
+  "rule_severity_order": [
+    "HARD_FAIL",
+    "SOFT_WARN"
+  ],
+  "scoring_notes": "Total points allocated: 1000. Category weights sum to 1000. Rule points within each category sum to category weight.",
+  "rules": [
+    {
+      "id": "A1",
+      "category_id": "audio",
+      "title": "Integrated Loudness Target",
+      "severity": "HARD_FAIL",
+      "rationale": "Ensures consistent volume across platforms (YouTube/Vimeo standard -14 LUFS)",
+      "metric": {
+        "id": "integrated_lufs",
+        "unit": "LUFS",
+        "extractor_hint": "ffmpeg:loudnorm"
+      },
+      "threshold": {
+        "op": "within_tolerance",
+        "target": -14,
+        "tolerance": 0.5,
+        "unit": "LUFS"
+      },
+      "scoring": {
+        "points": 60,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "A11",
+      "category_id": "accessibility",
+      "title": "Captions SRT Required",
+      "severity": "HARD_FAIL",
+      "rationale": "SRT captions with valid timestamps are essential for accessibility",
+      "metric": {
+        "id": "srt_valid",
+        "unit": "boolean",
+        "extractor_hint": "manifest:captions_exists,srt:parse_valid"
+      },
+      "threshold": {
+        "op": "==",
+        "target": true,
+        "unit": "boolean"
+      },
+      "scoring": {
+        "points": 40,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "A12",
+      "category_id": "accessibility",
+      "title": "Chapters JSON Required",
+      "severity": "HARD_FAIL",
+      "rationale": "Chapter metadata enables navigation and accessibility",
+      "metric": {
+        "id": "chapters_json_valid",
+        "unit": "boolean",
+        "extractor_hint": "manifest:chapters_exists,json:parse_valid"
+      },
+      "threshold": {
+        "op": "==",
+        "target": true,
+        "unit": "boolean"
+      },
+      "scoring": {
+        "points": 40,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "A13",
+      "category_id": "accessibility",
+      "title": "Thumbnail Required",
+      "severity": "HARD_FAIL",
+      "rationale": "Thumbnail provides visual preview for accessibility and discovery",
+      "metric": {
+        "id": "thumbnail_exists",
+        "unit": "boolean",
+        "extractor_hint": "manifest:thumbnail_exists"
+      },
+      "threshold": {
+        "op": "==",
+        "target": true,
+        "unit": "boolean"
+      },
+      "scoring": {
+        "points": 20,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "A2",
+      "category_id": "audio",
+      "title": "True Peak Limit",
+      "severity": "HARD_FAIL",
+      "rationale": "Prevents digital clipping and distortion on playback devices",
+      "metric": {
+        "id": "true_peak_dbtp",
+        "unit": "dBTP",
+        "extractor_hint": "ffmpeg:loudnorm"
+      },
+      "threshold": {
+        "op": "<=",
+        "target": -1,
+        "unit": "dBTP"
+      },
+      "scoring": {
+        "points": 50,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "A3",
+      "category_id": "audio",
+      "title": "No Audio Clipping",
+      "severity": "HARD_FAIL",
+      "rationale": "Any sample at maximum amplitude causes audible distortion",
+      "metric": {
+        "id": "max_sample_level",
+        "unit": "dBFS",
+        "extractor_hint": "ffmpeg:astats"
+      },
+      "threshold": {
+        "op": "<=",
+        "target": -0.1,
+        "unit": "dBFS"
+      },
+      "scoring": {
+        "points": 50,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "A4",
+      "category_id": "audio",
+      "title": "No Unintentional Silence",
+      "severity": "HARD_FAIL",
+      "rationale": "Silence gaps > 0.5s reduce engagement unless intentional breaks",
+      "metric": {
+        "id": "max_silence_duration",
+        "unit": "seconds",
+        "extractor_hint": "ffmpeg:silencedetect",
+        "note": "Requires segment intent metadata to distinguish intentional breaks"
+      },
+      "threshold": {
+        "op": "<=",
+        "target": 0.5,
+        "unit": "seconds"
+      },
+      "scoring": {
+        "points": 20,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "A5",
+      "category_id": "audio",
+      "title": "Music Ducking Depth",
+      "severity": "SOFT_WARN",
+      "rationale": "Music should be at least 18 dB below narration for clarity",
+      "elite_mode_escalates_to_hard_fail": true,
+      "metric": {
+        "id": "music_narration_delta",
+        "unit": "dB",
+        "extractor_hint": "ffmpeg:volumedetect:dual_track"
+      },
+      "threshold": {
+        "op": ">=",
+        "target": 18,
+        "unit": "dB"
+      },
+      "scoring": {
+        "points": 20,
+        "hard_fail_blocks_release": false
+      }
+    },
+    {
+      "id": "C1",
+      "category_id": "chapters",
+      "title": "Chapter Density Target",
+      "severity": "SOFT_WARN",
+      "rationale": "Optimal chapter length 2-3 minutes; maximum 3.5 minutes per chapter",
+      "metric": {
+        "id": "avg_chapter_duration",
+        "unit": "seconds",
+        "extractor_hint": "chapters:duration_stats"
+      },
+      "threshold": {
+        "op": "within_range",
+        "min": 120,
+        "max": 210,
+        "hard_max": 210,
+        "unit": "seconds"
+      },
+      "scoring": {
+        "points": 60,
+        "hard_fail_blocks_release": false
+      }
+    },
+    {
+      "id": "C2",
+      "category_id": "chapters",
+      "title": "Chapter Naming Convention",
+      "severity": "SOFT_WARN",
+      "rationale": "Chapter titles should be question-oriented or actionable",
+      "metric": {
+        "id": "chapter_naming_quality",
+        "unit": "percentage",
+        "extractor_hint": "chapters:title_analysis"
+      },
+      "threshold": {
+        "op": ">=",
+        "target": 70,
+        "unit": "percentage"
+      },
+      "scoring": {
+        "points": 40,
+        "hard_fail_blocks_release": false
+      }
+    },
+    {
+      "id": "R1",
+      "category_id": "retention",
+      "title": "Hook Value Within 15 Seconds",
+      "severity": "HARD_FAIL",
+      "rationale": "Early value proposition reduces viewer drop-off (Elite Mode requirement)",
+      "mode_scope": "elite",
+      "metric": {
+        "id": "hook_timestamp",
+        "unit": "seconds",
+        "extractor_hint": "script:hook_segment_start"
+      },
+      "threshold": {
+        "op": "<=",
+        "target": 15,
+        "unit": "seconds"
+      },
+      "scoring": {
+        "points": 80,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "R2",
+      "category_id": "retention",
+      "title": "Intro Duration Limit or Cold Open",
+      "severity": "HARD_FAIL",
+      "rationale": "Intro must be ≤ 2 seconds OR use cold open to maintain engagement",
+      "metric": {
+        "id": "intro_duration_or_cold_open",
+        "unit": "seconds_or_boolean",
+        "extractor_hint": "render:intro_duration,script:cold_open"
+      },
+      "threshold": {
+        "op": "intro_duration_lte_or_cold_open",
+        "intro_max": 2,
+        "cold_open_acceptable": true,
+        "unit": "seconds"
+      },
+      "scoring": {
+        "points": 70,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "S1",
+      "category_id": "pedagogy",
+      "title": "Required Segment Order",
+      "severity": "HARD_FAIL",
+      "rationale": "Consistent structure aids learning: Objective → Turn Structure → Core Mechanic → Secondary Mechanics → Scoring → Edge Cases (Setup optional)",
+      "metric": {
+        "id": "segment_order",
+        "unit": "sequence",
+        "extractor_hint": "script:segment_types"
+      },
+      "threshold": {
+        "op": "matches_sequence",
+        "required_sequence": [
+          "objective",
+          "turn_structure",
+          "core_mechanic",
+          "secondary_mechanics",
+          "scoring",
+          "edge_cases"
+        ],
+        "optional_segments": [
+          "setup"
+        ],
+        "unit": "sequence"
+      },
+      "scoring": {
+        "points": 80,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "S2",
+      "category_id": "pedagogy",
+      "title": "Recap/Reset Frequency",
+      "severity": "SOFT_WARN",
+      "rationale": "No content block should exceed 5 minutes without recap or reset",
+      "elite_mode_escalates_to_hard_fail": true,
+      "metric": {
+        "id": "max_block_duration",
+        "unit": "seconds",
+        "extractor_hint": "script:segment_durations"
+      },
+      "threshold": {
+        "op": "<=",
+        "target": 300,
+        "unit": "seconds"
+      },
+      "scoring": {
+        "points": 60,
+        "hard_fail_blocks_release": false
+      }
+    },
+    {
+      "id": "S3",
+      "category_id": "pedagogy",
+      "title": "Visual Reinforcement Frequency",
+      "severity": "SOFT_WARN",
+      "rationale": "Visual reinforcement should occur at least every 30 seconds",
+      "metric": {
+        "id": "max_visual_gap",
+        "unit": "seconds",
+        "extractor_hint": "render:image_timestamps"
+      },
+      "threshold": {
+        "op": "<=",
+        "target": 30,
+        "unit": "seconds"
+      },
+      "scoring": {
+        "points": 60,
+        "hard_fail_blocks_release": false
+      }
+    },
+    {
+      "id": "T1",
+      "category_id": "trust",
+      "title": "Rules Version Metadata",
+      "severity": "HARD_FAIL",
+      "rationale": "Manifest must declare elite standard version for traceability",
+      "metric": {
+        "id": "rules_version_present",
+        "unit": "boolean",
+        "extractor_hint": "manifest:eliteStandardVersion"
+      },
+      "threshold": {
+        "op": "==",
+        "target": true,
+        "unit": "boolean"
+      },
+      "scoring": {
+        "points": 40,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "T2",
+      "category_id": "trust",
+      "title": "Script Hash Recorded",
+      "severity": "HARD_FAIL",
+      "rationale": "Script hash ensures content provenance and prevents tampering",
+      "metric": {
+        "id": "script_hash_present",
+        "unit": "boolean",
+        "extractor_hint": "manifest:scriptHash"
+      },
+      "threshold": {
+        "op": "==",
+        "target": true,
+        "unit": "boolean"
+      },
+      "scoring": {
+        "points": 30,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "T3",
+      "category_id": "trust",
+      "title": "Confirmation Hash Required",
+      "severity": "HARD_FAIL",
+      "rationale": "Confirmation hash proves explicit operator approval",
+      "metric": {
+        "id": "confirmation_hash_present",
+        "unit": "boolean",
+        "extractor_hint": "manifest:confirmationHash"
+      },
+      "threshold": {
+        "op": "==",
+        "target": true,
+        "unit": "boolean"
+      },
+      "scoring": {
+        "points": 30,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "V1",
+      "category_id": "visual",
+      "title": "Minimum Resolution 1080p",
+      "severity": "HARD_FAIL",
+      "rationale": "Full HD is minimum for modern viewing experiences",
+      "metric": {
+        "id": "video_resolution",
+        "unit": "pixels",
+        "extractor_hint": "ffprobe:stream:width,height"
+      },
+      "threshold": {
+        "op": ">=",
+        "min_width": 1920,
+        "min_height": 1080,
+        "unit": "pixels"
+      },
+      "scoring": {
+        "points": 40,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "V2",
+      "category_id": "visual",
+      "title": "Text Size Minimum",
+      "severity": "HARD_FAIL",
+      "rationale": "Text must be at least 40px equivalent at 1080p for readability",
+      "metric": {
+        "id": "text_size_px",
+        "unit": "pixels",
+        "extractor_hint": "render_config:font_size"
+      },
+      "threshold": {
+        "op": ">=",
+        "target": 40,
+        "unit": "pixels"
+      },
+      "scoring": {
+        "points": 30,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "V3",
+      "category_id": "visual",
+      "title": "Text Contrast Minimum",
+      "severity": "HARD_FAIL",
+      "rationale": "WCAG AA requires 7:1 contrast for large text",
+      "metric": {
+        "id": "text_contrast_ratio",
+        "unit": "ratio",
+        "extractor_hint": "render_config:contrast_ratio"
+      },
+      "threshold": {
+        "op": ">=",
+        "target": 7,
+        "unit": "ratio"
+      },
+      "scoring": {
+        "points": 30,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "V4",
+      "category_id": "visual",
+      "title": "Text Outline/Shadow Required",
+      "severity": "HARD_FAIL",
+      "rationale": "Outline or shadow ensures text readability over varying backgrounds",
+      "metric": {
+        "id": "text_outline_present",
+        "unit": "boolean",
+        "extractor_hint": "render_config:outline_enabled"
+      },
+      "threshold": {
+        "op": "==",
+        "target": true,
+        "unit": "boolean"
+      },
+      "scoring": {
+        "points": 30,
+        "hard_fail_blocks_release": true
+      }
+    },
+    {
+      "id": "V5",
+      "category_id": "visual",
+      "title": "No Persistent Watermark",
+      "severity": "HARD_FAIL",
+      "rationale": "Persistent watermarks reduce professional quality and distract viewers",
+      "metric": {
+        "id": "watermark_present",
+        "unit": "boolean",
+        "extractor_hint": "render_config:watermark_enabled"
+      },
+      "threshold": {
+        "op": "==",
+        "target": false,
+        "unit": "boolean"
+      },
+      "scoring": {
+        "points": 20,
+        "hard_fail_blocks_release": true
+      }
+    }
+  ],
+  "exit_codes": {
+    "0": "All HARD_FAIL rules pass and score >= elite_threshold_score",
+    "2": "One or more HARD_FAIL rules failed",
+    "3": "Score below elite_threshold_score but no HARD_FAIL failures"
+  },
+  "measurement_notes": {
+    "ffmpeg_version": "Requires FFmpeg 4.0+ with loudnorm, silencedetect, astats filters",
+    "determinism": "All measurements are deterministic given same input artifacts",
+    "subjective_excluded": "Subjective quality assessments are excluded from v1"
+  }
+}
