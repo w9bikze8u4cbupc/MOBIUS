@@ -1,0 +1,180 @@
+{
+  "contract_id": "MOBIUS_ELITE_VIDEO_STANDARD_v1",
+  "contract_version": "1.1.0",
+  "eliteScore": 1000,
+  "score_total": 1000,
+  "elite_threshold_score": 900,
+  "hardFailCount": 0,
+  "softWarnCount": 0,
+  "passed_elite_threshold": true,
+  "rules": [
+    {
+      "id": "A1",
+      "passed": true,
+      "points_awarded": 60,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "A11",
+      "passed": true,
+      "points_awarded": 40,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "A12",
+      "passed": true,
+      "points_awarded": 40,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "A13",
+      "passed": true,
+      "points_awarded": 20,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "A2",
+      "passed": true,
+      "points_awarded": 50,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "A3",
+      "passed": true,
+      "points_awarded": 50,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "A4",
+      "passed": true,
+      "points_awarded": 20,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "A5",
+      "passed": true,
+      "points_awarded": 20,
+      "severity": "SOFT_WARN",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "C1",
+      "passed": true,
+      "points_awarded": 60,
+      "severity": "SOFT_WARN",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "C2",
+      "passed": true,
+      "points_awarded": 40,
+      "severity": "SOFT_WARN",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "R1",
+      "passed": true,
+      "points_awarded": 80,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "R2",
+      "passed": true,
+      "points_awarded": 70,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "S1",
+      "passed": true,
+      "points_awarded": 50,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "S2",
+      "passed": true,
+      "points_awarded": 50,
+      "severity": "SOFT_WARN",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "S3",
+      "passed": true,
+      "points_awarded": 50,
+      "severity": "SOFT_WARN",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "S4",
+      "passed": true,
+      "points_awarded": 50,
+      "severity": "SOFT_WARN",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "T1",
+      "passed": true,
+      "points_awarded": 40,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "T2",
+      "passed": true,
+      "points_awarded": 30,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "T3",
+      "passed": true,
+      "points_awarded": 30,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "V1",
+      "passed": true,
+      "points_awarded": 40,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "V2",
+      "passed": true,
+      "points_awarded": 30,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "V3",
+      "passed": true,
+      "points_awarded": 30,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "V4",
+      "passed": true,
+      "points_awarded": 30,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "V5",
+      "passed": true,
+      "points_awarded": 20,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    }
+  ]
+}

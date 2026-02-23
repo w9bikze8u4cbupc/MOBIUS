@@ -17,10 +17,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Validate motion contract
-        run: |
-          node scripts/check_motion.cjs \
-            --input tests/sample/sample_motion.json \
-            --junit motion-contract-${{ matrix.os }}.xml
+        run: node scripts/check_motion.cjs --input tests/sample/sample_motion.json --junit motion-contract-${{ matrix.os }}.xml
 
       - name: Upload JUnit
         uses: actions/upload-artifact@v4
