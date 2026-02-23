@@ -6,6 +6,7 @@
  */
 
 import { render } from '../src/render/index.js';
+import { getOutputPath, getDataDirs } from '../src/config/storage.mjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -152,8 +153,16 @@ if (options.mode === 'preview' && !options.previewSeconds) {
   options.previewSeconds = 30; // Default to 30 second preview
 }
 
-// Set output directory
-job.outputDir = options.outputDir || path.join(__dirname, '..', 'out');
+// Set output directory using canonical path
+if (!options.outputDir && options.projectId) {
+  job.outputDir = getOutputPath(options.projectId);
+} else if (options.outputDir) {
+  job.outputDir = options.outputDir;
+} else {
+  // Fallback to default outputs directory
+  const dataDirs = getDataDirs();
+  job.outputDir = path.join(dataDirs.outputs, 'default');
+}
 
 // Validate required arguments
 if (!options.projectId) {

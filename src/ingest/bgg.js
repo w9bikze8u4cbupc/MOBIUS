@@ -3,10 +3,13 @@
 // - Fetch metadata for a BGG game by ID or URL
 // - Parse the XML response into a structured JSON object
 // - Handle errors gracefully and return partial data when possible
+// - Add defensive parsing and source attribution for confidence scoring
 
 import { parseStringPromise } from 'xml2js';
 import { spawnSync } from 'child_process';
 import { cacheGet, cacheSet, isFresh } from '../services/cache.js';
+import { validateBGGId, validateBGGUrl } from '../utils/validation.js';
+import { calculateBGGFieldConfidence } from '../utils/confidence.js';
 
 const TTL = Number(process.env.BGG_CACHE_TTL_MS || 86400000);
 const QPS = Number(process.env.BGG_RATE_LIMIT_QPS || 2);
@@ -35,9 +38,18 @@ async function fetchWithTimeout(url, timeout = 5000) {
 }
 
 export async function fetchBggMetadata(bggIdOrUrl, opts = {}) {
+  const warnings = [];
+  
   // Extract ID from URL if needed
   let bggId = bggIdOrUrl;
   if (typeof bggIdOrUrl === 'string' && bggIdOrUrl.includes('boardgamegeek.com')) {
+    // Validate URL first
+    const urlValidation = validateBGGUrl(bggIdOrUrl);
+    if (!urlValidation.isValid) {
+      throw new Error(`Invalid BGG URL: ${urlValidation.errors.map(e => e.message).join(', ')}`);
+    }
+    warnings.push(...urlValidation.warnings.map(w => w.message));
+    
     const match = bggIdOrUrl.match(/\/boardgame\/(\d+)/);
     if (match) {
       bggId = match[1];
@@ -45,22 +57,31 @@ export async function fetchBggMetadata(bggIdOrUrl, opts = {}) {
   }
 
   // Validate ID
-  if (!bggId || isNaN(parseInt(bggId, 10))) {
-    throw new Error(`Invalid BGG ID: ${bggId}`);
+  const idValidation = validateBGGId(bggId);
+  if (!idValidation.isValid) {
+    throw new Error(`Invalid BGG ID: ${idValidation.errors.map(e => e.message).join(', ')}`);
   }
+  warnings.push(...idValidation.warnings.map(w => w.message));
 
-  // Construct API URL
+  // Construct API URL with timeout
   const apiUrl = `https://boardgamegeek.com/xmlapi2/thing?id=${bggId}&stats=1`;
+  const timeout = opts.timeout || 10000; // 10 second default
 
   try {
-    // Fetch XML data
-    const response = await fetchWithTimeout(apiUrl, opts.timeout || 5000);
+    // Fetch XML data with timeout
+    const response = await fetchWithTimeout(apiUrl, timeout);
     
     if (!response.ok) {
+      warnings.push(`BGG API returned status ${response.status}`);
       throw new Error(`BGG API request failed with status ${response.status}`);
     }
 
     const xmlData = await response.text();
+    
+    // Defensive: Check for empty or invalid XML
+    if (!xmlData || xmlData.trim().length === 0) {
+      throw new Error('BGG API returned empty response');
+    }
     
     // Parse XML to JSON
     const jsonData = await parseStringPromise(xmlData, { explicitArray: false });
@@ -71,29 +92,67 @@ export async function fetchBggMetadata(bggIdOrUrl, opts = {}) {
       throw new Error('Invalid BGG API response: no item found');
     }
 
-    // Normalize the data structure
-    const normalized = {
-      id: item.$.id,
-      type: item.$.type,
-      name: extractPrimaryName(item.name),
-      description: item.description || '',
+    // Context for confidence calculation
+    const context = {
       yearPublished: item.yearpublished ? parseInt(item.yearpublished.$.value, 10) : null,
-      minPlayers: item.minplayers ? parseInt(item.minplayers.$.value, 10) : null,
-      maxPlayers: item.maxplayers ? parseInt(item.maxplayers.$.value, 10) : null,
-      playingTime: item.playingtime ? parseInt(item.playingtime.$.value, 10) : null,
-      minPlayTime: item.minplaytime ? parseInt(item.minplaytime.$.value, 10) : null,
-      maxPlayTime: item.maxplaytime ? parseInt(item.maxplaytime.$.value, 10) : null,
-      minAge: item.minage ? parseInt(item.minage.$.value, 10) : null,
-      thumbnail: item.thumbnail || null,
-      image: item.image || null,
-      categories: extractLinks(item.link, 'boardgamecategory'),
-      mechanics: extractLinks(item.link, 'boardgamemechanic'),
-      families: extractLinks(item.link, 'boardgamefamily'),
-      expansions: extractLinks(item.link, 'boardgameexpansion'),
-      designers: extractLinks(item.link, 'boardgamedesigner'),
-      artists: extractLinks(item.link, 'boardgameartist'),
-      publishers: extractLinks(item.link, 'boardgamepublisher'),
-      ratings: {
+      usersRated: item.statistics?.ratings?.usersrated ? parseInt(item.statistics.ratings.usersrated.$.value, 10) : 0
+    };
+
+    // Helper to safely extract and score fields
+    const extractField = (value, fieldName) => {
+      const confidence = calculateBGGFieldConfidence(value, context);
+      return {
+        value,
+        source: 'bgg_api',
+        confidence,
+        extractedAt: new Date().toISOString()
+      };
+    };
+
+    // Normalize the data structure with confidence scoring
+    const normalized = {
+      id: extractField(item.$.id, 'id'),
+      type: extractField(item.$.type, 'type'),
+      name: extractField(extractPrimaryName(item.name), 'name'),
+      description: extractField(item.description || '', 'description'),
+      yearPublished: extractField(
+        item.yearpublished ? parseInt(item.yearpublished.$.value, 10) : null,
+        'yearPublished'
+      ),
+      minPlayers: extractField(
+        item.minplayers ? parseInt(item.minplayers.$.value, 10) : null,
+        'minPlayers'
+      ),
+      maxPlayers: extractField(
+        item.maxplayers ? parseInt(item.maxplayers.$.value, 10) : null,
+        'maxPlayers'
+      ),
+      playingTime: extractField(
+        item.playingtime ? parseInt(item.playingtime.$.value, 10) : null,
+        'playingTime'
+      ),
+      minPlayTime: extractField(
+        item.minplaytime ? parseInt(item.minplaytime.$.value, 10) : null,
+        'minPlayTime'
+      ),
+      maxPlayTime: extractField(
+        item.maxplaytime ? parseInt(item.maxplaytime.$.value, 10) : null,
+        'maxPlayTime'
+      ),
+      minAge: extractField(
+        item.minage ? parseInt(item.minage.$.value, 10) : null,
+        'minAge'
+      ),
+      thumbnail: extractField(item.thumbnail || null, 'thumbnail'),
+      image: extractField(item.image || null, 'image'),
+      categories: extractField(extractLinks(item.link, 'boardgamecategory'), 'categories'),
+      mechanics: extractField(extractLinks(item.link, 'boardgamemechanic'), 'mechanics'),
+      families: extractField(extractLinks(item.link, 'boardgamefamily'), 'families'),
+      expansions: extractField(extractLinks(item.link, 'boardgameexpansion'), 'expansions'),
+      designers: extractField(extractLinks(item.link, 'boardgamedesigner'), 'designers'),
+      artists: extractField(extractLinks(item.link, 'boardgameartist'), 'artists'),
+      publishers: extractField(extractLinks(item.link, 'boardgamepublisher'), 'publishers'),
+      ratings: extractField({
         usersRated: item.statistics?.ratings?.usersrated ? parseInt(item.statistics.ratings.usersrated.$.value, 10) : 0,
         average: item.statistics?.ratings?.average ? parseFloat(item.statistics.ratings.average.$.value) : 0,
         bayesAverage: item.statistics?.ratings?.bayesaverage ? parseFloat(item.statistics.ratings.bayesaverage.$.value) : 0,
@@ -106,16 +165,28 @@ export async function fetchBggMetadata(bggIdOrUrl, opts = {}) {
         numComments: item.statistics?.ratings?.numcomments ? parseInt(item.statistics.ratings.numcomments.$.value, 10) : 0,
         numWeights: item.statistics?.ratings?.numweights ? parseInt(item.statistics.ratings.numweights.$.value, 10) : 0,
         averageWeight: item.statistics?.ratings?.averageweight ? parseFloat(item.statistics.ratings.averageweight.$.value) : 0,
+      }, 'ratings'),
+      _metadata: {
+        warnings,
+        fetchedAt: new Date().toISOString(),
+        source: 'bgg_api',
+        apiUrl
       }
     };
 
     return normalized;
   } catch (error) {
-    // Return a minimal object with the ID if we can't fetch the full data
+    // Return a minimal object with the ID and error details
+    console.error('BGG fetch error:', error.message);
     return {
-      id: bggId,
+      id: { value: bggId, source: 'input', confidence: { score: 1.0, level: 'high', warnings: [] } },
       error: error.message,
-      fetchedAt: new Date().toISOString()
+      _metadata: {
+        warnings: [...warnings, error.message],
+        fetchedAt: new Date().toISOString(),
+        source: 'error',
+        failed: true
+      }
     };
   }
 }

@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import OpenAI from 'openai';
-import * as pdfToImg from 'pdf-to-img';
+// import * as pdfToImg from 'pdf-to-img'; // Commented out - causes DOMMatrix error in Node
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execFile } from 'child_process';
@@ -23,6 +23,12 @@ import multer from 'multer';
 import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
+import { 
+  getDataDirs, 
+  ensureDataDirs, 
+  validateNoLegacyPaths,
+  getOutputPath 
+} from '../config/storage.mjs';
 
 
 
@@ -31,8 +37,29 @@ console.log('Loaded OpenAI key:', process.env.OPENAI_API_KEY ? 'Yes' : 'No');
 
 console.log('API file loaded!');
 
+// Validate storage paths at startup (unless explicitly skipped)
+if (process.env.SKIP_LEGACY_CHECK !== 'true') {
+  try {
+    validateNoLegacyPaths();
+    console.log('✅ Storage path validation passed');
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+}
+
+// Ensure all canonical directories exist
+ensureDataDirs();
+const dataDirs = getDataDirs();
+console.log('📂 Canonical data directories:');
+console.log(`   Root:    ${dataDirs.root}`);
+console.log(`   DB:      ${dataDirs.db}`);
+console.log(`   Uploads: ${dataDirs.uploads}`);
+console.log(`   Outputs: ${dataDirs.outputs}`);
+console.log(`   Tmp:     ${dataDirs.tmp}`);
+
 const app = express();
-const port = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5001;
 const bggMetadataCache = new Map();
 
 
@@ -47,20 +74,21 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
-app.use('/static', express.static(path.join(__dirname, 'uploads')));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Serve static files from canonical uploads directory
+app.use('/static', express.static(dataDirs.uploads));
+app.use('/uploads', express.static(dataDirs.uploads));
+
+// Serve outputs directory for rendered videos
+app.use('/outputs', express.static(dataDirs.outputs));
 
 // --- API Configuration ---
-const BACKEND_URL = `http://localhost:${port}`;
+const BACKEND_URL = `http://localhost:${PORT}`;
 const IMAGE_EXTRACTOR_API_KEY = process.env.IMAGE_EXTRACTOR_API_KEY;
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Validate OUTPUT_DIR at startup  
-const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(__dirname, 'uploads', 'MobiusGames');
-if (!OUTPUT_DIR || typeof OUTPUT_DIR !== 'string') {
-  console.error('Invalid OUTPUT_DIR configuration');
-  process.exit(1);  
-}
+// OUTPUT_DIR now uses canonical outputs directory
+const OUTPUT_DIR = dataDirs.outputs;
 
 console.log('Starting server...');
 
@@ -909,8 +937,12 @@ async function extractImagesFromUrl(url, apiKey, mode = 'basic') {
 }
 
 async function extractImagesFromPDF(pdfPath, outputDir) {  
-  const pdfResult = await pdfToImg.pdf(pdfPath);  
-  await fsPromises.mkdir(outputDir, { recursive: true }); 
+  // Note: pdf-to-img import commented out due to DOMMatrix error in Node
+  // Use alternative PDF image extraction method or lazy import if needed
+  throw new Error('PDF image extraction temporarily disabled - use HEPHAESTUS or alternative method');
+  
+  // const pdfResult = await pdfToImg.pdf(pdfPath);  
+  // await fsPromises.mkdir(outputDir, { recursive: true }); 
   
   const images = [];  
   let pageIndex = 0;  
@@ -1478,8 +1510,8 @@ app.post('/upload-images', upload.array('images', 10), async (req, res) => {
 });
 
 
-app.post('/summarize', async (req, res) => {
-  console.log('--- Summarization started ---');
+app.post('/summarize', enforceGates, async (req, res) => {
+  console.log('--- Summarization started (gates enforced) ---');
   
   try {
     const {
@@ -1627,47 +1659,61 @@ app.post('/summarize', async (req, res) => {
       Here is the rulebook text:
       `;
 
-      const finalPrompt =
-      (resummarize && previousSummary)
-      ? englishBasePrompt.replace(
-      'Here is the rulebook text:',
-      `Here is the rulebook text and additional context:
+      // Build final prompt with optional resummarize context
+      const finalPrompt = (resummarize && previousSummary)
+        ? englishBasePrompt.replace(
+            'Here is the rulebook text:',
+            `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
+      Components List: ${JSON.stringify(components)}
+      Game Metadata: ${JSON.stringify(metadata)}
       Previous Summary: ${previousSummary}
 
-      Rulebook Text:        )       : englishBasePrompt           .replace(             'Here is the rulebook text:',            Here is the rulebook text and additional context:
+      Rulebook Text:`
+          )
+        : englishBasePrompt
+            .replace(
+              'Here is the rulebook text:',
+              `Here is the rulebook text and additional context:
 
-      Components List: JSON.stringify(components)∗∗GameMetadata:∗∗JSON.stringify(components)∗∗GameMetadata:∗∗{JSON.stringify(metadata)}
+      Components List: ${JSON.stringify(components)}
+      Game Metadata: ${JSON.stringify(metadata)}
 
-      Rulebook Text:          )           .replace(             'Component Overview:',            Component Overview:
-
+      Rulebook Text:`
+            )
+            .replace(
+              'Component Overview:',
+              `Component Overview:
           Use the provided components list: ${JSON.stringify(components)}
           Provide exact quantities and clear descriptions for each component
           Add visual cues like "[Show close-up of resource tokens]" or "[Display all cards fanned out]"
-          Mention any unique or unusual pieces that distinguish this game        )         .replace(           'Setup:',          Setup:
+          Mention any unique or unusual pieces that distinguish this game`
+            )
+            .replace(
+              'Setup:',
+              `Setup:
           Reference the components list for accurate quantities: ${JSON.stringify(components)}
           Walk through setup step-by-step with detailed instructions (e.g., "Shuffle the 40 mission cards thoroughly, then place them face-down in the center")
           Add visual placeholders like "[Overhead shot: Initial board setup]" or "[Animation: Card placement]"
           Highlight common setup mistakes and how to avoid them`
-          );
+            );
 
       console.log('Final prompt (truncated):', finalPrompt.slice(0, 500));
       
-// Generate the summary
-console.log('Generating final English script using OpenAI...')
-    const englishSummaryResponse = await openai.chat.completions.create({  
-      model: 'gpt-4',  
-      messages: [  
-        {  
-          role: 'system',  
-          content: "YoYou are a master boardgame educator, scriptwriter, and video production consultant for a leading YouTube channel. Your role is to transform complex boardgame rulebooks into clear, engaging, and visually dynamic tutorial scripts. You always write in a friendly, enthusiastic, and conversational style, making the rules accessible for new and casual players while still respecting experienced gamers. You structure every script in logical, easy-to-follow sections, include visual cues and editing notes, and ensure the script is ready for high-quality video production. Your explanations are concise, step-by-step, and always highlight key rules, common mistakes, and tips for success. You never add information not found in the rulebook or provided data, and you always write for spoken delivery.",  
-        },  
-        { role: 'user', content: finalPrompt }, // Use finalPrompt instead of englishFinalPrompt  
-      ],  
-      max_tokens: 4096,  
-      temperature: 0.7,  
-    });  
+      // Generate the summary
+      console.log('Generating final English script using OpenAI...');
+      const englishSummaryResponse = await openai.chat.completions.create({  
+        model: 'gpt-4',  
+        messages: [  
+          {  
+            role: 'system',  
+            content: "You are a master boardgame educator, scriptwriter, and video production consultant for a leading YouTube channel. Your role is to transform complex boardgame rulebooks into clear, engaging, and visually dynamic tutorial scripts. You always write in a friendly, enthusiastic, and conversational style, making the rules accessible for new and casual players while still respecting experienced gamers. You structure every script in logical, easy-to-follow sections, include visual cues and editing notes, and ensure the script is ready for high-quality video production. Your explanations are concise, step-by-step, and always highlight key rules, common mistakes, and tips for success. You never add information not found in the rulebook or provided data, and you always write for spoken delivery.",  
+          },  
+          { role: 'user', content: finalPrompt },  
+        ],  
+        max_tokens: 4096,  
+        temperature: 0.7,  
+      });  
     
     const englishSummary = englishSummaryResponse.choices[0].message.content.trim();  
     console.log('Generated English script length:', englishSummary.length);  
@@ -1693,7 +1739,7 @@ console.log('Generating final English script using OpenAI...')
           messages: [  
             {  
               role: 'system',  
-              content: "You are a You are a professional English-to-French translator specializing in boardgame content and YouTube video scripts. Your translations are always natural, idiomatic, and engaging, perfectly suited for spoken delivery in a friendly, casual, and accessible style. You preserve all formatting, markdown, section headers, and special markers (such as [SHORT PAUSE] or [Show close-up of cards]) exactly as in the original. You never omit, add, or alter content—your goal is to deliver a faithful, high-quality French version that feels as lively and clear as the English script.",  
+              content: "You are a professional English-to-French translator specializing in boardgame content and YouTube video scripts. Your translations are always natural, idiomatic, and engaging, perfectly suited for spoken delivery in a friendly, casual, and accessible style. You preserve all formatting, markdown, section headers, and special markers (such as [SHORT PAUSE] or [Show close-up of cards]) exactly as in the original. You never omit, add, or alter content—your goal is to deliver a faithful, high-quality French version that feels as lively and clear as the English script.",  
             },  
             { role: 'user', content: translationPrompt },  
           ],  
@@ -1957,13 +2003,13 @@ app.get('/list-page-images', (req, res) => {
 });
 
 // TTS Endpoint
-app.post('/tts', async (req, res) => {
+app.post('/tts', enforceGates, async (req, res) => {
   const { text, voice, language, gameName } = req.body;
   if (!text) return res.status(400).json({ error: 'No text provided for TTS' });
   if (!gameName) return res.status(400).json({ error: 'No game name provided' });
   
   try {
-    console.log(`Generating TTS for text length ${text.length} in ${language} with voice ${voice}`);
+    console.log(`Generating TTS (gates enforced) for text length ${text.length} in ${language} with voice ${voice}`);
     const response = await axios.post(
       `https://api.elevenlabs.io/v1/text-to-speech/${voice}`,
       { text, model_id: 'eleven_multilingual_v2' },
@@ -2820,8 +2866,1262 @@ app.get('/load-project/:id', (req, res) => {
   );
 });
 
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
-    console.log(`🚀 Server is running on port ${PORT}`);
-    console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
+// ============================================================================
+// INGESTION TRUTH GATES API ENDPOINTS
+// ============================================================================
+
+import { 
+  getIngestionReport, 
+  setIngestionReport, 
+  getGateStates, 
+  setGateStates,
+  updateGateStatesTransaction,
+  getProjectWithIngestion,
+  // PHASE F: Script artifacts
+  getScriptArtifacts,
+  addScriptArtifact,
+  getAuthoritativeScript,
+  confirmAuthoritativeScript
+} from './db.js';
+import { enforceGates, checkGates, GateBlockedError } from './middleware/gates.js';
+import { 
+  GateStatus, 
+  GateErrorCode,
+  getRequiredGateIds,
+  createInitialGateStates,
+  PatchableFields
+} from '../utils/gateConstants.js';
+import { validatePatch, applyPatchToReport, sanitizeString } from '../utils/validation.js';
+// PHASE F: Script artifact utilities
+import { 
+  normalizeScriptArtifact, 
+  parseScriptSegments, 
+  calculateScriptDiff,
+  hashInputs,
+  hashPrompt,
+  ScriptStatus
+} from '../utils/scriptArtifact.js';
+import { validateScriptConsistency, ViolationSeverity } from '../utils/scriptConsistency.js';
+
+/**
+ * GET /api/projects/:id/ingestion/report
+ * Retrieve ingestion report for a project
+ */
+app.get('/api/projects/:id/ingestion/report', (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    const report = getIngestionReport(projectId);
+    
+    if (!report) {
+      return res.status(404).json({ 
+        error: 'No ingestion report found for this project',
+        code: GateErrorCode.NO_INGESTION_REPORT
+      });
+    }
+    
+    res.json({
+      success: true,
+      report
+    });
+  } catch (error) {
+    console.error('Error fetching ingestion report:', error);
+    res.status(500).json({ error: 'Failed to fetch ingestion report' });
+  }
 });
+
+/**
+ * GET /api/projects/:id/ingestion/gates
+ * Retrieve gate states and check if gates are satisfied
+ */
+app.get('/api/projects/:id/ingestion/gates', (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    const report = getIngestionReport(projectId);
+    
+    if (!report) {
+      return res.json({
+        success: true,
+        gateStates: null,
+        requiredGateIds: [],
+        satisfied: true,
+        blockedReasons: [],
+        noReport: true
+      });
+    }
+    
+    const gateStates = getGateStates(projectId);
+    const requiredGateIds = getRequiredGateIds(report);
+    
+    // Initialize gate states if not present
+    if (!gateStates && requiredGateIds.length > 0) {
+      const initialStates = createInitialGateStates(requiredGateIds);
+      setGateStates(projectId, initialStates);
+      
+      return res.json({
+        success: true,
+        gateStates: initialStates,
+        requiredGateIds,
+        satisfied: false,
+        blockedReasons: requiredGateIds.map(id => ({
+          gateId: id,
+          reason: 'Awaiting operator confirmation'
+        }))
+      });
+    }
+    
+    const gateCheck = checkGates(projectId);
+    
+    res.json({
+      success: true,
+      gateStates: gateStates || {},
+      requiredGateIds,
+      satisfied: gateCheck.satisfied,
+      blockedReasons: gateCheck.blockedReasons
+    });
+  } catch (error) {
+    console.error('Error fetching gate states:', error);
+    res.status(500).json({ error: 'Failed to fetch gate states' });
+  }
+});
+
+/**
+ * POST /api/projects/:id/ingestion/gates/confirm
+ * Confirm, correct, or reject a gate
+ * Body: { gateId, status, notes?, patch? }
+ */
+app.post('/api/projects/:id/ingestion/gates/confirm', (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    const { gateId, status, notes, patch } = req.body;
+    
+    // Validate gateId
+    if (!gateId || typeof gateId !== 'string') {
+      return res.status(400).json({ error: 'Invalid gateId' });
+    }
+    
+    // Validate status
+    if (!Object.values(GateStatus).includes(status)) {
+      return res.status(400).json({ 
+        error: 'Invalid status',
+        code: GateErrorCode.INVALID_STATUS,
+        validStatuses: Object.values(GateStatus)
+      });
+    }
+    
+    // Sanitize notes
+    const sanitizedNotes = notes ? sanitizeString(notes, { maxLength: 1000, allowNewlines: true }) : null;
+    
+    // Validate patch if provided
+    if (patch && status === GateStatus.CORRECTED) {
+      const patchValidation = validatePatch(patch, PatchableFields);
+      if (!patchValidation.isValid) {
+        return res.status(400).json({
+          error: 'Invalid patch',
+          code: GateErrorCode.INVALID_PATCH,
+          validationErrors: patchValidation.errors
+        });
+      }
+    }
+    
+    // Update gate states transactionally
+    const updatedStates = updateGateStatesTransaction(projectId, (currentStates) => {
+      const newStates = { ...currentStates };
+      
+      newStates[gateId] = {
+        gateId,
+        status,
+        confirmedAt: new Date().toISOString(),
+        notes: sanitizedNotes,
+        patch: patch || null
+      };
+      
+      return newStates;
+    });
+    
+    if (!updatedStates) {
+      return res.status(500).json({ error: 'Failed to update gate states' });
+    }
+    
+    // Apply patch to ingestion report if provided
+    if (patch && status === GateStatus.CORRECTED) {
+      const report = getIngestionReport(projectId);
+      if (report) {
+        applyPatchToReport(report, patch);
+        setIngestionReport(projectId, report);
+      }
+    }
+    
+    // Check if all gates are now satisfied
+    const gateCheck = checkGates(projectId);
+    
+    res.json({
+      success: true,
+      gateStates: updatedStates,
+      satisfied: gateCheck.satisfied,
+      blockedReasons: gateCheck.blockedReasons
+    });
+  } catch (error) {
+    console.error('Error confirming gate:', error);
+    res.status(500).json({ error: 'Failed to confirm gate' });
+  }
+});
+
+/**
+ * POST /api/projects/:id/ingestion/gates/reset
+ * Reset gate states (DEV mode only)
+ */
+app.post('/api/projects/:id/ingestion/gates/reset', (req, res) => {
+  // Only allow in development mode
+  if (process.env.NODE_ENV !== 'development') {
+    return res.status(403).json({ 
+      error: 'Gate reset is only allowed in development mode',
+      code: 'FORBIDDEN'
+    });
+  }
+  
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    const report = getIngestionReport(projectId);
+    
+    if (!report) {
+      return res.status(404).json({ 
+        error: 'No ingestion report found',
+        code: GateErrorCode.NO_INGESTION_REPORT
+      });
+    }
+    
+    const requiredGateIds = getRequiredGateIds(report);
+    const initialStates = createInitialGateStates(requiredGateIds);
+    
+    setGateStates(projectId, initialStates);
+    
+    res.json({
+      success: true,
+      message: 'Gate states reset to pending',
+      gateStates: initialStates
+    });
+  } catch (error) {
+    console.error('Error resetting gates:', error);
+    res.status(500).json({ error: 'Failed to reset gates' });
+  }
+});
+
+// ============================================================================
+// HEPHAESTUS PDF IMAGE EXTRACTION (Optional, Feature-Flagged)
+// Sandboxed image extraction with path validation and claims-based workflow
+// ============================================================================
+
+import { ImageAssetStatus } from '../utils/imageAsset.js';
+
+const hephaestusService = new HephaestusService();
+
+/**
+ * POST /api/projects/:id/pdf/extract-images
+ * Trigger HEPHAESTUS image extraction
+ * Feature-flagged: requires MOBIUS_ENABLE_HEPHAESTUS=true
+ * Body: { pdfPath, options }
+ */
+app.post('/api/projects/:id/pdf/extract-images', async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+
+    // Check if HEPHAESTUS is enabled
+    const availability = await hephaestusService.checkAvailability();
+    if (!availability.available) {
+      return res.status(503).json({
+        error: 'HEPHAESTUS not available',
+        reason: availability.reason,
+        code: 'HEPHAESTUS_NOT_AVAILABLE'
+      });
+    }
+
+    const { pdfPath, options = {} } = req.body;
+
+    if (!pdfPath) {
+      return res.status(400).json({ error: 'pdfPath is required' });
+    }
+
+    console.log(`🎨 Starting HEPHAESTUS extraction for project ${projectId}`);
+    console.log(`   PDF: ${pdfPath}`);
+
+    // Run extraction
+    const result = await hephaestusService.extractImages({
+      pdfPath,
+      projectId,
+      options
+    });
+
+    console.log(`✅ HEPHAESTUS extraction complete`);
+    console.log(`   Images extracted: ${result.imageAssets.length}`);
+    console.log(`   Average confidence: ${result.stats.averageConfidence?.toFixed(2) || 'N/A'}`);
+    console.log(`   Extraction time: ${result.stats.extractionTime}ms`);
+
+    res.json({
+      success: true,
+      extractionId: path.basename(result.outputDir).replace('extraction_', ''),
+      outputDir: result.outputDir,
+      imageAssets: result.imageAssets,
+      stats: result.stats,
+      message: `Extracted ${result.imageAssets.length} images - review and confirm to proceed`
+    });
+
+  } catch (error) {
+    console.error('HEPHAESTUS extraction error:', error);
+    res.status(500).json({
+      error: 'Image extraction failed',
+      details: error.message,
+      code: 'EXTRACTION_FAILED'
+    });
+  }
+});
+
+/**
+ * GET /api/projects/:id/pdf/extract-images/status
+ * Get status of all extractions for a project
+ */
+app.get('/api/projects/:id/pdf/extract-images/status', async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+
+    const extractions = await hephaestusService.listExtractions(projectId);
+
+    res.json({
+      success: true,
+      projectId,
+      extractions,
+      count: extractions.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching extraction status:', error);
+    res.status(500).json({
+      error: 'Failed to fetch extraction status',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/projects/:id/pdf/extract-images/:extractionId
+ * Get specific extraction results
+ */
+app.get('/api/projects/:id/pdf/extract-images/:extractionId', async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    const extractionId = req.params.extractionId;
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+
+    const status = await hephaestusService.getExtractionStatus(projectId, extractionId);
+
+    if (!status.exists) {
+      return res.status(404).json({
+        error: 'Extraction not found',
+        code: 'EXTRACTION_NOT_FOUND'
+      });
+    }
+
+    if (status.status === 'in_progress') {
+      return res.json({
+        success: true,
+        status: 'in_progress',
+        message: 'Extraction is still in progress'
+      });
+    }
+
+    // Convert manifest to ImageAssets
+    const { manifestToImageAssets } = await import('../utils/imageAsset.js');
+    const imageAssets = manifestToImageAssets(status.manifest, status.extractionDir);
+
+    res.json({
+      success: true,
+      status: 'complete',
+      extractionId,
+      manifest: status.manifest,
+      imageAssets,
+      extractionDir: status.extractionDir
+    });
+
+  } catch (error) {
+    console.error('Error fetching extraction:', error);
+    res.status(500).json({
+      error: 'Failed to fetch extraction',
+      details: error.message
+    });
+  }
+});
+
+// ============================================================================
+// PHASE F: SCRIPT ARTIFACT ENDPOINTS
+// Script generation, listing, and confirmation with consistency validation
+// ============================================================================
+
+/**
+ * POST /api/projects/:id/script/generate
+ * Generate a new script candidate
+ * Requires ingestion gates to be satisfied
+ * Body: { language, rulebookText, gameName, metadata, components, detailPercentage }
+ */
+app.post('/api/projects/:id/script/generate', enforceGates, async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    const {
+      language = 'en',
+      rulebookText,
+      gameName,
+      metadata,
+      components = [],
+      detailPercentage = 25
+    } = req.body;
+    
+    if (!rulebookText || !gameName) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: rulebookText and gameName' 
+      });
+    }
+    
+    // Get ingestion report for consistency validation
+    const ingestionReport = getIngestionReport(projectId);
+    
+    if (!ingestionReport) {
+      return res.status(400).json({
+        error: 'No ingestion report found',
+        code: 'NO_INGESTION_REPORT',
+        message: 'Cannot generate script without confirmed ingestion data'
+      });
+    }
+    
+    // Generate script using existing logic (reuse from /summarize)
+    console.log(`🎬 Generating script candidate for project ${projectId}`);
+    
+    // Build prompt (simplified version of /summarize logic)
+    const inputs = {
+      ingestionReport,
+      metadata,
+      components,
+      language,
+      detailPercentage
+    };
+    
+    const promptHash = hashPrompt(rulebookText.substring(0, 1000)); // Hash first 1KB
+    const inputsHash = hashInputs(inputs);
+    
+    // Call OpenAI (reuse existing prompt logic)
+    const scriptPrompt = buildScriptPrompt(rulebookText, gameName, metadata, components, language);
+    
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        {
+          role: 'system',
+          content: "You are a master boardgame educator and scriptwriter for a leading YouTube channel."
+        },
+        { role: 'user', content: scriptPrompt }
+      ],
+      max_tokens: 4096,
+      temperature: 0.7
+    });
+    
+    const rawScript = response.choices[0].message.content.trim();
+    
+    // Parse into segments
+    const scriptSegments = parseScriptSegments(rawScript);
+    
+    // Create script artifact
+    const artifact = normalizeScriptArtifact({
+      projectId,
+      language,
+      status: ScriptStatus.CANDIDATE,
+      model: 'gpt-4',
+      promptHash,
+      inputsHash,
+      scriptSegments,
+      rawScript,
+      metadata: {
+        wordCount: rawScript.split(/\s+/).length,
+        segmentCount: scriptSegments.length
+      }
+    });
+    
+    // Validate consistency
+    const validation = validateScriptConsistency(artifact, ingestionReport);
+    artifact.violations = validation.violations;
+    artifact.warnings = validation.warnings;
+    
+    // Check if violations block confirmation
+    const hasBlockingViolations = validation.violations.some(
+      v => v.severity === ViolationSeverity.ERROR
+    );
+    
+    // Save artifact
+    const success = addScriptArtifact(projectId, artifact);
+    
+    if (!success) {
+      return res.status(500).json({ error: 'Failed to save script artifact' });
+    }
+    
+    console.log(`✅ Script candidate created: ${artifact.id}`);
+    console.log(`   Violations: ${artifact.violations.length}, Warnings: ${artifact.warnings.length}`);
+    
+    res.json({
+      success: true,
+      artifact,
+      canConfirm: !hasBlockingViolations,
+      message: hasBlockingViolations 
+        ? 'Script generated but has blocking violations - cannot confirm until resolved'
+        : 'Script generated successfully and ready for review'
+    });
+    
+  } catch (error) {
+    console.error('Error generating script:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate script', 
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * GET /api/projects/:id/script/candidates
+ * List all script candidates for a project
+ */
+app.get('/api/projects/:id/script/candidates', (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    const artifacts = getScriptArtifacts(projectId);
+    
+    res.json({
+      success: true,
+      candidates: artifacts || [],
+      count: artifacts?.length || 0
+    });
+    
+  } catch (error) {
+    console.error('Error fetching script candidates:', error);
+    res.status(500).json({ error: 'Failed to fetch script candidates' });
+  }
+});
+
+/**
+ * GET /api/projects/:id/script/authoritative
+ * Get the authoritative script for a project
+ */
+app.get('/api/projects/:id/script/authoritative', (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    const authoritative = getAuthoritativeScript(projectId);
+    
+    if (!authoritative) {
+      return res.status(404).json({
+        error: 'No authoritative script found',
+        code: 'NO_AUTHORITATIVE_SCRIPT'
+      });
+    }
+    
+    res.json({
+      success: true,
+      script: authoritative
+    });
+    
+  } catch (error) {
+    console.error('Error fetching authoritative script:', error);
+    res.status(500).json({ error: 'Failed to fetch authoritative script' });
+  }
+});
+
+/**
+ * POST /api/projects/:id/script/confirm
+ * Confirm a script candidate as authoritative
+ * Body: { candidateId, notes }
+ */
+app.post('/api/projects/:id/script/confirm', (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    const { candidateId, notes } = req.body;
+    
+    if (!candidateId) {
+      return res.status(400).json({ error: 'candidateId is required' });
+    }
+    
+    // Get the candidate
+    const artifacts = getScriptArtifacts(projectId);
+    const candidate = artifacts?.find(a => a.id === candidateId);
+    
+    if (!candidate) {
+      return res.status(404).json({
+        error: 'Script candidate not found',
+        code: 'CANDIDATE_NOT_FOUND'
+      });
+    }
+    
+    // Check for blocking violations
+    const hasBlockingViolations = candidate.violations?.some(
+      v => v.severity === ViolationSeverity.ERROR
+    );
+    
+    if (hasBlockingViolations) {
+      return res.status(409).json({
+        error: 'Cannot confirm script with blocking violations',
+        code: 'SCRIPT_HAS_VIOLATIONS',
+        violations: candidate.violations.filter(v => v.severity === ViolationSeverity.ERROR),
+        message: 'Resolve all ERROR-level violations before confirming'
+      });
+    }
+    
+    // Confirm as authoritative (transactional)
+    const result = confirmAuthoritativeScript(projectId, candidateId, notes);
+    
+    if (!result || !result.success) {
+      return res.status(500).json({ error: 'Failed to confirm script' });
+    }
+    
+    console.log(`✅ Script confirmed as authoritative: ${candidateId}`);
+    console.log(`   CONFIRM_SCRIPT gate updated`);
+    
+    res.json({
+      success: true,
+      authoritative: result.authoritative,
+      gateStates: result.gateStates,
+      message: 'Script confirmed as authoritative'
+    });
+    
+  } catch (error) {
+    console.error('Error confirming script:', error);
+    res.status(500).json({ 
+      error: 'Failed to confirm script', 
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * Helper: Build script generation prompt
+ * Extracted from /summarize for reuse
+ */
+function buildScriptPrompt(rulebookText, gameName, metadata, components, language) {
+  const basePrompt = `You are an expert boardgame educator and scriptwriter for a top YouTube channel. Your task is to write a complete, engaging, and fun script for a boardgame tutorial video, using the following rulebook text.
+
+Instructions:
+- Follow standard tutorial structure: Introduction, Components, Setup, Objective, Gameplay, Rules, Example, Scoring, Tips, Recap
+- Use conversational, enthusiastic, and friendly language
+- Include visual cues in brackets like [Show close-up of cards]
+- Keep it concise and beginner-friendly
+- Do not add information not in the rulebook
+
+Game: ${gameName}
+Components: ${JSON.stringify(components)}
+Metadata: ${JSON.stringify(metadata)}
+
+Rulebook Text:
+${rulebookText}`;
+
+  return basePrompt;
+}
+
+// ============================================================================
+// PHASE P1-B: SCRIPT LOCALIZATION API ENDPOINTS
+// ============================================================================
+
+import {
+  createLocalizedScript,
+  validateLocalization,
+  buildLocalizationPrompt,
+  parseLocalizationResponse,
+  isLocalizationConfirmed,
+  getConfirmedLocalization,
+  LocalizationErrorCode
+} from '../utils/scriptLocalization.js';
+import { LocalizationStatus, SupportedLanguages } from '../utils/scriptArtifact.js';
+
+/**
+ * POST /api/projects/:id/script/localize
+ * Generate a localized script variant (EN→FR)
+ * Body: { targetLang: 'fr' }
+ */
+app.post('/api/projects/:id/script/localize', async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    const { targetLang } = req.body;
+    
+    // Validate target language
+    if (targetLang !== SupportedLanguages.FR) {
+      return res.status(400).json({
+        error: 'Invalid target language',
+        code: LocalizationErrorCode.INVALID_TARGET_LANGUAGE,
+        message: 'Only French (fr) localization is currently supported'
+      });
+    }
+    
+    // Get authoritative EN script
+    const artifacts = getScriptArtifacts(projectId);
+    const authoritativeScript = artifacts?.find(a => a.status === 'authoritative');
+    
+    if (!authoritativeScript) {
+      return res.status(404).json({
+        error: 'No authoritative script found',
+        code: LocalizationErrorCode.NO_AUTHORITATIVE_SCRIPT,
+        message: 'An authoritative English script must be confirmed before localization'
+      });
+    }
+    
+    // Check if localization already exists
+    if (authoritativeScript.localizations?.[targetLang]) {
+      return res.status(409).json({
+        error: 'Localization already exists',
+        code: 'LOCALIZATION_EXISTS',
+        message: `A ${targetLang} localization already exists for this script`,
+        localization: authoritativeScript.localizations[targetLang]
+      });
+    }
+    
+    // Build localization prompt
+    const prompt = buildLocalizationPrompt(authoritativeScript, targetLang);
+    
+    // Call LLM for translation
+    console.log(`🌍 Generating ${targetLang} localization for script ${authoritativeScript.id}...`);
+    
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a professional translator specializing in board game tutorial content. Provide translations in valid JSON format.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.3, // Lower temperature for more consistent translations
+      max_tokens: 4000
+    });
+    
+    const responseText = completion.choices[0].message.content;
+    
+    // Parse LLM response
+    let translatedSegments;
+    try {
+      translatedSegments = parseLocalizationResponse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse localization response:', parseError);
+      return res.status(500).json({
+        error: 'Failed to parse translation response',
+        details: parseError.message
+      });
+    }
+    
+    // Create localized script
+    const localizedScript = createLocalizedScript(
+      authoritativeScript,
+      targetLang,
+      translatedSegments,
+      {
+        model: 'gpt-4',
+        translationMethod: 'llm',
+        promptTokens: completion.usage.prompt_tokens,
+        completionTokens: completion.usage.completion_tokens
+      }
+    );
+    
+    // Validate localization
+    const validation = validateLocalization(localizedScript, authoritativeScript);
+    if (!validation.valid) {
+      console.error('Localization validation failed:', validation.errors);
+      return res.status(500).json({
+        error: 'Localization validation failed',
+        code: 'VALIDATION_FAILED',
+        errors: validation.errors
+      });
+    }
+    
+    // Store localization in authoritative script
+    if (!authoritativeScript.localizations) {
+      authoritativeScript.localizations = {};
+    }
+    authoritativeScript.localizations[targetLang] = localizedScript;
+    
+    // Save updated script artifact
+    saveScriptArtifact(projectId, authoritativeScript);
+    
+    console.log(`✅ ${targetLang} localization generated: ${localizedScript.id}`);
+    console.log(`   Status: ${localizedScript.status} (awaiting confirmation)`);
+    
+    res.json({
+      success: true,
+      localization: localizedScript,
+      message: `${targetLang} localization generated successfully (awaiting confirmation)`
+    });
+    
+  } catch (error) {
+    console.error('Error generating localization:', error);
+    res.status(500).json({
+      error: 'Failed to generate localization',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/projects/:id/script/localizations
+ * List all localizations for the authoritative script
+ */
+app.get('/api/projects/:id/script/localizations', (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    // Get authoritative script
+    const artifacts = getScriptArtifacts(projectId);
+    const authoritativeScript = artifacts?.find(a => a.status === 'authoritative');
+    
+    if (!authoritativeScript) {
+      return res.status(404).json({
+        error: 'No authoritative script found',
+        code: LocalizationErrorCode.NO_AUTHORITATIVE_SCRIPT
+      });
+    }
+    
+    const localizations = authoritativeScript.localizations || {};
+    
+    res.json({
+      success: true,
+      authoritativeScriptId: authoritativeScript.id,
+      localizations: Object.entries(localizations).map(([lang, loc]) => ({
+        language: lang,
+        id: loc.id,
+        status: loc.status,
+        createdAt: loc.createdAt,
+        segmentCount: loc.segments.length,
+        wordCount: loc.metadata.wordCount
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Error listing localizations:', error);
+    res.status(500).json({
+      error: 'Failed to list localizations',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/projects/:id/script/localization/confirm
+ * Confirm a localized script variant
+ * Body: { language: 'fr', notes }
+ */
+app.post('/api/projects/:id/script/localization/confirm', (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    if (isNaN(projectId)) {
+      return res.status(400).json({ error: 'Invalid project ID' });
+    }
+    
+    const { language, notes } = req.body;
+    
+    if (!language) {
+      return res.status(400).json({ error: 'language is required' });
+    }
+    
+    // Get authoritative script
+    const artifacts = getScriptArtifacts(projectId);
+    const authoritativeScript = artifacts?.find(a => a.status === 'authoritative');
+    
+    if (!authoritativeScript) {
+      return res.status(404).json({
+        error: 'No authoritative script found',
+        code: LocalizationErrorCode.NO_AUTHORITATIVE_SCRIPT
+      });
+    }
+    
+    // Get localization
+    const localization = authoritativeScript.localizations?.[language];
+    
+    if (!localization) {
+      return res.status(404).json({
+        error: 'Localization not found',
+        code: 'LOCALIZATION_NOT_FOUND',
+        message: `No ${language} localization exists for this script`
+      });
+    }
+    
+    // Check if already confirmed
+    if (localization.status === LocalizationStatus.CONFIRMED) {
+      return res.status(409).json({
+        error: 'Localization already confirmed',
+        code: 'ALREADY_CONFIRMED',
+        message: `${language} localization is already confirmed`
+      });
+    }
+    
+    // Confirm localization
+    localization.status = LocalizationStatus.CONFIRMED;
+    localization.confirmedAt = new Date().toISOString();
+    localization.notes = notes || null;
+    
+    // Save updated script artifact
+    saveScriptArtifact(projectId, authoritativeScript);
+    
+    // Update gate state
+    const gateStates = getGateStates(projectId);
+    if (!gateStates[GateId.CONFIRM_LOCALIZATION_FR]) {
+      gateStates[GateId.CONFIRM_LOCALIZATION_FR] = {
+        gateId: GateId.CONFIRM_LOCALIZATION_FR,
+        status: GateStatus.PENDING,
+        confirmedAt: null,
+        notes: null
+      };
+    }
+    
+    gateStates[GateId.CONFIRM_LOCALIZATION_FR].status = GateStatus.CONFIRMED;
+    gateStates[GateId.CONFIRM_LOCALIZATION_FR].confirmedAt = new Date().toISOString();
+    gateStates[GateId.CONFIRM_LOCALIZATION_FR].notes = notes || null;
+    
+    saveGateStates(projectId, gateStates);
+    
+    console.log(`✅ ${language} localization confirmed: ${localization.id}`);
+    console.log(`   CONFIRM_LOCALIZATION_FR gate updated`);
+    
+    res.json({
+      success: true,
+      localization,
+      gateStates,
+      message: `${language} localization confirmed`
+    });
+    
+  } catch (error) {
+    console.error('Error confirming localization:', error);
+    res.status(500).json({
+      error: 'Failed to confirm localization',
+      details: error.message
+    });
+  }
+});
+
+// ============================================================================
+// HEPHAESTUS: PDF IMAGE EXTRACTION API ENDPOINTS
+// ============================================================================
+
+import { HephaestusService } from '../services/HephaestusService.js';
+import { 
+  addExtractionRun, 
+  getExtractionMetadata, 
+  importHephaestusAssets,
+  getImportedAssets 
+} from './db.js';
+
+/**
+ * POST /api/projects/:id/pdf/extract-images
+ * Trigger HEPHAESTUS extraction for a project's PDF
+ * Body: { pdfPath, options }
+ */
+app.post('/api/projects/:id/pdf/extract-images', async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    const { pdfPath, options = {} } = req.body;
+    
+    // Check availability
+    const availability = await hephaestusService.checkAvailability();
+    if (!availability.available) {
+      return res.status(503).json({
+        error: 'HEPHAESTUS not available',
+        reason: availability.reason,
+        mode: availability.mode
+      });
+    }
+    
+    // Validate PDF path
+    if (!pdfPath) {
+      return res.status(400).json({ error: 'PDF path is required' });
+    }
+    
+    // Run extraction
+    console.log(`🎨 Starting HEPHAESTUS extraction for project ${projectId}`);
+    console.log(`   PDF: ${pdfPath}`);
+    console.log(`   Mode: ${availability.mode}`);
+    
+    const result = await hephaestusService.extractImages({
+      pdfPath,
+      projectId,
+      options
+    });
+    
+    // Save extraction run to database
+    const extractionId = path.basename(result.outputDir).replace('extraction_', '');
+    const saved = addExtractionRun(projectId, {
+      extractionId,
+      timestamp: parseInt(extractionId, 10),
+      outputDir: result.outputDir,
+      manifestPath: result.manifestPath,
+      stats: result.stats
+    });
+    
+    if (!saved) {
+      console.warn('⚠️  Failed to save extraction run to database');
+    }
+    
+    console.log(`✅ HEPHAESTUS extraction complete`);
+    console.log(`   Images extracted: ${result.stats.imagesExtracted}`);
+    console.log(`   Average confidence: ${result.stats.averageConfidence?.toFixed(2) || 'N/A'}`);
+    
+    res.json({
+      success: true,
+      extractionId,
+      outputDir: result.outputDir,
+      stats: result.stats,
+      imageAssets: result.imageAssets,
+      message: `Extracted ${result.stats.imagesExtracted} images. Review and import selected assets.`
+    });
+    
+  } catch (error) {
+    console.error('Error running HEPHAESTUS extraction:', error);
+    res.status(500).json({
+      error: 'Extraction failed',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/projects/:id/pdf/extract-images/status
+ * Get status of all extractions for a project
+ */
+app.get('/api/projects/:id/pdf/extract-images/status', async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    // Get extraction metadata from database
+    const metadata = getExtractionMetadata(projectId);
+    
+    // Get extraction list from service
+    const extractions = await hephaestusService.listExtractions(projectId);
+    
+    res.json({
+      success: true,
+      extractions,
+      metadata: metadata || { runs: [], importedAssets: [] }
+    });
+    
+  } catch (error) {
+    console.error('Error getting extraction status:', error);
+    res.status(500).json({
+      error: 'Failed to get extraction status',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/projects/:id/images/import-hephaestus
+ * Import selected HEPHAESTUS assets and confirm CONFIRM_COMPONENT_IMAGES gate
+ * Body: { extractionId, selectedAssetIds, notes }
+ */
+app.post('/api/projects/:id/images/import-hephaestus', async (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    const { extractionId, selectedAssetIds, notes } = req.body;
+    
+    if (!extractionId || !selectedAssetIds || !Array.isArray(selectedAssetIds)) {
+      return res.status(400).json({
+        error: 'extractionId and selectedAssetIds (array) are required'
+      });
+    }
+    
+    // Get extraction status
+    const status = await hephaestusService.getExtractionStatus(projectId, extractionId);
+    
+    if (!status.exists || status.status !== 'complete') {
+      return res.status(404).json({
+        error: 'Extraction not found or not complete',
+        extractionId
+      });
+    }
+    
+    // Load manifest
+    const manifestPath = path.join(status.extractionDir, 'manifest.json');
+    const manifestContent = await fsPromises.readFile(manifestPath, 'utf8');
+    const manifest = JSON.parse(manifestContent);
+    
+    // Filter selected assets
+    const selectedAssets = manifest.images.filter(img => 
+      selectedAssetIds.includes(img.id)
+    );
+    
+    if (selectedAssets.length === 0) {
+      return res.status(400).json({
+        error: 'No valid assets selected',
+        selectedAssetIds
+      });
+    }
+    
+    // Import assets and update gate (transactional)
+    const result = importHephaestusAssets(projectId, extractionId, selectedAssets, notes);
+    
+    if (!result || !result.success) {
+      return res.status(500).json({ error: 'Failed to import assets' });
+    }
+    
+    console.log(`✅ Imported ${result.importedCount} HEPHAESTUS assets for project ${projectId}`);
+    console.log(`   CONFIRM_COMPONENT_IMAGES gate updated`);
+    
+    res.json({
+      success: true,
+      importedCount: result.importedCount,
+      gateStates: result.gateStates,
+      message: `Imported ${result.importedCount} component images`
+    });
+    
+  } catch (error) {
+    console.error('Error importing HEPHAESTUS assets:', error);
+    res.status(500).json({
+      error: 'Failed to import assets',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/projects/:id/images/imported
+ * Get all imported HEPHAESTUS assets for a project
+ */
+app.get('/api/projects/:id/images/imported', (req, res) => {
+  try {
+    const projectId = parseInt(req.params.id, 10);
+    
+    const importedAssets = getImportedAssets(projectId);
+    
+    res.json({
+      success: true,
+      assets: importedAssets,
+      count: importedAssets.length
+    });
+    
+  } catch (error) {
+    console.error('Error getting imported assets:', error);
+    res.status(500).json({
+      error: 'Failed to get imported assets',
+      details: error.message
+    });
+  }
+});
+
+// ============================================================================
+// GATE ENFORCEMENT ON DOWNSTREAM ENDPOINTS
+// PHASE 3: All downstream operations MUST enforce gates
+// ============================================================================
+
+/**
+ * PHASE 3 LOCKED INVARIANT:
+ * The following operations are considered "downstream" and MUST enforce gates:
+ * 1. Script generation (/summarize) - ✅ ENFORCED
+ * 2. Voice/TTS generation (/tts) - ✅ ENFORCED
+ * 3. Storyboard generation (not yet implemented)
+ * 4. Render initiation (not yet implemented)
+ * 5. Export operations (not yet implemented)
+ * 
+ * Any new downstream endpoint MUST use enforceGates middleware.
+ * Failure to do so will cause integration tests to fail.
+ * 
+ * UPSTREAM ROUTES (No gate enforcement needed - these create the ingestion data):
+ * - /api/explain-chunk, /save-project, /api/extract-components, /extract-components
+ * - /save-matches, /upload-images, /api/extract-bgg-html, /extract-images
+ * - /crop-component, /extract-extra-images, /upload-pdf, /fetch-bgg-images
+ * - /match-images, /convert-pdf-to-images, /start-extraction
+ */
+
+// Example: Future downstream routes that MUST use enforceGates
+// app.post('/api/projects/:id/generate-storyboard', enforceGates, (req, res) => {
+//   // Storyboard generation logic here
+// });
+
+// app.post('/api/projects/:id/render', enforceGates, (req, res) => {
+//   // Render initiation logic here
+// });
+
+// app.post('/api/projects/:id/export', enforceGates, (req, res) => {
+//   // Export logic here
+// });
+
+// ============================================================================
+// SERVER STARTUP
+// ============================================================================
+
+/**
+ * Start the Express server
+ * @param {number} port - Port to listen on (default: PORT constant)
+ * @returns {Server} HTTP server instance
+ */
+export function startServer(port = PORT) {
+  const server = app.listen(port, () => {
+    console.log(`🚀 Server is running on port ${port}`);
+    console.log(`📱 Frontend should connect to: http://localhost:${port}`);
+  });
+  return server;
+}
+
+// Auto-start server unless in test environment
+if (!process.env.JEST_WORKER_ID && process.env.NODE_ENV !== 'test') {
+  startServer();
+}
+
+// Export app for testing
+export default app;

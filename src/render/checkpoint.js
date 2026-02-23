@@ -110,6 +110,8 @@ export class CheckpointManager {
       'audio_mix',
       'burn_in',
       'thumbnail',
+      'chapters',
+      'manifest',
       'completed'
     ];
     

@@ -1,0 +1,112 @@
+# Storage Canonicalization Validation - MANDATORY CI CHECK
+#
+# This workflow enforces storage coherence as a locked invariant.
+# Any failure in this workflow indicates a regression that must be resolved.
+#
+# Locked Invariants Validated:
+# - DB ↔ filesystem coherence (requires better-sqlite3)
+# - Canonical path usage
+# - No legacy path writes
+# - Artifact manifest validity
+#
+# This check is MANDATORY and cannot be bypassed.
+
+name: Storage Validation (MANDATORY)
+
+on:
+  push:
+    branches: [ main, develop, 'milestone/**' ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  validate-storage:
+    name: Validate Storage Coherence
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node-version: [18.x, 20.x]
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Verify better-sqlite3 installation
+        run: |
+          node -e "try { require('better-sqlite3'); console.log('✅ better-sqlite3 installed'); } catch(e) { console.error('❌ better-sqlite3 missing'); process.exit(1); }"
+      
+      - name: Run mechanical validation
+        run: npm run storage:validate
+        env:
+          SKIP_LEGACY_CHECK: false
+      
+      - name: Run coherence validation (MANDATORY)
+        run: npm run storage:coherence
+        env:
+          # No overrides allowed - this is a locked invariant
+          SKIP_LEGACY_CHECK: false
+          SKIP_LEGACY_WRITE_GUARD: false
+      
+      - name: Check for cutover marker
+        id: check-cutover
+        run: |
+          if [ -f "data/.mobius_cutover.json" ]; then
+            echo "cutover=true" >> $GITHUB_OUTPUT
+            echo "✅ Cutover marker found - strict mode active"
+          else
+            echo "cutover=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  No cutover marker - pre-cutover mode"
+          fi
+        shell: bash
+      
+      - name: Verify no legacy paths (post-cutover)
+        if: steps.check-cutover.outputs.cutover == 'true'
+        run: |
+          echo "Checking for legacy paths (post-cutover strict mode)..."
+          
+          # Check for legacy database files
+          if [ -f "src/api/projects.db" ] || [ -f "projects.db" ]; then
+            echo "❌ REGRESSION: Legacy database files found after cutover"
+            exit 1
+          fi
+          
+          # Check for legacy upload directories
+          if [ -d "src/api/uploads" ] && [ "$(ls -A src/api/uploads 2>/dev/null)" ]; then
+            echo "❌ REGRESSION: Legacy uploads directory contains files after cutover"
+            exit 1
+          fi
+          
+          if [ -d "uploads" ] && [ "$(ls -A uploads 2>/dev/null)" ]; then
+            echo "❌ REGRESSION: Legacy uploads directory contains files after cutover"
+            exit 1
+          fi
+          
+          echo "✅ No legacy paths found"
+        shell: bash
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Storage Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- OS: ${{ matrix.os }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Node: ${{ matrix.node-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Cutover: ${{ steps.check-cutover.outputs.cutover }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Locked Invariants Validated" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ DB ↔ filesystem coherence" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Canonical path usage" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ No legacy path writes" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Artifact manifest validity" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,40 @@
+{
+  "version": "1.0",
+  "release": "PRO_VIDEO_V0_FIRST_VIDEO",
+  "mode": "DRY_RUN",
+  "generatedAt": "2026-02-23T15:58:28.408Z",
+  "execution": {
+    "runId": "prov0-01-dryrun-1771862308408",
+    "commitSHA": "d3caf1ae3e161ceea9f8a2a0692a9c4ad119c108",
+    "startTime": "2026-02-23T15:58:28.408Z",
+    "endTime": "2026-02-23T15:58:28.408Z",
+    "duration": 0,
+    "status": "DRY_RUN_COMPLETE"
+  },
+  "inputs": {
+    "projectId": "prov0-01",
+    "pdfPath": "NOT_PROVIDED_DRY_RUN",
+    "bggUrl": null,
+    "language": "en",
+    "profile": "pro_v0",
+    "useHephaestus": false
+  },
+  "renderSettings": null,
+  "artifacts": {},
+  "gateConfirmations": [],
+  "objectiveQc": {
+    "status": "SKIPPED_DRY_RUN",
+    "timestamp": "2026-02-23T15:58:28.408Z",
+    "note": "Objective QC skipped in dry-run mode - no artifacts produced"
+  },
+  "stages": {
+    "dryRunStubGeneration": {
+      "name": "dryRunStubGeneration",
+      "status": "SUCCESS",
+      "startTime": "2026-02-23T15:58:28.408Z",
+      "endTime": "2026-02-23T15:58:28.408Z"
+    }
+  },
+  "errors": [],
+  "note": "This is a DRY RUN stub. No server was started, no PDF was processed, and no video artifacts were produced."
+}

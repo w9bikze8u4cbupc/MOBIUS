@@ -1,33 +1,29 @@
 // src/config/paths.js
-import path from 'path';
-import fs from 'fs';
+// 
+// DEPRECATED: This file is maintained for backward compatibility only.
+// New code should import directly from './storage.mjs'
 
-const DEFAULT_DATA_DIR = path.resolve(process.env.DATA_DIR || './data');
+import { 
+  getDataRoot, 
+  getDataDirs as getCanonicalDataDirs,
+  ensureDataDirs as ensureCanonicalDataDirs,
+  resolveDataPath as resolveCanonicalDataPath
+} from './storage.mjs';
 
 export function getDataDir() {
-  ensureDir(DEFAULT_DATA_DIR);
-  return DEFAULT_DATA_DIR;
+  return getDataRoot();
 }
 
 export function ensureDir(dirPath) {
-  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+  // This function is kept for compatibility but directories
+  // are now managed by storage.js
+  ensureCanonicalDataDirs();
 }
 
 export function resolveDataPath(...segments) {
-  const p = path.join(getDataDir(), ...segments);
-  ensureDir(path.dirname(p));
-  return p;
+  return resolveCanonicalDataPath(...segments);
 }
 
 export function getDirs() {
-  const root = getDataDir();
-  const dirs = {
-    root,
-    uploads: path.join(root, 'uploads'),
-    output: path.join(root, 'output'),
-    pdfImages: path.join(root, 'pdf_images'),
-    fixtures: path.join(root, 'fixtures'),
-  };
-  Object.values(dirs).forEach(ensureDir);
-  return dirs;
+  return getCanonicalDataDirs();
 }

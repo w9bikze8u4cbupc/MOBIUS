@@ -1,54 +1,43 @@
 // src/api/utils.js
 // Utility functions for the API
+// 
+// DEPRECATED: This file is maintained for backward compatibility only.
+// New code should import directly from '../config/storage.mjs'
 
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-import fs from 'fs';
-
-// Fix for __dirname in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { 
+  getDataRoot, 
+  getDbPath as getCanonicalDbPath,
+  getDataDirs,
+  ensureDataDirs
+} from '../config/storage.mjs';
 
 /**
  * Get the canonical data directory path
+ * @deprecated Use getDataRoot from '../config/storage.js' instead
  * @returns {string} Path to the data directory
  */
 export function getDataDir() {
-  // Get DATA_DIR from environment variable or default to ./data
-  const dataDir = process.env.DATA_DIR || path.join(dirname(dirname(__dirname)), 'data');
-  
-  // Ensure data directory exists
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-  
-  return dataDir;
+  return getDataRoot();
 }
 
 /**
  * Get the database path
+ * @deprecated Use getDbPath from '../config/storage.js' instead
  * @returns {string} Path to the database file
  */
 export function getDbPath() {
-  const dataDir = getDataDir();
-  return path.join(dataDir, 'projects.db');
+  return getCanonicalDbPath();
 }
 
 /**
  * Get the uploads directory path
+ * @deprecated Use getDataDirs().uploads from '../config/storage.js' instead
  * @returns {string} Path to the uploads directory
  */
 export function getUploadsDir() {
-  const dataDir = getDataDir();
-  const uploadsDir = path.join(dataDir, 'uploads');
-  
-  // Ensure uploads directory exists
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
-  
-  return uploadsDir;
+  ensureDataDirs();
+  const dirs = getDataDirs();
+  return dirs.uploads;
 }
 
 export default {
@@ -56,3 +45,14 @@ export default {
   getDbPath,
   getUploadsDir
 };
+
+
+/**
+ * Extract components from text (stub)
+ * @param {string} text - Text to extract components from
+ * @returns {Array} Array of components
+ */
+export function extractComponentsFromText(text) {
+  // Stub implementation
+  return [];
+}

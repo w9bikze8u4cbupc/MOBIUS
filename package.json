@@ -9,7 +9,15 @@
     "render": "node scripts/render-ffmpeg.mjs",
     "verify": "node scripts/verify.mjs",
     "test-pipeline": "npm run compile-shotlist && npm run verify && npm run bind-alignment",
-    "test": "jest",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:integration": "node scripts/test/run-integration.mjs",
+    "test:all": "npm run smoke:all && npm run test:unit && npm run test:integration",
+    "storage:validate": "node scripts/validate-storage.mjs",
+    "storage:coherence": "node scripts/validate-coherence.mjs",
+    "storage:migrate": "node scripts/migrate-legacy-data.mjs",
+    "storage:migrate:dry-run": "node scripts/migrate-legacy-data.mjs --dry-run",
+    "storage:cutover": "node scripts/storage-cutover.mjs",
     "gen:shotlists": "node scripts/compile-shotlist.mjs gigs/hanamikoji.json > tmp/shotlist.json",
     "gen:timelines": "echo 'Generating timelines...'",
     "render:proxy": "node scripts/render-ffmpeg.mjs tmp/timeline.json assets out/preview.mp4 --preview",
@@ -24,7 +32,17 @@
     "golden:check:junit": "node scripts/check_golden.js --junit tests/golden/reports/junit.xml",
     "golden:check:all": "node -e \"const {execSync}=require('child_process'); const games=['hanamikoji']; for(const g of games){ execSync('node scripts/check_golden.js --game \\\"'+g+'\\\" --in \\\"out/preview.mp4\\\" --perOs', {stdio:'inherit'}) }\"",
     "desktop:create": "node scripts/create-desktop-shortcut.mjs",
-    "desktop:verify": "node scripts/verify-desktop-shortcuts.mjs"
+    "desktop:verify": "node scripts/verify-desktop-shortcuts.mjs",
+    "e2e:commission": "node scripts/e2e/e2e-01-commission.mjs",
+    "e2e:commission:dry": "node scripts/e2e/e2e-01-commission.mjs --dry-run",
+    "e2e:stress": "node scripts/e2e/e2e-stress-suite.mjs",
+    "fixtures:generate": "node scripts/fixtures/generate-stress-pdfs.mjs",
+    "release:prov0-01": "node scripts/releases/prov0-01-run.mjs",
+    "release:prov0-01:dry": "node scripts/releases/prov0-01-run.mjs --dry-run",
+    "release:verify": "node scripts/releases/verify-pro-video-v0.mjs",
+    "smoke:e2e-syntax": "node --check scripts/e2e/e2e-01-commission.mjs && node --check scripts/releases/prov0-01-run.mjs && node --check scripts/releases/generate-pro-v0-runlog.mjs",
+    "smoke:prov0-01-dry": "node scripts/releases/prov0-01-run.mjs --dry-run && node scripts/smoke/verify-dryrun-stubs.mjs",
+    "smoke:all": "npm run smoke:e2e-syntax && npm run smoke:prov0-01-dry"
   },
   "keywords": [
     "game",
@@ -36,7 +54,24 @@
   "author": "Mobius Games",
   "license": "MIT",
   "dependencies": {
-    "typescript": "^5.0.0"
+    "axios": "^1.6.8",
+    "better-sqlite3": "^9.0.0",
+    "cheerio": "^1.0.0-rc.12",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "fast-xml-parser": "^4.3.2",
+    "fs-extra": "^11.2.0",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.104.0",
+    "pako": "^2.1.0",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^1.1.1",
+    "pdf-to-img": "^5.0.0",
+    "sharp": "^0.33.2",
+    "tesseract.js": "^6.0.1",
+    "typescript": "^5.0.0",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
@@ -45,18 +80,25 @@
     "ts-jest": "^29.4.1",
     "ts-node": "^10.9.1"
   },
+  "type": "module",
   "jest": {
-    "preset": "ts-jest",
     "testEnvironment": "node",
     "roots": [
       "<rootDir>/src"
     ],
     "testMatch": [
-      "**/__tests__/**/*.ts",
-      "**/?(*.)+(spec|test).ts"
+      "**/__tests__/**/*.+(ts|js)",
+      "**/?(*.)+(spec|test).+(ts|js)"
     ],
     "transform": {
       "^.+\\.tsx?$": "ts-jest"
-    }
+    },
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1"
+    },
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "\\.node\\.test\\.(m)?js$"
+    ]
   }
 }

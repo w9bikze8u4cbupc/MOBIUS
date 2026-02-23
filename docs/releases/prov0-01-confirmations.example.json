@@ -1,0 +1,51 @@
+{
+  "version": "1.0",
+  "projectId": "prov0-01",
+  "confirm": [
+    {
+      "gateId": "confirm_metadata",
+      "decision": "CONFIRM",
+      "note": "Game metadata reviewed and accurate"
+    },
+    {
+      "gateId": "confirm_components",
+      "decision": "CONFIRM",
+      "note": "Component list complete and correct"
+    },
+    {
+      "gateId": "confirm_setup_logic",
+      "decision": "CONFIRM",
+      "note": "Setup instructions clear and accurate"
+    },
+    {
+      "gateId": "confirm_turn_structure",
+      "decision": "CONFIRM",
+      "note": "Turn structure correctly captured"
+    },
+    {
+      "gateId": "confirm_ocr_hazards",
+      "decision": "CONFIRM",
+      "note": "OCR quality acceptable, no critical errors"
+    },
+    {
+      "gateId": "confirm_script",
+      "decision": "CONFIRM",
+      "note": "Tutorial script reviewed and approved for production"
+    },
+    {
+      "gateId": "confirm_component_images",
+      "decision": "CONFIRM",
+      "note": "Component images extracted and verified (if HEPHAESTUS enabled)"
+    },
+    {
+      "gateId": "confirm_localization_fr",
+      "decision": "CONFIRM",
+      "note": "French localization reviewed and approved (if lang=fr)"
+    }
+  ],
+  "ack": {
+    "operator": "[OPERATOR_NAME]",
+    "timestamp": "[ISO_8601_TIMESTAMP]",
+    "notes": "All gates reviewed and explicitly confirmed for ProV0-01 production run"
+  }
+}

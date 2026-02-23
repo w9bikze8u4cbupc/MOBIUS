@@ -4,11 +4,14 @@
 // - Extract images from PDFs
 // - Fallback to OCR using system Tesseract (if available) or tesseract.js if installed
 // - Expose a single high-level function: ingestPdf(pdfPath, options)
+// - Add extraction metadata and confidence scoring for truth gates
 
 import fs from 'fs';
 import { spawnSync } from 'child_process';
 import path from 'path';
 import os from 'os';
+import { validatePDFPath } from '../utils/validation.js';
+import { calculatePDFExtractionConfidence } from '../utils/confidence.js';
 
 let pdfParse;
 try {
@@ -151,13 +154,23 @@ async function extractImagesFromPdf(pdfPath) {
 }
 
 export async function ingestPdf(pdfPath, opts = { ocrThreshold: 0.5 }) {
-  if (!fs.existsSync(pdfPath)) throw new Error(`PDF not found: ${pdfPath}`);
+  // Validate PDF path
+  const pathValidation = validatePDFPath(pdfPath);
+  if (!pathValidation.isValid) {
+    throw new Error(`Invalid PDF path: ${pathValidation.errors.map(e => e.message).join(', ')}`);
+  }
+  
+  if (!fs.existsSync(pdfPath)) {
+    throw new Error(`PDF not found: ${pdfPath}`);
+  }
 
   const result = {
     source: pdfPath,
     parsedPages: [],
     extractedAt: new Date().toISOString(),
-    images: [] // Add images array to result
+    images: [],
+    extractionMethod: null,
+    warnings: [...pathValidation.warnings.map(w => w.message)]
   };
 
   // Extract images from PDF
@@ -175,13 +188,32 @@ export async function ingestPdf(pdfPath, opts = { ocrThreshold: 0.5 }) {
       // pdf-parse provides text (all pages) and a text per page is non-trivial; we will split by form-feed if present
       const raw = data.text || '';
       const pages = raw.split('\f');
+      
+      result.extractionMethod = 'pdf-parse';
+      
       if (pages.length === 1 && raw.trim().length === 0) {
         // empty result — fallback to OCR
+        result.warnings.push('pdf-parse returned empty text, falling back to OCR');
+        result.extractionMethod = 'ocr-fallback';
         const ocr = await runTesseractOnPdf(pdfPath);
-        result.parsedPages.push({ pageNumber: 0, text: ocr, textConfidence: 0.0, source: 'ocr' });
+        const pageResult = { 
+          pageNumber: 0, 
+          text: ocr, 
+          textConfidence: 0.0, 
+          source: 'ocr' 
+        };
+        const confidence = calculatePDFExtractionConfidence(pageResult);
+        result.parsedPages.push({ ...pageResult, confidence });
       } else {
         for (let i = 0; i < pages.length; i++) {
-          result.parsedPages.push({ pageNumber: i + 1, text: pages[i].trim(), textConfidence: pages[i].trim().length ? 1.0 : 0.0, source: 'pdf-parse' });
+          const pageResult = { 
+            pageNumber: i + 1, 
+            text: pages[i].trim(), 
+            textConfidence: pages[i].trim().length ? 1.0 : 0.0, 
+            source: 'pdf-parse' 
+          };
+          const confidence = calculatePDFExtractionConfidence(pageResult);
+          result.parsedPages.push({ ...pageResult, confidence });
         }
       }
       
@@ -189,18 +221,51 @@ export async function ingestPdf(pdfPath, opts = { ocrThreshold: 0.5 }) {
       result.meta = {
         info: data.info,
         metadata: data.metadata,
-        encrypted: data.encrypted
+        encrypted: data.encrypted,
+        numpages: data.numpages
       };
+      
+      // Check for encrypted PDFs
+      if (data.encrypted) {
+        result.warnings.push('PDF is encrypted - extraction may be incomplete');
+      }
     } catch (err) {
       // pdf-parse failed — fallback
+      result.warnings.push(`pdf-parse failed: ${err.message}, falling back to OCR`);
+      result.extractionMethod = 'ocr-fallback';
       const ocr = await runTesseractOnPdf(pdfPath);
-      result.parsedPages.push({ pageNumber: 0, text: ocr, textConfidence: 0.0, source: 'ocr' });
+      const pageResult = { 
+        pageNumber: 0, 
+        text: ocr, 
+        textConfidence: 0.0, 
+        source: 'ocr' 
+      };
+      const confidence = calculatePDFExtractionConfidence(pageResult);
+      result.parsedPages.push({ ...pageResult, confidence });
     }
   } else {
     // No pdf-parse available — do OCR directly
+    result.warnings.push('pdf-parse not available, using OCR');
+    result.extractionMethod = 'ocr-only';
     const ocr = await runTesseractOnPdf(pdfPath);
-    result.parsedPages.push({ pageNumber: 0, text: ocr, textConfidence: 0.0, source: 'ocr' });
+    const pageResult = { 
+      pageNumber: 0, 
+      text: ocr, 
+      textConfidence: 0.0, 
+      source: 'ocr' 
+    };
+    const confidence = calculatePDFExtractionConfidence(pageResult);
+    result.parsedPages.push({ ...pageResult, confidence });
   }
+
+  // Calculate overall extraction confidence
+  const allConfidences = result.parsedPages.map(p => p.confidence);
+  const avgScore = allConfidences.reduce((sum, c) => sum + c.score, 0) / allConfidences.length;
+  result.overallConfidence = {
+    score: avgScore,
+    level: avgScore >= 0.8 ? 'high' : avgScore >= 0.5 ? 'medium' : avgScore >= 0.2 ? 'low' : 'none',
+    warnings: [...new Set(allConfidences.flatMap(c => c.warnings))]
+  };
 
   return result;
 }

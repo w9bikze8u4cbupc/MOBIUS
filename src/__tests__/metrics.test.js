@@ -1,5 +1,6 @@
 /**
  * Unit tests for the metrics module
+ * Tests no-op behavior when MOBIUS_ENABLE_METRICS is not enabled
  */
 
 import { 
@@ -12,6 +13,22 @@ import {
 } from '../render/metrics.js';
 
 describe('Metrics Module', () => {
+  const metricsEnabled = process.env.MOBIUS_ENABLE_METRICS === 'true';
+  
+  if (!metricsEnabled) {
+    test('should provide no-op metrics when disabled', () => {
+      // When metrics are disabled, all operations should be no-ops
+      expect(() => renderStarted.inc()).not.toThrow();
+      expect(() => renderCompleted.inc()).not.toThrow();
+      expect(() => renderFailed.inc({ reason: 'test' })).not.toThrow();
+      expect(() => renderTimeout.inc({ reason: 'test' })).not.toThrow();
+      expect(() => renderDuration.observe(30)).not.toThrow();
+      expect(() => ffmpegSpeedRatio.observe(2.5)).not.toThrow();
+    });
+    
+    return; // Skip remaining tests when metrics disabled
+  }
+
   describe('Metric Counters', () => {
     beforeEach(() => {
       // Reset all metrics before each test

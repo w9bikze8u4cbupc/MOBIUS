@@ -10,6 +10,13 @@ import { ProgressParser } from './progress.js';
 import { CheckpointManager } from './checkpoint.js';
 import { renderStarted, renderCompleted, renderFailed, renderTimeout, renderDuration, ffmpegSpeedRatio } from './metrics.js';
 import { logger } from './log.js';
+import { getOutputPath, ensureDataDirs } from '../config/storage.mjs';
+import { generateSrtFromScript, getAvailableCaptionLanguages } from './subtitles.js';
+import { generateChaptersFromScript } from './chapters.js';
+import { generateManifest } from './manifest.js';
+
+// Ensure data directories exist at module load
+ensureDataDirs();
 
 /**
  * Main render function that orchestrates FFmpeg to create video outputs
@@ -24,10 +31,16 @@ import { logger } from './log.js';
  * @param {string} job.outputDir Output directory
  * @param {number} job.duration Desired duration in seconds
  * @param {Object} options Rendering options
+ * @param {string} options.profile Render profile ('standard' or 'pro_v0')
+ * @param {Object} options.brandAssets Brand asset paths (for pro_v0)
+ * @param {string} options.brandAssets.introPath Path to intro clip (optional)
+ * @param {string} options.brandAssets.outroPath Path to outro clip (optional)
  * @param {number} options.previewSeconds Generate a preview of specified seconds
  * @param {boolean} options.dryRun Simulate without actual rendering
  * @param {boolean} options.burnCaptions Burn-in captions instead of sidecar
  * @param {boolean} options.exportSrt Export SRT sidecar file
+ * @param {string} options.language Language for captions ('en' or 'fr')
+ * @param {object} options.script Script artifact for caption generation
  * @param {Object} options.ducking Audio ducking configuration
  * @param {string} options.ducking.mode Ducking mode ('sidechain' or 'envelope')
  * @param {number} options.ducking.threshold Sidechain threshold
@@ -91,8 +104,13 @@ export async function render(job, options = {}) {
     throw new Error('No audio file provided for rendering');
   }
   
+  // Use canonical output path if not specified
   if (!job.outputDir) {
-    throw new Error('No output directory specified');
+    if (!options.projectId && !options.jobId) {
+      throw new Error('No output directory or project ID specified');
+    }
+    const projectId = options.projectId || options.jobId || 'default';
+    job.outputDir = getOutputPath(projectId);
   }
   
   // Apply caps validation
@@ -170,6 +188,28 @@ export async function render(job, options = {}) {
     }
   }
   
+  // PHASE P1-B: Generate SRT from script if language option provided
+  if (options.script && (options.burnCaptions || options.exportSrt)) {
+    const language = options.language || 'en';
+    
+    try {
+      captionPath = await generateSrtFromScript(options.script, job.outputDir, language);
+      log.info(`Generated ${language} captions`, { captionPath });
+    } catch (error) {
+      log.error('Failed to generate captions from script', { error: error.message, language });
+      
+      // Fail loudly if FR localization is not confirmed
+      if (language === 'fr' && error.message.includes('not confirmed')) {
+        throw new Error(
+          `Cannot render with French captions: ${error.message}\n` +
+          `Please confirm the French localization via CONFIRM_LOCALIZATION_FR gate before rendering.`
+        );
+      }
+      
+      throw error;
+    }
+  }
+  
   // Build FFmpeg command
   const ffmpegArgs = buildFFmpegCommand(job, options, outputPath, captionPath);
   
@@ -193,6 +233,66 @@ export async function render(job, options = {}) {
     await checkpoint.updateStage('thumbnail', 90);
   }
   
+  // PHASE PRO-V0: Generate chapters and manifest for pro_v0 profile
+  let chaptersPath;
+  let manifestPath;
+  
+  if (options.profile === 'pro_v0' && options.script) {
+    const language = options.language || 'en';
+    
+    // Generate chapters
+    if (!checkpoint.isStageCompleted('chapters')) {
+      try {
+        chaptersPath = await generateChaptersFromScript(options.script, job.outputDir, language);
+        await checkpoint.addArtifact('chapters', chaptersPath, 0);
+        await checkpoint.updateStage('chapters', 95);
+        log.info(`Generated ${language} chapters`, { chaptersPath });
+      } catch (error) {
+        log.warn('Failed to generate chapters', { error: error.message });
+        // Non-fatal: continue without chapters
+      }
+    }
+    
+    // Generate manifest
+    if (!checkpoint.isStageCompleted('manifest')) {
+      try {
+        const artifacts = {
+          video: outputPath,
+          thumbnail: thumbnailPath,
+          captions: captionPath,
+          chapters: chaptersPath,
+          intro: options.brandAssets?.introPath,
+          outro: options.brandAssets?.outroPath
+        };
+        
+        const settings = {
+          profile: options.profile,
+          language: options.language || 'en',
+          burnCaptions: options.burnCaptions || false,
+          exportSrt: options.exportSrt || false,
+          loudness: options.loudness,
+          ducking: options.ducking,
+          safetyFilters: options.safetyFilters
+        };
+        
+        const metadata = {
+          duration: options.previewSeconds || job.duration || 30,
+          fps: 30,
+          resolution: '1920x1080',
+          ...result.metadata
+        };
+        
+        manifestPath = await generateManifest(artifacts, settings, metadata, job.outputDir);
+        await checkpoint.addArtifact('manifest', manifestPath, 0);
+        await checkpoint.updateStage('manifest', 98);
+        log.info('Generated render manifest', { manifestPath });
+      } catch (error) {
+        log.warn('Failed to generate manifest', { error: error.message });
+        // Non-fatal: continue without manifest
+      }
+    }
+  }
+  
   // Mark job as completed
   await checkpoint.markCompleted();
   
@@ -206,7 +306,9 @@ export async function render(job, options = {}) {
     duration,
     outputPath,
     thumbnailPath,
-    captionPath
+    captionPath,
+    chaptersPath,
+    manifestPath
   });
 
   // Return result
@@ -214,6 +316,8 @@ export async function render(job, options = {}) {
     outputPath,
     thumbnailPath,
     captionPath,
+    chaptersPath,
+    manifestPath,
     metadata: {
       duration: options.previewSeconds || job.duration || 30,
       fps: 30,

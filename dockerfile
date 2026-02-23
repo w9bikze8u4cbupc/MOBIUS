@@ -23,8 +23,14 @@ RUN npm ci --only=production
 # Copy source code
 COPY . .
 
-# Create directories for input/output
-RUN mkdir -p /app/assets /app/out
+# Create canonical data directory structure
+RUN mkdir -p /app/data/db \
+             /app/data/uploads \
+             /app/data/outputs \
+             /app/data/tmp
+
+# Set environment variable for data root
+ENV MOBIUS_DATA_ROOT=/app/data
 
 # Expose port (if needed for any web services)
 EXPOSE 3000
