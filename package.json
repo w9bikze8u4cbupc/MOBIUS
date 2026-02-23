@@ -17,6 +17,7 @@
     "elite:normalize": "node scripts/elite/normalize-contract.mjs",
     "elite:normalize:check": "node scripts/elite/normalize-contract.mjs --check",
     "elite:verify": "node scripts/elite/verify-pro-video-elite.mjs",
+    "elite:extract": "node scripts/elite/extract-elite-metrics.mjs",
     "elite:verify": "node scripts/elite/verify-pro-video-elite.mjs",
     "storage:validate": "node scripts/validate-storage.mjs",
     "storage:coherence": "node scripts/validate-coherence.mjs",
