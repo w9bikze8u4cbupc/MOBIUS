@@ -15,6 +15,7 @@
     "test:elite-contract": "node --experimental-vm-modules node_modules/jest/bin/jest.js eliteStandardContract",
     "test:all": "npm run smoke:all && npm run test:unit && npm run test:integration",
     "elite:normalize": "node scripts/elite/normalize-contract.mjs",
+    "elite:normalize:check": "node scripts/elite/normalize-contract.mjs --check",
     "storage:validate": "node scripts/validate-storage.mjs",
     "storage:coherence": "node scripts/validate-coherence.mjs",
     "storage:migrate": "node scripts/migrate-legacy-data.mjs",

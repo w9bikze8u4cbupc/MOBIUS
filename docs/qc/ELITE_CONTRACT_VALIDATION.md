@@ -97,6 +97,20 @@ npm run elite:normalize
 - Before committing contract changes
 - To fix formatting inconsistencies
 
+### Check Mode (Non-Destructive)
+
+Verify formatting without modifying files:
+
+```bash
+npm run elite:normalize:check
+```
+
+**Exit codes**:
+- `0`: Contract is properly formatted
+- `1`: Contract formatting differs from canonical format
+
+**Use in CI**: This command is ideal for CI pipelines to enforce formatting without modifying files.
+
 ## Integration with Test Suite
 
 The Elite contract tests are automatically included in:
@@ -213,8 +227,11 @@ npm run elite:normalize
 # Run Elite contract tests only
 npm run test:elite-contract
 
-# Normalize contract formatting
+# Normalize contract formatting (writes file)
 npm run elite:normalize
+
+# Check contract formatting (read-only, CI-friendly)
+npm run elite:normalize:check
 
 # Run all unit tests (includes Elite contract)
 npm run test:unit
@@ -222,6 +239,18 @@ npm run test:unit
 # Run full test suite
 npm run test:all
 ```
+
+## Trusted Commands
+
+For information on adding these commands to your Kiro Trusted Commands list to eliminate approval prompts, see:
+
+**[Elite Contract Trusted Commands Guide](./ELITE_CONTRACT_TRUSTED_COMMANDS.md)**
+
+This guide provides:
+- Exact commands to trust (Full command mode)
+- Security considerations
+- What NOT to trust
+- Verification procedures
 
 ## Exit Codes
 
