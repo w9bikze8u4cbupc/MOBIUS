@@ -1,0 +1,42 @@
+{
+  "A1": {
+    "rule_id": "A1",
+    "value": true,
+    "unit": "boolean"
+  },
+  "A2": {
+    "rule_id": "A2",
+    "value": -23.5,
+    "unit": "dB LUFS"
+  },
+  "A3": {
+    "rule_id": "A3",
+    "value": 8.2,
+    "unit": "dB LU"
+  },
+  "A4": {
+    "rule_id": "A4",
+    "value": -2.1,
+    "unit": "dB TP"
+  },
+  "A11": {
+    "rule_id": "A11",
+    "value": true,
+    "unit": "boolean"
+  },
+  "A12": {
+    "rule_id": "A12",
+    "value": 0.98,
+    "unit": "ratio"
+  },
+  "A13": {
+    "rule_id": "A13",
+    "value": 0.02,
+    "unit": "ratio"
+  },
+  "V1": {
+    "rule_id": "V1",
+    "value": 1920,
+    "unit": "pixels"
+  }
+}

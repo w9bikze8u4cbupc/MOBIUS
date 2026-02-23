@@ -82,3 +82,10 @@ Thumbs.db
 !/data/exports/.gitkeep
 !/output/.gitkeep
 !/ffmpeg-bin/README.md
+
+# Elite QC generated outputs (runtime artifacts, not fixtures)
+elite_qc_report.json
+elite_metrics.json
+**/qc/elite_metrics.json
+**/qc/elite_qc_report.json
+scripts/elite/*extracted*.json

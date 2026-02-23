@@ -1,0 +1,68 @@
+{
+  "contract_id": "MOBIUS_ELITE_VIDEO_STANDARD_v1",
+  "contract_version": "1.0.0",
+  "eliteScore": 940,
+  "score_total": 1000,
+  "elite_threshold_score": 900,
+  "hardFailCount": 1,
+  "softWarnCount": 0,
+  "passed_elite_threshold": false,
+  "rules": [
+    {
+      "id": "A1",
+      "passed": false,
+      "points_awarded": 0,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": true
+    },
+    {
+      "id": "A2",
+      "passed": true,
+      "points_awarded": 50,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "A3",
+      "passed": true,
+      "points_awarded": 50,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "A4",
+      "passed": true,
+      "points_awarded": 20,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "A11",
+      "passed": true,
+      "points_awarded": 40,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "A12",
+      "passed": true,
+      "points_awarded": 40,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "A13",
+      "passed": true,
+      "points_awarded": 20,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    },
+    {
+      "id": "V1",
+      "passed": true,
+      "points_awarded": 40,
+      "severity": "HARD_FAIL",
+      "hard_fail_triggered": false
+    }
+  ]
+}

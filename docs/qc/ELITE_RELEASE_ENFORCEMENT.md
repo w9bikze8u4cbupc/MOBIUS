@@ -182,6 +182,60 @@ Check the Elite QC stage logs for specific errors. Common issues:
 - **0**: Release successful (Elite QC passed)
 - **1**: Release failed (Elite QC blocked or other error)
 
+## Testing Elite Gating Without ffmpeg
+
+Elite enforcement logic is validated in CI using fixture injection, eliminating the need for ffmpeg in test environments.
+
+### Test Strategy
+
+**File**: `src/__tests__/releaseEliteE2E.test.js`
+
+The test suite validates three critical paths:
+
+1. **PASS**: Elite score >= 900, no HARD_FAIL → release continues
+2. **FAIL (HARD_FAIL)**: Any HARD_FAIL rule triggered → release blocked
+3. **FAIL (Threshold)**: Elite score < 900 → release blocked
+
+### Fixture-Based Validation
+
+Tests use pre-generated JSON fixtures instead of running ffmpeg:
+
+**Fixture Directory**: `scripts/elite/fixtures/`
+
+- `elite_metrics_pass.json` - Valid metrics for all 8 implemented rules
+- `elite_report_pass.json` - Score 1000, no failures
+- `elite_report_hardfail.json` - HARD_FAIL triggered (rule A1)
+- `elite_report_below_threshold.json` - Score 850 (below 900 threshold)
+
+These fixtures are test-only inputs, immutable, and version-controlled. They are NOT generated runtime artifacts.
+
+### Injection Mechanism
+
+The release harness accepts an internal-only `_eliteOverrides` config parameter (not exposed to users):
+
+```javascript
+config._eliteOverrides = {
+  extractEliteMetrics: mockExtractor,
+  verifyEliteMetrics: mockVerifier
+};
+```
+
+This allows tests to inject stub implementations that write fixture data instead of running ffmpeg.
+
+### Running Tests
+
+```bash
+npm run test:unit -- releaseEliteE2E
+```
+
+All 6 tests validate deterministic blocking behavior without external dependencies.
+
+### Production vs Test Mode
+
+- **Production**: No `_eliteOverrides` provided → real ffmpeg extraction
+- **Test**: `_eliteOverrides` provided → fixture injection
+- **User-facing**: No CLI flags or config options expose this mechanism
+
 ## Related Documentation
 
 - [Elite Contract Validation](./ELITE_CONTRACT_VALIDATION.md)
@@ -190,6 +244,6 @@ Check the Elite QC stage logs for specific errors. Common issues:
 
 ---
 
-**Document Version**: 1.0  
+**Document Version**: 1.1  
 **Last Updated**: 2026-02-23  
 **Contract Version**: MOBIUS_ELITE_VIDEO_STANDARD_v1 v1.0.0
