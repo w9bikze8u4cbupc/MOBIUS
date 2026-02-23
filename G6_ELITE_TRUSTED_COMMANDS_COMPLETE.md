@@ -75,6 +75,8 @@ npm run elite:normalize
 npm run elite:normalize:check
 ```
 
+**Note**: Git commands are NOT required for Elite contract validation.
+
 ### Extended (Full Development)
 
 ```bash
@@ -84,6 +86,14 @@ npm run elite:normalize:check
 npm run test:unit
 npm run test:all
 npm run smoke:all
+```
+
+**Note**: Git commands remain optional and are not part of the Elite enforcement surface.
+
+### Optional: Version Control
+
+If you choose to trust Git commands (not required for Elite validation):
+```bash
 git status
 ```
 

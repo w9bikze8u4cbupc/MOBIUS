@@ -16,26 +16,23 @@ This guide provides the exact commands to add to your Kiro Trusted Commands list
 
 Add these commands to your Trusted Commands list using **Full command** mode (not patterns):
 
-### Elite Contract Workflows
+### Elite Contract Workflows (Required)
 
 ```bash
 npm run test:elite-contract
 npm run elite:normalize
 npm run elite:normalize:check
+```
+
+### Extended Test Workflows (Optional)
+
+```bash
 npm run test:unit
 npm run test:all
 npm run smoke:all
 ```
 
-### Git Workflows (Optional)
-
-```bash
-git status
-git add -A
-git push
-```
-
-**Note on `git commit`**: We recommend **NOT** trusting `git commit -m "<message>"` broadly, as commit messages vary. Instead, approve each commit interactively or use a dedicated commit script if needed.
+**Note**: Git commands are NOT required for Elite contract validation. See "Optional: Version Control Commands" section below if you choose to trust Git operations.
 
 ## Command Details
 
@@ -154,7 +151,8 @@ git push
 **Side effects**: None (read-only)  
 **Duration**: <1 second  
 
-**Safe to trust**: ✅ Yes (read-only)
+**Safe to trust**: ✅ Yes (read-only)  
+**Required for Elite validation**: ❌ No
 
 ---
 
@@ -164,7 +162,8 @@ git push
 **Side effects**: Modifies git index (staging area)  
 **Duration**: <1 second  
 
-**Safe to trust**: ⚠️ Use caution (stages all changes; prefer `git add <specific-files>` for precision)
+**Safe to trust**: ⚠️ Use caution (stages all changes; prefer `git add <specific-files>` for precision)  
+**Required for Elite validation**: ❌ No
 
 ---
 
@@ -174,7 +173,40 @@ git push
 **Side effects**: Updates remote repository  
 **Duration**: Variable (network-dependent)  
 
-**Safe to trust**: ⚠️ Use caution (publishes changes; ensure commits are reviewed first)
+**Safe to trust**: ⚠️ Use caution (publishes changes; ensure commits are reviewed first)  
+**Required for Elite validation**: ❌ No
+
+## Optional: Version Control Commands
+
+Git commands are **NOT required** for Elite contract validation. The Elite workflow is fully functional using only npm scripts. However, if you choose to trust Git commands for convenience, here are the safest options:
+
+### Recommended (If Trusting Git)
+
+```bash
+git status
+```
+
+**Why**: Read-only, no side effects, useful for checking working tree state.
+
+### Use With Caution
+
+```bash
+git add -A
+git push
+```
+
+**Why**: These commands modify state (staging area, remote repository). Ensure you review changes before using them.
+
+### NOT Recommended
+
+```bash
+git commit -m "<message>"  # Message varies
+git *                      # Too broad
+git reset --hard           # Destructive
+git clean -fd              # Destructive
+```
+
+**Why**: Variable arguments, overly broad patterns, or destructive operations.
 
 ## What NOT to Trust
 
@@ -225,7 +257,7 @@ Trust only the **exact commands** you need for your workflow. For Elite contract
 2. `npm run elite:normalize` (formatting)
 3. `npm run elite:normalize:check` (CI validation)
 
-Everything else is optional.
+**Git commands are NOT required for Elite validation.** Everything else is optional.
 
 ### Full Command Mode Only
 
@@ -257,17 +289,18 @@ npm run elite:normalize
 # 3. Validate
 npm run test:elite-contract
 
-# 4. Stage changes
+# 4. Stage changes (optional - not required for validation)
 git add -A
 
-# 5. Commit (interactive approval recommended)
+# 5. Commit (optional - not required for validation)
 git commit -m "feat(elite): update contract rules"
 
-# 6. Push
+# 6. Push (optional - not required for validation)
 git push
 ```
 
-**Trusted commands needed**: 3 (`elite:normalize`, `test:elite-contract`, and optionally git commands)
+**Trusted commands needed for validation**: 2 (`elite:normalize`, `test:elite-contract`)  
+**Git commands**: Optional (not part of Elite enforcement surface)
 
 ### CI/CD Workflow (Future)
 
@@ -385,6 +418,8 @@ npm run elite:normalize
 npm run elite:normalize:check
 ```
 
+**Git commands are NOT required for Elite validation.**
+
 ### Recommended Trust List (Extended)
 
 For full development workflow:
@@ -395,6 +430,14 @@ npm run elite:normalize:check
 npm run test:unit
 npm run test:all
 npm run smoke:all
+```
+
+**Git commands remain optional and are not part of the Elite enforcement surface.**
+
+### Optional: Version Control
+
+If you choose to trust Git commands (not required):
+```
 git status
 ```
 

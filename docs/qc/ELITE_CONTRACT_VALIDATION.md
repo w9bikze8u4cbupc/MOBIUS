@@ -23,6 +23,8 @@ Tests:       38 passed, 38 total
 
 **Duration**: ~1-2 seconds
 
+**Note**: No Git operations are required for Elite contract validation. The workflow is fully functional using npm scripts only.
+
 ## What Gets Validated
 
 ### Contract Structure (7 tests)
@@ -178,12 +180,26 @@ npm run elite:normalize
 
 ## Development Workflow
 
+### Minimal Deterministic Workflow
+
+Elite contract validation requires only npm scripts:
+
+```bash
+# Check formatting (non-destructive)
+npm run elite:normalize:check
+
+# Validate contract
+npm run test:elite-contract
+```
+
+**No Git operations required.**
+
 ### Before Committing Contract Changes
 
 1. **Edit contract**: Modify `config/elite/MOBIUS_ELITE_VIDEO_STANDARD_v1.json`
 2. **Normalize**: `npm run elite:normalize`
 3. **Validate**: `npm run test:elite-contract`
-4. **Commit**: If tests pass, commit changes
+4. **Commit**: If tests pass, commit changes (Git operations are optional and not part of Elite enforcement)
 
 ### Adding New Rules
 
