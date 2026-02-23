@@ -239,3 +239,22 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
 
 // Export for testing
 export { evaluateRule, verifyElite };
+
+// Programmatic API for release harness integration
+export async function verifyEliteMetrics({ metricsPath, outputPath, contractPath }) {
+  // Load contract
+  const contract = JSON.parse(readFileSync(contractPath || CONTRACT_PATH, 'utf8'));
+  
+  // Load metrics
+  const metrics = JSON.parse(readFileSync(metricsPath, 'utf8'));
+  
+  // Verify
+  const report = verifyElite(contract, metrics);
+  
+  // Write output if path provided
+  if (outputPath) {
+    writeFileSync(outputPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
+  }
+  
+  return report;
+}

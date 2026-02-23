@@ -184,6 +184,40 @@ async function extractMetrics(mp4Path, srtPath, chaptersPath, thumbnailPath) {
   return metrics;
 }
 
+// Programmatic API for release harness integration
+export async function extractEliteMetrics({ mp4Path, outputPath, artifactPaths = {} }) {
+  const { srtPath, chaptersPath, thumbnailPath } = artifactPaths;
+  
+  // Validate inputs
+  if (!existsSync(mp4Path)) {
+    throw new Error(`MP4 file not found: ${mp4Path}`);
+  }
+  
+  // Check dependencies
+  try {
+    execSync('ffmpeg -version', { stdio: 'ignore' });
+    execSync('ffprobe -version', { stdio: 'ignore' });
+  } catch (error) {
+    throw new Error('ffmpeg and ffprobe are required but not found in PATH');
+  }
+  
+  // Extract metrics
+  const metrics = await extractMetrics(mp4Path, srtPath, chaptersPath, thumbnailPath);
+  
+  // Sort keys for determinism
+  const sortedMetrics = {};
+  Object.keys(metrics).sort().forEach(key => {
+    sortedMetrics[key] = metrics[key];
+  });
+  
+  // Write output if path provided
+  if (outputPath) {
+    writeFileSync(outputPath, JSON.stringify(sortedMetrics, null, 2) + '\n', 'utf8');
+  }
+  
+  return sortedMetrics;
+}
+
 // Main function
 async function main() {
   const { mp4Path, outputPath, srtPath, chaptersPath, thumbnailPath } = parseArgs();

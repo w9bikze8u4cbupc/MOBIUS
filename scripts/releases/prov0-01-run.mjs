@@ -59,6 +59,9 @@ class ProV001Runner {
       // Stage 3: Verify artifacts
       await this.stageVerifyArtifacts();
 
+      // Stage 3.5: Elite QC (ProV1)
+      await this.stageEliteQC();
+
       // Stage 4: Generate release dossier
       await this.stageGenerateDossier();
 
@@ -260,6 +263,129 @@ class ProV001Runner {
       stage.error = error.message;
       stage.endTime = new Date().toISOString();
       this.report.stages.verifyArtifacts = stage;
+      throw error;
+    }
+  }
+
+  async stageEliteQC() {
+    this.log('STAGE 3.5: Elite QC (ProV1)');
+    const stage = { name: 'eliteQC', startTime: new Date().toISOString(), status: 'IN_PROGRESS' };
+
+    try {
+      // Get output directory
+      const { getOutputPath } = await import('../../src/config/storage.mjs');
+      const outputDir = getOutputPath(this.config.projectId);
+      
+      // Create QC subdirectory
+      const qcDir = join(outputDir, 'qc');
+      const { mkdirSync } = await import('fs');
+      if (!existsSync(qcDir)) {
+        mkdirSync(qcDir, { recursive: true });
+      }
+
+      // Define artifact paths
+      const mp4Path = join(outputDir, 'output.mp4');
+      const srtPath = join(outputDir, `captions_${this.config.lang}.srt`);
+      const chaptersPath = join(outputDir, `chapters_${this.config.lang}.json`);
+      const thumbnailPath = join(outputDir, 'thumbnail.jpg');
+      
+      // Define output paths
+      const metricsPath = join(qcDir, 'elite_metrics.json');
+      const reportPath = join(qcDir, 'elite_qc_report.json');
+
+      this.log(`  Extracting Elite metrics from: ${mp4Path}`);
+      
+      // Import and run extractor
+      const { extractEliteMetrics } = await import('../elite/extract-elite-metrics.mjs');
+      
+      const metrics = await extractEliteMetrics({
+        mp4Path,
+        outputPath: metricsPath,
+        artifactPaths: {
+          srtPath: existsSync(srtPath) ? srtPath : null,
+          chaptersPath: existsSync(chaptersPath) ? chaptersPath : null,
+          thumbnailPath: existsSync(thumbnailPath) ? thumbnailPath : null
+        }
+      });
+      
+      this.log(`  ✅ Elite metrics extracted: ${metricsPath}`);
+      this.log(`     Metrics count: ${Object.keys(metrics).length}`);
+
+      this.log(`  Running Elite verifier...`);
+      
+      // Import and run verifier
+      const { verifyEliteMetrics } = await import('../elite/verify-pro-video-elite.mjs');
+      const contractPath = join(REPO_ROOT, 'config/elite/MOBIUS_ELITE_VIDEO_STANDARD_v1.json');
+      
+      const report = await verifyEliteMetrics({
+        metricsPath,
+        outputPath: reportPath,
+        contractPath
+      });
+      
+      this.log(`  ✅ Elite report generated: ${reportPath}`);
+      
+      // Log results
+      this.log(`     Contract:          ${report.contract_id} v${report.contract_version}`);
+      this.log(`     Elite Score:       ${report.eliteScore} / ${report.score_total}`);
+      this.log(`     Threshold:         ${report.elite_threshold_score}`);
+      this.log(`     HARD_FAIL count:   ${report.hardFailCount}`);
+      this.log(`     SOFT_WARN count:   ${report.softWarnCount}`);
+      this.log(`     Passed threshold:  ${report.passed_elite_threshold ? 'YES' : 'NO'}`);
+
+      // Check for blocking conditions
+      if (report.hardFailCount > 0) {
+        const failedRules = report.rules
+          .filter(r => r.hard_fail_triggered)
+          .map(r => `${r.id} (${r.severity})`)
+          .join(', ');
+        
+        this.log('');
+        this.log(`  ❌ ELITE QC FAILED: HARD_FAIL rules violated`);
+        this.log(`     Failed rules: ${failedRules}`);
+        this.log('');
+        
+        throw new Error(
+          `Elite QC HARD_FAIL: ${report.hardFailCount} rule(s) failed [${failedRules}]. ` +
+          `Release blocked per MOBIUS_ELITE_VIDEO_STANDARD_v1.`
+        );
+      }
+
+      if (!report.passed_elite_threshold) {
+        this.log('');
+        this.log(`  ❌ ELITE QC FAILED: Score below threshold`);
+        this.log(`     Score: ${report.eliteScore} < ${report.elite_threshold_score}`);
+        this.log('');
+        
+        throw new Error(
+          `Elite QC threshold not met: score ${report.eliteScore} < ${report.elite_threshold_score}. ` +
+          `Release blocked per MOBIUS_ELITE_VIDEO_STANDARD_v1.`
+        );
+      }
+
+      this.log(`  ✅ Elite QC passed - release approved`);
+
+      stage.status = 'SUCCESS';
+      stage.endTime = new Date().toISOString();
+      stage.eliteReport = {
+        contractId: report.contract_id,
+        contractVersion: report.contract_version,
+        eliteScore: report.eliteScore,
+        scoreTotal: report.score_total,
+        eliteThreshold: report.elite_threshold_score,
+        hardFailCount: report.hardFailCount,
+        softWarnCount: report.softWarnCount,
+        passed: report.passed_elite_threshold,
+        metricsPath,
+        reportPath
+      };
+      this.report.stages.eliteQC = stage;
+
+    } catch (error) {
+      stage.status = 'FAILED';
+      stage.error = error.message;
+      stage.endTime = new Date().toISOString();
+      this.report.stages.eliteQC = stage;
       throw error;
     }
   }
