@@ -16,6 +16,8 @@
     "test:all": "npm run smoke:all && npm run test:unit && npm run test:integration",
     "elite:normalize": "node scripts/elite/normalize-contract.mjs",
     "elite:normalize:check": "node scripts/elite/normalize-contract.mjs --check",
+    "elite:verify": "node scripts/elite/verify-pro-video-elite.mjs",
+    "elite:verify": "node scripts/elite/verify-pro-video-elite.mjs",
     "storage:validate": "node scripts/validate-storage.mjs",
     "storage:coherence": "node scripts/validate-coherence.mjs",
     "storage:migrate": "node scripts/migrate-legacy-data.mjs",
