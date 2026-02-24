@@ -185,8 +185,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           if [ -f artifacts/preview_audio_metrics.json ]; then
-            python -c "import json; d=json.load(open('artifacts/preview_audio_metrics.json'));\
-assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio metric keys'"
+            python -c "import json; d=json.load(open('artifacts/preview_audio_metrics.json')); assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio metric keys'"
           fi
         shell: bash
 
