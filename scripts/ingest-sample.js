@@ -67,13 +67,108 @@ function runIngestion({ pdfPath, bggSource }) {
 
   const bggMetadata = buildBggMetadata(bggSource, payload.bgg);
 
-  return runIngestionPipeline({
-    documentId: payload.documentId ?? path.basename(pdfPath, path.extname(pdfPath)),
-    metadata: payload.metadata ?? {},
-    pages: payload.pages ?? [],
-    ocr: payload.ocr ?? {},
-    bggMetadata
-  });
+  return {
+    pipeline: runIngestionPipeline({
+      documentId: payload.documentId ?? path.basename(pdfPath, path.extname(pdfPath)),
+      metadata: payload.metadata ?? {},
+      pages: payload.pages ?? [],
+      ocr: payload.ocr ?? {},
+      bggMetadata
+    }),
+    payload
+  };
+}
+
+// Map internal pipeline manifest to the ingestion contract shape expected by
+// check_ingestion.cjs (ingestionContractVersion, game, rulebook, text,
+// structure, diagnostics).
+const crypto = require('crypto');
+
+function toContractShape({ pipeline, payload }) {
+  const doc = pipeline.document || {};
+  const pages = payload.pages || [];
+  const fullText = pages.map(p => (p.blocks || []).map(b => b.text).join(' ')).join('\n');
+  const textSha = crypto.createHash('sha256').update(fullText).digest('hex');
+
+  const bggRaw = doc.bgg || payload.bgg || {};
+  const bgg = {
+    metadataStatus: bggRaw.name ? 'ok' : 'not_requested',
+    id: bggRaw.id ?? null,
+    url: bggRaw.url ?? null,
+    title: bggRaw.name ?? null,
+    yearPublished: bggRaw.yearPublished ?? null,
+    designers: bggRaw.designers ?? [],
+    minPlayers: bggRaw.minPlayers ?? null,
+    maxPlayers: bggRaw.maxPlayers ?? null,
+    minPlaytime: bggRaw.playTime ?? null,
+    maxPlaytime: bggRaw.playTime ?? null
+  };
+
+  const headings = (pipeline.outline || []).map((h, i) => ({
+    id: h.id || `heading-${i}`,
+    page: h.page,
+    text: h.title || h.text || '',
+    level: h.level || 1
+  }));
+
+  const components = (pipeline.components || []).map(c => ({
+    id: c.id,
+    name: c.sourceHeading || c.id,
+    quantity: 1,
+    category: c.type || null,
+    pageRefs: [c.pageStart]
+  }));
+
+  const setupSteps = (pipeline.components || []).filter(c => c.type === 'phase').map((c, i) => ({
+    id: c.id,
+    order: i,
+    text: c.text || c.sourceHeading || c.id,
+    componentRefs: [c.id],
+    pageRefs: [c.pageStart]
+  }));
+
+  const pdfFilename = payload.metadata?.source || 'unknown.pdf';
+  const rulebookSha = crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+
+  return {
+    ingestionContractVersion: pipeline.version || '1.0.0',
+    game: {
+      slug: doc.gameId || doc.id || 'unknown-game',
+      name: doc.title || bggRaw.name || 'Unknown Game',
+      languagesSupported: ['en'],
+      sources: {
+        bggUrl: bggRaw.url || null,
+        manualEntry: false
+      },
+      bgg
+    },
+    rulebook: {
+      filename: pdfFilename,
+      pages: pages.length || 1,
+      sha256: rulebookSha,
+      language: 'en'
+    },
+    text: {
+      full: fullText,
+      pages: pages.map(p => ({
+        page: p.number,
+        text: (p.blocks || []).map(b => b.text).join(' ')
+      })),
+      sha256: textSha
+    },
+    structure: {
+      headings,
+      components,
+      setupSteps,
+      phases: []
+    },
+    diagnostics: {
+      warnings: [],
+      errors: [],
+      parser: { engine: 'mobius-ingest', version: pipeline.version || '1.0.0' },
+      ocr: { used: (pipeline.ocrUsage || []).length > 0, reason: null }
+    }
+  };
 }
 
 async function main() {
@@ -84,7 +179,12 @@ async function main() {
     return;
   }
 
-  const ingestionResult = runIngestion({ pdfPath, bggSource });
+  const pipelineResult = runIngestion({ pdfPath, bggSource });
+
+  // Transform pipeline manifest into the contract-expected shape so that
+  // check_ingestion.cjs validation passes and generateStoryboardFromIngestion
+  // receives the keys it expects (game.slug, structure.setupSteps, etc.).
+  const ingestionResult = toContractShape(pipelineResult);
 
   if (outPath) {
     ensureDir(outPath);
