@@ -48,12 +48,30 @@ function normalizeCaptionsConfig(raw = {}) {
 
 function normalizeLocalizationConfig(raw = {}) {
   if (!raw || typeof raw !== "object") return {};
+
+  // Resolve subtitle locale codes from the most specific source available.
+  // IMPORTANT: Do NOT fall back to raw.locales — that field may contain rich
+  // metadata objects (e.g. { tone: "..." }) which are not valid locale codes
+  // and would produce paths like "game-[object Object].srt".
+  const rawCodes =
+    raw.subtitleLocaleCodes || raw.subtitle_locale_codes ||
+    raw.rules?.subtitleNaming?.locales || {};
+
+  // Defensive: ensure every value is a string so object metadata never leaks
+  // into file-path construction.
+  const subtitleLocaleCodes = {};
+  for (const [key, value] of Object.entries(rawCodes)) {
+    if (typeof value === "string") {
+      subtitleLocaleCodes[key] = value;
+    }
+  }
+
   return {
     defaultLocale: raw.defaultLocale || raw.default_locale,
     subtitleNamingPattern:
-      raw.subtitleNamingPattern || raw.subtitle_naming_pattern || "{game}-{locale}.srt",
-    subtitleLocaleCodes:
-      raw.subtitleLocaleCodes || raw.subtitle_locale_codes || raw.locales || {},
+      raw.subtitleNamingPattern || raw.subtitle_naming_pattern ||
+      raw.rules?.subtitleNaming?.pattern || "{game}-{locale}.srt",
+    subtitleLocaleCodes,
     locales: raw.locales || {},
   };
 }

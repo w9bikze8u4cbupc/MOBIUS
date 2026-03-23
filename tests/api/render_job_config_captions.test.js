@@ -93,4 +93,50 @@ describe('buildRenderJobConfig captions', () => {
     expect(config.assets.captions[0].locale).toBe('en-US');
     expect(config.options.burnInCaptions).toBe(false);
   });
+
+  it('resolves locale codes from rules.subtitleNaming when top-level locales are metadata objects', () => {
+    // Simulate the real config/localization.json shape where locales contains
+    // rich metadata objects and the actual string codes live under rules.
+    const metadataLocalizationConfig = {
+      defaultLocale: 'en-US',
+      locales: {
+        'en-US': { tone: 'warm, beginner-friendly' },
+        'fr-FR': { tone: 'formal-neutral' },
+      },
+      rules: {
+        subtitleNaming: {
+          pattern: '{game}-{locale}.srt',
+          locales: { 'en-US': 'en', 'fr-FR': 'fr' },
+        },
+      },
+    };
+
+    fs.writeFileSync(LOCALIZATION_GENERATED_PATH, JSON.stringify(metadataLocalizationConfig));
+
+    const config = buildRenderJobConfig({
+      projectId: 'p-metadata-fallback',
+      ingestionManifest,
+      storyboardManifest,
+      lang: 'en',
+      captionLocales: ['en-US', 'fr-FR'],
+      burnInCaptions: true,
+    });
+
+    expect(config.assets.captions).toHaveLength(2);
+    expect(config.assets.captions[0]).toMatchObject({
+      languageCode: 'en',
+      locale: 'en-US',
+      path: 'demo-game-en.srt',
+    });
+    expect(config.assets.captions[1]).toMatchObject({
+      languageCode: 'fr',
+      locale: 'fr-FR',
+      path: 'demo-game-fr.srt',
+    });
+    // Ensure no [object Object] leaked into any path
+    config.assets.captions.forEach((track) => {
+      expect(track.path).not.toContain('[object Object]');
+      expect(typeof track.languageCode).toBe('string');
+    });
+  });
 });
