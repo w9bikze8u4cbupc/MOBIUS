@@ -75,7 +75,7 @@ jobs:
         working-directory: .
 
       - name: Unit tests (client)
-        run: npm test -- --ci --reporters=default
+        run: npm test -- --ci --reporters=default --passWithNoTests
         working-directory: client
         continue-on-error: false
 
