@@ -43,8 +43,14 @@ jobs:
         run: npm ci
         working-directory: client
 
+      - name: Install root deps
+        run: npm ci
+
       - name: Ensure FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v2
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        with:
+          ffmpeg-version: release
+          github-token: ${{ github.token }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
