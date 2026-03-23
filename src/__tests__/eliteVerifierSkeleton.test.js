@@ -6,15 +6,8 @@ import { join } from 'path';
 
 const REPO_ROOT = join(__dirname, '../..');
 
-// Import verifier functions
-// Note: Dynamic import needed for ESM in Jest
-let evaluateRule, verifyElite;
-
-beforeAll(async () => {
-  const verifierModule = await import('../../scripts/elite/verify-pro-video-elite.mjs');
-  evaluateRule = verifierModule.evaluateRule;
-  verifyElite = verifierModule.verifyElite;
-});
+// Import verifier functions via CJS bridge (Jest cannot load .mjs ESM files directly)
+const { evaluateRule, verifyElite } = require('../../scripts/elite/verify-pro-video-elite.cjs');
 
 describe('Elite Verifier Skeleton', () => {
   let contract;

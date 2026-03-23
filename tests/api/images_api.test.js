@@ -30,6 +30,12 @@ jest.mock('multer', () => {
 }, { virtual: true });
 jest.mock('pdf-parse', () => jest.fn(), { virtual: true });
 jest.mock('xml2js', () => ({ parseStringPromise: jest.fn() }), { virtual: true });
+jest.mock('../../src/services/componentCropper.js', () => ({
+  extractComponentsFromAllPages: jest.fn(),
+  isJobInProgress: jest.fn(() => false),
+  clearJobLock: jest.fn(),
+  getJobStatus: jest.fn(),
+}));
 
 import axios from 'axios';
 import express from 'express';
