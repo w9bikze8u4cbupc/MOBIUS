@@ -46,11 +46,16 @@ jobs:
       - name: Install root deps
         run: npm ci
 
-      - name: Ensure FFmpeg
+      - name: Ensure FFmpeg (Ubuntu/Windows)
+        if: runner.os != 'macOS'
         uses: FedericoCarboni/setup-ffmpeg@v3
         with:
           ffmpeg-version: release
           github-token: ${{ github.token }}
+
+      - name: Ensure FFmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
 
       - name: Setup Python
         uses: actions/setup-python@v5

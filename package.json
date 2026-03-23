@@ -83,11 +83,16 @@
       "**/?(*.)+(spec|test).[tj]s"
     ],
     "transform": {
-      "^.+\\.[tj]s$": [
+      "^.+\\.m?[tj]s$": [
         "ts-jest",
         {
           "isolatedModules": true,
-          "allowJs": true
+          "allowJs": true,
+          "useESM": false,
+          "tsconfig": {
+            "esModuleInterop": true,
+            "allowJs": true
+          }
         }
       ]
     }
