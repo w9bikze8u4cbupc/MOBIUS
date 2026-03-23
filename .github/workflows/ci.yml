@@ -70,6 +70,10 @@ jobs:
         run: npm test -- --ci --reporters=default
         working-directory: .
 
+      - name: Elite ESM verifier tests
+        run: npm run test:elite -- --ci --reporters=default --forceExit
+        working-directory: .
+
       - name: Unit tests (client)
         run: npm test -- --ci --reporters=default
         working-directory: client
