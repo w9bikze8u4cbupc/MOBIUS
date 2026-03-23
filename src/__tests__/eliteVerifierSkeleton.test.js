@@ -2,11 +2,8 @@
 // Unit tests for Elite verifier skeleton (score computation + HARD_FAIL logic)
 
 import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 const REPO_ROOT = join(__dirname, '../..');
 
 // Import verifier functions

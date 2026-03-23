@@ -2,11 +2,8 @@
 // Contract validation tests for MOBIUS Elite Video Standard v1
 
 import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 const REPO_ROOT = join(__dirname, '../..');
 
 describe('Elite Standard Contract Validation', () => {
