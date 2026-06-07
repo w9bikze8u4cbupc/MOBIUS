@@ -11,6 +11,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { runIngestionPipeline } = require('../src/ingestion/pipeline');
 const { generateStoryboardFromIngestion } = require('../src/storyboard/storyboard_from_ingestion');
 
@@ -34,6 +35,11 @@ function parseArgs(argv) {
 
 function ensureDir(targetPath) {
   fs.mkdirSync(targetPath, { recursive: true });
+}
+
+function sha256File(filePath) {
+  const content = fs.readFileSync(filePath);
+  return crypto.createHash('sha256').update(content).digest('hex');
 }
 
 function loadJson(filePath) {
@@ -114,6 +120,7 @@ function writePlaceholderArtifacts(outputDir, { lang, resolution, timing }) {
         duration: referenceDuration,
         resolution: resolution?.width && resolution?.height ? { width: resolution.width, height: resolution.height } : undefined,
         format: 'mp4',
+        sha256: sha256File(videoPath),
       },
     ],
     captions: [
@@ -122,6 +129,7 @@ function writePlaceholderArtifacts(outputDir, { lang, resolution, timing }) {
         path: captionName,
         language: lang || 'en',
         format: 'vtt',
+        sha256: sha256File(captionPath),
       },
     ],
     manifest: {
