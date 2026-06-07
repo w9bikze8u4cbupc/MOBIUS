@@ -1,0 +1,27 @@
+{
+  "projectId": "test-two-scene",
+  "video": {
+    "resolution": { "width": 1280, "height": 720 },
+    "fps": 30
+  },
+  "scenes": [
+    {
+      "id": "scene-intro",
+      "durationSec": 3,
+      "background": { "color": "#1a1a2e" },
+      "overlays": [
+        { "type": "title", "text": "How to Play: Test Game", "position": "center" },
+        { "type": "body", "text": "A 2-player strategy game", "position": "bottom" }
+      ]
+    },
+    {
+      "id": "scene-setup",
+      "durationSec": 4,
+      "background": { "color": "#16213e" },
+      "overlays": [
+        { "type": "title", "text": "Setup", "position": "top" },
+        { "type": "body", "text": "Place the board between both players", "position": "center" }
+      ]
+    }
+  ]
+}
