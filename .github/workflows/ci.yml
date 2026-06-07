@@ -43,8 +43,19 @@ jobs:
         run: npm ci
         working-directory: client
 
-      - name: Ensure FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v2
+      - name: Install root deps
+        run: npm ci
+
+      - name: Ensure FFmpeg (Ubuntu/Windows)
+        if: runner.os != 'macOS'
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        with:
+          ffmpeg-version: release
+          github-token: ${{ github.token }}
+
+      - name: Ensure FFmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -57,6 +68,10 @@ jobs:
 
       - name: Unit tests (root)
         run: npm test -- --ci --reporters=default
+        working-directory: .
+
+      - name: Elite ESM verifier tests
+        run: npm run test:elite -- --ci --reporters=default --forceExit
         working-directory: .
 
       - name: Unit tests (client)
@@ -185,8 +200,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           if [ -f artifacts/preview_audio_metrics.json ]; then
-            python -c "import json; d=json.load(open('artifacts/preview_audio_metrics.json'));\
-assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio metric keys'"
+            python -c "import json; d=json.load(open('artifacts/preview_audio_metrics.json')); assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio metric keys'"
           fi
         shell: bash
 
@@ -358,7 +372,7 @@ assert {'integrated_lufs','true_peak_dbfs'} <= d.keys(), 'Missing expected audio
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |

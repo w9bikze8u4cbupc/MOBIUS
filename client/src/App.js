@@ -130,8 +130,10 @@ function App() {
   const [audio, setAudio] = useState({}); // Stores Blob URLs for generated audio sections
   const [audioLoading, setAudioLoading] = useState({}); // Loading state for individual audio sections
   const [error, setError] = useState(""); // General error message display
-  const [dragActive, setDragActive] = useState(false); // For drag and drop file area
-  const fileInputRef = useRef(); // Ref for the hidden file input
+  // eslint-disable-next-line no-unused-vars
+const [dragActive, setDragActive] = useState(false); // For drag and drop file area
+  // eslint-disable-next-line no-unused-vars
+const fileInputRef = useRef(); // Ref for the hidden file input
 
   // State for displaying translation status/errors
   const [translationStatus, setTranslationStatus] = useState({
@@ -428,6 +430,8 @@ function App() {
   };
 
   // Drag and drop handlers
+
+  // eslint-disable-next-line no-unused-vars
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -450,6 +454,7 @@ function App() {
   };
 
   // Handler for manual text area changes
+  // eslint-disable-next-line no-unused-vars
   const handleTextChange = (e) => {
     // Reset states similar to file handling, except don't clear gameName based on file
     setRulebookText(e.target.value);
@@ -738,6 +743,8 @@ function App() {
   };
 
   // Save edited summary and proceed to generate audio for all sections
+
+  // eslint-disable-next-line no-unused-vars
   const handleSaveAndContinue = async () => {
     setLoading(true);
     setError("");

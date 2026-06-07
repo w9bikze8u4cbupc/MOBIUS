@@ -14,6 +14,7 @@ const getImageUrl = (projectId, image) => {
   return null;
 };
 
+// eslint-disable-next-line no-unused-vars
 const getSourceLabel = (source) => {
   const labels = {
     'rulebook': 'Rulebook Page',
@@ -29,6 +30,7 @@ const getSourceLabel = (source) => {
   return labels[source] || source;
 };
 
+// eslint-disable-next-line no-unused-vars
 const getSourceColor = (source) => {
   const colors = {
     'rulebook': '#2196f3',

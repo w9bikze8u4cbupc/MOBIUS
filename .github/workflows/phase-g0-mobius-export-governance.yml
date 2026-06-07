@@ -20,12 +20,14 @@ jobs:
           node scripts/build_mobius_export.cjs \
             --game sushi-go \
             --out exports/genesis/sushi-go/mobius_export_v1.0.0.json
+        shell: bash
 
       - name: Validate export bundle
         run: |
           node scripts/check_mobius_export.cjs \
             --input exports/genesis/sushi-go/mobius_export_v1.0.0.json \
             --junit mobius-export-contract-${{ matrix.os }}.xml
+        shell: bash
 
       - name: Upload export + JUnit
         if: always()

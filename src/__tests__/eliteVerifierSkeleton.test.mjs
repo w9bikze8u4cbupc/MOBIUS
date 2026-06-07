@@ -1,34 +1,24 @@
-// src/__tests__/eliteVerifierSkeleton.test.js
-// Unit tests for Elite verifier skeleton (score computation + HARD_FAIL logic)
+// src/__tests__/eliteVerifierSkeleton.test.mjs
+// Elite verifier ESM test suite — imports the real .mjs verifier directly.
+// Runs under: node --experimental-vm-modules node_modules/.bin/jest --config jest.config.elite.mjs
 
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { evaluateRule, verifyElite } from '../../scripts/elite/verify-pro-video-elite.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const REPO_ROOT = join(__dirname, '../..');
-
-// Import verifier functions
-// Note: Dynamic import needed for ESM in Jest
-let evaluateRule, verifyElite;
-
-beforeAll(async () => {
-  const verifierModule = await import('../../scripts/elite/verify-pro-video-elite.mjs');
-  evaluateRule = verifierModule.evaluateRule;
-  verifyElite = verifierModule.verifyElite;
-});
 
 describe('Elite Verifier Skeleton', () => {
   let contract;
   let sampleMetrics;
 
   beforeAll(() => {
-    // Load contract
     const contractPath = join(REPO_ROOT, 'config/elite/MOBIUS_ELITE_VIDEO_STANDARD_v1.json');
     contract = JSON.parse(readFileSync(contractPath, 'utf8'));
 
-    // Load sample metrics
     const metricsPath = join(REPO_ROOT, 'scripts/elite/sample-elite-metrics.json');
     sampleMetrics = JSON.parse(readFileSync(metricsPath, 'utf8'));
   });
@@ -214,9 +204,8 @@ describe('Elite Verifier Skeleton', () => {
     });
 
     test('single HARD_FAIL rule fails increments hardFailCount', () => {
-      // Create metrics with one HARD_FAIL rule failing (A1)
       const modifiedMetrics = { ...sampleMetrics };
-      modifiedMetrics.A1 = { actual: -20.0 }; // Way out of tolerance
+      modifiedMetrics.A1 = { actual: -20.0 };
 
       const report = verifyElite(contract, modifiedMetrics);
       expect(report.hardFailCount).toBeGreaterThanOrEqual(1);
@@ -235,27 +224,22 @@ describe('Elite Verifier Skeleton', () => {
 
     test('failing SOFT_WARN increments softWarnCount', () => {
       const modifiedMetrics = { ...sampleMetrics };
-      modifiedMetrics.A5 = { actual: 10 }; // Below threshold (18 dB)
+      modifiedMetrics.A5 = { actual: 10 };
 
       const report = verifyElite(contract, modifiedMetrics);
       expect(report.softWarnCount).toBeGreaterThanOrEqual(1);
     });
 
     test('score below threshold but no HARD_FAIL still fails elite', () => {
-      // Create metrics where many SOFT_WARN rules fail
       const modifiedMetrics = { ...sampleMetrics };
-      modifiedMetrics.A5 = { actual: 10 }; // SOFT_WARN fail
-      modifiedMetrics.C1 = { actual: 250 }; // SOFT_WARN fail
-      modifiedMetrics.C2 = { actual: 50 }; // SOFT_WARN fail
-      modifiedMetrics.S2 = { actual: 350 }; // SOFT_WARN fail
-      modifiedMetrics.S3 = { actual: 40 }; // SOFT_WARN fail
+      modifiedMetrics.A5 = { actual: 10 };
+      modifiedMetrics.C1 = { actual: 250 };
+      modifiedMetrics.C2 = { actual: 50 };
+      modifiedMetrics.S2 = { actual: 350 };
+      modifiedMetrics.S3 = { actual: 40 };
 
       const report = verifyElite(contract, modifiedMetrics);
-      
-      // Should have no HARD_FAIL but score may be below threshold
       expect(report.hardFailCount).toBe(0);
-      
-      // If score is below threshold, should not pass
       if (report.eliteScore < report.elite_threshold_score) {
         expect(report.passed_elite_threshold).toBe(false);
       }
@@ -306,7 +290,6 @@ describe('Elite Verifier Skeleton', () => {
       expect(rule).toBeDefined();
       expect(rule.threshold.op).toBe('combinatorial_compression_required');
 
-      // Test: No subsystem exceeds thresholds - should pass
       const metricsPass = {
         S4: {
           actual: {
@@ -322,15 +305,14 @@ describe('Elite Verifier Skeleton', () => {
       expect(resultPass.passed).toBe(true);
       expect(resultPass.points_awarded).toBe(50);
 
-      // Test: Subsystem exceeds branch count threshold without referral - should fail
       const metricsFail = {
         S4: {
           actual: {
-            max_branch_count: 6, // Exceeds threshold of 5
+            max_branch_count: 6,
             max_exception_layers: 2,
             max_interaction_variables: 3,
             max_projected_runtime_seconds: 180,
-            subsystems_with_referral: [] // No referral provided
+            subsystems_with_referral: []
           }
         }
       };
@@ -338,7 +320,6 @@ describe('Elite Verifier Skeleton', () => {
       expect(resultFail.passed).toBe(false);
       expect(resultFail.points_awarded).toBe(0);
 
-      // Test: Subsystem exceeds threshold but has referral - should pass
       const metricsPassWithReferral = {
         S4: {
           actual: {
@@ -346,7 +327,7 @@ describe('Elite Verifier Skeleton', () => {
             max_exception_layers: 2,
             max_interaction_variables: 3,
             max_projected_runtime_seconds: 180,
-            subsystems_with_referral: ['combat_system'] // Referral provided
+            subsystems_with_referral: ['combat_system']
           }
         }
       };
@@ -366,7 +347,6 @@ describe('Elite Verifier Skeleton', () => {
     test('S4 triggers on any threshold exceeded', () => {
       const rule = contract.rules.find(r => r.id === 'S4');
 
-      // Test each trigger independently
       const triggers = [
         { max_branch_count: 5, max_exception_layers: 2, max_interaction_variables: 3, max_projected_runtime_seconds: 180 },
         { max_branch_count: 3, max_exception_layers: 3, max_interaction_variables: 3, max_projected_runtime_seconds: 180 },
@@ -374,7 +354,7 @@ describe('Elite Verifier Skeleton', () => {
         { max_branch_count: 3, max_exception_layers: 2, max_interaction_variables: 3, max_projected_runtime_seconds: 240 }
       ];
 
-      triggers.forEach((triggerData, idx) => {
+      triggers.forEach((triggerData) => {
         const metricsNoReferral = {
           S4: {
             actual: {
@@ -384,7 +364,7 @@ describe('Elite Verifier Skeleton', () => {
           }
         };
         const result = evaluateRule(rule, metricsNoReferral);
-        expect(result.passed).toBe(false); // Should fail without referral
+        expect(result.passed).toBe(false);
       });
     });
   });

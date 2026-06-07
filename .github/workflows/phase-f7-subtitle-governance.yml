@@ -20,10 +20,7 @@ jobs:
           node-version: '20'
 
       - name: Run F7 subtitle validator
-        run: |
-          node scripts/check_subtitles.cjs \
-            --input tests/sample/sample_subtitles.json \
-            --junit subtitle-contract-${{ matrix.os }}.xml
+        run: node scripts/check_subtitles.cjs --input tests/sample/sample_subtitles.json --junit subtitle-contract-${{ matrix.os }}.xml
 
       - name: Upload JUnit
         if: always()
