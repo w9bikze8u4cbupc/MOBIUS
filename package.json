@@ -20,6 +20,7 @@
     "render:proxy": "node scripts/render-ffmpeg.mjs tmp/timeline.json assets out/preview.mp4 --preview",
     "render:storyboard": "node scripts/render-storyboard-ffmpeg.mjs --config",
     "render:storyboard:smoke": "node scripts/render-storyboard-ffmpeg.mjs --config tests/fixtures/render/two-scene-config.json --out out/smoke-storyboard.mp4 --dry-run",
+    "render:storyboard:real-smoke": "node scripts/render-storyboard-ffmpeg.mjs --config tests/fixtures/render/two-scene-config.json --out out/smoke-storyboard-real.mp4",
     "sync:captions-config": "node scripts/sync_captions_config.cjs",
     "golden:check": "npm run golden:check:sushi && npm run golden:check:loveletter",
     "golden:update:sushi": "node scripts/generate_golden.js --game \"Sushi Go\" --in \"out/sushi-go/preview.mp4\" --out \"tests/golden/sushi-go\" --frames \"5,10,20\"",
