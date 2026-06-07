@@ -7,6 +7,13 @@ const moduleDirname = path.join(process.cwd(), 'src', 'api');
 export const RENDER_OUTPUT_BASE =
   process.env.JOB_RESULTS_DIR || path.join(moduleDirname, 'uploads', 'render-jobs');
 
+/** Default storyboard renderer script (relative to project root). */
+export const DEFAULT_STORYBOARD_RENDERER = path.join(
+  process.cwd(),
+  'scripts',
+  'render-storyboard-ffmpeg.mjs',
+);
+
 function parseProgress(line) {
   const match = line.match(/progress[:=]\s*(\d{1,3})/i);
   if (!match) return null;
@@ -25,12 +32,65 @@ async function writeConfig(jobOutputDir, jobId, config) {
   return configPath;
 }
 
-function buildCommand({ jobId, configPath, jobOutputDir }) {
+/**
+ * Adapt the internal render job config (from buildRenderJobConfig) into the
+ * scene-based format expected by render-storyboard-ffmpeg.mjs.
+ */
+export function adaptConfigForStoryboardRenderer(jobConfig, { outputPath } = {}) {
+  const video = jobConfig.video || {};
+  const resolution = video.resolution || { width: 1920, height: 1080 };
+  const fps = video.fps || 30;
+  const projectId = jobConfig.projectId || 'unknown';
+
+  // Build scenes from storyboard data or timing data
+  const storyboardScenes = jobConfig.assets?.storyboardScenes || [];
+  const timingScenes = jobConfig.timing?.scenes || [];
+  const sourceScenes = storyboardScenes.length > 0 ? storyboardScenes : timingScenes;
+
+  const scenes = sourceScenes.map((scene, idx) => ({
+    id: scene.id || `scene-${idx + 1}`,
+    durationSec: scene.durationSec || 3,
+    background: scene.background || { color: idx === 0 ? '#1a1a2e' : '#16213e' },
+    overlays: scene.overlays || [
+      { type: 'title', text: scene.id || `Scene ${idx + 1}`, position: 'center' },
+    ],
+    audio: scene.audio || undefined,
+  }));
+
+  // If no scenes available, create a single placeholder scene
+  if (scenes.length === 0) {
+    const totalDuration = jobConfig.timing?.totalDurationSec || 6;
+    scenes.push({
+      id: 'scene-placeholder',
+      durationSec: totalDuration,
+      background: { color: '#1a1a2e' },
+      overlays: [
+        { type: 'title', text: jobConfig.gameName || projectId, position: 'center' },
+        { type: 'body', text: 'Tutorial Preview', position: 'bottom' },
+      ],
+    });
+  }
+
+  return {
+    projectId,
+    video: { resolution, fps },
+    scenes,
+    _outputPath: outputPath || undefined,
+    _source: 'renderExecutor-adapter',
+  };
+}
+
+export function buildCommand({ jobId, configPath, jobOutputDir, outputFilePath }) {
   const rendererCommand = process.env.RENDERER_COMMAND;
   const rendererArgsEnv = process.env.RENDERER_ARGS || '';
   const rendererEntrypoint = process.env.RENDERER_ENTRYPOINT;
+  const dryRun = process.env.RENDERER_DRY_RUN === 'true';
 
-  if (!rendererCommand && !rendererEntrypoint) {
+  // Priority: RENDERER_COMMAND > RENDERER_ENTRYPOINT > default storyboard renderer
+  const useStoryboardDefault = !rendererCommand && !rendererEntrypoint;
+  const entrypoint = rendererEntrypoint || (useStoryboardDefault ? DEFAULT_STORYBOARD_RENDERER : null);
+
+  if (!rendererCommand && !entrypoint) {
     throw new Error('RENDERER_COMMAND_NOT_CONFIGURED');
   }
 
@@ -39,15 +99,29 @@ function buildCommand({ jobId, configPath, jobOutputDir }) {
     .map((arg) => arg.trim())
     .filter(Boolean);
 
-  if (rendererEntrypoint) {
-    args.push(rendererEntrypoint);
+  if (entrypoint) {
+    args.push(entrypoint);
   }
 
-  args.push('--job-id', jobId, '--config', configPath, '--output', jobOutputDir);
+  if (useStoryboardDefault) {
+    // Use storyboard renderer CLI interface
+    args.push('--config', configPath);
+    if (outputFilePath) {
+      args.push('--out', outputFilePath);
+    }
+    if (dryRun) {
+      args.push('--dry-run');
+    }
+  } else {
+    // Legacy renderer interface
+    args.push('--job-id', jobId, '--config', configPath, '--output', jobOutputDir);
+  }
 
   return {
     command: rendererCommand || 'node',
     args,
+    entrypoint: entrypoint || rendererCommand,
+    isStoryboardRenderer: useStoryboardDefault,
   };
 }
 
@@ -61,8 +135,25 @@ export async function runRenderJob(job, options = {}) {
   const publicBasePath = path.join('/uploads/render-jobs', job.id);
   await ensureDir(jobOutputDir);
 
-  const configPath = await writeConfig(jobOutputDir, job.id, job.config);
-  const { command, args } = buildCommand({ jobId: job.id, configPath, jobOutputDir });
+  // Determine if we should adapt config for storyboard renderer
+  const useStoryboard = !process.env.RENDERER_COMMAND && !process.env.RENDERER_ENTRYPOINT;
+  const outputFilePath = useStoryboard
+    ? path.join(jobOutputDir, `${job.id}-preview.mp4`)
+    : null;
+
+  // Write the renderer-appropriate config
+  let configToWrite = job.config;
+  if (useStoryboard) {
+    configToWrite = adaptConfigForStoryboardRenderer(job.config, { outputPath: outputFilePath });
+  }
+
+  const configPath = await writeConfig(jobOutputDir, job.id, configToWrite);
+  const { command, args, entrypoint, isStoryboardRenderer } = buildCommand({
+    jobId: job.id,
+    configPath,
+    jobOutputDir,
+    outputFilePath,
+  });
 
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -122,6 +213,10 @@ export async function runRenderJob(job, options = {}) {
             manifestPath,
             zipPath,
             packagingError: packagingResult.packagingError,
+            rendererEntrypoint: entrypoint,
+            isStoryboardRenderer,
+            configPath,
+            outputFilePath,
           });
         } catch (err) {
           reject(err);
@@ -130,6 +225,8 @@ export async function runRenderJob(job, options = {}) {
         const error = new Error(
           `Render process exited with code ${code}: ${stderrLines.join('\n').trim()}`,
         );
+        error.rendererEntrypoint = entrypoint;
+        error.configPath = configPath;
         reject(error);
       }
     });
