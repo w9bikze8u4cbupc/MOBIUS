@@ -599,6 +599,10 @@ app.get('/api/render/:jobId/status', (req, res) => {
       manifestPath: job.manifestPath,
       zipPath: job.zipPath,
       packagingError: job.packagingError,
+      rendererEntrypoint: job.rendererEntrypoint || null,
+      isStoryboardRenderer: job.isStoryboardRenderer || false,
+      configPath: job.configPath || null,
+      outputFilePath: job.outputFilePath || null,
     },
   });
 });
