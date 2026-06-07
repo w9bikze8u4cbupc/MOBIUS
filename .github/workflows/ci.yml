@@ -140,7 +140,7 @@ jobs:
             echo "Integrated loudness result was not found in EBUR128 output." >&2
             exit 1
           fi
-          if ! grep -q 'TP:' artifacts/preview_with_audio_ebur128.txt; then
+          if ! grep -q 'True peak' artifacts/preview_with_audio_ebur128.txt; then
             echo "True-peak result was not found in EBUR128 output." >&2
             exit 1
           fi
@@ -152,7 +152,7 @@ jobs:
           if (-not (Select-String -Path 'artifacts/preview_with_audio_ebur128.txt' -Pattern 'I:')) {
             Write-Error 'Integrated loudness result was not found in EBUR128 output.'
           }
-          if (-not (Select-String -Path 'artifacts/preview_with_audio_ebur128.txt' -Pattern 'TP:')) {
+          if (-not (Select-String -Path 'artifacts/preview_with_audio_ebur128.txt' -Pattern 'True peak')) {
             Write-Error 'True-peak result was not found in EBUR128 output.'
           }
         shell: pwsh
@@ -169,7 +169,7 @@ jobs:
           log_text = pathlib.Path('artifacts/preview_with_audio_ebur128.txt').read_text(encoding='utf-8')
 
           integrated = re.search(r'I:\s*(-?\d+(?:\.\d+)?)', log_text)
-          true_peak = re.search(r'TP:\s*(-?\d+(?:\.\d+)?)', log_text)
+          true_peak = re.search(r'Peak:\s*(-?\d+(?:\.\d+)?)', log_text)
 
           if integrated and true_peak:
               payload = {
@@ -185,7 +185,7 @@ jobs:
         run: |
           $logText = Get-Content 'artifacts/preview_with_audio_ebur128.txt' -Raw
           $integratedMatch = [regex]::Match($logText, 'I:\s*(-?\d+(?:\.\d+)?)')
-          $truePeakMatch = [regex]::Match($logText, 'TP:\s*(-?\d+(?:\.\d+)?)')
+          $truePeakMatch = [regex]::Match($logText, 'Peak:\s*(-?\d+(?:\.\d+)?)')
           if ($integratedMatch.Success -and $truePeakMatch.Success) {
             $payload = [ordered]@{
               integrated_lufs = [double]$integratedMatch.Groups[1].Value
