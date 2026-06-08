@@ -104,7 +104,7 @@ function buildCaptionTracks({
     ? captionLocales
     : [localizationConfig.defaultLocale].filter(Boolean);
 
-  return locales
+  const tracks = locales
     .filter((locale) => localizationConfig.subtitleLocaleCodes?.[locale])
     .map((locale, idx) => {
       const languageCode = localizationConfig.subtitleLocaleCodes[locale];
@@ -123,6 +123,29 @@ function buildCaptionTracks({
         enabled: true,
       };
     });
+
+  // Deterministic default: if no tracks were produced but a default locale exists,
+  // generate one sidecar caption track using the default locale directly.
+  if (tracks.length === 0 && localizationConfig.defaultLocale) {
+    const defaultLocale = localizationConfig.defaultLocale;
+    // Derive a simple language code from the locale (e.g. "en-US" → "en")
+    const langCode = defaultLocale.split("-")[0] || "en";
+    const defaultPath = applySubtitleNamingPattern(
+      localizationConfig.subtitleNamingPattern || "{game}-{locale}.srt",
+      { game: gameName, localeCode: langCode },
+    );
+    tracks.push({
+      id: "caption-1",
+      languageCode: langCode,
+      locale: defaultLocale,
+      type: burnInCaptions ? "burnin" : "sidecar",
+      path: defaultPath,
+      format: captionsConfig.format || "srt",
+      enabled: true,
+    });
+  }
+
+  return tracks;
 }
 
 function parseResolution(input) {
