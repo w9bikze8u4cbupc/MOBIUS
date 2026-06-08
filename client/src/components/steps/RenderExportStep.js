@@ -103,16 +103,32 @@ export function RenderExportStep({
       {renderJobState && (
         <div className="pipeline-section">
           <h4 style={{ marginTop: 0 }}>Render job</h4>
-          <p>Status: {renderJobState.status || "pending"}</p>
+          <p>Status: <strong>{renderJobState.status || "pending"}</strong></p>
           <p>Progress: {renderJobState.progress ?? 0}%</p>
-          {renderJobState.artifacts?.length ? (
-            <ul>
-              {renderJobState.artifacts.map((artifact) => (
-                <li key={artifact.name}>{artifact.name}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="pipeline-muted">No artifacts yet.</p>
+          {renderJobState.isStoryboardRenderer && (
+            <p className="pipeline-muted">Renderer: storyboard-ffmpeg (real)</p>
+          )}
+          {renderJobState.configPath && (
+            <p className="pipeline-muted">Config: {renderJobState.configPath}</p>
+          )}
+          {renderJobState.outputFilePath && (
+            <p className="pipeline-muted">Output: {renderJobState.outputFilePath}</p>
+          )}
+          {renderJobState.error && (
+            <p style={{ color: "red" }}>Error: {renderJobState.error}</p>
+          )}
+          {renderJobState.resultPaths?.length > 0 && (
+            <div>
+              <strong>Artifacts:</strong>
+              <ul>
+                {renderJobState.resultPaths.map((p, idx) => (
+                  <li key={idx}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {!renderJobState.resultPaths?.length && renderJobState.status === "completed" && (
+            <p className="pipeline-muted">Render complete. No additional artifacts.</p>
           )}
         </div>
       )}

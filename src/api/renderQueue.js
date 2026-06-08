@@ -56,6 +56,10 @@ async function processQueue(executor, outputOptions) {
       job.manifestPath = result.manifestPath || null;
       job.zipPath = result.zipPath || null;
       job.packagingError = result.packagingError || null;
+      job.rendererEntrypoint = result.rendererEntrypoint || null;
+      job.isStoryboardRenderer = result.isStoryboardRenderer || false;
+      job.configPath = result.configPath || null;
+      job.outputFilePath = result.outputFilePath || null;
     } else {
       job.resultPaths = [];
     }
