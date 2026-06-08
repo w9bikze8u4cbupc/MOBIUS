@@ -36,26 +36,54 @@ async function writeConfig(jobOutputDir, jobId, config) {
  * Adapt the internal render job config (from buildRenderJobConfig) into the
  * scene-based format expected by render-storyboard-ffmpeg.mjs.
  */
-export function adaptConfigForStoryboardRenderer(jobConfig, { outputPath } = {}) {
+export function adaptConfigForStoryboardRenderer(jobConfig, { outputPath, imageAssets } = {}) {
   const video = jobConfig.video || {};
   const resolution = video.resolution || { width: 1920, height: 1080 };
   const fps = video.fps || 30;
   const projectId = jobConfig.projectId || 'unknown';
+
+  // Build a lookup of available renderer-ready images by id
+  const imageMap = new Map();
+  if (Array.isArray(imageAssets)) {
+    for (const img of imageAssets) {
+      if (img.id && img.renderPath) {
+        imageMap.set(img.id, img);
+      }
+    }
+  }
 
   // Build scenes from storyboard data or timing data
   const storyboardScenes = jobConfig.assets?.storyboardScenes || [];
   const timingScenes = jobConfig.timing?.scenes || [];
   const sourceScenes = storyboardScenes.length > 0 ? storyboardScenes : timingScenes;
 
-  const scenes = sourceScenes.map((scene, idx) => ({
-    id: scene.id || `scene-${idx + 1}`,
-    durationSec: scene.durationSec || 3,
-    background: scene.background || { color: idx === 0 ? '#1a1a2e' : '#16213e' },
-    overlays: scene.overlays || [
-      { type: 'title', text: scene.id || `Scene ${idx + 1}`, position: 'center' },
-    ],
-    audio: scene.audio || undefined,
-  }));
+  const imageWarnings = [];
+
+  const scenes = sourceScenes.map((scene, idx) => {
+    // Resolve background: prefer scene's explicit background, then try image asset
+    let background = scene.background || null;
+    if (!background && scene.imageId && imageMap.has(scene.imageId)) {
+      background = { image: imageMap.get(scene.imageId).renderPath };
+    } else if (!background && scene.imageRef && imageMap.has(scene.imageRef)) {
+      background = { image: imageMap.get(scene.imageRef).renderPath };
+    }
+    if (!background) {
+      background = { color: idx === 0 ? '#1a1a2e' : '#16213e' };
+      if (scene.imageId || scene.imageRef) {
+        imageWarnings.push(`Scene ${scene.id || idx}: image ref '${scene.imageId || scene.imageRef}' not resolved, using color fallback`);
+      }
+    }
+
+    return {
+      id: scene.id || `scene-${idx + 1}`,
+      durationSec: scene.durationSec || 3,
+      background,
+      overlays: scene.overlays || [
+        { type: 'title', text: scene.id || `Scene ${idx + 1}`, position: 'center' },
+      ],
+      audio: scene.audio || undefined,
+    };
+  });
 
   // If no scenes available, create a single placeholder scene
   if (scenes.length === 0) {
@@ -77,6 +105,7 @@ export function adaptConfigForStoryboardRenderer(jobConfig, { outputPath } = {})
     scenes,
     _outputPath: outputPath || undefined,
     _source: 'renderExecutor-adapter',
+    _imageWarnings: imageWarnings.length > 0 ? imageWarnings : undefined,
   };
 }
 
