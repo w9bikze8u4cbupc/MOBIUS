@@ -62,12 +62,37 @@ function runIngestion({ pdfPath, bggSource }) {
 
   const payload = loadJsonMaybe(pdfPath);
   if (!payload) {
-    throw new Error(`Unable to load ingestion fixture from ${pdfPath}`);
+    // Not a JSON fixture — attempt structured PDF extraction via the adapter
+    const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor');
+    // extractPdfToIngestionInput is async; wrap in a sync-compatible path
+    // by returning a promise-based result. Caller must await.
+    return {
+      async: true,
+      run: async () => {
+        const adapterResult = await extractPdfToIngestionInput(pdfPath);
+        const bggMetadata = buildBggMetadata(bggSource, null);
+        return {
+          pipeline: runIngestionPipeline({
+            documentId: path.basename(pdfPath, path.extname(pdfPath)),
+            metadata: {
+              title: path.basename(pdfPath, path.extname(pdfPath)),
+              gameId: path.basename(pdfPath, path.extname(pdfPath)),
+              source: pdfPath
+            },
+            pages: adapterResult.pages,
+            ocr: adapterResult.ocr,
+            bggMetadata
+          }),
+          payload: { pages: adapterResult.pages, metadata: adapterResult.metadata }
+        };
+      }
+    };
   }
 
   const bggMetadata = buildBggMetadata(bggSource, payload.bgg);
 
   return {
+    async: false,
     pipeline: runIngestionPipeline({
       documentId: payload.documentId ?? path.basename(pdfPath, path.extname(pdfPath)),
       metadata: payload.metadata ?? {},
@@ -174,28 +199,35 @@ function toContractShape({ pipeline, payload }) {
 async function main() {
   const { pdfPath, bggSource, outPath, storyboardOutPath } = parseArgs();
   if (!pdfPath) {
-    console.error('Usage: node scripts/ingest-sample.js --pdf <rulebook.json> [--bgg <bgg.json|url>] [--out <path>] [--storyboard-out <path>]');
+    console.error('Usage: node scripts/ingest-sample.js --pdf <rulebook.json|rulebook.pdf> [--bgg <bgg.json|url>] [--out <path>] [--storyboard-out <path>]');
     process.exitCode = 1;
     return;
   }
 
-  const pipelineResult = runIngestion({ pdfPath, bggSource });
+  let pipelineResult;
+  const ingestionResult = runIngestion({ pdfPath, bggSource });
+
+  if (ingestionResult.async) {
+    pipelineResult = await ingestionResult.run();
+  } else {
+    pipelineResult = ingestionResult;
+  }
 
   // Transform pipeline manifest into the contract-expected shape so that
   // check_ingestion.cjs validation passes and generateStoryboardFromIngestion
   // receives the keys it expects (game.slug, structure.setupSteps, etc.).
-  const ingestionResult = toContractShape(pipelineResult);
+  const contractResult = toContractShape(pipelineResult);
 
   if (outPath) {
     ensureDir(outPath);
-    fs.writeFileSync(outPath, JSON.stringify(ingestionResult, null, 2), 'utf8');
+    fs.writeFileSync(outPath, JSON.stringify(contractResult, null, 2), 'utf8');
     console.log(`[Phase E1] Wrote ingestion JSON to ${outPath}`);
   } else {
     console.log('[Phase E1] Ingestion preview:');
-    console.log(JSON.stringify(ingestionResult, null, 2));
+    console.log(JSON.stringify(contractResult, null, 2));
   }
 
-  const storyboard = generateStoryboardFromIngestion(ingestionResult, {
+  const storyboard = generateStoryboardFromIngestion(contractResult, {
     width: 1920,
     height: 1080,
     fps: 30
