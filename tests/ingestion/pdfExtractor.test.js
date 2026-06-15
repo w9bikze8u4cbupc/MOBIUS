@@ -447,11 +447,10 @@ describe('pdfExtractor – detectPdfjsDistCapability', () => {
     expect(cap.nodeVersion).toBe(expected);
   });
 
-  it('reports supported=true only when Node 22+ or DOMMatrix exists', () => {
+  it('reports supported=true only when Node 22+', () => {
     const cap = detectPdfjsDistCapability();
     const nodeVer = parseInt(process.versions.node.split('.')[0], 10);
-    const hasDM = typeof globalThis.DOMMatrix === 'function';
-    expect(cap.supported).toBe(nodeVer >= 22 || hasDM);
+    expect(cap.supported).toBe(nodeVer >= 22);
   });
 });
 
@@ -520,7 +519,7 @@ describe('pdfExtractor – engine selection', () => {
     const cap = detectPdfjsDistCapability();
     // On current Node <22, auto would report pdf-parse
     if (!cap.supported) {
-      expect(cap.reason).toContain('lacks DOMMatrix');
+      expect(cap.reason).toContain('requires Node 22+');
     }
   });
 });

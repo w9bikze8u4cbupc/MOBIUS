@@ -43,7 +43,7 @@ describeIfNode22('pdfExtractor – Node 22 real pdfjs-dist extraction', () => {
     page2.drawText('Scoring', { x: 72, y: 720, size: 24, font: fontBold });
     page2.drawText('Count victory points at game end.', { x: 72, y: 680, size: 12, font });
 
-    const pdfBytes = await doc.save();
+    const pdfBytes = await doc.save({ useObjectStreams: false });
 
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-pdf-test-'));
     pdfPath = path.join(tempDir, 'test-game-rules.pdf');
@@ -68,7 +68,7 @@ describeIfNode22('pdfExtractor – Node 22 real pdfjs-dist extraction', () => {
 
     expect(result.metadata.extractionEngine).toBe('pdfjs-dist');
     expect(result.metadata.runtime.pdfjsDistSupported).toBe(true);
-    expect(result.metadata.runtime.nodeVersion).toMatch(/^22\./);
+    expect(result.metadata.runtime.nodeVersion).toMatch(/^2[2-9]\.|^[3-9]\d\./);
   });
 
   it('extracts structured pages from generated PDF', async () => {

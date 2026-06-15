@@ -18,20 +18,22 @@ const path = require('path');
 
 /**
  * Detect whether the current Node.js runtime supports direct pdfjs-dist usage.
- * pdfjs-dist v5+ requires DOMMatrix (available natively in Node 22+).
+ * pdfjs-dist v5+ requires DOMMatrix — we provide a polyfill for Node.js server
+ * environments, so the gate is purely on Node version (>=22 for stable ESM import).
  */
 function detectPdfjsDistCapability() {
   const nodeVersion = parseInt(process.versions.node.split('.')[0], 10);
   const hasDOMMatrix = typeof globalThis.DOMMatrix === 'function';
+  // We polyfill DOMMatrix at extraction time, so the real gate is Node >= 22
+  // for stable dynamic ESM import support.
+  const supported = nodeVersion >= 22;
   return {
-    supported: nodeVersion >= 22 || hasDOMMatrix,
+    supported,
     nodeVersion,
     hasDOMMatrix,
-    reason: nodeVersion >= 22
-      ? 'Node 22+ detected'
-      : hasDOMMatrix
-        ? 'DOMMatrix polyfill available'
-        : `Node ${nodeVersion} lacks DOMMatrix (requires Node 22+)`
+    reason: supported
+      ? `Node ${nodeVersion} detected (DOMMatrix polyfill provided)`
+      : `Node ${nodeVersion} — requires Node 22+ for stable pdfjs-dist ESM import`
   };
 }
 
@@ -282,6 +284,8 @@ async function extractPagesFromBuffer(buffer, options = {}) {
 /**
  * Extract structured page data using direct pdfjs-dist (modern engine).
  * Uses dynamic import to avoid breaking CommonJS import-time on Node 18/20.
+ * Provides a minimal DOMMatrix polyfill for Node.js server environments
+ * where DOMMatrix is not available natively.
  *
  * @param {Buffer} buffer - PDF file content
  * @param {object} options - { mergeLines: boolean }
@@ -293,17 +297,107 @@ async function extractPagesWithPdfjsDist(buffer, options = {}) {
   const pages = [];
   const diagnostics = [];
 
+  // Polyfill DOMMatrix for Node.js environments (not available natively even in Node 22)
+  if (typeof globalThis.DOMMatrix === 'undefined') {
+    globalThis.DOMMatrix = class DOMMatrix {
+      constructor(init) {
+        const values = Array.isArray(init) ? init : [1, 0, 0, 1, 0, 0];
+        this.a = values[0] || 0; this.b = values[1] || 0;
+        this.c = values[2] || 0; this.d = values[3] || 0;
+        this.e = values[4] || 0; this.f = values[5] || 0;
+        this.m11 = this.a; this.m12 = this.b;
+        this.m21 = this.c; this.m22 = this.d;
+        this.m41 = this.e; this.m42 = this.f;
+        this.m13 = 0; this.m14 = 0; this.m23 = 0; this.m24 = 0;
+        this.m31 = 0; this.m32 = 0; this.m33 = 1; this.m34 = 0;
+        this.m43 = 0; this.m44 = 1;
+        this.is2D = true; this.isIdentity = false;
+      }
+      multiply(other) { return new DOMMatrix([
+        this.a * other.a + this.c * other.b,
+        this.b * other.a + this.d * other.b,
+        this.a * other.c + this.c * other.d,
+        this.b * other.c + this.d * other.d,
+        this.a * other.e + this.c * other.f + this.e,
+        this.b * other.e + this.d * other.f + this.f
+      ]); }
+      translate(tx, ty) { return this.multiply(new DOMMatrix([1, 0, 0, 1, tx || 0, ty || 0])); }
+      scale(sx, sy) { return this.multiply(new DOMMatrix([sx || 1, 0, 0, sy || sx || 1, 0, 0])); }
+      inverse() {
+        const det = this.a * this.d - this.b * this.c;
+        if (!det) return new DOMMatrix([0, 0, 0, 0, 0, 0]);
+        return new DOMMatrix([
+          this.d / det, -this.b / det,
+          -this.c / det, this.a / det,
+          (this.c * this.f - this.d * this.e) / det,
+          (this.b * this.e - this.a * this.f) / det
+        ]);
+      }
+      transformPoint(point) {
+        const x = (point && point.x) || 0;
+        const y = (point && point.y) || 0;
+        return { x: this.a * x + this.c * y + this.e, y: this.b * x + this.d * y + this.f };
+      }
+      static fromMatrix(other) { return new DOMMatrix([other.a, other.b, other.c, other.d, other.e, other.f]); }
+      static fromFloat32Array(arr) { return new DOMMatrix(Array.from(arr)); }
+      static fromFloat64Array(arr) { return new DOMMatrix(Array.from(arr)); }
+    };
+  }
+
+  // Polyfill ImageData (pdfjs-dist checks for it during initialization)
+  if (typeof globalThis.ImageData === 'undefined') {
+    globalThis.ImageData = class ImageData {
+      constructor(data, width, height) {
+        this.data = data || new Uint8ClampedArray(width * height * 4);
+        this.width = width;
+        this.height = height;
+      }
+    };
+  }
+
+  // Polyfill Path2D (minimal no-op for server-side text extraction)
+  if (typeof globalThis.Path2D === 'undefined') {
+    globalThis.Path2D = class Path2D {
+      constructor() { this._ops = []; }
+      moveTo() {}
+      lineTo() {}
+      bezierCurveTo() {}
+      quadraticCurveTo() {}
+      closePath() {}
+      rect() {}
+      arc() {}
+      ellipse() {}
+    };
+  }
+
   let pdfjs;
   try {
-    pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    // Try non-legacy build first (better for Node 22+ with full ES2022 support)
+    try {
+      pdfjs = await import('pdfjs-dist/build/pdf.mjs');
+    } catch (_) {
+      // Fall back to legacy build
+      pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    }
   } catch (importErr) {
     throw new Error(`PDFJS_DIST_IMPORT_FAILED: ${importErr.message}`);
+  }
+
+  // Disable worker for server-side usage
+  if (pdfjs.GlobalWorkerOptions) {
+    pdfjs.GlobalWorkerOptions.workerSrc = '';
   }
 
   let doc;
   try {
     const data = new Uint8Array(buffer);
-    const loadingTask = pdfjs.getDocument({ data, useSystemFonts: true });
+    const loadingTask = pdfjs.getDocument({
+      data,
+      useSystemFonts: true,
+      isEvalSupported: false,
+      disableFontFace: true,
+      useWorkerFetch: false
+    });
     doc = await loadingTask.promise;
   } catch (loadErr) {
     throw new Error(`PDFJS_DIST_LOAD_FAILED: ${loadErr.message}`);
