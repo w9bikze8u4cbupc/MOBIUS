@@ -1,12 +1,39 @@
 // Server-side PDF extraction adapter. Converts raw PDF binary input into the
 // structured ingestion pipeline contract shape: { pages, ocr, metadata }.
 //
-// Uses pdf-parse for text extraction and derives approximate positional data
-// from the underlying pdfjs-dist text content items. For scanned/image-only
-// pages, emits ocrRecommended diagnostics without requiring Tesseract in CI.
+// Engine selection:
+//   - "pdfjs-dist": direct modern pdfjs-dist (requires Node 22+ with DOMMatrix)
+//   - "pdf-parse": legacy pdf-parse with bundled pdfjs v1.10.100
+//   - "auto" (default): tries pdfjs-dist first, falls back to pdf-parse
+//
+// For scanned/image-only pages, emits ocrRecommended diagnostics without
+// requiring Tesseract in CI.
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+
+// ---------------------------------------------------------------------------
+// Runtime capability detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect whether the current Node.js runtime supports direct pdfjs-dist usage.
+ * pdfjs-dist v5+ requires DOMMatrix (available natively in Node 22+).
+ */
+function detectPdfjsDistCapability() {
+  const nodeVersion = parseInt(process.versions.node.split('.')[0], 10);
+  const hasDOMMatrix = typeof globalThis.DOMMatrix === 'function';
+  return {
+    supported: nodeVersion >= 22 || hasDOMMatrix,
+    nodeVersion,
+    hasDOMMatrix,
+    reason: nodeVersion >= 22
+      ? 'Node 22+ detected'
+      : hasDOMMatrix
+        ? 'DOMMatrix polyfill available'
+        : `Node ${nodeVersion} lacks DOMMatrix (requires Node 22+)`
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Pure normalization helpers (testable without loading real PDFs)
@@ -249,6 +276,92 @@ async function extractPagesFromBuffer(buffer, options = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Direct pdfjs-dist extraction engine (Node 22+)
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract structured page data using direct pdfjs-dist (modern engine).
+ * Uses dynamic import to avoid breaking CommonJS import-time on Node 18/20.
+ *
+ * @param {Buffer} buffer - PDF file content
+ * @param {object} options - { mergeLines: boolean }
+ * @returns {Promise<{ pages: Array, diagnostics: Array, engineUsed: string }>}
+ */
+async function extractPagesWithPdfjsDist(buffer, options = {}) {
+  const { mergeLines = true } = options;
+
+  const pages = [];
+  const diagnostics = [];
+
+  let pdfjs;
+  try {
+    pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  } catch (importErr) {
+    throw new Error(`PDFJS_DIST_IMPORT_FAILED: ${importErr.message}`);
+  }
+
+  let doc;
+  try {
+    const data = new Uint8Array(buffer);
+    const loadingTask = pdfjs.getDocument({ data, useSystemFonts: true });
+    doc = await loadingTask.promise;
+  } catch (loadErr) {
+    throw new Error(`PDFJS_DIST_LOAD_FAILED: ${loadErr.message}`);
+  }
+
+  const numPages = doc.numPages;
+
+  for (let i = 1; i <= numPages; i++) {
+    let page;
+    try {
+      page = await doc.getPage(i);
+    } catch (pageErr) {
+      diagnostics.push({
+        page: i,
+        type: 'PAGE_LOAD_ERROR',
+        message: pageErr.message
+      });
+      pages.push({ number: i, blocks: [], ocrRecommended: true });
+      continue;
+    }
+
+    const viewport = page.getViewport({ scale: 1.0 });
+    let textContent;
+    try {
+      textContent = await page.getTextContent();
+    } catch (tcErr) {
+      diagnostics.push({
+        page: i,
+        type: 'TEXT_CONTENT_ERROR',
+        message: tcErr.message
+      });
+      pages.push({ number: i, blocks: [], ocrRecommended: true });
+      continue;
+    }
+
+    const items = (textContent && textContent.items) || [];
+    let blocks = itemsToBlocks(items, { width: viewport.width, height: viewport.height });
+
+    if (mergeLines) {
+      blocks = mergeLineBlocks(blocks);
+    }
+
+    if (blocks.length === 0) {
+      diagnostics.push({
+        page: i,
+        type: 'EMPTY_PAGE',
+        message: `Page ${i} produced no text blocks; OCR may be required`
+      });
+      pages.push({ number: i, blocks: [], ocrRecommended: true });
+    } else {
+      pages.push({ number: i, blocks, ocrRecommended: false });
+    }
+  }
+
+  return { pages, diagnostics, engineUsed: 'pdfjs-dist' };
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -258,22 +371,66 @@ async function extractPagesFromBuffer(buffer, options = {}) {
  * Returns a shape compatible with `runIngestionPipeline({ pages, ocr, metadata })`:
  *   - pages: [{ number, blocks: [{ text, fontSize, x, y, width, height }] }]
  *   - ocr: {} (placeholder; empty pages flagged via diagnostics for external OCR)
- *   - metadata: { source, pageCount, engine, engineVersion, extractedAt }
+ *   - metadata: { source, pageCount, engine, engineVersion, extractionEngine, extractedAt, runtime }
  *   - diagnostics: [{ page, type, message }]
  *
  * @param {string|Buffer|Uint8Array} input - PDF file path, Buffer, or Uint8Array
  * @param {object} options
  * @param {boolean} options.mergeLines - merge adjacent text items into lines (default: true)
  * @param {string} options.source - source identifier for metadata (default: derived from path or 'buffer')
+ * @param {string} options.engine - "auto" | "pdfjs-dist" | "pdf-parse" (default: "auto")
  * @returns {Promise<{ pages, ocr, metadata, diagnostics }>}
  */
 async function extractPdfToIngestionInput(input, options = {}) {
-  const { mergeLines = true, source } = options;
+  const { mergeLines = true, source, engine = 'auto' } = options;
 
   const buffer = loadPdfInput(input);
   const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
 
-  const { pages, diagnostics } = await extractPagesFromBuffer(buffer, { mergeLines });
+  const capability = detectPdfjsDistCapability();
+  let pages, diagnostics, engineUsed;
+
+  if (engine === 'pdfjs-dist' || (engine === 'auto' && capability.supported)) {
+    // Attempt direct pdfjs-dist extraction
+    try {
+      const result = await extractPagesWithPdfjsDist(buffer, { mergeLines });
+      pages = result.pages;
+      diagnostics = result.diagnostics;
+      engineUsed = 'pdfjs-dist';
+    } catch (err) {
+      if (engine === 'pdfjs-dist') {
+        // Forced engine: propagate error without fallback
+        throw new Error(`pdfjs-dist extraction failed: ${err.message}`);
+      }
+      // Auto mode: fall back to pdf-parse
+      diagnostics = [{
+        page: 0,
+        type: 'PDFJS_DIST_UNAVAILABLE',
+        message: `Direct pdfjs-dist failed (${err.message}); falling back to pdf-parse`
+      }];
+      const fallback = await extractPagesFromBuffer(buffer, { mergeLines });
+      pages = fallback.pages;
+      diagnostics = diagnostics.concat(fallback.diagnostics);
+      engineUsed = 'pdf-parse';
+    }
+  } else if (engine === 'pdf-parse' || (engine === 'auto' && !capability.supported)) {
+    // Use pdf-parse fallback
+    if (engine === 'auto') {
+      diagnostics = [{
+        page: 0,
+        type: 'PDFJS_DIST_UNAVAILABLE',
+        message: `Direct pdfjs-dist not available: ${capability.reason}; using pdf-parse`
+      }];
+    } else {
+      diagnostics = [];
+    }
+    const fallback = await extractPagesFromBuffer(buffer, { mergeLines });
+    pages = fallback.pages;
+    diagnostics = (diagnostics || []).concat(fallback.diagnostics);
+    engineUsed = 'pdf-parse';
+  } else {
+    throw new Error(`Unknown engine: ${engine}. Use "auto", "pdfjs-dist", or "pdf-parse".`);
+  }
 
   const sourceName = source || (typeof input === 'string' ? path.basename(input) : 'buffer');
 
@@ -282,16 +439,20 @@ async function extractPdfToIngestionInput(input, options = {}) {
     pageCount: pages.length,
     sha256,
     engine: 'mobius-pdf-extractor',
-    engineVersion: '1.0.0',
-    extractedAt: new Date().toISOString()
+    engineVersion: '2.0.0',
+    extractionEngine: engineUsed,
+    extractedAt: new Date().toISOString(),
+    runtime: {
+      nodeVersion: process.versions.node,
+      pdfjsDistSupported: capability.supported,
+      pdfjsDistReason: capability.reason
+    }
   };
 
   // Build OCR placeholder: pages that need OCR are flagged but we don't execute it
   const ocr = {};
   for (const page of pages) {
     if (page.ocrRecommended) {
-      // Placeholder entry: OCR spans are empty, signaling to the pipeline that
-      // this page needs external OCR data to be useful.
       ocr[String(page.number)] = [];
     }
   }
@@ -310,6 +471,7 @@ async function extractPdfToIngestionInput(input, options = {}) {
 module.exports = {
   // Public
   extractPdfToIngestionInput,
+  detectPdfjsDistCapability,
   // Exported for testing
   normalizeItemText,
   roundCoord,
@@ -317,5 +479,7 @@ module.exports = {
   itemToBlock,
   itemsToBlocks,
   mergeLineBlocks,
-  loadPdfInput
+  loadPdfInput,
+  extractPagesFromBuffer,
+  extractPagesWithPdfjsDist
 };
