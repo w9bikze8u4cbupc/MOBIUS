@@ -1,0 +1,37 @@
+{
+  "gameId": "gem-collectors",
+  "gameName": "Gem Collectors",
+  "playerCount": { "min": 2, "max": 4 },
+  "duration": "20 minutes",
+  "designer": "Synthetic Fixture (no real game)",
+  "objective": "Collect the most valuable set of gems by drafting cards from a shared market.",
+  "components": [
+    { "name": "Gem cards", "quantity": 60, "category": "cards" },
+    { "name": "Market board", "quantity": 1, "category": "board" },
+    { "name": "Score tokens", "quantity": 40, "category": "tokens" },
+    { "name": "First player marker", "quantity": 1, "category": "tokens" }
+  ],
+  "setup": [
+    "Shuffle all 60 gem cards and place them face-down as the draw pile.",
+    "Reveal 5 cards from the draw pile onto the market board.",
+    "Give each player 3 score tokens.",
+    "The youngest player takes the first player marker."
+  ],
+  "turnStructure": {
+    "phases": ["Take", "Refill"],
+    "description": "On your turn, take one card from the market, then refill the market from the draw pile.",
+    "endCondition": "The game ends when the draw pile is empty and all market cards are taken."
+  },
+  "coreMechanic": {
+    "name": "Set Collection",
+    "description": "Collect sets of matching gem colors. Each complete set of 3 same-color gems scores 5 points. Mixed pairs score 2 points each."
+  },
+  "scoring": {
+    "description": "Count your gem sets at game end. Complete sets of 3 matching gems score 5 points. Pairs of different gems score 2 points. Single gems score 0 points.",
+    "winCondition": "The player with the most points wins. Ties broken by most complete sets."
+  },
+  "edgeCases": [
+    "If the market is empty and the draw pile is depleted, the game ends immediately.",
+    "Wild gem cards count as any color but cannot form a set alone."
+  ]
+}
