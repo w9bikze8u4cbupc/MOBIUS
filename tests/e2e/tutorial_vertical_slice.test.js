@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const { generateTutorialScript } = require('../../src/services/tutorialScriptGenerator');
+const { generateTutorialScript } = require('../../src/services/tutorialScriptGenerator.cjs');
 const { generateStoryboardFromIngestion } = require('../../src/storyboard/storyboard_from_ingestion');
 const { validateStoryboard } = require('../../src/validators/storyboardValidator');
 const { generateCaptionCues, validateCaptionCues } = require('../../src/services/captionTiming');

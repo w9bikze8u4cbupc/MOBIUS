@@ -40,7 +40,7 @@
     "storyboard:check": "node scripts/check_storyboard.cjs",
     "checklist:validate": "node scripts/validate_mobius_checklist.cjs",
     "mobius:e2e": "node scripts/run_mobius_e2e.cjs --game hanamikoji --lang en --resolution 1920x1080 --mode preview",
-    "demo:tutorial-preview": "node scripts/generate-tutorial-preview.js"
+    "demo:tutorial-preview": "node scripts/generate-tutorial-preview.mjs"
   },
   "keywords": [
     "game",

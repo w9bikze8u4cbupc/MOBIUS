@@ -1,7 +1,7 @@
 const path = require('path');
 const fs = require('fs');
-const { generateTutorialScript } = require('../../src/services/tutorialScriptGenerator');
-const { validateSegment, validateEliteOrdering, ELITE_S1_REQUIRED_ORDER } = require('../../src/services/tutorialScriptSchema');
+const { generateTutorialScript } = require('../../src/services/tutorialScriptGenerator.cjs');
+const { validateSegment, validateEliteOrdering, ELITE_S1_REQUIRED_ORDER } = require('../../src/services/tutorialScriptSchema.cjs');
 
 const fixturePath = path.join(__dirname, '../fixtures/tutorial-vertical-slice/gem-collectors.json');
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf-8'));

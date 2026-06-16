@@ -7,7 +7,7 @@
  */
 
 const { computeTextDuration } = require('../storyboard/storyboard_timing');
-const { SEGMENT_TYPES, ELITE_S1_REQUIRED_ORDER, validateSegment, validateEliteOrdering } = require('./tutorialScriptSchema');
+const { SEGMENT_TYPES, ELITE_S1_REQUIRED_ORDER, validateSegment, validateEliteOrdering } = require('./tutorialScriptSchema.cjs');
 
 /**
  * Generate a deterministic tutorial script from a game fixture.

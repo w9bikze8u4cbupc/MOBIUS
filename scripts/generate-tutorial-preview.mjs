@@ -1,24 +1,34 @@
 #!/usr/bin/env node
 
 /**
- * generate-tutorial-preview.js — First visible tutorial video vertical slice.
+ * generate-tutorial-preview.mjs — First visible tutorial video vertical slice.
  *
  * Generates a complete tutorial preview pipeline from fixture data:
  *   fixture → script → storyboard → captions/SRT → render config
  *
  * Usage:
- *   node scripts/generate-tutorial-preview.js
- *   node scripts/generate-tutorial-preview.js --fixture tests/fixtures/tutorial-vertical-slice/gem-collectors.json
- *   node scripts/generate-tutorial-preview.js --out out/tutorial-preview
- *   node scripts/generate-tutorial-preview.js --render  (attempts FFmpeg render if available)
+ *   node scripts/generate-tutorial-preview.mjs
+ *   node scripts/generate-tutorial-preview.mjs --fixture tests/fixtures/tutorial-vertical-slice/gem-collectors.json
+ *   node scripts/generate-tutorial-preview.mjs --out out/tutorial-preview
+ *   node scripts/generate-tutorial-preview.mjs --render  (attempts FFmpeg render if available)
  */
 
-const fs = require('fs');
-const path = require('path');
-const { generateTutorialScript } = require('../src/services/tutorialScriptGenerator');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
+
+// CJS modules (src/storyboard/ is CommonJS)
+const { generateTutorialScript } = require('../src/services/tutorialScriptGenerator.cjs');
 const { generateStoryboardFromIngestion } = require('../src/storyboard/storyboard_from_ingestion');
-const { generateSrtContent, getSrtMetadata } = require('../src/services/srtWriter');
-const { generateCaptionCues } = require('../src/services/captionTiming');
+
+// ESM modules (src/services/ is ESM)
+import { generateSrtContent, getSrtMetadata } from '../src/services/srtWriter.js';
+import { generateCaptionCues } from '../src/services/captionTiming.js';
 
 // ---------------------------------------------------------------------------
 // CLI argument parsing
