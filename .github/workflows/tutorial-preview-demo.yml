@@ -120,6 +120,9 @@ jobs:
           " >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Validate artifact contract
+        run: npm run validate:tutorial-preview-artifact -- --dir out/tutorial-preview
+
       - name: Upload tutorial preview artifacts
         uses: actions/upload-artifact@v4
         with:
