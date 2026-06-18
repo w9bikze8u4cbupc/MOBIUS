@@ -129,6 +129,9 @@ jobs:
       - name: Validate visual QA contract
         run: npm run validate:tutorial-preview-visual-qa -- --dir out/tutorial-preview/visual-qa
 
+      - name: Validate golden metadata baseline
+        run: npm run validate:tutorial-preview-golden-baseline -- --dir out/tutorial-preview --baseline tests/golden/tutorial-preview/gem-collectors-baseline.json
+
       - name: Upload tutorial preview artifacts
         uses: actions/upload-artifact@v4
         with:

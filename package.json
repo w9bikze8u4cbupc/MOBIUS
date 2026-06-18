@@ -43,7 +43,8 @@
     "demo:tutorial-preview": "node scripts/generate-tutorial-preview.mjs",
     "validate:tutorial-preview-artifact": "node scripts/validate-tutorial-preview-artifact.mjs",
     "generate:tutorial-preview-contact-sheet": "node scripts/generate-tutorial-preview-contact-sheet.mjs",
-    "validate:tutorial-preview-visual-qa": "node scripts/validate-tutorial-preview-visual-qa.mjs"
+    "validate:tutorial-preview-visual-qa": "node scripts/validate-tutorial-preview-visual-qa.mjs",
+    "validate:tutorial-preview-golden-baseline": "node scripts/validate-tutorial-preview-golden-baseline.mjs"
   },
   "keywords": [
     "game",
