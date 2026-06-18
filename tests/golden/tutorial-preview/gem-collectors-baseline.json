@@ -1,0 +1,79 @@
+{
+  "_schema": "Tutorial Preview Golden Metadata Baseline",
+  "_description": "Stable metadata expectations for the gem-collectors tutorial preview vertical slice. Update this file deliberately after approved render/storyboard/fixture changes.",
+  "_updated": "2026-06-18",
+
+  "fixture": {
+    "gameId": "gem-collectors",
+    "gameName": "Gem Collectors"
+  },
+
+  "coreFiles": [
+    "preview.mp4",
+    "script.json",
+    "storyboard.json",
+    "captions.srt",
+    "render-config.json",
+    "manifest.json",
+    "ffprobe.json"
+  ],
+
+  "visualQaFiles": [
+    "visual-qa/contact-sheet.jpg",
+    "visual-qa/visual-qa-manifest.json",
+    "visual-qa/frames/frame-01.jpg",
+    "visual-qa/frames/frame-02.jpg",
+    "visual-qa/frames/frame-03.jpg",
+    "visual-qa/frames/frame-04.jpg",
+    "visual-qa/frames/frame-05.jpg",
+    "visual-qa/frames/frame-06.jpg",
+    "visual-qa/frames/frame-07.jpg",
+    "visual-qa/frames/frame-08.jpg"
+  ],
+
+  "script": {
+    "segmentCount": 11
+  },
+
+  "storyboard": {
+    "sceneCount": 13
+  },
+
+  "captions": {
+    "cueCount": 23
+  },
+
+  "renderConfig": {
+    "sceneCount": 11
+  },
+
+  "video": {
+    "codec": "h264",
+    "audioCodec": "aac",
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "durationRange": { "min": 80, "max": 90 },
+    "streamCount": 2
+  },
+
+  "visualQa": {
+    "frameCount": 8,
+    "grid": { "cols": 4, "rows": 2 },
+    "timestamps": [4.25, 15.18, 26.11, 37.05, 47.98, 58.91, 69.84, 80.77],
+    "timestampTolerance": 1.0,
+    "ffmpegVersionPrefix": "n7.1.4"
+  },
+
+  "fileSizeRanges": {
+    "preview.mp4": { "min": 400000, "max": 800000 },
+    "script.json": { "min": 2000, "max": 8000 },
+    "storyboard.json": { "min": 5000, "max": 20000 },
+    "captions.srt": { "min": 1000, "max": 5000 },
+    "render-config.json": { "min": 2000, "max": 10000 },
+    "manifest.json": { "min": 400, "max": 2000 },
+    "ffprobe.json": { "min": 2000, "max": 10000 },
+    "visual-qa/contact-sheet.jpg": { "min": 20000, "max": 200000 },
+    "visual-qa/frames/*": { "min": 20000, "max": 150000 }
+  }
+}
