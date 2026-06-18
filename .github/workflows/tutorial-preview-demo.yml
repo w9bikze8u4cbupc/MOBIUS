@@ -28,7 +28,7 @@ jobs:
         run: npm ci
 
       - name: Setup FFmpeg
-        timeout-minutes: 3
+        timeout-minutes: 7
         run: |
           echo "--- FFmpeg availability check ---"
           if command -v ffmpeg &>/dev/null && command -v ffprobe &>/dev/null; then
@@ -36,7 +36,7 @@ jobs:
             echo "  ffmpeg path: $(which ffmpeg)"
             echo "  ffprobe path: $(which ffprobe)"
           else
-            echo "FFmpeg not found; installing via apt (timeout 180s)..."
+            echo "FFmpeg not found; installing via apt (timeout 180s per command)..."
             timeout 180 sudo apt-get update -qq || { echo "ERROR: apt-get update timed out or failed" >&2; exit 1; }
             timeout 180 sudo apt-get install -y -qq ffmpeg || { echo "ERROR: apt-get install ffmpeg timed out or failed" >&2; exit 1; }
             echo "  ffmpeg path: $(which ffmpeg)"
