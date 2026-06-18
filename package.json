@@ -41,7 +41,8 @@
     "checklist:validate": "node scripts/validate_mobius_checklist.cjs",
     "mobius:e2e": "node scripts/run_mobius_e2e.cjs --game hanamikoji --lang en --resolution 1920x1080 --mode preview",
     "demo:tutorial-preview": "node scripts/generate-tutorial-preview.mjs",
-    "validate:tutorial-preview-artifact": "node scripts/validate-tutorial-preview-artifact.mjs"
+    "validate:tutorial-preview-artifact": "node scripts/validate-tutorial-preview-artifact.mjs",
+    "generate:tutorial-preview-contact-sheet": "node scripts/generate-tutorial-preview-contact-sheet.mjs"
   },
   "keywords": [
     "game",

@@ -123,6 +123,9 @@ jobs:
       - name: Validate artifact contract
         run: npm run validate:tutorial-preview-artifact -- --dir out/tutorial-preview
 
+      - name: Generate visual QA contact sheet
+        run: npm run generate:tutorial-preview-contact-sheet -- --video out/tutorial-preview/preview.mp4 --out-dir out/tutorial-preview/visual-qa --frames 8
+
       - name: Upload tutorial preview artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -135,4 +138,7 @@ jobs:
             out/tutorial-preview/render-config.json
             out/tutorial-preview/manifest.json
             out/tutorial-preview/ffprobe.json
+            out/tutorial-preview/visual-qa/contact-sheet.jpg
+            out/tutorial-preview/visual-qa/visual-qa-manifest.json
+            out/tutorial-preview/visual-qa/frames/
           retention-days: 30
