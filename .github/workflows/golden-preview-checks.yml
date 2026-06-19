@@ -58,12 +58,14 @@ jobs:
         run: npm ci
 
       - name: Render previews (replace with your real commands)
+        shell: bash
         run: |
           # Replace these with your actual rendering steps
           # Use || true if some games are not always rendered
           npm run render:proxy || true
 
       - name: Run golden checks with JUnit
+        shell: bash
         env:
           GOLDEN_PER_OS: "1"
         run: |

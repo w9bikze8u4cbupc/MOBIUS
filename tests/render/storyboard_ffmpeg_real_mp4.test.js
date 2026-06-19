@@ -39,7 +39,24 @@ function isFfprobeAvailable() {
 
 const HAS_FFMPEG = isFfmpegAvailable();
 const HAS_FFPROBE = isFfprobeAvailable();
-const CAN_RUN_REAL_RENDER = HAS_FFMPEG && HAS_FFPROBE;
+
+function hasDrawtextFilter() {
+  if (!HAS_FFMPEG) return false;
+  try {
+    // Check filter exists AND can actually render (fontconfig available)
+    execFileSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error',
+      '-f', 'lavfi', '-i', 'color=c=black:s=64x64:d=0.1',
+      '-vf', 'drawtext=text=X:fontsize=12',
+      '-frames:v', '1', '-f', 'null', '-',
+    ], { stdio: 'pipe', timeout: 10000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const CAN_RUN_REAL_RENDER = HAS_FFMPEG && HAS_FFPROBE && hasDrawtextFilter();
 
 const describeIfFfmpeg = CAN_RUN_REAL_RENDER ? describe : describe.skip;
 
@@ -65,8 +82,8 @@ function probeVideo(filePath) {
 // ---------------------------------------------------------------------------
 describe('Real MP4 render smoke (requires FFmpeg)', () => {
   if (!CAN_RUN_REAL_RENDER) {
-    test('SKIPPED: FFmpeg/ffprobe not available in this environment', () => {
-      console.log('FFmpeg not found — skipping real MP4 render tests. Install ffmpeg to run locally.');
+    test('SKIPPED: FFmpeg/ffprobe not available or missing drawtext filter', () => {
+      console.log('FFmpeg not found or drawtext filter unavailable — skipping real MP4 render tests.');
       expect(true).toBe(true);
     });
     return;
