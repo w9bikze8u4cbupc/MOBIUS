@@ -80,3 +80,38 @@ node scripts/render-storyboard-ffmpeg.mjs \
 3. Wire real PDF ingestion → script generation
 4. Add animations and scene transitions
 5. Support multiple fixture/game configurations
+
+---
+
+## Reproducibility Status
+
+**FROZEN** — Full bitstream reproducibility is proven and gated.
+
+The Tutorial Preview Demo workflow validates all generated output through five machine-checked gates before artifact upload. The MP4, all extracted frames, and the contact sheet are byte-identical across independent CI runs.
+
+See [TUTORIAL_PREVIEW_REPRODUCIBILITY_MILESTONE.md](./TUTORIAL_PREVIEW_REPRODUCIBILITY_MILESTONE.md) for the complete milestone report including:
+- Five-gate workflow order
+- Artifact inventory with verified sizes
+- MP4 bitstream fingerprint (SHA-256)
+- Baseline file locations and update procedure
+- Operator runbook
+- Next engineering options
+
+### Active Gates
+
+| Gate | Validator | Status |
+|------|-----------|--------|
+| Core artifact contract | `validate:tutorial-preview-artifact` | Active |
+| Visual QA structural contract | `validate:tutorial-preview-visual-qa` | Active |
+| Golden metadata baseline | `validate:tutorial-preview-golden-baseline` | Active |
+| Golden frame fingerprints | `validate:tutorial-preview-frame-fingerprints` | Active |
+| Golden MP4 fingerprint | `validate:tutorial-preview-mp4-fingerprint` | Active |
+
+### Trigger
+
+```bash
+gh workflow run "Tutorial Preview Demo" --ref main
+```
+
+Workflow is `workflow_dispatch` only — never triggered automatically by PR or push.
+
