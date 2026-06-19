@@ -138,6 +138,9 @@ jobs:
       - name: Validate golden MP4 fingerprint
         run: npm run validate:tutorial-preview-mp4-fingerprint -- --dir out/tutorial-preview --baseline tests/golden/tutorial-preview/gem-collectors-mp4-fingerprint.json
 
+      - name: Score tutorial quality (advisory)
+        run: npm run score:tutorial-preview-quality -- --dir out/tutorial-preview --out out/tutorial-preview/quality-report.json
+
       - name: Upload tutorial preview artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -150,6 +153,7 @@ jobs:
             out/tutorial-preview/render-config.json
             out/tutorial-preview/manifest.json
             out/tutorial-preview/ffprobe.json
+            out/tutorial-preview/quality-report.json
             out/tutorial-preview/visual-qa/contact-sheet.jpg
             out/tutorial-preview/visual-qa/visual-qa-manifest.json
             out/tutorial-preview/visual-qa/frames/

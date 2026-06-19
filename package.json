@@ -46,7 +46,8 @@
     "validate:tutorial-preview-visual-qa": "node scripts/validate-tutorial-preview-visual-qa.mjs",
     "validate:tutorial-preview-golden-baseline": "node scripts/validate-tutorial-preview-golden-baseline.mjs",
     "validate:tutorial-preview-frame-fingerprints": "node scripts/validate-tutorial-preview-frame-fingerprints.mjs",
-    "validate:tutorial-preview-mp4-fingerprint": "node scripts/validate-tutorial-preview-mp4-fingerprint.mjs"
+    "validate:tutorial-preview-mp4-fingerprint": "node scripts/validate-tutorial-preview-mp4-fingerprint.mjs",
+    "score:tutorial-preview-quality": "node scripts/score-tutorial-preview-quality.mjs"
   },
   "keywords": [
     "game",
