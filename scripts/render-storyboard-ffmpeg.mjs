@@ -183,18 +183,46 @@ function buildSceneCommand(scene, index) {
     const text = escapeDrawtext(overlay.text || '');
     if (!text) return;
 
-    const fontSize = overlay.type === 'title' ? Math.round(height / 15) : Math.round(height / 25);
-    const fontColor = overlay.fontColor || 'white';
-    const borderW = Math.round(fontSize / 12);
+    // Cookbook-style font sizing by overlay type
+    let fontSize;
+    switch (overlay.type) {
+      case 'title':   fontSize = Math.round(height / 12); break;  // Large titles
+      case 'heading': fontSize = Math.round(height / 18); break;  // Section headings
+      case 'badge':   fontSize = Math.round(height / 30); break;  // Small step badges
+      case 'body':    fontSize = Math.round(height / 25); break;  // Body text
+      default:        fontSize = Math.round(height / 25); break;
+    }
 
+    const fontColor = overlay.fontColor || 'white';
+    const borderW = overlay.type === 'badge' ? 1 : Math.round(fontSize / 12);
+    const borderColor = overlay.type === 'badge' ? 'black' : 'black';
+
+    // Cookbook-style positioning with safe margins
+    const marginX = Math.round(width * 0.08);
+    const marginY = Math.round(height * 0.08);
     let x = '(w-text_w)/2';
     let y = '(h-text_h)/2';
 
-    if (overlay.position === 'top') y = `${Math.round(height * 0.1)}`;
-    else if (overlay.position === 'bottom') y = `(h-text_h-${Math.round(height * 0.1)})`;
-    else if (overlay.position === 'center') { /* default */ }
+    switch (overlay.position) {
+      case 'top':
+        x = `${marginX}`;
+        y = `${marginY}`;
+        break;
+      case 'upper':
+        x = '(w-text_w)/2';
+        y = `${Math.round(height * 0.22)}`;
+        break;
+      case 'center':
+        x = '(w-text_w)/2';
+        y = '(h-text_h)/2';
+        break;
+      case 'bottom':
+        x = '(w-text_w)/2';
+        y = `(h-text_h-${marginY})`;
+        break;
+    }
 
-    filterChain += `,drawtext=text='${text}':fontsize=${fontSize}:fontcolor=${fontColor}:borderw=${borderW}:bordercolor=black:x=${x}:y=${y}`;
+    filterChain += `,drawtext=text='${text}':fontsize=${fontSize}:fontcolor=${fontColor}:borderw=${borderW}:bordercolor=${borderColor}:x=${x}:y=${y}`;
   });
 
   // Duration trim for image-based inputs
