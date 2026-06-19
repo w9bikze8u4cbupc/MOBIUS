@@ -36,6 +36,7 @@ jobs:
         run: npm ci
 
       - name: Print environment
+        shell: bash
         run: |
           echo "OS: ${{ runner.os }}"
           ffmpeg -version || true
@@ -43,6 +44,7 @@ jobs:
           npm -v
 
       - name: Run rendering consistency check
+        shell: bash
         run: |
           # Skip if rendering infrastructure is incomplete
           if [ ! -d "src/render" ]; then
