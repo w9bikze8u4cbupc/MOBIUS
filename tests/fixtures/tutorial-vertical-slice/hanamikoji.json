@@ -1,0 +1,62 @@
+{
+  "gameId": "hanamikoji",
+  "gameName": "Hanamikoji",
+  "playerCount": {
+    "min": 2,
+    "max": 2
+  },
+  "duration": "20 minutes",
+  "designer": "Repo-authored synthetic fixture derived from the Hanamikoji rulebook and BGG metadata",
+  "objective": "Win the duel by earning the strongest favor collection while forcing your opponent into weaker choices.",
+  "components": [
+    {
+      "name": "Favor cards",
+      "quantity": 7,
+      "category": "cards"
+    },
+    {
+      "name": "Action tokens",
+      "quantity": 4,
+      "category": "tokens"
+    },
+    {
+      "name": "Reference sheet",
+      "quantity": 1,
+      "category": "reference"
+    },
+    {
+      "name": "Score markers",
+      "quantity": 2,
+      "category": "tokens"
+    }
+  ],
+  "setup": [
+    "Shuffle the favor cards and arrange the round area before play begins.",
+    "Deal the starting hand so each player can see the same hidden tension.",
+    "Place the action tokens where both players can see the four choices available.",
+    "Keep the shared score area ready so the round winner is obvious at a glance."
+  ],
+  "turnStructure": {
+    "phases": [
+      "Choose",
+      "Reveal",
+      "Resolve",
+      "Score"
+    ],
+    "description": "Each round you plan four actions from the same hand of cards, then reveal them in the order the duel requires. The goal is to spend just enough strength to win the right favors without exposing your whole plan.",
+    "endCondition": "The duel ends when the final favor cards are awarded and the collections are compared."
+  },
+  "coreMechanic": {
+    "name": "Hand management",
+    "description": "Hanamikoji is a deliberate hand-management puzzle. You must decide which cards to keep, which to expose, and which to sacrifice so your opponent cannot read the full shape of your move."
+  },
+  "scoring": {
+    "description": "At the end of each round, compare the favors you secured and update the score area before the next round begins. Small tactical wins matter because the duel is won by the better collection over time, not by a single flashy move.",
+    "winCondition": "The player with the better favor collection wins the duel; if a rulebook tiebreak is required, resolve it with the published tie rule."
+  },
+  "edgeCases": [
+    "If both players seem locked into a narrow choice, keep the four-action order and resolve the duel by the published rules rather than improvising.",
+    "When a round leaves both players with tempting options, remember that hidden information matters more than obvious strength.",
+    "If a tie appears likely, use the game’s standard tiebreak structure instead of inventing a house rule."
+  ]
+}

@@ -9,6 +9,7 @@
  * Usage:
  *   node scripts/validate-tutorial-preview-artifact.mjs
  *   node scripts/validate-tutorial-preview-artifact.mjs --dir out/tutorial-preview
+ *   node scripts/validate-tutorial-preview-artifact.mjs --dir out/tutorial-preview/hanamikoji --slug hanamikoji
  *
  * Exit codes:
  *   0 = all checks pass
@@ -30,6 +31,7 @@ function getArg(name) {
 }
 
 const dir = getArg('dir') || resolve('out/tutorial-preview');
+const expectedSlug = getArg('slug');
 
 // ---------------------------------------------------------------------------
 // Validation framework
@@ -243,6 +245,9 @@ if (manifest) {
   }
   if (!manifest.game?.id || !manifest.game?.name) {
     fail('manifest.json: missing "game.id" or "game.name"');
+  }
+  if (expectedSlug && manifest.game.id !== expectedSlug) {
+    fail(`manifest.json: game.id is "${manifest.game.id}", expected "${expectedSlug}"`);
   }
   if (!manifest.script || !manifest.storyboard || !manifest.captions || !manifest.render) {
     fail('manifest.json: missing pipeline summary fields (script, storyboard, captions, render)');

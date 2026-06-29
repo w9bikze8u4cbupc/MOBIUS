@@ -1,12 +1,7 @@
 name: Tutorial Preview Demo
 
 on:
-  workflow_dispatch:
-    inputs:
-      fixture:
-        description: 'Fixture file (relative to repo root)'
-        required: false
-        default: 'tests/fixtures/tutorial-vertical-slice/gem-collectors.json'
+  workflow_dispatch: {}
 
 # Pinned FFmpeg static build for deterministic rendering.
 # To upgrade: update FFMPEG_VERSION, FFMPEG_ARCHIVE, FFMPEG_URL, and FFMPEG_SHA256
@@ -19,9 +14,17 @@ env:
 
 jobs:
   generate-preview:
-    name: Generate Tutorial Preview MP4
+    name: Generate Tutorial Preview MP4 (${{ matrix.slug }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: gem-collectors
+            fixture: tests/fixtures/tutorial-vertical-slice/gem-collectors.json
+          - slug: hanamikoji
+            fixture: tests/fixtures/tutorial-vertical-slice/hanamikoji.json
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,29 +89,29 @@ jobs:
           ffprobe -version | head -1
 
       - name: Generate tutorial artifacts (dry-run)
-        run: node scripts/generate-tutorial-preview.mjs --fixture "${{ github.event.inputs.fixture }}"
+        run: node scripts/generate-tutorial-preview.mjs --fixture "${{ matrix.fixture }}" --slug "${{ matrix.slug }}" --out "out/tutorial-preview/${{ matrix.slug }}"
 
       - name: Render MP4 preview
         run: |
           node scripts/render-storyboard-ffmpeg.mjs \
-            --config out/tutorial-preview/render-config.json \
-            --out out/tutorial-preview/preview.mp4
+            --config "out/tutorial-preview/${{ matrix.slug }}/render-config.json" \
+            --out "out/tutorial-preview/${{ matrix.slug }}/preview.mp4"
 
       - name: Verify preview.mp4 exists and is non-empty
         run: |
-          if [ ! -s out/tutorial-preview/preview.mp4 ]; then
+          if [ ! -s "out/tutorial-preview/${{ matrix.slug }}/preview.mp4" ]; then
             echo "ERROR: preview.mp4 is missing or empty" >&2
             exit 1
           fi
-          echo "preview.mp4 size: $(stat -c%s out/tutorial-preview/preview.mp4) bytes"
+          echo "preview.mp4 size: $(stat -c%s "out/tutorial-preview/${{ matrix.slug }}/preview.mp4") bytes"
 
       - name: Capture media metadata
         run: |
           ffprobe -hide_banner -print_format json -show_format -show_streams \
-            out/tutorial-preview/preview.mp4 > out/tutorial-preview/ffprobe.json
+            "out/tutorial-preview/${{ matrix.slug }}/preview.mp4" > "out/tutorial-preview/${{ matrix.slug }}/ffprobe.json"
           echo "### Tutorial Preview Media Info" >> "$GITHUB_STEP_SUMMARY"
           echo '```json' >> "$GITHUB_STEP_SUMMARY"
-          cat out/tutorial-preview/ffprobe.json | python3 -c "
+          cat "out/tutorial-preview/${{ matrix.slug }}/ffprobe.json" | python3 -c "
           import json, sys
           data = json.load(sys.stdin)
           summary = {
@@ -121,41 +124,41 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Validate artifact contract
-        run: npm run validate:tutorial-preview-artifact -- --dir out/tutorial-preview
+        run: npm run validate:tutorial-preview-artifact -- --dir "out/tutorial-preview/${{ matrix.slug }}"
 
       - name: Generate visual QA contact sheet
-        run: npm run generate:tutorial-preview-contact-sheet -- --video out/tutorial-preview/preview.mp4 --out-dir out/tutorial-preview/visual-qa --frames 8
+        run: npm run generate:tutorial-preview-contact-sheet -- --video "out/tutorial-preview/${{ matrix.slug }}/preview.mp4" --out-dir "out/tutorial-preview/${{ matrix.slug }}/visual-qa" --frames 8
 
       - name: Validate visual QA contract
-        run: npm run validate:tutorial-preview-visual-qa -- --dir out/tutorial-preview/visual-qa
-
-      - name: Validate golden metadata baseline
-        run: npm run validate:tutorial-preview-golden-baseline -- --dir out/tutorial-preview --baseline tests/golden/tutorial-preview/gem-collectors-baseline.json
-
-      - name: Validate golden frame fingerprints
-        run: npm run validate:tutorial-preview-frame-fingerprints -- --dir out/tutorial-preview --baseline tests/golden/tutorial-preview/gem-collectors-frame-fingerprints.json
-
-      - name: Validate golden MP4 fingerprint
-        run: npm run validate:tutorial-preview-mp4-fingerprint -- --dir out/tutorial-preview --baseline tests/golden/tutorial-preview/gem-collectors-mp4-fingerprint.json
+        run: npm run validate:tutorial-preview-visual-qa -- --dir "out/tutorial-preview/${{ matrix.slug }}/visual-qa"
 
       - name: Score tutorial quality (advisory)
-        run: npm run score:tutorial-preview-quality -- --dir out/tutorial-preview --out out/tutorial-preview/quality-report.json
+        run: npm run score:tutorial-preview-quality -- --dir "out/tutorial-preview/${{ matrix.slug }}" --out "out/tutorial-preview/${{ matrix.slug }}/quality-report.json"
 
       - name: Upload tutorial preview artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mobius-tutorial-preview-gem-collectors
+          name: mobius-tutorial-preview-${{ matrix.slug }}
           path: |
-            out/tutorial-preview/preview.mp4
-            out/tutorial-preview/script.json
-            out/tutorial-preview/storyboard.json
-            out/tutorial-preview/captions.srt
-            out/tutorial-preview/render-config.json
-            out/tutorial-preview/manifest.json
-            out/tutorial-preview/ffprobe.json
-            out/tutorial-preview/quality-report.json
-            out/tutorial-preview/visual-qa/contact-sheet.jpg
-            out/tutorial-preview/visual-qa/visual-qa-manifest.json
-            out/tutorial-preview/visual-qa/frames/
+            out/tutorial-preview/${{ matrix.slug }}/preview.mp4
+            out/tutorial-preview/${{ matrix.slug }}/script.json
+            out/tutorial-preview/${{ matrix.slug }}/storyboard.json
+            out/tutorial-preview/${{ matrix.slug }}/captions.srt
+            out/tutorial-preview/${{ matrix.slug }}/render-config.json
+            out/tutorial-preview/${{ matrix.slug }}/manifest.json
+            out/tutorial-preview/${{ matrix.slug }}/ffprobe.json
+            out/tutorial-preview/${{ matrix.slug }}/quality-report.json
+            out/tutorial-preview/${{ matrix.slug }}/visual-qa/contact-sheet.jpg
+            out/tutorial-preview/${{ matrix.slug }}/visual-qa/visual-qa-manifest.json
+            out/tutorial-preview/${{ matrix.slug }}/visual-qa/frames/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Validate golden metadata baseline
+        run: npm run validate:tutorial-preview-golden-baseline -- --dir "out/tutorial-preview/${{ matrix.slug }}" --baseline "tests/golden/tutorial-preview/${{ matrix.slug }}-baseline.json"
+
+      - name: Validate golden frame fingerprints
+        run: npm run validate:tutorial-preview-frame-fingerprints -- --dir "out/tutorial-preview/${{ matrix.slug }}" --baseline "tests/golden/tutorial-preview/${{ matrix.slug }}-frame-fingerprints.json"
+
+      - name: Validate golden MP4 fingerprint
+        run: npm run validate:tutorial-preview-mp4-fingerprint -- --dir "out/tutorial-preview/${{ matrix.slug }}" --baseline "tests/golden/tutorial-preview/${{ matrix.slug }}-mp4-fingerprint.json"

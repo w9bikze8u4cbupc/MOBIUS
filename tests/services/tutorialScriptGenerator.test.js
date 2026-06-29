@@ -3,10 +3,12 @@ const fs = require('fs');
 const { generateTutorialScript } = require('../../src/services/tutorialScriptGenerator.cjs');
 const { validateSegment, validateEliteOrdering, ELITE_S1_REQUIRED_ORDER } = require('../../src/services/tutorialScriptSchema.cjs');
 
-const fixturePath = path.join(__dirname, '../fixtures/tutorial-vertical-slice/gem-collectors.json');
-const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf-8'));
+const FIXTURES = [
+  path.join(__dirname, '../fixtures/tutorial-vertical-slice/gem-collectors.json'),
+  path.join(__dirname, '../fixtures/tutorial-vertical-slice/hanamikoji.json'),
+].map((fixturePath) => JSON.parse(fs.readFileSync(fixturePath, 'utf-8')));
 
-describe('tutorialScriptGenerator', () => {
+describe.each(FIXTURES)('tutorialScriptGenerator (%s)', (fixture) => {
   let result;
 
   beforeAll(() => {
@@ -19,8 +21,8 @@ describe('tutorialScriptGenerator', () => {
   });
 
   it('produces metadata with correct game info', () => {
-    expect(result.metadata.gameId).toBe('gem-collectors');
-    expect(result.metadata.gameName).toBe('Gem Collectors');
+    expect(result.metadata.gameId).toBe(fixture.gameId);
+    expect(result.metadata.gameName).toBe(fixture.gameName);
     expect(result.metadata.generatedBy).toBe('mobius-tutorial-script-generator');
   });
 
@@ -68,7 +70,7 @@ describe('tutorialScriptGenerator', () => {
   it('hook segment mentions game name', () => {
     const hook = result.segments.find((s) => s.type === 'hook');
     expect(hook).toBeDefined();
-    expect(hook.narration).toContain('Gem Collectors');
+    expect(hook.narration).toContain(fixture.gameName);
   });
 
   it('objective segment matches fixture', () => {
