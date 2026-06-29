@@ -57,26 +57,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Render previews (replace with your real commands)
+      - name: Render deterministic Hanamikoji preview
         shell: bash
         run: |
-          # Replace these with your actual rendering steps
-          # Use || true if some games are not always rendered
-          npm run render:proxy || true
+          node scripts/render-ffmpeg.mjs \
+            tests/golden/hanamikoji/render-config.json \
+            assets \
+            out/preview.mp4
 
       - name: Run golden checks with JUnit
         shell: bash
-        env:
-          GOLDEN_PER_OS: "1"
         run: |
           mkdir -p tests/golden/reports
-          # Skip golden checks if preview file doesn't exist (rendering infrastructure incomplete)
-          if [ -f "out/preview.mp4" ]; then
-            node scripts/check_golden.js --game hanamikoji --input out/preview.mp4 --perOs --junit "tests/golden/reports/junit-${{ runner.os }}-hanamikoji.xml"
-          else
-            echo "Skipping golden checks: out/preview.mp4 not found (rendering infrastructure incomplete)"
-            exit 0
-          fi
+          node scripts/check_golden.js \
+            --game hanamikoji \
+            --input out/preview.mp4 \
+            --junit "tests/golden/reports/junit-${{ runner.os }}-hanamikoji.xml"
 
       - name: Upload JUnit + debug diffs
         if: always()
