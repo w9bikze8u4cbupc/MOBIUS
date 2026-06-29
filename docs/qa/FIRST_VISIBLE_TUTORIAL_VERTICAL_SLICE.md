@@ -107,6 +107,21 @@ See [TUTORIAL_PREVIEW_REPRODUCIBILITY_MILESTONE.md](./TUTORIAL_PREVIEW_REPRODUCI
 | Golden frame fingerprints | `validate:tutorial-preview-frame-fingerprints` | Active |
 | Golden MP4 fingerprint | `validate:tutorial-preview-mp4-fingerprint` | Active |
 
+### Cookbook Polish v1 Baseline Provenance
+
+PR #437 intentionally changed deterministic pixels through cookbook-style visual
+hierarchy and safe-margin body wrapping. The refreshed baseline comes only from
+the pinned Linux CI artifact produced after renderer fix
+`922d1b60f0eff6da820b61d7050294d0eea0c228`.
+
+- Capture run: `28406792019`
+- Artifact ID: `7966121646`
+- Artifact digest: `sha256:56c5ee497cae849994b8e2977a4b0ba8f66179af60e19e1cf72acea35940b326`
+- Artifact archive size: 1,386,600 bytes
+- MP4 SHA-256: `ba91a3912d54956530f9591cd4e7e980f08e904b087236923b3298e988bdff2a`
+- MP4 size: 926,319 bytes
+- Advisory quality score: 100/100
+
 ### Trigger
 
 ```bash
@@ -114,4 +129,3 @@ gh workflow run "Tutorial Preview Demo" --ref main
 ```
 
 Workflow is `workflow_dispatch` only — never triggered automatically by PR or push.
-

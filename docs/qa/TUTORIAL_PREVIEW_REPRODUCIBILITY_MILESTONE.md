@@ -189,6 +189,25 @@ After this milestone, the approved next steps are:
 
 ---
 
+## Addendum — Cookbook Visual Polish v1 Baseline Refresh
+
+PR #437 refreshed the byte-exact baselines after intentional cookbook visual
+polish and deterministic safe-margin body wrapping. The approved source was the
+pinned Linux CI artifact from renderer fix
+`922d1b60f0eff6da820b61d7050294d0eea0c228`; no local render output was used.
+
+| Field | Value |
+|-------|-------|
+| Capture run | `28406792019` |
+| Artifact ID | `7966121646` |
+| Artifact digest | `sha256:56c5ee497cae849994b8e2977a4b0ba8f66179af60e19e1cf72acea35940b326` |
+| Artifact archive size | 1,386,600 bytes |
+| MP4 SHA-256 | `ba91a3912d54956530f9591cd4e7e980f08e904b087236923b3298e988bdff2a` |
+| MP4 size | 926,319 bytes |
+| Advisory quality score | 100/100 |
+
+---
+
 ## PR Chain
 
 | PR | Title | Contribution |

@@ -129,10 +129,18 @@ jobs:
       - name: Validate visual QA contract
         run: npm run validate:tutorial-preview-visual-qa -- --dir out/tutorial-preview/visual-qa
 
+      - name: Validate golden metadata baseline
+        run: npm run validate:tutorial-preview-golden-baseline -- --dir out/tutorial-preview --baseline tests/golden/tutorial-preview/gem-collectors-baseline.json
+
+      - name: Validate golden frame fingerprints
+        run: npm run validate:tutorial-preview-frame-fingerprints -- --dir out/tutorial-preview --baseline tests/golden/tutorial-preview/gem-collectors-frame-fingerprints.json
+
+      - name: Validate golden MP4 fingerprint
+        run: npm run validate:tutorial-preview-mp4-fingerprint -- --dir out/tutorial-preview --baseline tests/golden/tutorial-preview/gem-collectors-mp4-fingerprint.json
+
       - name: Score tutorial quality (advisory)
         run: npm run score:tutorial-preview-quality -- --dir out/tutorial-preview --out out/tutorial-preview/quality-report.json
 
-      # TEMPORARY PR-BRANCH CAPTURE ONLY — restore golden gates before merge
       - name: Upload tutorial preview artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -151,12 +159,3 @@ jobs:
             out/tutorial-preview/visual-qa/frames/
           if-no-files-found: error
           retention-days: 30
-
-      - name: Validate golden metadata baseline
-        run: npm run validate:tutorial-preview-golden-baseline -- --dir out/tutorial-preview --baseline tests/golden/tutorial-preview/gem-collectors-baseline.json
-
-      - name: Validate golden frame fingerprints
-        run: npm run validate:tutorial-preview-frame-fingerprints -- --dir out/tutorial-preview --baseline tests/golden/tutorial-preview/gem-collectors-frame-fingerprints.json
-
-      - name: Validate golden MP4 fingerprint
-        run: npm run validate:tutorial-preview-mp4-fingerprint -- --dir out/tutorial-preview --baseline tests/golden/tutorial-preview/gem-collectors-mp4-fingerprint.json
