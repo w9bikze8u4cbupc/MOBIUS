@@ -159,6 +159,25 @@ function escapeDrawtext(text) {
     .replace(/%/g, '%%');
 }
 
+function wrapTextToSafeWidth(text, maxCharsPerLine) {
+  const words = text.trim().split(/\s+/);
+  const lines = [];
+  let line = '';
+
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (line && candidate.length > maxCharsPerLine) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  }
+
+  if (line) lines.push(line);
+  return lines.join('\n');
+}
+
 function buildSceneCommand(scene, index) {
   const segmentPath = join(tmpDir, `scene-${String(index).padStart(3, '0')}.mp4`);
 
@@ -180,8 +199,8 @@ function buildSceneCommand(scene, index) {
   const overlays = scene.overlays || [];
 
   overlays.forEach((overlay) => {
-    const text = escapeDrawtext(overlay.text || '');
-    if (!text) return;
+    const rawText = overlay.text || '';
+    if (!rawText) return;
 
     // Cookbook-style font sizing by overlay type
     let fontSize;
@@ -193,12 +212,19 @@ function buildSceneCommand(scene, index) {
       default:        fontSize = Math.round(height / 25); break;
     }
 
+    const marginX = Math.round(width * 0.08);
+    const safeWidth = width - (marginX * 2);
+    const maxCharsPerLine = Math.max(20, Math.floor(safeWidth / (fontSize * 0.6)));
+    const wrappedText = overlay.type === 'body'
+      ? wrapTextToSafeWidth(rawText, maxCharsPerLine)
+      : rawText;
+    const text = escapeDrawtext(wrappedText);
+
     const fontColor = overlay.fontColor || 'white';
     const borderW = overlay.type === 'badge' ? 1 : Math.round(fontSize / 12);
     const borderColor = overlay.type === 'badge' ? 'black' : 'black';
 
     // Cookbook-style positioning with safe margins
-    const marginX = Math.round(width * 0.08);
     const marginY = Math.round(height * 0.08);
     let x = '(w-text_w)/2';
     let y = '(h-text_h)/2';
