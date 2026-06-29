@@ -105,17 +105,114 @@ console.log(`[4/6] Generated captions: ${srtMeta.cueCount} cues, ${Math.round(sr
 // ---------------------------------------------------------------------------
 // Generate render config
 // ---------------------------------------------------------------------------
+
+// Cookbook-style visual palette
+const COOKBOOK_PALETTE = {
+  hook:           { bg: '#0f172a', accent: '#38bdf8' },  // Deep navy + sky blue accent
+  game_identity:  { bg: '#1e1b4b', accent: '#a78bfa' },  // Indigo + violet accent
+  objective:      { bg: '#162044', accent: '#60a5fa' },  // Dark blue + blue accent
+  components:     { bg: '#1a2332', accent: '#34d399' },  // Dark teal + emerald accent
+  setup:          { bg: '#1c2333', accent: '#fbbf24' },  // Dark slate + amber accent
+  turn_structure: { bg: '#1e2a3a', accent: '#fb923c' },  // Dark blue-gray + orange accent
+  core_mechanic:  { bg: '#1a1f3a', accent: '#f472b6' },  // Dark purple + pink accent
+  scoring:        { bg: '#1e293b', accent: '#a3e635' },  // Slate + lime accent
+  edge_cases:     { bg: '#27272a', accent: '#fca5a5' },  // Zinc + red accent
+  recap:          { bg: '#1e1b4b', accent: '#c4b5fd' },  // Indigo + light violet
+  end_card:       { bg: '#0f172a', accent: '#38bdf8' },  // Matches hook (bookend)
+};
+
+const DEFAULT_PALETTE = { bg: '#1e293b', accent: '#94a3b8' };
+
+function getStepLabel(seg, index, totalSegments) {
+  // Cookbook-style: number content steps, skip hook/end_card
+  if (seg.type === 'hook') return 'WELCOME';
+  if (seg.type === 'end_card') return 'READY TO PLAY';
+  if (seg.type === 'recap') return 'RECAP';
+  if (seg.type === 'game_identity') return 'THE GAME';
+  // Number the instructional steps
+  const contentTypes = ['objective', 'components', 'setup', 'turn_structure', 'core_mechanic', 'scoring', 'edge_cases'];
+  const contentIndex = contentTypes.indexOf(seg.type);
+  if (contentIndex >= 0) return `STEP ${contentIndex + 1}`;
+  return `STEP ${index}`;
+}
+
+function getTypeHeading(seg) {
+  const headings = {
+    hook: '',
+    game_identity: 'About the Game',
+    objective: 'Your Objective',
+    components: 'Components',
+    setup: 'Setting Up',
+    turn_structure: 'Turn Structure',
+    core_mechanic: 'Core Mechanic',
+    scoring: 'Scoring',
+    edge_cases: 'Special Rules',
+    recap: 'Quick Recap',
+    end_card: '',
+  };
+  return headings[seg.type] || seg.type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 const renderConfig = {
   projectId: fixture.gameId,
   video: { resolution: { width: 1920, height: 1080 }, fps: 30 },
-  scenes: segments.map((seg) => ({
-    id: seg.id,
-    durationSec: seg.durationSec,
-    background: { color: seg.type === 'hook' || seg.type === 'end_card' ? '#1a1a2e' : '#2d2d44' },
-    overlays: [
-      { type: seg.type === 'hook' || seg.type === 'end_card' ? 'title' : 'body', text: seg.narration, position: 'center' }
-    ]
-  }))
+  scenes: segments.map((seg, idx) => {
+    const palette = COOKBOOK_PALETTE[seg.type] || DEFAULT_PALETTE;
+    const stepLabel = getStepLabel(seg, idx, segments.length);
+    const heading = getTypeHeading(seg);
+    const isBookend = seg.type === 'hook' || seg.type === 'end_card';
+
+    const overlays = [];
+
+    // Step badge / label (top-left for content, centered for bookends)
+    if (isBookend) {
+      // Bookend: game title large centered
+      overlays.push({
+        type: 'title',
+        text: fixture.gameName,
+        position: 'center',
+        fontColor: palette.accent,
+      });
+      // Subtitle below
+      overlays.push({
+        type: 'body',
+        text: seg.narration,
+        position: 'bottom',
+        fontColor: 'white',
+      });
+    } else {
+      // Step label badge (top-left)
+      overlays.push({
+        type: 'badge',
+        text: stepLabel,
+        position: 'top',
+        fontColor: palette.accent,
+      });
+      // Section heading (upper area)
+      if (heading) {
+        overlays.push({
+          type: 'heading',
+          text: heading,
+          position: 'upper',
+          fontColor: 'white',
+        });
+      }
+      // Body narration (center-lower)
+      overlays.push({
+        type: 'body',
+        text: seg.narration,
+        position: 'center',
+        fontColor: 'white',
+      });
+    }
+
+    return {
+      id: seg.id,
+      durationSec: seg.durationSec,
+      background: { color: palette.bg },
+      overlays,
+    };
+  })
 };
 console.log(`[5/6] Generated render config: ${renderConfig.scenes.length} scenes`);
 

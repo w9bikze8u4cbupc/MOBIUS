@@ -1,7 +1,7 @@
 {
   "_schema": "Tutorial Preview Golden Metadata Baseline",
   "_description": "Stable metadata expectations for the gem-collectors tutorial preview vertical slice. Update this file deliberately after approved render/storyboard/fixture changes.",
-  "_updated": "2026-06-18",
+  "_updated": "2026-06-29",
 
   "fixture": {
     "gameId": "gem-collectors",
@@ -66,7 +66,7 @@
   },
 
   "fileSizeRanges": {
-    "preview.mp4": { "min": 400000, "max": 800000 },
+    "preview.mp4": { "min": 850000, "max": 1000000 },
     "script.json": { "min": 2000, "max": 8000 },
     "storyboard.json": { "min": 5000, "max": 20000 },
     "captions.srt": { "min": 1000, "max": 5000 },

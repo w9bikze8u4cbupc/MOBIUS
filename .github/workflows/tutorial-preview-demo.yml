@@ -157,4 +157,5 @@ jobs:
             out/tutorial-preview/visual-qa/contact-sheet.jpg
             out/tutorial-preview/visual-qa/visual-qa-manifest.json
             out/tutorial-preview/visual-qa/frames/
+          if-no-files-found: error
           retention-days: 30

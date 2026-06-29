@@ -1,0 +1,13 @@
+{
+  "_description": "Deterministic input for the cross-platform Hanamikoji Golden Preview Checks.",
+  "timing": {
+    "totalDurationSec": 28
+  },
+  "video": {
+    "resolution": {
+      "width": 960,
+      "height": 540
+    },
+    "fps": 30
+  }
+}
