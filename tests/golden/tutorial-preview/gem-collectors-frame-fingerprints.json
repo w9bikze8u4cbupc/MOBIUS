@@ -1,10 +1,10 @@
 {
   "_description": "Golden visual fingerprint baseline for Tutorial Preview Demo frames. Update deliberately after approved rendering changes.",
   "_baselineVersion": 2,
-  "_sourceRunId": 28406792019,
-  "_sourceHeadSha": "922d1b60f0eff6da820b61d7050294d0eea0c228",
+  "_sourceRunId": 28411079567,
+  "_sourceHeadSha": "8deaecba624dc7c79f0ad57a20d5b872f0369d04",
   "_ffmpegVersionPrefix": "n7.1.4",
-  "_updated": "2026-06-29",
+  "_updated": "2026-06-30",
 
   "timestampTolerance": 0.5,
 
@@ -12,8 +12,8 @@
     {
       "path": "visual-qa/contact-sheet.jpg",
       "role": "contactSheet",
-      "sha256": "192f42ca392c9eec85ef02be2ba6a4922ae4f604d78f5e374b460de68b8c2673",
-      "size": 78848
+      "sha256": "cf5ac1f8f066bd74f81813b08958421fb6ce56118ac1da833afc60e5e7f5f5d4",
+      "size": 78824
     },
     {
       "path": "visual-qa/frames/frame-01.jpg",
@@ -68,8 +68,8 @@
       "role": "frame",
       "index": 7,
       "timestamp": 69.84,
-      "sha256": "b132c52a04a636cd93e480bc2a0d6ee4e9b8300710d582843ef3c87b1633c207",
-      "size": 99133
+      "sha256": "a3b733ddde66259e1a78c5691823adb683b4127e5791fc09d84af3ed7275c998",
+      "size": 99128
     },
     {
       "path": "visual-qa/frames/frame-08.jpg",
