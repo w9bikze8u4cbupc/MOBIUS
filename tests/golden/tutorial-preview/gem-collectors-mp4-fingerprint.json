@@ -1,14 +1,14 @@
 {
   "_description": "Golden MP4 bitstream fingerprint for Tutorial Preview Demo. Update deliberately after approved rendering/FFmpeg/storyboard changes.",
   "_baselineVersion": 2,
-  "_sourceRunId": 28411079567,
-  "_sourceHeadSha": "8deaecba624dc7c79f0ad57a20d5b872f0369d04",
+  "_sourceRunId": 28406792019,
+  "_sourceHeadSha": "922d1b60f0eff6da820b61d7050294d0eea0c228",
   "_ffmpegVersionPrefix": "n7.1.4",
-  "_updated": "2026-06-30",
+  "_updated": "2026-06-29",
 
   "file": "preview.mp4",
-  "sha256": "36ee2d4810fb759361879fb2a17f56a4471bde15a5a52dd8a01b0aeeb520fe86",
-  "size": 926381,
+  "sha256": "ba91a3912d54956530f9591cd4e7e980f08e904b087236923b3298e988bdff2a",
+  "size": 926319,
 
   "expectedMedia": {
     "videoCodec": "h264",
