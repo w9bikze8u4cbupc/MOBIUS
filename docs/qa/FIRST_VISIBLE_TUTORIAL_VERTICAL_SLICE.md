@@ -122,6 +122,29 @@ the pinned Linux CI artifact produced after renderer fix
 - MP4 size: 926,319 bytes
 - Advisory quality score: 100/100
 
+### Second Fixture Provenance
+
+PR #438 extends the same tutorial-preview pipeline to a second deterministic
+fixture, `hanamikoji`, without weakening the original Gem Collectors path.
+The workflow now publishes slug-specific artifacts:
+
+- `mobius-tutorial-preview-gem-collectors`
+- `mobius-tutorial-preview-hanamikoji`
+
+Hanamikoji CI capture provenance:
+
+- Capture run: `28410461854`
+- Artifact ID: `7967453158`
+- Artifact digest: `sha256:6d41cb05566b14eb72dd7bdeb02a5aae6d4762f01eacf143ba4eb6fb101705b7`
+- Artifact archive size: 1,696,026 bytes
+- MP4 SHA-256: `dfe387e8890143fa9743256b04f52d4b83bcc3054a0080244a89351b8cd6ac22`
+- MP4 size: 1,110,320 bytes
+- Advisory quality score: 100/100
+
+Visual QA review of the CI artifact showed the Hanamikoji narration staying
+inside the safe margins on the dense setup, turn-structure, scoring, and
+special-rules frames.
+
 ### Trigger
 
 ```bash

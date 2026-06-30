@@ -10,6 +10,7 @@
  * Usage:
  *   node scripts/validate-tutorial-preview-mp4-fingerprint.mjs
  *   node scripts/validate-tutorial-preview-mp4-fingerprint.mjs --dir out/tutorial-preview --baseline tests/golden/tutorial-preview/gem-collectors-mp4-fingerprint.json
+ *   node scripts/validate-tutorial-preview-mp4-fingerprint.mjs --dir out/tutorial-preview/hanamikoji --slug hanamikoji
  *
  * Exit codes:
  *   0 = MP4 fingerprint matches baseline
@@ -32,7 +33,8 @@ function getArg(name) {
 }
 
 const dir = getArg('dir') || resolve('out/tutorial-preview');
-const baselinePath = getArg('baseline') || resolve('tests/golden/tutorial-preview/gem-collectors-mp4-fingerprint.json');
+const fixtureSlug = getArg('slug') || 'gem-collectors';
+const baselinePath = getArg('baseline') || resolve('tests/golden/tutorial-preview', `${fixtureSlug}-mp4-fingerprint.json`);
 
 // ---------------------------------------------------------------------------
 // Load baseline

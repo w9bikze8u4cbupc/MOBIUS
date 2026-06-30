@@ -6,10 +6,21 @@ const { validateStoryboard } = require('../../src/validators/storyboardValidator
 const { generateCaptionCues, validateCaptionCues } = require('../../src/services/captionTiming');
 const { generateSrtContent, getSrtMetadata } = require('../../src/services/srtWriter');
 
-const fixturePath = path.join(__dirname, '../fixtures/tutorial-vertical-slice/gem-collectors.json');
-const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf-8'));
+const FIXTURES = [
+  {
+    slug: 'gem-collectors',
+    fixturePath: path.join(__dirname, '../fixtures/tutorial-vertical-slice/gem-collectors.json'),
+  },
+  {
+    slug: 'hanamikoji',
+    fixturePath: path.join(__dirname, '../fixtures/tutorial-vertical-slice/hanamikoji.json'),
+  },
+].map((entry) => ({
+  ...entry,
+  fixture: JSON.parse(fs.readFileSync(entry.fixturePath, 'utf-8')),
+}));
 
-describe('Tutorial Vertical Slice – E2E Pipeline', () => {
+describe.each(FIXTURES)('Tutorial Vertical Slice – E2E Pipeline (%s)', ({ fixture, slug }) => {
   let script, storyboard, captionResult, srtContent;
 
   beforeAll(() => {
@@ -62,8 +73,8 @@ describe('Tutorial Vertical Slice – E2E Pipeline', () => {
     });
 
     it('storyboard has correct game metadata', () => {
-      expect(storyboard.game.slug).toBe('gem-collectors');
-      expect(storyboard.game.name).toBe('Gem Collectors');
+      expect(storyboard.game.slug).toBe(fixture.gameId);
+      expect(storyboard.game.name).toBe(fixture.gameName);
     });
 
     it('storyboard passes contract validation', () => {
@@ -134,7 +145,7 @@ describe('Tutorial Vertical Slice – E2E Pipeline', () => {
         }))
       };
 
-      expect(renderConfig.projectId).toBe('gem-collectors');
+      expect(renderConfig.projectId).toBe(fixture.gameId);
       expect(renderConfig.scenes.length).toBe(script.segments.length);
       renderConfig.scenes.forEach((scene) => {
         expect(scene.durationSec).toBeGreaterThan(0);

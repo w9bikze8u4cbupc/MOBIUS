@@ -9,10 +9,10 @@ function createTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'tutorial-preview-validate-'));
 }
 
-function runValidator(dir, opts = {}) {
+function runValidator(dir, extraArgs = [], opts = {}) {
   const result = { stdout: '', stderr: '', exitCode: 0 };
   try {
-    const output = execFileSync('node', [VALIDATOR_SCRIPT, '--dir', dir], {
+    const output = execFileSync('node', [VALIDATOR_SCRIPT, '--dir', dir, ...extraArgs], {
       encoding: 'utf8',
       stdio: 'pipe',
       timeout: 15000,
@@ -30,7 +30,9 @@ function runValidator(dir, opts = {}) {
 /**
  * Creates a minimal valid artifact directory for testing.
  */
-function createValidArtifact(dir) {
+function createValidArtifact(dir, overrides = {}) {
+  const gameId = overrides.gameId || 'gem-collectors';
+  const gameName = overrides.gameName || 'Gem Collectors';
   const ffprobeData = {
     streams: [
       {
@@ -73,7 +75,7 @@ function createValidArtifact(dir) {
   };
 
   const renderConfigData = {
-    projectId: 'gem-collectors',
+    projectId: gameId,
     video: { resolution: { width: 1920, height: 1080 }, fps: 30 },
     scenes: segments.map((s) => ({
       id: s.id,
@@ -85,8 +87,8 @@ function createValidArtifact(dir) {
 
   const manifestData = {
     generatedAt: '2026-06-18T17:50:58Z',
-    fixture: 'gem-collectors.json',
-    game: { id: 'gem-collectors', name: 'Gem Collectors' },
+    fixture: `${gameId}.json`,
+    game: { id: gameId, name: gameName },
     script: { segments: 17, totalDurationSec: 85 },
     storyboard: { scenes: 17 },
     captions: { cues: 34, totalDurationMs: 85000 },
@@ -141,6 +143,15 @@ describe('validate-tutorial-preview-artifact.mjs', () => {
     test('exits 0 with all checks passed message', () => {
       createValidArtifact(tmpDir);
       const result = runValidator(tmpDir);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('ALL CHECKS PASSED');
+    });
+  });
+
+  describe('fixture slug contract', () => {
+    test('exits 0 when --slug matches manifest game id', () => {
+      createValidArtifact(tmpDir, { gameId: 'hanamikoji', gameName: 'Hanamikoji' });
+      const result = runValidator(tmpDir, ['--slug', 'hanamikoji']);
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('ALL CHECKS PASSED');
     });

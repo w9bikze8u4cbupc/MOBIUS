@@ -1,0 +1,56 @@
+{
+  "gameId": "hanamikoji",
+  "gameName": "Hanamikoji",
+  "playerCount": {
+    "min": 2,
+    "max": 2
+  },
+  "duration": "20 minutes",
+  "designer": "Repo-authored synthetic fixture derived from the Hanamikoji rulebook and BGG metadata",
+  "objective": "Win the duel by collecting the strongest favor collection and forcing worse choices.",
+  "components": [
+    {
+      "name": "Favor cards",
+      "quantity": 7,
+      "category": "cards"
+    },
+    {
+      "name": "Action tokens",
+      "quantity": 4,
+      "category": "tokens"
+    },
+    {
+      "name": "Score markers",
+      "quantity": 2,
+      "category": "tokens"
+    }
+  ],
+  "setup": [
+    "Shuffle the favor cards and set up the round area.",
+    "Deal the starting hand so both players can plan.",
+    "Place the four action tokens where both players can see them.",
+    "Keep the shared score area ready for quick comparison after each round."
+  ],
+  "turnStructure": {
+    "phases": [
+      "Choose",
+      "Reveal",
+      "Resolve",
+      "Score"
+    ],
+    "description": "Each round you plan four actions from the same hand. Reveal them in order, then resolve the results. Spend just enough strength to win the right favors without exposing your whole plan.",
+    "endCondition": "The duel ends when the final favor cards are awarded and the collections are compared."
+  },
+  "coreMechanic": {
+    "name": "Hand management",
+    "description": "Hanamikoji is a deliberate hand-management puzzle. Decide which cards to keep, which to expose, and which to sacrifice so your opponent cannot read your move."
+  },
+  "scoring": {
+    "description": "After each round, compare the favors you secured and update the score area. Small tactical wins matter because the duel rewards the better collection over time, not a single flashy move.",
+    "winCondition": "The player with the better favor collection wins the duel; if a rulebook tiebreak is required, resolve it with the published tie rule."
+  },
+  "edgeCases": [
+    "If both players are stuck, keep the four-action order and resolve by the published rules.",
+    "When a tie seems likely, use the standard tiebreak instead of inventing a house rule."
+  ]
+}

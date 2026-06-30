@@ -10,6 +10,7 @@
  * Usage:
  *   node scripts/validate-tutorial-preview-frame-fingerprints.mjs
  *   node scripts/validate-tutorial-preview-frame-fingerprints.mjs --dir out/tutorial-preview --baseline tests/golden/tutorial-preview/gem-collectors-frame-fingerprints.json
+ *   node scripts/validate-tutorial-preview-frame-fingerprints.mjs --dir out/tutorial-preview/hanamikoji --slug hanamikoji
  *
  * Exit codes:
  *   0 = all fingerprints match baseline
@@ -32,7 +33,8 @@ function getArg(name) {
 }
 
 const dir = getArg('dir') || resolve('out/tutorial-preview');
-const baselinePath = getArg('baseline') || resolve('tests/golden/tutorial-preview/gem-collectors-frame-fingerprints.json');
+const fixtureSlug = getArg('slug') || 'gem-collectors';
+const baselinePath = getArg('baseline') || resolve('tests/golden/tutorial-preview', `${fixtureSlug}-frame-fingerprints.json`);
 
 // ---------------------------------------------------------------------------
 // Load baseline
