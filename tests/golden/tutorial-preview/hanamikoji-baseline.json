@@ -1,0 +1,79 @@
+{
+  "_schema": "Tutorial Preview Golden Metadata Baseline",
+  "_description": "Stable metadata expectations for the hanamikoji tutorial preview vertical slice. Update this file deliberately after approved render/storyboard/fixture changes.",
+  "_updated": "2026-06-29",
+
+  "fixture": {
+    "gameId": "hanamikoji",
+    "gameName": "Hanamikoji"
+  },
+
+  "coreFiles": [
+    "preview.mp4",
+    "script.json",
+    "storyboard.json",
+    "captions.srt",
+    "render-config.json",
+    "manifest.json",
+    "ffprobe.json"
+  ],
+
+  "visualQaFiles": [
+    "visual-qa/contact-sheet.jpg",
+    "visual-qa/visual-qa-manifest.json",
+    "visual-qa/frames/frame-01.jpg",
+    "visual-qa/frames/frame-02.jpg",
+    "visual-qa/frames/frame-03.jpg",
+    "visual-qa/frames/frame-04.jpg",
+    "visual-qa/frames/frame-05.jpg",
+    "visual-qa/frames/frame-06.jpg",
+    "visual-qa/frames/frame-07.jpg",
+    "visual-qa/frames/frame-08.jpg"
+  ],
+
+  "script": {
+    "segmentCount": 11
+  },
+
+  "storyboard": {
+    "sceneCount": 13
+  },
+
+  "captions": {
+    "cueCount": 24
+  },
+
+  "renderConfig": {
+    "sceneCount": 11
+  },
+
+  "video": {
+    "codec": "h264",
+    "audioCodec": "aac",
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "durationRange": { "min": 80, "max": 90 },
+    "streamCount": 2
+  },
+
+  "visualQa": {
+    "frameCount": 8,
+    "grid": { "cols": 4, "rows": 2 },
+    "timestamps": [4.48, 15.99, 27.5, 39.01, 50.52, 62.03, 73.54, 85.05],
+    "timestampTolerance": 1.0,
+    "ffmpegVersionPrefix": "n7.1.4"
+  },
+
+  "fileSizeRanges": {
+    "preview.mp4": { "min": 1095000, "max": 1130000 },
+    "script.json": { "min": 3500, "max": 5000 },
+    "storyboard.json": { "min": 8000, "max": 12000 },
+    "captions.srt": { "min": 2000, "max": 3200 },
+    "render-config.json": { "min": 7000, "max": 9000 },
+    "manifest.json": { "min": 600, "max": 1200 },
+    "ffprobe.json": { "min": 4000, "max": 5000 },
+    "visual-qa/contact-sheet.jpg": { "min": 80000, "max": 100000 },
+    "visual-qa/frames/*": { "min": 40000, "max": 180000 }
+  }
+}
