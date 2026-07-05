@@ -291,3 +291,41 @@ Visual changes:
 - Explicit deterministic Y positions for badge (top safe area), heading (18%),
   and body (lower-third centered within remaining space)
 - Bookend/title layouts remain centered (unchanged)
+
+
+---
+
+## Addendum — Cookbook Visual Polish v3 Baseline Refresh
+
+PR #440 adds deterministic header polish: a semi-transparent badge pill
+background behind step badges, and an accent-colored underline beneath
+section headings. Both elements use FFmpeg drawbox filters with
+deterministic layout math. No fixture data, segment count, caption timing,
+audio, codec, resolution, or fps were modified.
+
+Both fixtures were refreshed from CI-pinned run `28756602509` on branch
+`feature/cookbook-visual-polish-v3`.
+
+### gem-collectors
+
+| Field | Value |
+|-------|-------|
+| Capture run | `28756602509` |
+| MP4 SHA-256 | `1944c52a59120f3c782309d675b75920303258865a38da95a8ef4fae07d154f4` |
+| MP4 size | 840,648 bytes |
+| Advisory quality score | 100/100 |
+
+### hanamikoji
+
+| Field | Value |
+|-------|-------|
+| Capture run | `28756602509` |
+| MP4 SHA-256 | `07fad07c3f05bee3a37b9688ef3c891d01a5220a783f73b3851c9648792f073f` |
+| MP4 size | 990,830 bytes |
+| Advisory quality score | 100/100 |
+
+Visual changes:
+- Semi-transparent badge pill (black@0.5) behind step badge text
+- Accent-colored underline (40% safe width, centered) beneath heading text
+- PR #439 lower-third body layout preserved unchanged
+- Bookend/title layouts remain centered (unchanged)

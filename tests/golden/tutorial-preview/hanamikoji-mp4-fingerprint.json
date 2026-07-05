@@ -1,14 +1,14 @@
 {
   "_description": "Golden MP4 bitstream fingerprint for the Hanamikoji tutorial preview. Update deliberately after approved rendering/FFmpeg/storyboard changes.",
-  "_baselineVersion": 3,
-  "_sourceRunId": 28754571825,
-  "_sourceHeadSha": "b64204c",
+  "_baselineVersion": 4,
+  "_sourceRunId": 28756602509,
+  "_sourceHeadSha": "8934d47",
   "_ffmpegVersionPrefix": "n7.1.4",
   "_updated": "2026-07-05",
 
   "file": "preview.mp4",
-  "sha256": "5065e80566d68fcdefd13969a59010432d109db5bbe6f1473507b15ad58751b0",
-  "size": 989822,
+  "sha256": "07fad07c3f05bee3a37b9688ef3c891d01a5220a783f73b3851c9648792f073f",
+  "size": 990830,
 
   "expectedMedia": {
     "videoCodec": "h264",
