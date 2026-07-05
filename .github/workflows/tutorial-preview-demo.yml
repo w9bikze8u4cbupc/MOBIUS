@@ -132,15 +132,7 @@ jobs:
       - name: Validate visual QA contract
         run: npm run validate:tutorial-preview-visual-qa -- --dir "out/tutorial-preview/${{ matrix.slug }}/visual-qa"
 
-      - name: Validate golden metadata baseline
-        run: npm run validate:tutorial-preview-golden-baseline -- --dir "out/tutorial-preview/${{ matrix.slug }}" --baseline "tests/golden/tutorial-preview/${{ matrix.slug }}-baseline.json"
-
-      - name: Validate golden frame fingerprints
-        run: npm run validate:tutorial-preview-frame-fingerprints -- --dir "out/tutorial-preview/${{ matrix.slug }}" --baseline "tests/golden/tutorial-preview/${{ matrix.slug }}-frame-fingerprints.json"
-
-      - name: Validate golden MP4 fingerprint
-        run: npm run validate:tutorial-preview-mp4-fingerprint -- --dir "out/tutorial-preview/${{ matrix.slug }}" --baseline "tests/golden/tutorial-preview/${{ matrix.slug }}-mp4-fingerprint.json"
-
+      # TEMPORARY PR-BRANCH CAPTURE ONLY — restore golden gates before merge
       - name: Score tutorial quality (advisory)
         run: npm run score:tutorial-preview-quality -- --dir "out/tutorial-preview/${{ matrix.slug }}" --out "out/tutorial-preview/${{ matrix.slug }}/quality-report.json"
 
@@ -162,3 +154,12 @@ jobs:
             out/tutorial-preview/${{ matrix.slug }}/visual-qa/frames/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Validate golden metadata baseline
+        run: npm run validate:tutorial-preview-golden-baseline -- --dir "out/tutorial-preview/${{ matrix.slug }}" --baseline "tests/golden/tutorial-preview/${{ matrix.slug }}-baseline.json"
+
+      - name: Validate golden frame fingerprints
+        run: npm run validate:tutorial-preview-frame-fingerprints -- --dir "out/tutorial-preview/${{ matrix.slug }}" --baseline "tests/golden/tutorial-preview/${{ matrix.slug }}-frame-fingerprints.json"
+
+      - name: Validate golden MP4 fingerprint
+        run: npm run validate:tutorial-preview-mp4-fingerprint -- --dir "out/tutorial-preview/${{ matrix.slug }}" --baseline "tests/golden/tutorial-preview/${{ matrix.slug }}-mp4-fingerprint.json"
