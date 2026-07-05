@@ -250,3 +250,44 @@ scoring, and special-rules frames remained inside the safe margins.
 | #431 | test: add golden metadata baseline | Metadata/tolerance gate |
 | #432 | test: add golden frame fingerprint baseline | Frame-level fingerprint gate |
 | #433 | test: add golden MP4 bitstream fingerprint | Full bitstream fingerprint gate |
+
+
+---
+
+## Addendum — Cookbook Visual Polish v2 Baseline Refresh
+
+PR #439 implements structured lower-third body layout with a translucent
+background bar, explicit badge/heading/body vertical stacking, and safe-margin
+awareness. The rendering is fully deterministic — only FFmpeg drawtext
+positioning and drawbox background changed; no fixture data, segment count,
+caption timing, audio, codec, resolution, or fps were modified.
+
+Both fixtures were refreshed from CI-pinned run `28754571825` on branch
+`feature/cookbook-visual-polish-v2`.
+
+### gem-collectors
+
+| Field | Value |
+|-------|-------|
+| Capture run | `28754571825` |
+| Artifact ID | `8095688140` |
+| MP4 SHA-256 | `7a8fd2861682a6eb73d615ff0971e67fc066bf3fe6e638de5182b9bb9ad8d5d0` |
+| MP4 size | 840,129 bytes |
+| Advisory quality score | 100/100 |
+
+### hanamikoji
+
+| Field | Value |
+|-------|-------|
+| Capture run | `28754571825` |
+| Artifact ID | `8095688761` |
+| MP4 SHA-256 | `5065e80566d68fcdefd13969a59010432d109db5bbe6f1473507b15ad58751b0` |
+| MP4 size | 989,822 bytes |
+| Advisory quality score | 100/100 |
+
+Visual changes:
+- Body text moved from dead-center to lower-third region (58% frame height)
+- Translucent dark background bar (black@0.6) behind body text for legibility
+- Explicit deterministic Y positions for badge (top safe area), heading (18%),
+  and body (lower-third centered within remaining space)
+- Bookend/title layouts remain centered (unchanged)

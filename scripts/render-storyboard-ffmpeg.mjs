@@ -178,6 +178,95 @@ function wrapTextToSafeWidth(text, maxCharsPerLine) {
   return lines.join('\n');
 }
 
+// ---------------------------------------------------------------------------
+// Layout helpers — structured lower-third with explicit stacking
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute safe margins for the frame.
+ */
+function getSafeMargins(w, h) {
+  return {
+    x: Math.round(w * 0.08),
+    y: Math.round(h * 0.08),
+  };
+}
+
+/**
+ * Count how many lines a wrapped body text will occupy.
+ */
+function getWrappedLineCount(text, maxCharsPerLine) {
+  const wrapped = wrapTextToSafeWidth(text, maxCharsPerLine);
+  return wrapped.split('\n').length;
+}
+
+/**
+ * Resolve deterministic Y positions for the structured cookbook layout.
+ *
+ * Content scenes use explicit stacking:
+ *   - badge:   top safe margin
+ *   - heading: below badge with gap
+ *   - body:    lower-third region (starts at ~58% frame height)
+ *
+ * Bookend scenes (title/bottom) remain centered/bottom as before.
+ */
+function resolveOverlayPosition(overlay, fontSize, lineCount, w, h) {
+  const margins = getSafeMargins(w, h);
+  const lineHeight = Math.round(fontSize * 1.4);
+
+  // Badge: top-left in safe area
+  if (overlay.position === 'top') {
+    return { x: `${margins.x}`, y: `${margins.y}` };
+  }
+
+  // Heading: upper region with explicit offset below badge area
+  if (overlay.position === 'upper') {
+    const headingY = Math.round(h * 0.18);
+    return { x: '(w-text_w)/2', y: `${headingY}` };
+  }
+
+  // Body in content scenes: lower-third region
+  // Lower-third starts at 58% of frame height, centered horizontally
+  if (overlay.position === 'center') {
+    const bodyRegionTop = Math.round(h * 0.58);
+    // Center body text block within the lower-third region
+    const bodyBlockHeight = lineCount * lineHeight;
+    const lowerThirdHeight = h - bodyRegionTop - margins.y;
+    const bodyY = bodyRegionTop + Math.round((lowerThirdHeight - bodyBlockHeight) / 2);
+    // Clamp to stay within safe area
+    const clampedY = Math.max(bodyRegionTop, Math.min(bodyY, h - margins.y - bodyBlockHeight));
+    return { x: '(w-text_w)/2', y: `${clampedY}` };
+  }
+
+  // Bottom position (bookend subtitles): keep at bottom safe area
+  if (overlay.position === 'bottom') {
+    return { x: '(w-text_w)/2', y: `(h-text_h-${margins.y})` };
+  }
+
+  // Fallback: centered
+  return { x: '(w-text_w)/2', y: '(h-text_h)/2' };
+}
+
+/**
+ * Build a drawbox filter string for the body text translucent background bar.
+ * The bar spans the full safe width and covers the body text region with padding.
+ */
+function buildBodyBackgroundBox(bodyY, lineCount, fontSize, w, h) {
+  const margins = getSafeMargins(w, h);
+  const lineHeight = Math.round(fontSize * 1.4);
+  const padding = Math.round(fontSize * 0.6);
+
+  const boxX = margins.x - padding;
+  const boxY = parseInt(bodyY, 10) - padding;
+  const boxW = (w - 2 * margins.x) + 2 * padding;
+  const boxH = (lineCount * lineHeight) + 2 * padding;
+
+  // Translucent dark background (60% opacity black)
+  return `drawbox=x=${boxX}:y=${boxY}:w=${boxW}:h=${boxH}:color=black@0.6:t=fill`;
+}
+
+// ---------------------------------------------------------------------------
+
 function buildSceneCommand(scene, index) {
   const segmentPath = join(tmpDir, `scene-${String(index).padStart(3, '0')}.mp4`);
 
@@ -198,6 +287,22 @@ function buildSceneCommand(scene, index) {
   let filterChain = filterBase;
   const overlays = scene.overlays || [];
 
+  // Determine if this scene has a body overlay that needs a background box
+  // (content scenes only, not bookends with position=bottom)
+  const bodyOverlay = overlays.find((o) => o.type === 'body' && o.position === 'center');
+
+  // Pre-compute body layout for the background box (must come before drawtext)
+  if (bodyOverlay) {
+    const bodyFontSize = Math.round(height / 25);
+    const margins = getSafeMargins(width, height);
+    const safeWidth = width - (margins.x * 2);
+    const maxCharsPerLine = Math.max(20, Math.floor(safeWidth / (bodyFontSize * 0.6)));
+    const lineCount = getWrappedLineCount(bodyOverlay.text || '', maxCharsPerLine);
+    const pos = resolveOverlayPosition(bodyOverlay, bodyFontSize, lineCount, width, height);
+    const boxFilter = buildBodyBackgroundBox(pos.y, lineCount, bodyFontSize, width, height);
+    filterChain += `,${boxFilter}`;
+  }
+
   overlays.forEach((overlay) => {
     const rawText = overlay.text || '';
     if (!rawText) return;
@@ -212,8 +317,8 @@ function buildSceneCommand(scene, index) {
       default:        fontSize = Math.round(height / 25); break;
     }
 
-    const marginX = Math.round(width * 0.08);
-    const safeWidth = width - (marginX * 2);
+    const margins = getSafeMargins(width, height);
+    const safeWidth = width - (margins.x * 2);
     const maxCharsPerLine = Math.max(20, Math.floor(safeWidth / (fontSize * 0.6)));
     const wrappedText = overlay.type === 'body'
       ? wrapTextToSafeWidth(rawText, maxCharsPerLine)
@@ -224,31 +329,11 @@ function buildSceneCommand(scene, index) {
     const borderW = overlay.type === 'badge' ? 1 : Math.round(fontSize / 12);
     const borderColor = overlay.type === 'badge' ? 'black' : 'black';
 
-    // Cookbook-style positioning with safe margins
-    const marginY = Math.round(height * 0.08);
-    let x = '(w-text_w)/2';
-    let y = '(h-text_h)/2';
+    // Structured layout positioning
+    const lineCount = wrappedText.split('\n').length;
+    const pos = resolveOverlayPosition(overlay, fontSize, lineCount, width, height);
 
-    switch (overlay.position) {
-      case 'top':
-        x = `${marginX}`;
-        y = `${marginY}`;
-        break;
-      case 'upper':
-        x = '(w-text_w)/2';
-        y = `${Math.round(height * 0.22)}`;
-        break;
-      case 'center':
-        x = '(w-text_w)/2';
-        y = '(h-text_h)/2';
-        break;
-      case 'bottom':
-        x = '(w-text_w)/2';
-        y = `(h-text_h-${marginY})`;
-        break;
-    }
-
-    filterChain += `,drawtext=text='${text}':fontsize=${fontSize}:fontcolor=${fontColor}:borderw=${borderW}:bordercolor=${borderColor}:x=${x}:y=${y}`;
+    filterChain += `,drawtext=text='${text}':fontsize=${fontSize}:fontcolor=${fontColor}:borderw=${borderW}:bordercolor=${borderColor}:x=${pos.x}:y=${pos.y}`;
   });
 
   // Duration trim for image-based inputs
