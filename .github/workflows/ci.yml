@@ -46,12 +46,71 @@ jobs:
       - name: Install root deps
         run: npm ci
 
-      - name: Ensure FFmpeg (Ubuntu/Windows)
-        if: runner.os != 'macOS'
-        uses: FedericoCarboni/setup-ffmpeg@v3
+      - name: Cache FFmpeg static binaries (Linux)
+        if: runner.os == 'Linux'
+        id: ffmpeg-cache-linux
+        uses: actions/cache@v4
         with:
-          ffmpeg-version: release
-          github-token: ${{ github.token }}
+          path: /opt/ffmpeg
+          key: ffmpeg-n7.1.4-39-ga5faeca88f-linux64-gpl
+
+      - name: Ensure FFmpeg (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          echo "--- FFmpeg setup (pinned BtbN static) ---"
+          FFMPEG_VERSION="n7.1.4-39-ga5faeca88f"
+          FFMPEG_URL="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-06-15-15-03/ffmpeg-n7.1.4-39-ga5faeca88f-linux64-gpl-7.1.tar.xz"
+          FFMPEG_SHA256="dff1b3ba8401bc3520435d879be73eb21d7f884e0a149bd7139392be955a4942"
+
+          # Priority 1: preinstalled on runner
+          if command -v ffmpeg &>/dev/null && command -v ffprobe &>/dev/null; then
+            echo "source=preinstalled"
+            echo "  ffmpeg path: $(which ffmpeg)"
+            echo "  ffprobe path: $(which ffprobe)"
+          # Priority 2: cached binaries from previous run
+          elif [ -x /opt/ffmpeg/ffmpeg ] && [ -x /opt/ffmpeg/ffprobe ]; then
+            echo "source=cache"
+            sudo ln -sf /opt/ffmpeg/ffmpeg /usr/local/bin/ffmpeg
+            sudo ln -sf /opt/ffmpeg/ffprobe /usr/local/bin/ffprobe
+          # Priority 3: fresh download of pinned static build
+          else
+            echo "source=pinned-download"
+            echo "  Downloading $FFMPEG_VERSION..."
+            curl -fsSL "$FFMPEG_URL" -o /tmp/ffmpeg.tar.xz
+            echo "  Verifying SHA-256..."
+            echo "$FFMPEG_SHA256  /tmp/ffmpeg.tar.xz" | sha256sum -c -
+            echo "  Extracting..."
+            mkdir -p /tmp/ffmpeg-extract
+            tar -xf /tmp/ffmpeg.tar.xz --strip-components=1 -C /tmp/ffmpeg-extract
+            sudo mkdir -p /opt/ffmpeg
+            sudo cp /tmp/ffmpeg-extract/bin/ffmpeg /opt/ffmpeg/ffmpeg
+            sudo cp /tmp/ffmpeg-extract/bin/ffprobe /opt/ffmpeg/ffprobe
+            sudo chmod +x /opt/ffmpeg/ffmpeg /opt/ffmpeg/ffprobe
+            sudo ln -sf /opt/ffmpeg/ffmpeg /usr/local/bin/ffmpeg
+            sudo ln -sf /opt/ffmpeg/ffprobe /usr/local/bin/ffprobe
+            rm -rf /tmp/ffmpeg.tar.xz /tmp/ffmpeg-extract
+          fi
+
+          echo "--- FFmpeg diagnostics ---"
+          ffmpeg -version | head -3
+          ffprobe -version | head -1
+        shell: bash
+
+      - name: Ensure FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Write-Host "--- FFmpeg setup (Windows) ---"
+          if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
+            Write-Host "source=preinstalled"
+            ffmpeg -version | Select-Object -First 1
+          } else {
+            Write-Host "source=choco-install"
+            choco install ffmpeg -y --no-progress
+            refreshenv
+            $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+            ffmpeg -version | Select-Object -First 1
+          }
+        shell: pwsh
 
       - name: Ensure FFmpeg (macOS)
         if: runner.os == 'macOS'
