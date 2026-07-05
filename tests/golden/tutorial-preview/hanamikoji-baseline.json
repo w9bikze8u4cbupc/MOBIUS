@@ -1,7 +1,7 @@
 {
   "_schema": "Tutorial Preview Golden Metadata Baseline",
   "_description": "Stable metadata expectations for the hanamikoji tutorial preview vertical slice. Update this file deliberately after approved render/storyboard/fixture changes.",
-  "_updated": "2026-06-29",
+  "_updated": "2026-07-05",
 
   "fixture": {
     "gameId": "hanamikoji",
@@ -66,7 +66,7 @@
   },
 
   "fileSizeRanges": {
-    "preview.mp4": { "min": 1095000, "max": 1130000 },
+    "preview.mp4": { "min": 950000, "max": 1030000 },
     "script.json": { "min": 3500, "max": 5000 },
     "storyboard.json": { "min": 8000, "max": 12000 },
     "captions.srt": { "min": 2000, "max": 3200 },

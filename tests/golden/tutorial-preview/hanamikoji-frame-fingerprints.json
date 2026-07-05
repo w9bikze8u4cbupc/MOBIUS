@@ -1,10 +1,10 @@
 {
   "_description": "Golden visual fingerprint baseline for the Hanamikoji tutorial preview frames. Update deliberately after approved rendering changes.",
-  "_baselineVersion": 2,
-  "_sourceRunId": 28410461854,
-  "_sourceHeadSha": "6316c828bc69adc524271a01759318ef87ae937d",
+  "_baselineVersion": 3,
+  "_sourceRunId": 28754571825,
+  "_sourceHeadSha": "b64204c",
   "_ffmpegVersionPrefix": "n7.1.4",
-  "_updated": "2026-06-29",
+  "_updated": "2026-07-05",
 
   "timestampTolerance": 0.5,
 
@@ -12,72 +12,72 @@
     {
       "path": "visual-qa/contact-sheet.jpg",
       "role": "contactSheet",
-      "sha256": "f454bf99e8abd942a09fcbfa410ed026d9719797e7ced4afbe1d7a18b0b93b06",
-      "size": 91179
+      "sha256": "88933dda5a499ede948640cb71c703fc36d0d3e16881425f40cc989fc02538e7",
+      "size": 94084
     },
     {
       "path": "visual-qa/frames/frame-01.jpg",
       "role": "frame",
       "index": 1,
       "timestamp": 4.48,
-      "sha256": "87f70b55a024208b904e673cc6c16f22794433431d8f5e882a1f849b21187e7b",
-      "size": 63946
+      "sha256": "d1dd43bda3865368804f6a9b8e65c6b4ba268e5fba2667395215b041928650d1",
+      "size": 63693
     },
     {
       "path": "visual-qa/frames/frame-02.jpg",
       "role": "frame",
       "index": 2,
       "timestamp": 15.99,
-      "sha256": "bbda7960e735e1283c6bc4a5326db27ecb9974a726e8d0268711b66225d7b3d2",
-      "size": 68863
+      "sha256": "0d650080eaab20feca18a8bd260d6bde7639b020ce745a0d54e625ac86d5447a",
+      "size": 63539
     },
     {
       "path": "visual-qa/frames/frame-03.jpg",
       "role": "frame",
       "index": 3,
       "timestamp": 27.5,
-      "sha256": "6b55765dfa004eb8d4c18bec2878662349a08f80b27d969fcd9636c449fd236e",
-      "size": 138428
+      "sha256": "748ad6b4ff4833ef1d2a0926f89223ca63836777d7a979593f4d5826220b09b3",
+      "size": 132426
     },
     {
       "path": "visual-qa/frames/frame-04.jpg",
       "role": "frame",
       "index": 4,
       "timestamp": 39.01,
-      "sha256": "29edb67dfa1a5e7a4aaceeeb9ba1ea0ced26371cf806e0fca2ff3ff6c6001d91",
-      "size": 172398
+      "sha256": "2a45a0d7e4be852a7f9a5ebf91d33d93688c377c4efbd0ffc91dc35bd63927be",
+      "size": 156784
     },
     {
       "path": "visual-qa/frames/frame-05.jpg",
       "role": "frame",
       "index": 5,
       "timestamp": 50.52,
-      "sha256": "731f13cb13e6c4ddbcd0879f850fc68b54ebf3351593f5efb60a9082220d6ca4",
-      "size": 118673
+      "sha256": "bb4c1160084622198ee9bef5937608f2278e025713deb563ff9670461dacd55a",
+      "size": 109091
     },
     {
       "path": "visual-qa/frames/frame-06.jpg",
       "role": "frame",
       "index": 6,
       "timestamp": 62.03,
-      "sha256": "29fb4a54c75dc8cd69d5043b92a36346cb21cf613737657244780cdb48e1921c",
-      "size": 163760
+      "sha256": "053d87c3fe6ff7ca211c6e932b7f40302369a044bd51f9f5b95906764912f31c",
+      "size": 146824
     },
     {
       "path": "visual-qa/frames/frame-07.jpg",
       "role": "frame",
       "index": 7,
       "timestamp": 73.54,
-      "sha256": "a01c58e1205d4e749f4014e648a5cd440d1b6e0d4a35b59b0772b4f91afb36f4",
-      "size": 111108
+      "sha256": "0b79be9f87c43974959699d75d37e706ede9304b7687ea0427996684b59db1a6",
+      "size": 105829
     },
     {
       "path": "visual-qa/frames/frame-08.jpg",
       "role": "frame",
       "index": 8,
       "timestamp": 85.05,
-      "sha256": "14e67d8ce10231a196dc3c77d41632bb6e390a34dc9283ba2b5ea6107d1ea7b6",
-      "size": 43932
+      "sha256": "b501a885238da7afb8ded8d97ec7966619aabd78843afaeac0b6cd6f0258135e",
+      "size": 43729
     }
   ]
 }
