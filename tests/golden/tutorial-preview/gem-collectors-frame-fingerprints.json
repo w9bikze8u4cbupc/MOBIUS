@@ -1,8 +1,8 @@
 {
   "_description": "Golden visual fingerprint baseline for Tutorial Preview Demo frames. Update deliberately after approved rendering changes.",
-  "_baselineVersion": 3,
-  "_sourceRunId": 28754571825,
-  "_sourceHeadSha": "b64204c",
+  "_baselineVersion": 4,
+  "_sourceRunId": 28756602509,
+  "_sourceHeadSha": "8934d47",
   "_ffmpegVersionPrefix": "n7.1.4",
   "_updated": "2026-07-05",
 
@@ -12,8 +12,8 @@
     {
       "path": "visual-qa/contact-sheet.jpg",
       "role": "contactSheet",
-      "sha256": "687aa7021383de8f19c3c321109e07d287ecdd500aabffba807cec5916846fbb",
-      "size": 83347
+      "sha256": "e926f9b75a66bf175efa6309f382ec79de72f446c5ff84f99e5dad95b5935097",
+      "size": 86493
     },
     {
       "path": "visual-qa/frames/frame-01.jpg",
@@ -28,48 +28,48 @@
       "role": "frame",
       "index": 2,
       "timestamp": 15.18,
-      "sha256": "55b4ed746ddf409f192f1ec996da46c1c2a2ebcb28d2ac2223ea2183390c4908",
-      "size": 62377
+      "sha256": "44d839ee694dd8df59466add302a16c119e4b64968729c99610ed561636bb3ff",
+      "size": 64706
     },
     {
       "path": "visual-qa/frames/frame-03.jpg",
       "role": "frame",
       "index": 3,
       "timestamp": 26.11,
-      "sha256": "de09a12171d3366e750aa728f401904808e2ac6316fbb8c02da2f2d32382681d",
-      "size": 121386
+      "sha256": "9a2d3f93c533956dfef3ad5b74da87f391fbad21b86e9c9f7990da1794fddb40",
+      "size": 123626
     },
     {
       "path": "visual-qa/frames/frame-04.jpg",
       "role": "frame",
       "index": 4,
       "timestamp": 37.05,
-      "sha256": "9a3e9afea5d2f5015583837a7422cbbfb8f40091f8b7a51374532b191c16a57b",
-      "size": 106410
+      "sha256": "acb725e4431e953fd902ebeec1482d8cfa2a68be1b7a9f5a5a2c2be9c73170d6",
+      "size": 108777
     },
     {
       "path": "visual-qa/frames/frame-05.jpg",
       "role": "frame",
       "index": 5,
       "timestamp": 47.98,
-      "sha256": "52c8e7069772d7f708850f008beb48b01a1e14a9e858671a70aff2af23cb8477",
-      "size": 94890
+      "sha256": "d16de033797a874154cdb4875418d3796f2d6abefd4a5844b947d34472536b95",
+      "size": 96859
     },
     {
       "path": "visual-qa/frames/frame-06.jpg",
       "role": "frame",
       "index": 6,
       "timestamp": 58.91,
-      "sha256": "227c2961515a1774e06ff19b92b7384482ce1a7f7a52694ba0c7e005089100a5",
-      "size": 113565
+      "sha256": "5f76aa116089f230cdd811bb47f57ff8568a2650d4723131faea8cb67839f04b",
+      "size": 115764
     },
     {
       "path": "visual-qa/frames/frame-07.jpg",
       "role": "frame",
       "index": 7,
       "timestamp": 69.84,
-      "sha256": "e58b78707fa3bfd4742986bd88359a58913d10453b778c3a33eeb91af78da300",
-      "size": 96656
+      "sha256": "57dfb57d9a7d05837983285bb2ceefb877737390782cb9558c0957bef8645e89",
+      "size": 98447
     },
     {
       "path": "visual-qa/frames/frame-08.jpg",
