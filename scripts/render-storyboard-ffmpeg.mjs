@@ -265,6 +265,47 @@ function buildBodyBackgroundBox(bodyY, lineCount, fontSize, w, h) {
   return `drawbox=x=${boxX}:y=${boxY}:w=${boxW}:h=${boxH}:color=black@0.6:t=fill`;
 }
 
+/**
+ * Build a drawbox filter string for the badge pill background.
+ * A compact semi-transparent pill behind the step badge text.
+ */
+function buildBadgePillBox(badgeX, badgeY, text, fontSize, w, h) {
+  const paddingX = Math.round(fontSize * 0.5);
+  const paddingY = Math.round(fontSize * 0.3);
+  // Estimate text width from character count and font size
+  const estimatedTextW = Math.round(text.length * fontSize * 0.6);
+  const lineHeight = Math.round(fontSize * 1.2);
+
+  const boxX = parseInt(badgeX, 10) - paddingX;
+  const boxY = parseInt(badgeY, 10) - paddingY;
+  const boxW = estimatedTextW + 2 * paddingX;
+  const boxH = lineHeight + 2 * paddingY;
+
+  // Semi-transparent dark pill (50% opacity black)
+  return `drawbox=x=${boxX}:y=${boxY}:w=${boxW}:h=${boxH}:color=black@0.5:t=fill`;
+}
+
+/**
+ * Build a drawbox filter string for the heading underline.
+ * A thin accent-colored line beneath the heading text.
+ */
+function buildHeadingUnderline(headingY, fontSize, accentColor, w, h) {
+  const margins = getSafeMargins(w, h);
+  const lineHeight = Math.round(fontSize * 1.4);
+  const underlineThickness = Math.max(2, Math.round(fontSize * 0.06));
+  const gap = Math.round(fontSize * 0.3);
+
+  // Underline positioned below heading text with a small gap
+  const underlineY = parseInt(headingY, 10) + lineHeight + gap;
+  // Centered underline spanning 40% of safe width for visual elegance
+  const underlineW = Math.round((w - 2 * margins.x) * 0.4);
+  const underlineX = Math.round((w - underlineW) / 2);
+
+  // Use the accent color from the overlay palette
+  const color = accentColor.replace('#', '0x');
+  return `drawbox=x=${underlineX}:y=${underlineY}:w=${underlineW}:h=${underlineThickness}:color=${color}:t=fill`;
+}
+
 // ---------------------------------------------------------------------------
 
 function buildSceneCommand(scene, index) {
@@ -290,6 +331,27 @@ function buildSceneCommand(scene, index) {
   // Determine if this scene has a body overlay that needs a background box
   // (content scenes only, not bookends with position=bottom)
   const bodyOverlay = overlays.find((o) => o.type === 'body' && o.position === 'center');
+
+  // Pre-compute badge pill background (must come before badge drawtext)
+  const badgeOverlay = overlays.find((o) => o.type === 'badge');
+  if (badgeOverlay) {
+    const badgeFontSize = Math.round(height / 30);
+    const badgePos = resolveOverlayPosition(badgeOverlay, badgeFontSize, 1, width, height);
+    const pillFilter = buildBadgePillBox(badgePos.x, badgePos.y, badgeOverlay.text || '', badgeFontSize, width, height);
+    filterChain += `,${pillFilter}`;
+  }
+
+  // Pre-compute heading underline (must come before heading drawtext)
+  const headingOverlay = overlays.find((o) => o.type === 'heading');
+  if (headingOverlay) {
+    const headingFontSize = Math.round(height / 18);
+    const headingPos = resolveOverlayPosition(headingOverlay, headingFontSize, 1, width, height);
+    // Use accent color from the badge overlay (same scene palette) for the underline
+    const accentSource = badgeOverlay?.fontColor || headingOverlay.fontColor || 'white';
+    const underlineColor = accentSource.startsWith('#') ? accentSource : '#ffffff';
+    const underlineFilter = buildHeadingUnderline(headingPos.y, headingFontSize, underlineColor, width, height);
+    filterChain += `,${underlineFilter}`;
+  }
 
   // Pre-compute body layout for the background box (must come before drawtext)
   if (bodyOverlay) {
