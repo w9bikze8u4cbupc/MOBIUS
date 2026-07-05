@@ -208,6 +208,31 @@ pinned Linux CI artifact from renderer fix
 
 ---
 
+## Addendum — Hanamikoji Second Fixture Baseline Capture
+
+PR #438 extends the reproducibility-gated tutorial preview pipeline to a second
+fixture, Hanamikoji, while preserving the original Gem Collectors path. The
+workflow now runs a slug-driven matrix and publishes separate artifacts for
+each fixture.
+
+| Field | Value |
+|-------|-------|
+| Fixture | `hanamikoji` |
+| Capture run | `28410461854` |
+| Artifact name | `mobius-tutorial-preview-hanamikoji` |
+| Artifact ID | `7967453158` |
+| Artifact digest | `sha256:6d41cb05566b14eb72dd7bdeb02a5aae6d4762f01eacf143ba4eb6fb101705b7` |
+| Artifact archive size | 1,696,026 bytes |
+| MP4 SHA-256 | `dfe387e8890143fa9743256b04f52d4b83bcc3054a0080244a89351b8cd6ac22` |
+| MP4 size | 1,110,320 bytes |
+| Advisory quality score | 100/100 |
+
+The Hanamikoji contact sheet and keyframes were visually inspected from the
+CI artifact before the baselines were accepted. The setup, turn-structure,
+scoring, and special-rules frames remained inside the safe margins.
+
+---
+
 ## PR Chain
 
 | PR | Title | Contribution |

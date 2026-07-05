@@ -9,6 +9,7 @@
  * Usage:
  *   node scripts/validate-tutorial-preview-golden-baseline.mjs
  *   node scripts/validate-tutorial-preview-golden-baseline.mjs --dir out/tutorial-preview --baseline tests/golden/tutorial-preview/gem-collectors-baseline.json
+ *   node scripts/validate-tutorial-preview-golden-baseline.mjs --dir out/tutorial-preview/hanamikoji --slug hanamikoji
  *
  * Exit codes:
  *   0 = generated metadata matches baseline within tolerances
@@ -30,7 +31,8 @@ function getArg(name) {
 }
 
 const dir = getArg('dir') || resolve('out/tutorial-preview');
-const baselinePath = getArg('baseline') || resolve('tests/golden/tutorial-preview/gem-collectors-baseline.json');
+const fixtureSlug = getArg('slug') || 'gem-collectors';
+const baselinePath = getArg('baseline') || resolve('tests/golden/tutorial-preview', `${fixtureSlug}-baseline.json`);
 
 // ---------------------------------------------------------------------------
 // Load baseline

@@ -9,6 +9,7 @@
  * Usage:
  *   node scripts/generate-tutorial-preview.mjs
  *   node scripts/generate-tutorial-preview.mjs --fixture tests/fixtures/tutorial-vertical-slice/gem-collectors.json
+ *   node scripts/generate-tutorial-preview.mjs --fixture tests/fixtures/tutorial-vertical-slice/hanamikoji.json --slug hanamikoji
  *   node scripts/generate-tutorial-preview.mjs --out out/tutorial-preview
  *   node scripts/generate-tutorial-preview.mjs --render  (attempts FFmpeg render if available)
  */
@@ -44,7 +45,12 @@ function getArg(name) {
 const hasFlag = (name) => args.includes(`--${name}`);
 
 const fixturePath = getArg('fixture') || path.join(__dirname, '../tests/fixtures/tutorial-vertical-slice/gem-collectors.json');
-const outDir = getArg('out') || path.join(__dirname, '../out/tutorial-preview');
+const fixtureSlug = getArg('slug') || path.parse(fixturePath).name;
+const outDir = getArg('out') || (
+  fixtureSlug === 'gem-collectors'
+    ? path.join(__dirname, '../out/tutorial-preview')
+    : path.join(__dirname, '../out/tutorial-preview', fixtureSlug)
+);
 const doRender = hasFlag('render');
 
 // ---------------------------------------------------------------------------
@@ -56,7 +62,7 @@ if (!fs.existsSync(fixturePath)) {
 }
 
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf-8'));
-console.log(`[1/6] Loaded fixture: ${fixture.gameName} (${fixture.gameId})`);
+console.log(`[1/6] Loaded fixture: ${fixture.gameName} (${fixture.gameId}) [slug=${fixtureSlug}]`);
 
 // ---------------------------------------------------------------------------
 // Generate tutorial script
@@ -237,6 +243,7 @@ fs.writeFileSync(outputs.renderConfig, JSON.stringify(renderConfig, null, 2));
 const manifest = {
   generatedAt: new Date().toISOString(),
   fixture: path.basename(fixturePath),
+  fixtureSlug,
   game: { id: fixture.gameId, name: fixture.gameName },
   script: { segments: segments.length, totalDurationSec: scriptMeta.totalDurationSec, eliteS1Valid: scriptMeta.eliteS1Valid },
   storyboard: { scenes: storyboard.scenes.length },
