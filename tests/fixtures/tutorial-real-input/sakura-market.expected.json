@@ -1,11 +1,12 @@
 {
-  "_schema": "Expected contract assertions for normalized output",
+  "_schema": "Real-input artifact contract — expected assertions for validated output",
 
   "gameId": "sakura-market",
   "gameName": "Sakura Market",
-  "minSegments": 8,
-  "maxSegments": 15,
+  "fixtureSlug": "sakura-market",
+
   "durationRange": { "min": 60, "max": 180 },
+
   "requiredArtifacts": [
     "script.json",
     "storyboard.json",
@@ -14,5 +15,24 @@
     "manifest.json",
     "preview.mp4",
     "ffprobe.json"
-  ]
+  ],
+
+  "media": {
+    "video": {
+      "codec": "h264",
+      "width": 1920,
+      "height": 1080
+    },
+    "audio": {
+      "required": true
+    }
+  },
+
+  "manifest": {
+    "gameId": "sakura-market",
+    "gameName": "Sakura Market",
+    "fixtureSlug": "sakura-market"
+  },
+
+  "minMp4Bytes": 10240
 }
