@@ -158,3 +158,83 @@ The test `tests/scripts/realInputFixtureRegistry.test.js` enforces:
 - Metadata slug/title match registry slug/gameName
 - Expected contract identity matches registry
 - Rulebook extracts have required sections with non-empty content
+
+
+## Smoke Coverage Report
+
+When the E2E smoke test runs (`tests/e2e/tutorial_full_flow_smoke.test.js`), it
+generates a structured coverage report at a temporary path:
+
+```
+<temp-dir>/real-input-smoke-coverage.json
+```
+
+### Report schema (`real-input-smoke-coverage/v1`)
+
+```json
+{
+  "_schema": "real-input-smoke-coverage/v1",
+  "generatedAt": "2025-01-15T12:00:00.000Z",
+  "registryPath": "/abs/path/to/fixtures.json",
+  "enabledFixtureCount": 2,
+  "fixtures": [
+    {
+      "slug": "sakura-market",
+      "gameName": "Sakura Market",
+      "profile": "Competitive market-timing...",
+      "metadataFile": "sakura-market.metadata.json",
+      "rulebookExtractFile": "sakura-market.rulebook-extract.json",
+      "expectedFile": "sakura-market.expected.json",
+      "normalizedFixturePath": "/tmp/.../sakura-market-normalized.json",
+      "artifactDir": "/tmp/.../tutorial-preview-sakura-market",
+      "artifactPresence": {
+        "preview.mp4": true,
+        "script.json": true,
+        "storyboard.json": true,
+        "captions.srt": true,
+        "render-config.json": true,
+        "manifest.json": true,
+        "ffprobe.json": true
+      },
+      "manifestIdentity": {
+        "gameId": "sakura-market",
+        "gameName": "Sakura Market",
+        "fixtureSlug": "sakura-market"
+      },
+      "media": {
+        "duration": 118.3,
+        "videoCodec": "h264",
+        "videoWidth": 1920,
+        "videoHeight": 1080,
+        "audioPresent": true
+      },
+      "contractValidation": {
+        "passed": true,
+        "errorCount": 0,
+        "errors": []
+      }
+    }
+  ]
+}
+```
+
+### What the report proves
+
+- Which fixtures were enabled and ran
+- Normalized input provenance (which metadata + extract files produced it)
+- All required artifacts were generated and are non-empty
+- Manifest identity matches the fixture registry
+- MP4 media properties: duration, codec, resolution, audio presence
+- Contract validation passed for each fixture
+
+### Where the report lives
+
+The report is written to a temporary directory during test execution and is
+**not committed to Git**. It is available for CI inspection via test output logs
+(the path is printed to stdout). Future CI enhancements may upload it as an
+artifact for dashboard consumption.
+
+### Helper module
+
+The report generation logic is in `tests/helpers/realInputSmokeCoverageReport.cjs`
+with unit tests at `tests/scripts/realInputSmokeCoverageReport.test.js`.
