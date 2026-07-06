@@ -50,6 +50,9 @@ const REAL_INPUT_MATRIX = registry.fixtures
 const coverageReportDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-smoke-coverage-'));
 const coverageReport = createReport({ registryPath: REGISTRY_PATH, enabledCount: REAL_INPUT_MATRIX.length });
 const COVERAGE_REPORT_PATH = path.join(coverageReportDir, 'real-input-smoke-coverage.json');
+// Deterministic CI artifact path (workspace-relative, uploaded by CI workflow)
+const CI_ARTIFACT_DIR = path.resolve(__dirname, '../../artifacts');
+const CI_COVERAGE_REPORT_PATH = path.join(CI_ARTIFACT_DIR, 'real-input-smoke-coverage.json');
 
 // ---------------------------------------------------------------------------
 // FFmpeg availability detection (same pattern as storyboard_ffmpeg_real_mp4)
@@ -430,8 +433,16 @@ describe('Real-Input Smoke Coverage Report', () => {
     writeReport(COVERAGE_REPORT_PATH, coverageReport);
     console.log(`[coverage] Real-input smoke coverage report written to: ${COVERAGE_REPORT_PATH}`);
 
-    // Cleanup report dir after tests read it
-    // Note: not cleaning up here so CI can inspect if needed
+    // Also write to deterministic CI artifact path for upload
+    try {
+      if (!fs.existsSync(CI_ARTIFACT_DIR)) {
+        fs.mkdirSync(CI_ARTIFACT_DIR, { recursive: true });
+      }
+      writeReport(CI_COVERAGE_REPORT_PATH, coverageReport);
+      console.log(`[coverage] CI artifact copy written to: ${CI_COVERAGE_REPORT_PATH}`);
+    } catch (err) {
+      console.warn(`[coverage] Could not write CI artifact copy: ${err.message}`);
+    }
   });
 
   test('coverage report is written to disk', () => {

@@ -369,6 +369,15 @@ jobs:
             out/preview_with_audio.mp4
           retention-days: 7
 
+      - name: Upload real-input smoke coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-input-smoke-coverage-${{ matrix.os }}
+          path: artifacts/real-input-smoke-coverage.json
+          if-no-files-found: ignore
+          retention-days: 14
+
   phase-e-governance:
     name: Phase E Governance (E1 Ingestion + E2 Storyboard)
     runs-on: ${{ matrix.os }}
