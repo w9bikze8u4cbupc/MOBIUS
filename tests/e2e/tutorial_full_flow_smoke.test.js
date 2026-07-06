@@ -17,6 +17,8 @@ const os = require('os');
 const GENERATE_SCRIPT = path.resolve(__dirname, '../../scripts/generate-tutorial-preview.mjs');
 const RENDER_SCRIPT = path.resolve(__dirname, '../../scripts/render-storyboard-ffmpeg.mjs');
 const VALIDATE_SCRIPT = path.resolve(__dirname, '../../scripts/validate-tutorial-preview-artifact.mjs');
+const VALIDATE_REAL_INPUT_SCRIPT = path.resolve(__dirname, '../../scripts/validate-real-input-preview-artifact.mjs');
+const REAL_INPUT_EXPECTED = path.resolve(__dirname, '../fixtures/tutorial-real-input/sakura-market.expected.json');
 const FIXTURE = path.resolve(__dirname, '../fixtures/tutorial-vertical-slice/gem-collectors.json');
 const REAL_INPUT_FIXTURE = path.resolve(__dirname, '../fixtures/tutorial-real-input/sakura-market.json');
 const REAL_INPUT_METADATA = path.resolve(__dirname, '../fixtures/tutorial-real-input/sakura-market.metadata.json');
@@ -344,16 +346,21 @@ describe('Real-Input Smoke (sakura-market fixture → MP4)', () => {
     expect(duration).toBeLessThan(180);
   });
 
-  test('artifact contract core files exist and are non-empty', () => {
-    // Note: We do NOT call validate-tutorial-preview-artifact.mjs here because
-    // it enforces duration 80-90s (calibrated for gem-collectors/hanamikoji baselines).
-    // The real-input fixture intentionally produces longer content (~118s).
-    // Instead we directly verify all required files exist and are non-empty.
-    const REQUIRED = ['preview.mp4', 'script.json', 'storyboard.json', 'captions.srt', 'render-config.json', 'manifest.json', 'ffprobe.json'];
-    for (const file of REQUIRED) {
-      const filePath = path.join(outDir, file);
-      expect(fs.existsSync(filePath)).toBe(true);
-      expect(fs.statSync(filePath).size).toBeGreaterThan(0);
-    }
+  test('real-input artifact contract validator passes', () => {
+    // Uses the contract-driven validator (validate-real-input-preview-artifact.mjs)
+    // instead of the deterministic validator (validate-tutorial-preview-artifact.mjs)
+    // which enforces 80-90s duration calibrated for gem-collectors/hanamikoji baselines.
+    const result = execFileSync('node', [
+      VALIDATE_REAL_INPUT_SCRIPT,
+      '--dir', outDir,
+      '--expected', REAL_INPUT_EXPECTED,
+    ], {
+      encoding: 'utf8',
+      stdio: 'pipe',
+      timeout: 15000,
+      cwd: path.resolve(__dirname, '../..'),
+    });
+    // Validator exits 0 on success; any contract violation exits 1
+    expect(result).toContain('ALL CHECKS PASSED');
   });
 });
