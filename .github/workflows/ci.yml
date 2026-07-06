@@ -96,19 +96,61 @@ jobs:
           ffprobe -version | head -1
         shell: bash
 
+      - name: Cache FFmpeg static binaries (Windows)
+        if: runner.os == 'Windows'
+        id: ffmpeg-cache-win
+        uses: actions/cache@v4
+        with:
+          path: C:\ffmpeg
+          key: ffmpeg-n7.1.4-39-ga5faeca88f-win64-gpl
+
       - name: Ensure FFmpeg (Windows)
         if: runner.os == 'Windows'
         run: |
           Write-Host "--- FFmpeg setup (Windows) ---"
+          # Priority 1: already on PATH
           if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
             Write-Host "source=preinstalled"
             ffmpeg -version | Select-Object -First 1
-          } else {
+          }
+          # Priority 2: common runner locations
+          elseif (Test-Path "C:\ProgramData\chocolatey\bin\ffmpeg.exe") {
+            Write-Host "source=choco-path"
+            echo "C:\ProgramData\chocolatey\bin" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
+            & "C:\ProgramData\chocolatey\bin\ffmpeg.exe" -version | Select-Object -First 1
+          }
+          # Priority 3: cached binaries from previous run
+          elseif (Test-Path "C:\ffmpeg\ffmpeg.exe") {
+            Write-Host "source=cache"
+            echo "C:\ffmpeg" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
+            & "C:\ffmpeg\ffmpeg.exe" -version | Select-Object -First 1
+          }
+          # Priority 4: install via choco (reliable when community feed is up)
+          else {
             Write-Host "source=choco-install"
-            choco install ffmpeg -y --no-progress
-            refreshenv
-            $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
-            ffmpeg -version | Select-Object -First 1
+            choco install ffmpeg -y --no-progress --timeout=120
+            if ($LASTEXITCODE -eq 0) {
+              $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+              echo "C:\ProgramData\chocolatey\bin" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
+            }
+            # Verify
+            if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
+              ffmpeg -version | Select-Object -First 1
+            } else {
+              Write-Host "source=pinned-download-fallback"
+              $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-06-15-15-03/ffmpeg-n7.1.4-39-ga5faeca88f-win64-gpl-7.1.zip"
+              $zipPath = "$env:TEMP\ffmpeg.zip"
+              $extractPath = "$env:TEMP\ffmpeg-extract"
+              Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+              Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+              $binDir = (Get-ChildItem -Path $extractPath -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1).DirectoryName
+              New-Item -ItemType Directory -Force -Path "C:\ffmpeg" | Out-Null
+              Copy-Item "$binDir\*" -Destination "C:\ffmpeg\" -Recurse -Force
+              echo "C:\ffmpeg" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
+              Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+              Remove-Item $extractPath -Recurse -Force -ErrorAction SilentlyContinue
+              & "C:\ffmpeg\ffmpeg.exe" -version | Select-Object -First 1
+            }
           }
         shell: pwsh
 
