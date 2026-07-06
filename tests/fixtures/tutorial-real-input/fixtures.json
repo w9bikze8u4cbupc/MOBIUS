@@ -1,0 +1,27 @@
+{
+  "_schema": "Real-input fixture registry — lists all product-like tutorial samples",
+  "_version": 1,
+
+  "fixtures": [
+    {
+      "slug": "sakura-market",
+      "gameName": "Sakura Market",
+      "profile": "Competitive market-timing with dice-driven price fluctuation",
+      "enabled": true,
+      "metadataFile": "sakura-market.metadata.json",
+      "rulebookExtractFile": "sakura-market.rulebook-extract.json",
+      "expectedFile": "sakura-market.expected.json",
+      "notes": "First real-input fixture. 2-5 players, 30-45 min, single designer."
+    },
+    {
+      "slug": "stellar-drift",
+      "gameName": "Stellar Drift",
+      "profile": "Cooperative tile-laying route-building through asteroids",
+      "enabled": true,
+      "metadataFile": "stellar-drift.metadata.json",
+      "rulebookExtractFile": "stellar-drift.rulebook-extract.json",
+      "expectedFile": "stellar-drift.expected.json",
+      "notes": "Second fixture. 1-4 players, 20 min fixed, multiple designers, cooperative."
+    }
+  ]
+}

@@ -25,14 +25,41 @@ Each fixture simulates the output of a two-layer ingestion process:
 - No network-dependent image downloads.
 - All data is checked in and deterministic.
 
-## Fixture Matrix
+## Fixture Registry
+
+All real-input fixtures are registered in **`fixtures.json`**. The E2E smoke test
+and registry validation tests load this file to discover enabled fixtures
+automatically.
+
+### Registry format
+
+```json
+{
+  "_schema": "Real-input fixture registry",
+  "_version": 1,
+  "fixtures": [
+    {
+      "slug": "game-slug",
+      "gameName": "Game Name",
+      "profile": "Brief teaching profile description",
+      "enabled": true,
+      "metadataFile": "game-slug.metadata.json",
+      "rulebookExtractFile": "game-slug.rulebook-extract.json",
+      "expectedFile": "game-slug.expected.json",
+      "notes": "Optional notes about the fixture"
+    }
+  ]
+}
+```
+
+### Current fixtures
 
 | Slug | Game | Teaching Profile | Duration Range |
 |------|------|------------------|----------------|
 | `sakura-market` | Sakura Market | Competitive market-timing with dice-driven price fluctuation | 60–180s |
 | `stellar-drift` | Stellar Drift | Cooperative tile-laying route-building through asteroids | 50–130s |
 
-The fixture matrix is designed to exercise different tutorial structures:
+The fixture matrix exercises different tutorial structures:
 - Different player counts (2–5 vs 1–4)
 - Different turn phase names (Move/Trade/Refresh vs Draw/Place/Drift)
 - Different scoring models (competitive coin-counting vs cooperative pass/fail)
@@ -46,6 +73,7 @@ Each fixture consists of layered input files and a contract:
 
 | File | Role |
 |------|------|
+| `fixtures.json` | Registry of all fixtures (discovery source) |
 | `<slug>.metadata.json` | Simulated BGG metadata (game name, player count, playtime, designers) |
 | `<slug>.rulebook-extract.json` | Structured rulebook extraction (objective, components, setup, turns, scoring) |
 | `<slug>.expected.json` | Artifact contract — expected validation assertions for rendered output |
@@ -91,12 +119,42 @@ The contract validator checks:
 | Content | Validates script segments, storyboard scenes, captions cue count | Focuses on artifact existence and media properties |
 | Use case | Deterministic golden baseline comparison | Realistic variable-length content validation |
 
-## Adding a New Fixture
+## How to Add a New Real-Input Fixture
 
-1. Create `<slug>.metadata.json` following the BGG-style schema (see `sakura-market.metadata.json`).
-2. Create `<slug>.rulebook-extract.json` with objective, components, setup, turnStructure, coreMechanic, scoring, edgeCases.
-3. Create `<slug>.expected.json` with gameId, gameName, fixtureSlug, durationRange, requiredArtifacts, media, manifest, minMp4Bytes.
-4. Add the new entry to `REAL_INPUT_MATRIX` in `tests/e2e/tutorial_full_flow_smoke.test.js`.
-5. Add normalizer unit tests in `tests/scripts/normalizeRealInputFixture.test.js`.
-6. Run `node scripts/normalize-real-input-fixture.cjs --metadata <meta> --extract <extract>` to verify normalizer output.
-7. Push and verify CI passes on all OS targets.
+1. **Create fixture files** in this directory:
+   - `<slug>.metadata.json` — follow the BGG-style schema (see `sakura-market.metadata.json`)
+   - `<slug>.rulebook-extract.json` — include objective, components, setup, turnStructure, coreMechanic, scoring, edgeCases
+   - `<slug>.expected.json` — include gameId, gameName, fixtureSlug, durationRange, requiredArtifacts, media, manifest, minMp4Bytes
+
+2. **Register in `fixtures.json`** — add an entry to the `fixtures` array with all required fields. Set `enabled: true`.
+
+3. **Verify identity consistency** — ensure:
+   - `metadata.slug` matches the registry `slug`
+   - `metadata.title` matches the registry `gameName`
+   - `expected.gameId` / `expected.gameName` / `expected.fixtureSlug` match the registry
+
+4. **Run registry validation**:
+   ```bash
+   npx jest tests/scripts/realInputFixtureRegistry.test.js --no-coverage
+   ```
+
+5. **Run normalizer** to verify output:
+   ```bash
+   node scripts/normalize-real-input-fixture.cjs --metadata <meta> --extract <extract>
+   ```
+
+6. **Add normalizer unit tests** in `tests/scripts/normalizeRealInputFixture.test.js`.
+
+7. **Push and verify CI** passes on all OS targets. No test code changes are needed — the E2E smoke automatically discovers enabled fixtures from the registry.
+
+## Registry Validation
+
+The test `tests/scripts/realInputFixtureRegistry.test.js` enforces:
+- `fixtures.json` is valid JSON with a `fixtures` array
+- At least one fixture is enabled
+- No duplicate slugs
+- Each entry has all required fields
+- All referenced files exist on disk
+- Metadata slug/title match registry slug/gameName
+- Expected contract identity matches registry
+- Rulebook extracts have required sections with non-empty content

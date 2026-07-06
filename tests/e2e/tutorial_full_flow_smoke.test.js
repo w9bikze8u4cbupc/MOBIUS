@@ -22,26 +22,21 @@ const FIXTURE = path.resolve(__dirname, '../fixtures/tutorial-vertical-slice/gem
 const NORMALIZER_SCRIPT = path.resolve(__dirname, '../../scripts/normalize-real-input-fixture.cjs');
 
 // ---------------------------------------------------------------------------
-// Real-input fixture matrix
+// Real-input fixture matrix (loaded from registry)
 // ---------------------------------------------------------------------------
 const REAL_INPUT_DIR = path.resolve(__dirname, '../fixtures/tutorial-real-input');
+const REGISTRY_PATH = path.join(REAL_INPUT_DIR, 'fixtures.json');
 
-const REAL_INPUT_MATRIX = [
-  {
-    slug: 'sakura-market',
-    gameName: 'Sakura Market',
-    metadata: path.join(REAL_INPUT_DIR, 'sakura-market.metadata.json'),
-    extract: path.join(REAL_INPUT_DIR, 'sakura-market.rulebook-extract.json'),
-    expected: path.join(REAL_INPUT_DIR, 'sakura-market.expected.json'),
-  },
-  {
-    slug: 'stellar-drift',
-    gameName: 'Stellar Drift',
-    metadata: path.join(REAL_INPUT_DIR, 'stellar-drift.metadata.json'),
-    extract: path.join(REAL_INPUT_DIR, 'stellar-drift.rulebook-extract.json'),
-    expected: path.join(REAL_INPUT_DIR, 'stellar-drift.expected.json'),
-  },
-];
+const registry = JSON.parse(fs.readFileSync(REGISTRY_PATH, 'utf8'));
+const REAL_INPUT_MATRIX = registry.fixtures
+  .filter((f) => f.enabled)
+  .map((f) => ({
+    slug: f.slug,
+    gameName: f.gameName,
+    metadata: path.join(REAL_INPUT_DIR, f.metadataFile),
+    extract: path.join(REAL_INPUT_DIR, f.rulebookExtractFile),
+    expected: path.join(REAL_INPUT_DIR, f.expectedFile),
+  }));
 
 // ---------------------------------------------------------------------------
 // FFmpeg availability detection (same pattern as storyboard_ffmpeg_real_mp4)
