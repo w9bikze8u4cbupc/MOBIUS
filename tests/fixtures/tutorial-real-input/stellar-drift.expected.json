@@ -1,0 +1,38 @@
+{
+  "_schema": "Real-input artifact contract — expected assertions for validated output",
+
+  "gameId": "stellar-drift",
+  "gameName": "Stellar Drift",
+  "fixtureSlug": "stellar-drift",
+
+  "durationRange": { "min": 50, "max": 130 },
+
+  "requiredArtifacts": [
+    "script.json",
+    "storyboard.json",
+    "captions.srt",
+    "render-config.json",
+    "manifest.json",
+    "preview.mp4",
+    "ffprobe.json"
+  ],
+
+  "media": {
+    "video": {
+      "codec": "h264",
+      "width": 1920,
+      "height": 1080
+    },
+    "audio": {
+      "required": true
+    }
+  },
+
+  "manifest": {
+    "gameId": "stellar-drift",
+    "gameName": "Stellar Drift",
+    "fixtureSlug": "stellar-drift"
+  },
+
+  "minMp4Bytes": 10240
+}

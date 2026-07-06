@@ -1,0 +1,18 @@
+{
+  "_schema": "BGG-style normalized game metadata",
+  "_source": "Offline fixture — no live BGG fetch",
+
+  "bggId": null,
+  "slug": "stellar-drift",
+  "title": "Stellar Drift",
+  "yearPublished": 2025,
+  "designers": ["Offline Fixture Author", "Second Designer"],
+  "publishers": ["Offline Fixture Publisher"],
+  "playerCount": { "min": 1, "max": 4 },
+  "playtimeMinutes": { "min": 20, "max": 20 },
+  "recommendedAge": 8,
+  "categories": ["Science Fiction", "Cooperative"],
+  "mechanics": ["Tile Placement", "Route Building", "Hand Management"],
+  "weight": 1.8,
+  "description": "Work together to chart a safe path through an asteroid field. Place navigation tiles to connect your ship to the jump gate before the drift timer runs out."
+}

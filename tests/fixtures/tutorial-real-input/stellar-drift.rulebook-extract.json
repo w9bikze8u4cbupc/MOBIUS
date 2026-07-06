@@ -1,0 +1,48 @@
+{
+  "_schema": "Rulebook-extracted tutorial structure",
+  "_source": "Offline fixture — no PDF extraction or OCR",
+  "_confidence": "high",
+
+  "objective": "Work together to chart a safe path through an asteroid field by placing navigation tiles. Connect your ship to the jump gate before the drift timer runs out.",
+
+  "components": [
+    { "name": "Navigation tiles", "quantity": 48, "category": "tiles" },
+    { "name": "Asteroid tokens", "quantity": 20, "category": "tokens" },
+    { "name": "Ship miniature", "quantity": 1, "category": "miniatures" },
+    { "name": "Jump gate tile", "quantity": 1, "category": "tiles" },
+    { "name": "Drift timer track", "quantity": 1, "category": "board" },
+    { "name": "Fuel cards", "quantity": 30, "category": "cards" }
+  ],
+
+  "setup": [
+    "Place the drift timer track in view of all players and set the timer marker on space 12.",
+    "Shuffle all 48 navigation tiles face-down into a draw stack.",
+    "Place the ship miniature on the starting edge of the play area.",
+    "Place the jump gate tile 5 tile-widths away from the ship in a straight line.",
+    "Scatter 10 asteroid tokens randomly in the space between ship and jump gate.",
+    "Deal 4 fuel cards to each player; place the rest face-down as the fuel deck."
+  ],
+
+  "turnStructure": {
+    "phases": ["Draw", "Place", "Drift"],
+    "description": "On your turn: Draw one navigation tile from the stack. Then Place it adjacent to any existing tile, connecting path edges. Tiles cannot overlap asteroids. Finally, Drift: advance the timer marker one space. If the timer reaches zero before the path is complete, the crew loses.",
+    "endCondition": "The game ends immediately when a continuous path of navigation tiles connects the ship to the jump gate (win) or when the drift timer reaches zero (loss)."
+  },
+
+  "coreMechanic": {
+    "name": "Cooperative Tile Placement",
+    "description": "Players must coordinate tile placement to build a connected route around asteroids. Each tile has path connectors on its edges; only matching connectors can be placed adjacent. Fuel cards let players perform special actions like rotating a tile already placed or removing one asteroid token."
+  },
+
+  "scoring": {
+    "description": "Stellar Drift is a cooperative pass/fail game. If the path connects ship to jump gate, all players win together. Remaining timer spaces and fuel cards determine a bonus star rating from 1 to 5 stars.",
+    "winCondition": "All players win if the ship-to-gate path is completed before the drift timer reaches zero."
+  },
+
+  "edgeCases": [
+    "If the navigation tile stack runs out before the path is complete, shuffle all discarded fuel cards to form a smaller emergency tile stack of 5 tiles.",
+    "If no legal placement exists for a drawn tile, the player must discard it and advance the drift timer one additional space.",
+    "Fuel cards that remove asteroids can only target tokens not adjacent to already-placed tiles.",
+    "In solo mode, the player draws 2 tiles per turn but the drift timer advances by 2 each Drift phase."
+  ]
+}

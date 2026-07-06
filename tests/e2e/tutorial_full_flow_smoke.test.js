@@ -18,12 +18,30 @@ const GENERATE_SCRIPT = path.resolve(__dirname, '../../scripts/generate-tutorial
 const RENDER_SCRIPT = path.resolve(__dirname, '../../scripts/render-storyboard-ffmpeg.mjs');
 const VALIDATE_SCRIPT = path.resolve(__dirname, '../../scripts/validate-tutorial-preview-artifact.mjs');
 const VALIDATE_REAL_INPUT_SCRIPT = path.resolve(__dirname, '../../scripts/validate-real-input-preview-artifact.mjs');
-const REAL_INPUT_EXPECTED = path.resolve(__dirname, '../fixtures/tutorial-real-input/sakura-market.expected.json');
 const FIXTURE = path.resolve(__dirname, '../fixtures/tutorial-vertical-slice/gem-collectors.json');
-const REAL_INPUT_FIXTURE = path.resolve(__dirname, '../fixtures/tutorial-real-input/sakura-market.json');
-const REAL_INPUT_METADATA = path.resolve(__dirname, '../fixtures/tutorial-real-input/sakura-market.metadata.json');
-const REAL_INPUT_EXTRACT = path.resolve(__dirname, '../fixtures/tutorial-real-input/sakura-market.rulebook-extract.json');
 const NORMALIZER_SCRIPT = path.resolve(__dirname, '../../scripts/normalize-real-input-fixture.cjs');
+
+// ---------------------------------------------------------------------------
+// Real-input fixture matrix
+// ---------------------------------------------------------------------------
+const REAL_INPUT_DIR = path.resolve(__dirname, '../fixtures/tutorial-real-input');
+
+const REAL_INPUT_MATRIX = [
+  {
+    slug: 'sakura-market',
+    gameName: 'Sakura Market',
+    metadata: path.join(REAL_INPUT_DIR, 'sakura-market.metadata.json'),
+    extract: path.join(REAL_INPUT_DIR, 'sakura-market.rulebook-extract.json'),
+    expected: path.join(REAL_INPUT_DIR, 'sakura-market.expected.json'),
+  },
+  {
+    slug: 'stellar-drift',
+    gameName: 'Stellar Drift',
+    metadata: path.join(REAL_INPUT_DIR, 'stellar-drift.metadata.json'),
+    extract: path.join(REAL_INPUT_DIR, 'stellar-drift.rulebook-extract.json'),
+    expected: path.join(REAL_INPUT_DIR, 'stellar-drift.expected.json'),
+  },
+];
 
 // ---------------------------------------------------------------------------
 // FFmpeg availability detection (same pattern as storyboard_ffmpeg_real_mp4)
@@ -223,7 +241,7 @@ describe('Full-Flow Tutorial Smoke (fixture → MP4)', () => {
 });
 
 
-describe('Real-Input Smoke (sakura-market fixture → MP4)', () => {
+describe.each(REAL_INPUT_MATRIX)('Real-Input Smoke ($slug → MP4)', (fixtureEntry) => {
   if (!CAN_RUN) {
     test('SKIPPED: FFmpeg/ffprobe not available or missing drawtext filter', () => {
       console.log('FFmpeg not found or drawtext filter unavailable — skipping real-input smoke test.');
@@ -241,15 +259,15 @@ describe('Real-Input Smoke (sakura-market fixture → MP4)', () => {
 
   beforeAll(() => {
     tmpDir = createTempDir();
-    outDir = path.join(tmpDir, 'tutorial-preview-real');
+    outDir = path.join(tmpDir, `tutorial-preview-${fixtureEntry.slug}`);
     mp4Path = path.join(outDir, 'preview.mp4');
 
     // Step 0: Normalize metadata + rulebook-extract into canonical fixture
-    const normalizedFixturePath = path.join(tmpDir, 'sakura-market-normalized.json');
+    const normalizedFixturePath = path.join(tmpDir, `${fixtureEntry.slug}-normalized.json`);
     execFileSync('node', [
       NORMALIZER_SCRIPT,
-      '--metadata', REAL_INPUT_METADATA,
-      '--extract', REAL_INPUT_EXTRACT,
+      '--metadata', fixtureEntry.metadata,
+      '--extract', fixtureEntry.extract,
       '--out', normalizedFixturePath,
     ], {
       encoding: 'utf8',
@@ -262,7 +280,7 @@ describe('Real-Input Smoke (sakura-market fixture → MP4)', () => {
     execFileSync('node', [
       GENERATE_SCRIPT,
       '--fixture', normalizedFixturePath,
-      '--slug', 'sakura-market',
+      '--slug', fixtureEntry.slug,
       '--out', outDir,
     ], {
       encoding: 'utf8',
@@ -284,13 +302,13 @@ describe('Real-Input Smoke (sakura-market fixture → MP4)', () => {
     });
 
     // Step 3: Capture ffprobe.json (required by artifact validator)
-    const ffprobeOutput2 = execFileSync('ffprobe', [
+    const ffprobeOutput = execFileSync('ffprobe', [
       '-hide_banner', '-loglevel', 'error',
       '-print_format', 'json',
       '-show_format', '-show_streams',
       mp4Path,
     ], { encoding: 'utf8', stdio: 'pipe', timeout: 15000 });
-    fs.writeFileSync(path.join(outDir, 'ffprobe.json'), ffprobeOutput2, 'utf8');
+    fs.writeFileSync(path.join(outDir, 'ffprobe.json'), ffprobeOutput, 'utf8');
   }, 300000);
 
   afterAll(() => {
@@ -316,11 +334,11 @@ describe('Real-Input Smoke (sakura-market fixture → MP4)', () => {
     expect(fs.existsSync(path.join(outDir, 'ffprobe.json'))).toBe(true);
   });
 
-  test('manifest references sakura-market (not old synthetic fixture)', () => {
+  test(`manifest references ${fixtureEntry.slug} (identity check)`, () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(outDir, 'manifest.json'), 'utf8'));
-    expect(manifest.game.id).toBe('sakura-market');
-    expect(manifest.game.name).toBe('Sakura Market');
-    expect(manifest.fixtureSlug).toBe('sakura-market');
+    expect(manifest.game.id).toBe(fixtureEntry.slug);
+    expect(manifest.game.name).toBe(fixtureEntry.gameName);
+    expect(manifest.fixtureSlug).toBe(fixtureEntry.slug);
   });
 
   test('video has correct resolution (1920x1080) and H.264', () => {
@@ -338,22 +356,12 @@ describe('Real-Input Smoke (sakura-market fixture → MP4)', () => {
     expect(audioStream).toBeDefined();
   });
 
-  test('video duration is reasonable (60-180 seconds)', () => {
-    const probe = probeVideo(mp4Path);
-    const duration = Number(probe.format.duration);
-    // Realistic fixture may produce longer content than synthetic
-    expect(duration).toBeGreaterThan(60);
-    expect(duration).toBeLessThan(180);
-  });
-
   test('real-input artifact contract validator passes', () => {
-    // Uses the contract-driven validator (validate-real-input-preview-artifact.mjs)
-    // instead of the deterministic validator (validate-tutorial-preview-artifact.mjs)
-    // which enforces 80-90s duration calibrated for gem-collectors/hanamikoji baselines.
+    // Uses the contract-driven validator with the fixture-specific expected.json
     const result = execFileSync('node', [
       VALIDATE_REAL_INPUT_SCRIPT,
       '--dir', outDir,
-      '--expected', REAL_INPUT_EXPECTED,
+      '--expected', fixtureEntry.expected,
     ], {
       encoding: 'utf8',
       stdio: 'pipe',
@@ -364,3 +372,4 @@ describe('Real-Input Smoke (sakura-market fixture → MP4)', () => {
     expect(result).toContain('ALL CHECKS PASSED');
   });
 });
+
