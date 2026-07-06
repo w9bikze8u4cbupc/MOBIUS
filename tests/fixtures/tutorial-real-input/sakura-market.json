@@ -1,0 +1,45 @@
+{
+  "gameId": "sakura-market",
+  "gameName": "Sakura Market",
+  "playerCount": { "min": 2, "max": 5 },
+  "duration": "30-45 minutes",
+  "designer": "Offline fixture derived from realistic product-like game metadata and rulebook extraction",
+  "objective": "Become the most successful merchant by buying and selling goods at the seasonal market. Balance risk and timing to maximize your profit before the festival ends.",
+  "components": [
+    { "name": "Goods cards", "quantity": 80, "category": "cards" },
+    { "name": "Market tiles", "quantity": 12, "category": "tiles" },
+    { "name": "Coin tokens", "quantity": 60, "category": "tokens" },
+    { "name": "Festival track board", "quantity": 1, "category": "board" },
+    { "name": "Merchant pawns", "quantity": 5, "category": "pawns" },
+    { "name": "Season marker", "quantity": 1, "category": "tokens" },
+    { "name": "Price dice", "quantity": 3, "category": "dice" }
+  ],
+  "setup": [
+    "Place the festival track board in the center of the table and set the season marker on the first space.",
+    "Shuffle all 80 goods cards and deal 5 to each player as their starting hand.",
+    "Place the remaining goods cards face-down as the supply deck.",
+    "Arrange the 12 market tiles in a circle around the festival track to form the market ring.",
+    "Give each player 8 coin tokens and one merchant pawn in their chosen color.",
+    "Roll the 3 price dice and place them on the corresponding market tiles to set initial prices.",
+    "The player who most recently visited a farmers market goes first."
+  ],
+  "turnStructure": {
+    "phases": ["Move", "Trade", "Refresh"],
+    "description": "On your turn: Move your merchant pawn 1-3 spaces around the market ring. Then Trade by buying goods from your current tile at the posted price or selling goods you hold for coins. Finally, Refresh by drawing one card from the supply deck and re-rolling one price die.",
+    "endCondition": "The game ends when the season marker reaches the festival space. This happens after a full round where the supply deck runs out."
+  },
+  "coreMechanic": {
+    "name": "Market Timing",
+    "description": "Prices fluctuate each turn as dice are re-rolled. Buy goods when prices are low and sell when prices are high. Your movement around the market ring determines which goods you can access, creating tension between optimal positioning and timing."
+  },
+  "scoring": {
+    "description": "At game end, count all your coins. Each unsold goods card in hand is worth 1 coin regardless of market price. Bonus: the player with the most diverse goods collection (one of each type) earns 10 bonus coins.",
+    "winCondition": "The player with the most coins wins. Ties broken by most goods cards remaining in hand."
+  },
+  "edgeCases": [
+    "If the supply deck runs out mid-round, complete the current round and then advance the season marker to the festival space immediately.",
+    "If a price die shows the same value as another die already on the market ring, the player may choose any unoccupied tile for it.",
+    "A player may pass their Trade phase without buying or selling.",
+    "If a player cannot move because all adjacent tiles are occupied by other merchants, they may teleport to any empty tile but forfeit their Trade phase."
+  ]
+}
