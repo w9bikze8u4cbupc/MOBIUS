@@ -1,0 +1,18 @@
+{
+  "_schema": "BGG-style normalized game metadata",
+  "_source": "Offline fixture — no live BGG fetch",
+
+  "bggId": null,
+  "slug": "sakura-market",
+  "title": "Sakura Market",
+  "yearPublished": 2024,
+  "designers": ["Offline Fixture Author"],
+  "publishers": ["Offline Fixture Publisher"],
+  "playerCount": { "min": 2, "max": 5 },
+  "playtimeMinutes": { "min": 30, "max": 45 },
+  "recommendedAge": 10,
+  "categories": ["Economic", "Market"],
+  "mechanics": ["Set Collection", "Dice Rolling", "Market Timing"],
+  "weight": 2.3,
+  "description": "Become the most successful merchant by buying and selling goods at the seasonal market. Balance risk and timing to maximize your profit before the festival ends."
+}

@@ -1,0 +1,18 @@
+{
+  "_schema": "Expected contract assertions for normalized output",
+
+  "gameId": "sakura-market",
+  "gameName": "Sakura Market",
+  "minSegments": 8,
+  "maxSegments": 15,
+  "durationRange": { "min": 60, "max": 180 },
+  "requiredArtifacts": [
+    "script.json",
+    "storyboard.json",
+    "captions.srt",
+    "render-config.json",
+    "manifest.json",
+    "preview.mp4",
+    "ffprobe.json"
+  ]
+}

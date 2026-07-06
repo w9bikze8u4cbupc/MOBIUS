@@ -19,6 +19,9 @@ const RENDER_SCRIPT = path.resolve(__dirname, '../../scripts/render-storyboard-f
 const VALIDATE_SCRIPT = path.resolve(__dirname, '../../scripts/validate-tutorial-preview-artifact.mjs');
 const FIXTURE = path.resolve(__dirname, '../fixtures/tutorial-vertical-slice/gem-collectors.json');
 const REAL_INPUT_FIXTURE = path.resolve(__dirname, '../fixtures/tutorial-real-input/sakura-market.json');
+const REAL_INPUT_METADATA = path.resolve(__dirname, '../fixtures/tutorial-real-input/sakura-market.metadata.json');
+const REAL_INPUT_EXTRACT = path.resolve(__dirname, '../fixtures/tutorial-real-input/sakura-market.rulebook-extract.json');
+const NORMALIZER_SCRIPT = path.resolve(__dirname, '../../scripts/normalize-real-input-fixture.cjs');
 
 // ---------------------------------------------------------------------------
 // FFmpeg availability detection (same pattern as storyboard_ffmpeg_real_mp4)
@@ -239,10 +242,24 @@ describe('Real-Input Smoke (sakura-market fixture → MP4)', () => {
     outDir = path.join(tmpDir, 'tutorial-preview-real');
     mp4Path = path.join(outDir, 'preview.mp4');
 
-    // Step 1: Generate tutorial artifacts from realistic fixture
+    // Step 0: Normalize metadata + rulebook-extract into canonical fixture
+    const normalizedFixturePath = path.join(tmpDir, 'sakura-market-normalized.json');
+    execFileSync('node', [
+      NORMALIZER_SCRIPT,
+      '--metadata', REAL_INPUT_METADATA,
+      '--extract', REAL_INPUT_EXTRACT,
+      '--out', normalizedFixturePath,
+    ], {
+      encoding: 'utf8',
+      stdio: 'pipe',
+      timeout: 10000,
+      cwd: path.resolve(__dirname, '../..'),
+    });
+
+    // Step 1: Generate tutorial artifacts from normalized fixture
     execFileSync('node', [
       GENERATE_SCRIPT,
-      '--fixture', REAL_INPUT_FIXTURE,
+      '--fixture', normalizedFixturePath,
       '--slug', 'sakura-market',
       '--out', outDir,
     ], {
