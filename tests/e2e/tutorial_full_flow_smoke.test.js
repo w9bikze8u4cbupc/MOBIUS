@@ -20,6 +20,8 @@ const VALIDATE_SCRIPT = path.resolve(__dirname, '../../scripts/validate-tutorial
 const VALIDATE_REAL_INPUT_SCRIPT = path.resolve(__dirname, '../../scripts/validate-real-input-preview-artifact.mjs');
 const FIXTURE = path.resolve(__dirname, '../fixtures/tutorial-vertical-slice/gem-collectors.json');
 const NORMALIZER_SCRIPT = path.resolve(__dirname, '../../scripts/normalize-real-input-fixture.cjs');
+const { validateRealInputArtifact } = require('../../scripts/validate-real-input-preview-artifact.cjs');
+const { createReport, buildFixtureEntry, writeReport } = require('../helpers/realInputSmokeCoverageReport.cjs');
 
 // ---------------------------------------------------------------------------
 // Real-input fixture matrix (loaded from registry)
@@ -33,10 +35,21 @@ const REAL_INPUT_MATRIX = registry.fixtures
   .map((f) => ({
     slug: f.slug,
     gameName: f.gameName,
+    profile: f.profile,
     metadata: path.join(REAL_INPUT_DIR, f.metadataFile),
     extract: path.join(REAL_INPUT_DIR, f.rulebookExtractFile),
     expected: path.join(REAL_INPUT_DIR, f.expectedFile),
+    metadataFile: f.metadataFile,
+    rulebookExtractFile: f.rulebookExtractFile,
+    expectedFile: f.expectedFile,
   }));
+
+// ---------------------------------------------------------------------------
+// Coverage report accumulator
+// ---------------------------------------------------------------------------
+const coverageReportDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-smoke-coverage-'));
+const coverageReport = createReport({ registryPath: REGISTRY_PATH, enabledCount: REAL_INPUT_MATRIX.length });
+const COVERAGE_REPORT_PATH = path.join(coverageReportDir, 'real-input-smoke-coverage.json');
 
 // ---------------------------------------------------------------------------
 // FFmpeg availability detection (same pattern as storyboard_ffmpeg_real_mp4)
@@ -251,6 +264,7 @@ describe.each(REAL_INPUT_MATRIX)('Real-Input Smoke ($slug → MP4)', (fixtureEnt
   let tmpDir;
   let outDir;
   let mp4Path;
+  let normalizedFixturePath;
 
   beforeAll(() => {
     tmpDir = createTempDir();
@@ -258,7 +272,7 @@ describe.each(REAL_INPUT_MATRIX)('Real-Input Smoke ($slug → MP4)', (fixtureEnt
     mp4Path = path.join(outDir, 'preview.mp4');
 
     // Step 0: Normalize metadata + rulebook-extract into canonical fixture
-    const normalizedFixturePath = path.join(tmpDir, `${fixtureEntry.slug}-normalized.json`);
+    normalizedFixturePath = path.join(tmpDir, `${fixtureEntry.slug}-normalized.json`);
     execFileSync('node', [
       NORMALIZER_SCRIPT,
       '--metadata', fixtureEntry.metadata,
@@ -307,6 +321,42 @@ describe.each(REAL_INPUT_MATRIX)('Real-Input Smoke ($slug → MP4)', (fixtureEnt
   }, 300000);
 
   afterAll(() => {
+    // Build coverage report entry for this fixture
+    try {
+      const ffprobeData = fs.existsSync(path.join(outDir, 'ffprobe.json'))
+        ? JSON.parse(fs.readFileSync(path.join(outDir, 'ffprobe.json'), 'utf8'))
+        : null;
+      const manifestData = fs.existsSync(path.join(outDir, 'manifest.json'))
+        ? JSON.parse(fs.readFileSync(path.join(outDir, 'manifest.json'), 'utf8'))
+        : null;
+      const expectedContract = JSON.parse(fs.readFileSync(fixtureEntry.expected, 'utf8'));
+      const contractResult = validateRealInputArtifact(outDir, expectedContract);
+
+      const entry = buildFixtureEntry({
+        slug: fixtureEntry.slug,
+        gameName: fixtureEntry.gameName,
+        profile: fixtureEntry.profile,
+        metadataFile: fixtureEntry.metadataFile,
+        rulebookExtractFile: fixtureEntry.rulebookExtractFile,
+        expectedFile: fixtureEntry.expectedFile,
+        normalizedFixturePath,
+        artifactDir: outDir,
+        ffprobeData,
+        manifestData,
+        requiredArtifacts: expectedContract.requiredArtifacts || [],
+        contractValidation: contractResult,
+      });
+      coverageReport.fixtures.push(entry);
+    } catch (err) {
+      // If report entry build fails, still record a minimal entry
+      coverageReport.fixtures.push({
+        slug: fixtureEntry.slug,
+        gameName: fixtureEntry.gameName,
+        error: err.message,
+      });
+    }
+
+    // Cleanup temp dir
     try {
       if (tmpDir && fs.existsSync(tmpDir)) {
         fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -368,3 +418,61 @@ describe.each(REAL_INPUT_MATRIX)('Real-Input Smoke ($slug → MP4)', (fixtureEnt
   });
 });
 
+
+
+
+// ---------------------------------------------------------------------------
+// Coverage report finalization
+// ---------------------------------------------------------------------------
+describe('Real-Input Smoke Coverage Report', () => {
+  afterAll(() => {
+    // Write coverage report regardless of CAN_RUN (will contain 0 entries if skipped)
+    writeReport(COVERAGE_REPORT_PATH, coverageReport);
+    console.log(`[coverage] Real-input smoke coverage report written to: ${COVERAGE_REPORT_PATH}`);
+
+    // Cleanup report dir after tests read it
+    // Note: not cleaning up here so CI can inspect if needed
+  });
+
+  test('coverage report is written to disk', () => {
+    writeReport(COVERAGE_REPORT_PATH, coverageReport);
+    expect(fs.existsSync(COVERAGE_REPORT_PATH)).toBe(true);
+  });
+
+  test('coverage report has correct schema version', () => {
+    writeReport(COVERAGE_REPORT_PATH, coverageReport);
+    const loaded = JSON.parse(fs.readFileSync(COVERAGE_REPORT_PATH, 'utf8'));
+    expect(loaded._schema).toBe('real-input-smoke-coverage/v1');
+  });
+
+  test('coverage report references the registry path', () => {
+    writeReport(COVERAGE_REPORT_PATH, coverageReport);
+    const loaded = JSON.parse(fs.readFileSync(COVERAGE_REPORT_PATH, 'utf8'));
+    expect(loaded.registryPath).toBe(REGISTRY_PATH);
+  });
+
+  test('coverage report enabled count matches registry', () => {
+    writeReport(COVERAGE_REPORT_PATH, coverageReport);
+    const loaded = JSON.parse(fs.readFileSync(COVERAGE_REPORT_PATH, 'utf8'));
+    expect(loaded.enabledFixtureCount).toBe(REAL_INPUT_MATRIX.length);
+  });
+
+  if (CAN_RUN) {
+    test('coverage report contains exactly the enabled fixture slugs', () => {
+      writeReport(COVERAGE_REPORT_PATH, coverageReport);
+      const loaded = JSON.parse(fs.readFileSync(COVERAGE_REPORT_PATH, 'utf8'));
+      const reportSlugs = loaded.fixtures.map((f) => f.slug).sort();
+      const expectedSlugs = REAL_INPUT_MATRIX.map((f) => f.slug).sort();
+      expect(reportSlugs).toEqual(expectedSlugs);
+    });
+
+    test('coverage report contains no disabled or unregistered fixtures', () => {
+      writeReport(COVERAGE_REPORT_PATH, coverageReport);
+      const loaded = JSON.parse(fs.readFileSync(COVERAGE_REPORT_PATH, 'utf8'));
+      const registeredSlugs = new Set(REAL_INPUT_MATRIX.map((f) => f.slug));
+      for (const entry of loaded.fixtures) {
+        expect(registeredSlugs.has(entry.slug)).toBe(true);
+      }
+    });
+  }
+});
