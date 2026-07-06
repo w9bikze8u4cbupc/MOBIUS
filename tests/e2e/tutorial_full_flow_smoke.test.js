@@ -86,6 +86,9 @@ describe('Full-Flow Tutorial Smoke (fixture → MP4)', () => {
     return;
   }
 
+  // Ensure sufficient timeout for CI rendering (~90s video)
+  jest.setTimeout(240000);
+
   let tmpDir;
   let outDir;
   let mp4Path;
@@ -119,7 +122,16 @@ describe('Full-Flow Tutorial Smoke (fixture → MP4)', () => {
       timeout: 120000,
       cwd: path.resolve(__dirname, '../..'),
     });
-  }, 180000);
+
+    // Step 3: Capture ffprobe.json (required by artifact validator)
+    const ffprobeOutput = execFileSync('ffprobe', [
+      '-hide_banner', '-loglevel', 'error',
+      '-print_format', 'json',
+      '-show_format', '-show_streams',
+      mp4Path,
+    ], { encoding: 'utf8', stdio: 'pipe', timeout: 15000 });
+    fs.writeFileSync(path.join(outDir, 'ffprobe.json'), ffprobeOutput, 'utf8');
+  }, 240000);
 
   afterAll(() => {
     try {
@@ -156,6 +168,10 @@ describe('Full-Flow Tutorial Smoke (fixture → MP4)', () => {
 
   test('captions.srt exists', () => {
     expect(fs.existsSync(path.join(outDir, 'captions.srt'))).toBe(true);
+  });
+
+  test('ffprobe.json exists', () => {
+    expect(fs.existsSync(path.join(outDir, 'ffprobe.json'))).toBe(true);
   });
 
   test('video has correct resolution (1920x1080)', () => {
