@@ -88,3 +88,4 @@ Thumbs.db
 # Generated CI artifacts (not committed)
 artifacts/real-input-smoke-coverage.json
 out/real-input-cli-smoke/
+out/real-input-adhoc-cli-smoke/
