@@ -182,11 +182,21 @@ jobs:
 
       - name: Real-input CLI smoke (sakura-market)
         run: |
+          # Skip if drawtext filter is not available (e.g. macOS brew ffmpeg)
+          if ! ffmpeg -hide_banner -loglevel error -f lavfi -i color=c=black:s=64x64:d=0.1 -vf drawtext=text=X:fontsize=12 -frames:v 1 -f null - 2>/dev/null; then
+            echo "[cli-smoke] SKIPPED: drawtext filter not available on this runner."
+            exit 0
+          fi
           node scripts/run-real-input-preview.mjs --fixture sakura-market --out out/real-input-cli-smoke/sakura-market
         shell: bash
 
       - name: Verify CLI smoke output
         run: |
+          # Skip verification if CLI smoke was skipped (no drawtext)
+          if [ ! -d out/real-input-cli-smoke/sakura-market ]; then
+            echo "[cli-smoke] SKIPPED: output directory not present (drawtext likely unavailable)."
+            exit 0
+          fi
           echo "--- Verifying CLI smoke output ---"
           test -f out/real-input-cli-smoke/sakura-market/sakura-market-normalized.json
           test -f out/real-input-cli-smoke/sakura-market/script.json
