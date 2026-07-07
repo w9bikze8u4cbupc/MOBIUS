@@ -1,25 +1,29 @@
 #!/usr/bin/env node
 
 /**
- * run-real-input-preview.mjs — Offline CLI for running a registered real-input
- * fixture through the full tutorial preview pipeline.
+ * run-real-input-preview.mjs — Offline CLI for running a real-input fixture
+ * through the full tutorial preview pipeline.
  *
- * Usage:
- *   node scripts/run-real-input-preview.mjs --fixture <slug> --out <output-dir>
+ * Modes:
+ *   Registered fixture:
+ *     node scripts/run-real-input-preview.mjs --fixture <slug> --out <output-dir>
+ *
+ *   Ad-hoc local source:
+ *     node scripts/run-real-input-preview.mjs --metadata <path> --rulebook-extract <path> --expected <path> --out <output-dir>
  *
  * Pipeline:
- *   registry lookup → normalize → generate → render → ffprobe → validate → coverage report
+ *   source validation → normalize → generate → render → ffprobe → validate → coverage report
  *
  * Exit codes:
  *   0 = success (all steps pass)
  *   1 = pipeline or validation failure
- *   2 = invalid arguments or missing fixture
+ *   2 = invalid arguments or missing fixture/files
  */
 
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { resolve, join, dirname } from 'node:path';
+import { resolve, join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -43,15 +47,59 @@ function getArg(name) {
 }
 
 const fixtureSlug = getArg('fixture');
+const metadataPath = getArg('metadata');
+const rulebookExtractPath = getArg('rulebook-extract');
+const expectedPath = getArg('expected');
 const outDir = getArg('out');
 
-if (!fixtureSlug || !outDir) {
-  console.error('Usage: node scripts/run-real-input-preview.mjs --fixture <slug> --out <output-dir>');
+// ---------------------------------------------------------------------------
+// Mode detection and validation
+// ---------------------------------------------------------------------------
+const isRegisteredMode = !!fixtureSlug;
+const isAdHocMode = !!(metadataPath || rulebookExtractPath || expectedPath);
+
+if (isRegisteredMode && isAdHocMode) {
+  console.error('[preview-cli] ERROR: Cannot mix --fixture with --metadata/--rulebook-extract/--expected.');
+  console.error('[preview-cli] Use either registered mode (--fixture) or ad-hoc mode (--metadata + --rulebook-extract + --expected).');
+  process.exit(2);
+}
+
+if (!isRegisteredMode && !isAdHocMode) {
+  console.error('Usage:');
+  console.error('');
+  console.error('  Registered fixture mode:');
+  console.error('    node scripts/run-real-input-preview.mjs --fixture <slug> --out <output-dir>');
+  console.error('');
+  console.error('  Ad-hoc local source mode:');
+  console.error('    node scripts/run-real-input-preview.mjs --metadata <path> --rulebook-extract <path> --expected <path> --out <output-dir>');
   console.error('');
   console.error('Options:');
-  console.error('  --fixture  Slug of a registered real-input fixture (e.g., sakura-market)');
-  console.error('  --out      Output directory for preview artifacts');
+  console.error('  --fixture          Slug of a registered real-input fixture (e.g., sakura-market)');
+  console.error('  --metadata         Path to metadata JSON (ad-hoc mode)');
+  console.error('  --rulebook-extract Path to rulebook-extract JSON (ad-hoc mode)');
+  console.error('  --expected         Path to expected contract JSON (ad-hoc mode)');
+  console.error('  --out              Output directory for preview artifacts');
   process.exit(2);
+}
+
+if (!outDir) {
+  console.error('[preview-cli] ERROR: --out <output-dir> is required.');
+  process.exit(2);
+}
+
+if (isAdHocMode) {
+  if (!metadataPath) {
+    console.error('[preview-cli] ERROR: --metadata is required in ad-hoc mode.');
+    process.exit(2);
+  }
+  if (!rulebookExtractPath) {
+    console.error('[preview-cli] ERROR: --rulebook-extract is required in ad-hoc mode.');
+    process.exit(2);
+  }
+  if (!expectedPath) {
+    console.error('[preview-cli] ERROR: --expected is required in ad-hoc mode.');
+    process.exit(2);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -67,52 +115,113 @@ const RENDER_SCRIPT = resolve(PROJECT_ROOT, 'scripts/render-storyboard-ffmpeg.mj
 const resolvedOut = resolve(outDir);
 
 // ---------------------------------------------------------------------------
-// Step 1: Load registry and find fixture
+// Resolve source paths based on mode
 // ---------------------------------------------------------------------------
-console.log(`[preview-cli] Loading registry: ${REGISTRY_PATH}`);
-let registry;
-try {
-  registry = loadRegistry(REGISTRY_PATH);
-} catch (err) {
-  console.error(`[preview-cli] Failed to load registry: ${err.message}`);
-  process.exit(2);
+let sourcePaths; // { metadata, extract, expected }
+let slug;
+let gameName;
+let profile;
+let sourceMode;
+let registryEntry; // for identity checks (null in ad-hoc mode)
+let metadataFile;
+let rulebookExtractFile;
+let expectedFile;
+
+if (isRegisteredMode) {
+  sourceMode = 'registered';
+
+  console.log(`[preview-cli] Mode: registered fixture`);
+  console.log(`[preview-cli] Loading registry: ${REGISTRY_PATH}`);
+  let registry;
+  try {
+    registry = loadRegistry(REGISTRY_PATH);
+  } catch (err) {
+    console.error(`[preview-cli] Failed to load registry: ${err.message}`);
+    process.exit(2);
+  }
+
+  const fixture = findFixtureBySlug(registry, fixtureSlug);
+  if (!fixture) {
+    console.error(`[preview-cli] Unknown fixture slug: "${fixtureSlug}"`);
+    console.error(`[preview-cli] Available slugs: ${registry.fixtures.map((f) => f.slug).join(', ')}`);
+    process.exit(2);
+  }
+
+  if (!fixture.enabled) {
+    console.error(`[preview-cli] Fixture "${fixtureSlug}" is disabled in the registry.`);
+    process.exit(2);
+  }
+
+  const fileCheck = validateFixtureFiles(fixture, REGISTRY_DIR);
+  if (!fileCheck.valid) {
+    console.error(`[preview-cli] Missing fixture files: ${fileCheck.missing.join(', ')}`);
+    process.exit(2);
+  }
+
+  sourcePaths = resolveFixturePaths(fixture, REGISTRY_DIR);
+  slug = fixture.slug;
+  gameName = fixture.gameName;
+  profile = fixture.profile;
+  registryEntry = fixture;
+  metadataFile = fixture.metadataFile;
+  rulebookExtractFile = fixture.rulebookExtractFile;
+  expectedFile = fixture.expectedFile;
+} else {
+  sourceMode = 'ad-hoc';
+
+  console.log(`[preview-cli] Mode: ad-hoc local source`);
+
+  const resolvedMetadata = resolve(metadataPath);
+  const resolvedExtract = resolve(rulebookExtractPath);
+  const resolvedExpected = resolve(expectedPath);
+
+  // Verify files exist
+  if (!existsSync(resolvedMetadata)) {
+    console.error(`[preview-cli] Metadata file not found: ${resolvedMetadata}`);
+    process.exit(2);
+  }
+  if (!existsSync(resolvedExtract)) {
+    console.error(`[preview-cli] Rulebook-extract file not found: ${resolvedExtract}`);
+    process.exit(2);
+  }
+  if (!existsSync(resolvedExpected)) {
+    console.error(`[preview-cli] Expected contract file not found: ${resolvedExpected}`);
+    process.exit(2);
+  }
+
+  sourcePaths = { metadata: resolvedMetadata, extract: resolvedExtract, expected: resolvedExpected };
+  registryEntry = null;
+  metadataFile = basename(resolvedMetadata);
+  rulebookExtractFile = basename(resolvedExtract);
+  expectedFile = basename(resolvedExpected);
+
+  // Derive slug and gameName from metadata
+  let metaPreview;
+  try {
+    metaPreview = JSON.parse(readFileSync(resolvedMetadata, 'utf8'));
+  } catch (err) {
+    console.error(`[preview-cli] Failed to parse metadata JSON: ${err.message}`);
+    process.exit(2);
+  }
+  slug = metaPreview.slug || 'ad-hoc-preview';
+  gameName = metaPreview.title || 'Ad-Hoc Preview';
+  profile = 'ad-hoc local source';
 }
 
-const fixture = findFixtureBySlug(registry, fixtureSlug);
-if (!fixture) {
-  console.error(`[preview-cli] Unknown fixture slug: "${fixtureSlug}"`);
-  console.error(`[preview-cli] Available slugs: ${registry.fixtures.map((f) => f.slug).join(', ')}`);
-  process.exit(2);
-}
-
-if (!fixture.enabled) {
-  console.error(`[preview-cli] Fixture "${fixtureSlug}" is disabled in the registry.`);
-  process.exit(2);
-}
-
-// ---------------------------------------------------------------------------
-// Step 2: Validate fixture files exist
-// ---------------------------------------------------------------------------
-const fileCheck = validateFixtureFiles(fixture, REGISTRY_DIR);
-if (!fileCheck.valid) {
-  console.error(`[preview-cli] Missing fixture files: ${fileCheck.missing.join(', ')}`);
-  process.exit(2);
-}
-
-const paths = resolveFixturePaths(fixture, REGISTRY_DIR);
-console.log(`[preview-cli] Fixture: ${fixture.slug} (${fixture.gameName})`);
-console.log(`[preview-cli] Metadata: ${paths.metadata}`);
-console.log(`[preview-cli] Extract: ${paths.extract}`);
-console.log(`[preview-cli] Expected: ${paths.expected}`);
+console.log(`[preview-cli] Fixture: ${slug} (${gameName})`);
+console.log(`[preview-cli] Metadata: ${sourcePaths.metadata}`);
+console.log(`[preview-cli] Extract: ${sourcePaths.extract}`);
+console.log(`[preview-cli] Expected: ${sourcePaths.expected}`);
 console.log(`[preview-cli] Output: ${resolvedOut}`);
+console.log(`[preview-cli] Source mode: ${sourceMode}`);
 
 // ---------------------------------------------------------------------------
-// Step 2b: Validate source contracts before normalization
+// Source contract validation
 // ---------------------------------------------------------------------------
 console.log('[preview-cli] Validating source contracts...');
-const metadataJson = JSON.parse(readFileSync(paths.metadata, 'utf8'));
-const extractJson = JSON.parse(readFileSync(paths.extract, 'utf8'));
-const sourceResult = validateSourceContract(metadataJson, extractJson, fixture);
+const metadataJson = JSON.parse(readFileSync(sourcePaths.metadata, 'utf8'));
+const extractJson = JSON.parse(readFileSync(sourcePaths.extract, 'utf8'));
+const sourceResult = validateSourceContract(metadataJson, extractJson, registryEntry);
 if (!sourceResult.passed) {
   console.error(`[preview-cli] Source contract validation FAILED (${sourceResult.errors.length} error(s)):`);
   sourceResult.errors.forEach((e) => console.error(`  - ${e}`));
@@ -121,20 +230,20 @@ if (!sourceResult.passed) {
 console.log('[preview-cli]   → Source contracts valid');
 
 // ---------------------------------------------------------------------------
-// Step 3: Create output directory
+// Create output directory
 // ---------------------------------------------------------------------------
 mkdirSync(resolvedOut, { recursive: true });
 
 // ---------------------------------------------------------------------------
-// Step 4: Normalize
+// Normalize
 // ---------------------------------------------------------------------------
-const normalizedPath = join(resolvedOut, `${fixture.slug}-normalized.json`);
+const normalizedPath = join(resolvedOut, `${slug}-normalized.json`);
 console.log('[preview-cli] Step 1/6: Normalizing fixture...');
 try {
   execFileSync('node', [
     NORMALIZER_SCRIPT,
-    '--metadata', paths.metadata,
-    '--extract', paths.extract,
+    '--metadata', sourcePaths.metadata,
+    '--extract', sourcePaths.extract,
     '--out', normalizedPath,
   ], { encoding: 'utf8', stdio: 'pipe', timeout: 15000, cwd: PROJECT_ROOT });
 } catch (err) {
@@ -144,14 +253,14 @@ try {
 console.log(`[preview-cli]   → ${normalizedPath}`);
 
 // ---------------------------------------------------------------------------
-// Step 5: Generate tutorial preview artifacts
+// Generate tutorial preview artifacts
 // ---------------------------------------------------------------------------
 console.log('[preview-cli] Step 2/6: Generating tutorial artifacts...');
 try {
   execFileSync('node', [
     GENERATE_SCRIPT,
     '--fixture', normalizedPath,
-    '--slug', fixture.slug,
+    '--slug', slug,
     '--out', resolvedOut,
   ], { encoding: 'utf8', stdio: 'pipe', timeout: 30000, cwd: PROJECT_ROOT });
 } catch (err) {
@@ -161,7 +270,7 @@ try {
 console.log('[preview-cli]   → script.json, storyboard.json, captions.srt, render-config.json, manifest.json');
 
 // ---------------------------------------------------------------------------
-// Step 6: Render MP4
+// Render MP4
 // ---------------------------------------------------------------------------
 const mp4Path = join(resolvedOut, 'preview.mp4');
 console.log('[preview-cli] Step 3/6: Rendering MP4...');
@@ -178,7 +287,7 @@ try {
 console.log(`[preview-cli]   → ${mp4Path}`);
 
 // ---------------------------------------------------------------------------
-// Step 7: Capture ffprobe.json
+// Capture ffprobe.json
 // ---------------------------------------------------------------------------
 const ffprobePath = join(resolvedOut, 'ffprobe.json');
 console.log('[preview-cli] Step 4/6: Capturing ffprobe metadata...');
@@ -197,10 +306,10 @@ try {
 console.log(`[preview-cli]   → ${ffprobePath}`);
 
 // ---------------------------------------------------------------------------
-// Step 8: Validate against contract
+// Validate against contract
 // ---------------------------------------------------------------------------
 console.log('[preview-cli] Step 5/6: Validating artifact contract...');
-const expectedContract = JSON.parse(readFileSync(paths.expected, 'utf8'));
+const expectedContract = JSON.parse(readFileSync(sourcePaths.expected, 'utf8'));
 const validationResult = validateRealInputArtifact(resolvedOut, expectedContract);
 
 const validationOutputPath = join(resolvedOut, 'validation-result.json');
@@ -214,7 +323,7 @@ if (validationResult.passed) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 9: Write coverage report
+// Write coverage report
 // ---------------------------------------------------------------------------
 console.log('[preview-cli] Step 6/6: Writing coverage report...');
 const ffprobeData = existsSync(ffprobePath) ? JSON.parse(readFileSync(ffprobePath, 'utf8')) : null;
@@ -222,14 +331,14 @@ const manifestData = existsSync(join(resolvedOut, 'manifest.json'))
   ? JSON.parse(readFileSync(join(resolvedOut, 'manifest.json'), 'utf8'))
   : null;
 
-const report = createReport({ registryPath: REGISTRY_PATH, enabledCount: 1 });
+const report = createReport({ registryPath: sourceMode === 'registered' ? REGISTRY_PATH : '(ad-hoc)', enabledCount: 1 });
 const entry = buildFixtureEntry({
-  slug: fixture.slug,
-  gameName: fixture.gameName,
-  profile: fixture.profile,
-  metadataFile: fixture.metadataFile,
-  rulebookExtractFile: fixture.rulebookExtractFile,
-  expectedFile: fixture.expectedFile,
+  slug,
+  gameName,
+  profile,
+  metadataFile,
+  rulebookExtractFile,
+  expectedFile,
   normalizedFixturePath: normalizedPath,
   artifactDir: resolvedOut,
   ffprobeData,
@@ -237,6 +346,7 @@ const entry = buildFixtureEntry({
   requiredArtifacts: expectedContract.requiredArtifacts || [],
   contractValidation: validationResult,
 });
+entry.sourceMode = sourceMode;
 report.fixtures.push(entry);
 
 const coverageReportPath = join(resolvedOut, 'real-input-preview-coverage.json');
@@ -248,7 +358,7 @@ console.log(`[preview-cli]   → ${coverageReportPath}`);
 // ---------------------------------------------------------------------------
 console.log('');
 if (validationResult.passed) {
-  console.log(`[preview-cli] SUCCESS: ${fixture.slug} preview pipeline completed.`);
+  console.log(`[preview-cli] SUCCESS: ${slug} preview pipeline completed (${sourceMode} mode).`);
   console.log(`[preview-cli] Output directory: ${resolvedOut}`);
   process.exit(0);
 } else {
