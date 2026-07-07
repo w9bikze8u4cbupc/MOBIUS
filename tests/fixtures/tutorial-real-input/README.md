@@ -298,6 +298,26 @@ The CLI enforces mutual exclusivity between modes:
 - Ad-hoc mode requires all three source paths: `--metadata`, `--rulebook-extract`, `--expected`
 - Both modes require `--out`
 
+### Preview package manifest
+
+Every successful CLI run writes `preview-package-manifest.json` in the output
+directory. This self-describing manifest summarizes the entire run:
+
+| Field | Description |
+|-------|-------------|
+| `_schema` | `preview-package-manifest/v1` |
+| `generatedAt` | ISO timestamp of generation |
+| `sourceMode` | `registered` or `ad-hoc` |
+| `fixtureSlug` | Game slug used for the run |
+| `gameName` | Human-readable game name |
+| `source` | References to metadata, rulebook-extract, and expected contract files |
+| `output.artifacts` | Per-file entries with `exists`, `size` (bytes), and `sha256` hash |
+| `validation` | Contract validation result: `passed`, `errorCount`, `errors` |
+| `media` | Summary from ffprobe: duration, codec, resolution, audio presence |
+
+The manifest enables artifact reviewers to understand a CI smoke package without
+opening every file. SHA-256 hashes provide tamper detection for key outputs.
+
 ### Requirements
 
 - Node.js 20+

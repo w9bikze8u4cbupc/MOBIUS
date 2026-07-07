@@ -208,6 +208,7 @@ jobs:
           test -f out/real-input-cli-smoke/sakura-market/ffprobe.json
           test -f out/real-input-cli-smoke/sakura-market/validation-result.json
           test -f out/real-input-cli-smoke/sakura-market/real-input-preview-coverage.json
+          test -f out/real-input-cli-smoke/sakura-market/preview-package-manifest.json
           echo "All CLI smoke output files verified."
         shell: bash
 
@@ -243,6 +244,7 @@ jobs:
           test -f out/real-input-adhoc-cli-smoke/sakura-market/ffprobe.json
           test -f out/real-input-adhoc-cli-smoke/sakura-market/validation-result.json
           test -f out/real-input-adhoc-cli-smoke/sakura-market/real-input-preview-coverage.json
+          test -f out/real-input-adhoc-cli-smoke/sakura-market/preview-package-manifest.json
           echo "All ad-hoc CLI smoke output files verified."
         shell: bash
 
