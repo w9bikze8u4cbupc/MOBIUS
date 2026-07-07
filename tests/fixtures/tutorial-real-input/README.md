@@ -330,3 +330,35 @@ $ node scripts/run-real-input-preview.mjs --fixture bad-slug --out /tmp/x
 | `tests/helpers/realInputFixtureRegistry.cjs` | Registry loading, fixture lookup, path resolution, file validation |
 | `scripts/validate-real-input-preview-artifact.cjs` | Contract validation |
 | `tests/helpers/realInputSmokeCoverageReport.cjs` | Coverage report generation |
+
+## CI CLI Smoke
+
+In addition to the E2E smoke test (which runs both fixtures via Jest), CI also
+executes the operator-facing CLI directly for one fixture to prove end-to-end
+orchestration works outside the test harness:
+
+```
+node scripts/run-real-input-preview.mjs --fixture sakura-market --out out/real-input-cli-smoke/sakura-market
+```
+
+This runs in every `build-and-qa` job (Ubuntu, Windows, macOS) and:
+- Proves the CLI can load the registry, normalize, generate, render, probe, validate, and report
+- Verifies all 10 expected output files exist after the run
+- Uploads the full output as a downloadable CI artifact
+
+### CI CLI smoke artifacts
+
+| OS | Artifact name |
+|----|---------------|
+| ubuntu-latest | `real-input-cli-smoke-ubuntu-latest` |
+| windows-latest | `real-input-cli-smoke-windows-latest` |
+| macos-latest | `real-input-cli-smoke-macos-latest` |
+
+Retention: 14 days. Download from the GitHub Actions run page.
+
+### Why only one fixture?
+
+The CLI smoke uses `sakura-market` (the original stable real-input sample) to
+keep CI runtime bounded. The full two-fixture matrix is already exercised by the
+E2E smoke test in the same job. The CLI smoke specifically proves the operator
+CLI path — not fixture coverage breadth.

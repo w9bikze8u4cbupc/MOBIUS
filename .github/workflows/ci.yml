@@ -180,6 +180,27 @@ jobs:
         working-directory: client
         continue-on-error: false
 
+      - name: Real-input CLI smoke (sakura-market)
+        run: |
+          node scripts/run-real-input-preview.mjs --fixture sakura-market --out out/real-input-cli-smoke/sakura-market
+        shell: bash
+
+      - name: Verify CLI smoke output
+        run: |
+          echo "--- Verifying CLI smoke output ---"
+          test -f out/real-input-cli-smoke/sakura-market/sakura-market-normalized.json
+          test -f out/real-input-cli-smoke/sakura-market/script.json
+          test -f out/real-input-cli-smoke/sakura-market/storyboard.json
+          test -f out/real-input-cli-smoke/sakura-market/captions.srt
+          test -f out/real-input-cli-smoke/sakura-market/render-config.json
+          test -f out/real-input-cli-smoke/sakura-market/manifest.json
+          test -f out/real-input-cli-smoke/sakura-market/preview.mp4
+          test -f out/real-input-cli-smoke/sakura-market/ffprobe.json
+          test -f out/real-input-cli-smoke/sakura-market/validation-result.json
+          test -f out/real-input-cli-smoke/sakura-market/real-input-preview-coverage.json
+          echo "All CLI smoke output files verified."
+        shell: bash
+
       - name: Render preview
         run: |
           mkdir -p out artifacts
@@ -375,6 +396,15 @@ jobs:
         with:
           name: real-input-smoke-coverage-${{ matrix.os }}
           path: artifacts/real-input-smoke-coverage.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload real-input CLI smoke output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-input-cli-smoke-${{ matrix.os }}
+          path: out/real-input-cli-smoke/**
           if-no-files-found: ignore
           retention-days: 14
 
