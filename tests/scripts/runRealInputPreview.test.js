@@ -155,7 +155,7 @@ describe('run-real-input-preview CLI — argument errors', () => {
   test('exits 2 with --fixture but no --out', () => {
     const { exitCode, stderr } = runCLI(['--fixture', 'sakura-market']);
     expect(exitCode).toBe(2);
-    expect(stderr).toContain('Usage');
+    expect(stderr).toContain('--out');
   });
 
   test('exits 2 with --out but no --fixture', () => {
@@ -175,5 +175,139 @@ describe('run-real-input-preview CLI — argument errors', () => {
     const { stderr } = runCLI(['--fixture', 'bad-slug', '--out', '/tmp/test-out']);
     expect(stderr).toContain('sakura-market');
     expect(stderr).toContain('stellar-drift');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ad-hoc mode argument handling tests (no FFmpeg required)
+// ---------------------------------------------------------------------------
+describe('run-real-input-preview CLI — ad-hoc mode arguments', () => {
+  function runCLI(args) {
+    try {
+      const result = execFileSync('node', [CLI_SCRIPT, ...args], {
+        encoding: 'utf8',
+        stdio: 'pipe',
+        timeout: 10000,
+        cwd: path.resolve(__dirname, '../..'),
+      });
+      return { exitCode: 0, stdout: result, stderr: '' };
+    } catch (err) {
+      return { exitCode: err.status, stdout: err.stdout || '', stderr: err.stderr || '' };
+    }
+  }
+
+  const VALID_METADATA = path.resolve(__dirname, '../fixtures/tutorial-real-input/sakura-market.metadata.json');
+  const VALID_EXTRACT = path.resolve(__dirname, '../fixtures/tutorial-real-input/sakura-market.rulebook-extract.json');
+  const VALID_EXPECTED = path.resolve(__dirname, '../fixtures/tutorial-real-input/sakura-market.expected.json');
+
+  test('exits 2 when mixing --fixture with --metadata', () => {
+    const { exitCode, stderr } = runCLI([
+      '--fixture', 'sakura-market',
+      '--metadata', VALID_METADATA,
+      '--out', '/tmp/test-out',
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Cannot mix');
+  });
+
+  test('exits 2 when mixing --fixture with --rulebook-extract', () => {
+    const { exitCode, stderr } = runCLI([
+      '--fixture', 'sakura-market',
+      '--rulebook-extract', VALID_EXTRACT,
+      '--out', '/tmp/test-out',
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('Cannot mix');
+  });
+
+  test('exits 2 when --metadata is provided but --rulebook-extract is missing', () => {
+    const { exitCode, stderr } = runCLI([
+      '--metadata', VALID_METADATA,
+      '--expected', VALID_EXPECTED,
+      '--out', '/tmp/test-out',
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('--rulebook-extract');
+  });
+
+  test('exits 2 when --metadata is provided but --expected is missing', () => {
+    const { exitCode, stderr } = runCLI([
+      '--metadata', VALID_METADATA,
+      '--rulebook-extract', VALID_EXTRACT,
+      '--out', '/tmp/test-out',
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('--expected');
+  });
+
+  test('exits 2 when ad-hoc mode but --out is missing', () => {
+    const { exitCode, stderr } = runCLI([
+      '--metadata', VALID_METADATA,
+      '--rulebook-extract', VALID_EXTRACT,
+      '--expected', VALID_EXPECTED,
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('--out');
+  });
+
+  test('exits 2 when metadata file does not exist', () => {
+    const { exitCode, stderr } = runCLI([
+      '--metadata', '/nonexistent/meta.json',
+      '--rulebook-extract', VALID_EXTRACT,
+      '--expected', VALID_EXPECTED,
+      '--out', '/tmp/test-out',
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('not found');
+  });
+
+  test('exits 2 when rulebook-extract file does not exist', () => {
+    const { exitCode, stderr } = runCLI([
+      '--metadata', VALID_METADATA,
+      '--rulebook-extract', '/nonexistent/extract.json',
+      '--expected', VALID_EXPECTED,
+      '--out', '/tmp/test-out',
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('not found');
+  });
+
+  test('exits 2 when expected contract file does not exist', () => {
+    const { exitCode, stderr } = runCLI([
+      '--metadata', VALID_METADATA,
+      '--rulebook-extract', VALID_EXTRACT,
+      '--expected', '/nonexistent/expected.json',
+      '--out', '/tmp/test-out',
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain('not found');
+  });
+
+  test('exits 1 when metadata has invalid source contract', () => {
+    // Create a temp metadata file with missing required fields
+    const tmpMeta = path.join(os.tmpdir(), 'bad-meta-adhoc.json');
+    fs.writeFileSync(tmpMeta, JSON.stringify({ slug: 'test' }), 'utf8'); // missing title, playerCount, designers
+    try {
+      const { exitCode, stderr } = runCLI([
+        '--metadata', tmpMeta,
+        '--rulebook-extract', VALID_EXTRACT,
+        '--expected', VALID_EXPECTED,
+        '--out', path.join(os.tmpdir(), 'adhoc-test-out'),
+      ]);
+      expect(exitCode).toBe(1);
+      expect(stderr).toContain('Source contract validation FAILED');
+    } finally {
+      try { fs.unlinkSync(tmpMeta); } catch {}
+      try { fs.rmSync(path.join(os.tmpdir(), 'adhoc-test-out'), { recursive: true, force: true }); } catch {}
+    }
+  });
+
+  test('usage message shows both registered and ad-hoc modes', () => {
+    const { stderr } = runCLI([]);
+    expect(stderr).toContain('Registered fixture mode');
+    expect(stderr).toContain('Ad-hoc local source mode');
+    expect(stderr).toContain('--metadata');
+    expect(stderr).toContain('--rulebook-extract');
+    expect(stderr).toContain('--expected');
   });
 });

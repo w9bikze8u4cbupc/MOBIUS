@@ -271,6 +271,33 @@ node scripts/run-real-input-preview.mjs --fixture sakura-market --out out/real-i
 node scripts/run-real-input-preview.mjs --fixture stellar-drift --out out/real-input-previews/stellar-drift
 ```
 
+### Ad-hoc local source mode
+
+Run a preview from local metadata, rulebook-extract, and expected contract files
+without registering in `fixtures.json`:
+
+```bash
+node scripts/run-real-input-preview.mjs \
+  --metadata /path/to/my-game.metadata.json \
+  --rulebook-extract /path/to/my-game.rulebook-extract.json \
+  --expected /path/to/my-game.expected.json \
+  --out out/real-input-previews/my-game
+```
+
+Ad-hoc mode:
+- Derives slug and game name from `metadata.slug` and `metadata.title`
+- Validates source contracts without registry identity checks
+- Runs the same pipeline as registered mode (normalize → generate → render → ffprobe → validate → coverage report)
+- Marks the coverage report entry with `sourceMode: "ad-hoc"`
+- Does not mutate `fixtures.json`
+
+### Mode exclusivity
+
+The CLI enforces mutual exclusivity between modes:
+- `--fixture` cannot be combined with `--metadata`, `--rulebook-extract`, or `--expected`
+- Ad-hoc mode requires all three source paths: `--metadata`, `--rulebook-extract`, `--expected`
+- Both modes require `--out`
+
 ### Requirements
 
 - Node.js 20+
