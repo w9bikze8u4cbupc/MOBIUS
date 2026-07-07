@@ -261,3 +261,72 @@ smoke was skipped (e.g., on a machine without FFmpeg during local development).
 
 The report generation logic is in `tests/helpers/realInputSmokeCoverageReport.cjs`
 with unit tests at `tests/scripts/realInputSmokeCoverageReport.test.js`.
+
+## Offline Preview CLI
+
+Run a registered fixture through the full offline pipeline on demand:
+
+```bash
+node scripts/run-real-input-preview.mjs --fixture sakura-market --out out/real-input-previews/sakura-market
+node scripts/run-real-input-preview.mjs --fixture stellar-drift --out out/real-input-previews/stellar-drift
+```
+
+### Requirements
+
+- Node.js 20+
+- FFmpeg with drawtext filter on PATH
+
+### Pipeline steps
+
+1. Load `fixtures.json` registry and find the fixture by slug
+2. Validate fixture files exist on disk
+3. Normalize metadata + rulebook-extract into canonical fixture
+4. Generate tutorial preview artifacts (script, storyboard, captions, render-config, manifest)
+5. Render `preview.mp4` via FFmpeg
+6. Capture `ffprobe.json` media metadata
+7. Validate against the fixture's expected contract
+8. Write `real-input-preview-coverage.json` coverage report
+
+### Output directory contents
+
+```
+<out>/
+  <slug>-normalized.json       # Canonical fixture from normalizer
+  script.json                   # Tutorial script
+  storyboard.json               # Storyboard scenes
+  captions.srt                  # SRT captions
+  render-config.json            # FFmpeg render configuration
+  manifest.json                 # Generation manifest with identity
+  preview.mp4                   # Rendered tutorial preview video
+  ffprobe.json                  # Media metadata from ffprobe
+  validation-result.json        # Contract validation result
+  real-input-preview-coverage.json  # Coverage report for this run
+```
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | All steps passed, contract validation succeeded |
+| 1 | Pipeline or validation failure (render failed, contract violated, etc.) |
+| 2 | Invalid arguments (missing --fixture/--out, unknown slug, disabled fixture) |
+
+### Error examples
+
+```bash
+# Missing arguments
+$ node scripts/run-real-input-preview.mjs
+# → exit 2, prints usage
+
+# Unknown fixture
+$ node scripts/run-real-input-preview.mjs --fixture bad-slug --out /tmp/x
+# → exit 2, prints "Unknown fixture slug" + available slugs
+```
+
+### Shared helpers
+
+| Module | Role |
+|--------|------|
+| `tests/helpers/realInputFixtureRegistry.cjs` | Registry loading, fixture lookup, path resolution, file validation |
+| `scripts/validate-real-input-preview-artifact.cjs` | Contract validation |
+| `tests/helpers/realInputSmokeCoverageReport.cjs` | Coverage report generation |
