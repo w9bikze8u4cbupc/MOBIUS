@@ -22,9 +22,10 @@
 
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { resolve, join, dirname, basename } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync } from 'node:fs';
+import { resolve, join, dirname, basename, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -352,6 +353,91 @@ report.fixtures.push(entry);
 const coverageReportPath = join(resolvedOut, 'real-input-preview-coverage.json');
 writeReport(coverageReportPath, report);
 console.log(`[preview-cli]   → ${coverageReportPath}`);
+
+// ---------------------------------------------------------------------------
+// Write preview package manifest
+// ---------------------------------------------------------------------------
+console.log('[preview-cli] Writing preview-package-manifest.json...');
+
+function fileHash(filePath) {
+  if (!existsSync(filePath)) return null;
+  const content = readFileSync(filePath);
+  return createHash('sha256').update(content).digest('hex');
+}
+
+function fileSize(filePath) {
+  if (!existsSync(filePath)) return null;
+  return statSync(filePath).size;
+}
+
+const OUTPUT_FILES = [
+  `${slug}-normalized.json`,
+  'script.json',
+  'storyboard.json',
+  'captions.srt',
+  'render-config.json',
+  'manifest.json',
+  'preview.mp4',
+  'ffprobe.json',
+  'validation-result.json',
+  'real-input-preview-coverage.json',
+];
+
+const artifacts = {};
+for (const file of OUTPUT_FILES) {
+  const filePath = join(resolvedOut, file);
+  artifacts[file] = {
+    exists: existsSync(filePath),
+    size: fileSize(filePath),
+    sha256: fileHash(filePath),
+  };
+}
+
+// Media summary from ffprobe
+let mediaSummary = null;
+if (ffprobeData) {
+  const streams = ffprobeData.streams || [];
+  const videoStream = streams.find((s) => s.codec_type === 'video');
+  const audioStream = streams.find((s) => s.codec_type === 'audio');
+  mediaSummary = {
+    duration: ffprobeData.format?.duration ? parseFloat(ffprobeData.format.duration) : null,
+    videoCodec: videoStream?.codec_name || null,
+    videoWidth: videoStream?.width != null ? Number(videoStream.width) : null,
+    videoHeight: videoStream?.height != null ? Number(videoStream.height) : null,
+    audioPresent: !!audioStream,
+    audioCodec: audioStream?.codec_name || null,
+  };
+}
+
+const packageManifest = {
+  _schema: 'preview-package-manifest/v1',
+  generatedAt: new Date().toISOString(),
+  sourceMode,
+  fixtureSlug: slug,
+  gameName,
+  source: {
+    metadataFile,
+    rulebookExtractFile,
+    expectedFile,
+    metadataPath: sourcePaths.metadata,
+    extractPath: sourcePaths.extract,
+    expectedPath: sourcePaths.expected,
+  },
+  output: {
+    directory: resolvedOut,
+    artifacts,
+  },
+  validation: {
+    passed: validationResult.passed,
+    errorCount: validationResult.errors.length,
+    errors: validationResult.errors,
+  },
+  media: mediaSummary,
+};
+
+const manifestPath = join(resolvedOut, 'preview-package-manifest.json');
+writeFileSync(manifestPath, JSON.stringify(packageManifest, null, 2), 'utf8');
+console.log(`[preview-cli]   → ${manifestPath}`);
 
 // ---------------------------------------------------------------------------
 // Final summary
