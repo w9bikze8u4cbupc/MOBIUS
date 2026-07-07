@@ -341,6 +341,58 @@ orchestration works outside the test harness:
 node scripts/run-real-input-preview.mjs --fixture sakura-market --out out/real-input-cli-smoke/sakura-market
 ```
 
+## Source Contract Validation
+
+Before normalization, both the CLI and E2E smoke validate source inputs against
+a structural contract. This catches malformed or incomplete fixture files before
+the pipeline attempts rendering.
+
+### Validation command
+
+```bash
+# Validate all enabled fixtures
+node scripts/validate-real-input-source-contract.cjs --all
+
+# Validate one fixture by slug
+node scripts/validate-real-input-source-contract.cjs --fixture sakura-market
+```
+
+### Metadata contract rules
+
+| Field | Requirement |
+|-------|-------------|
+| `slug` | Non-empty string |
+| `title` | Non-empty string |
+| `playerCount` | Object with `min` and `max` (positive numbers, min <= max) |
+| `designers` | Non-empty array of non-empty strings |
+| `playtimeMinutes` | Optional; if present, object with non-negative `min` and `max` |
+| `description` | Optional; if present, must be a string |
+
+### Rulebook-extract contract rules
+
+| Field | Requirement |
+|-------|-------------|
+| `objective` | Non-empty string |
+| `components` | Non-empty array of objects with `name` (non-empty string) |
+| `setup` | Non-empty array of non-empty strings |
+| `turnStructure` | Object with `phases` (non-empty array) and `description` (non-empty string) |
+| `coreMechanic` | Object with `name` and `description` (both non-empty strings) |
+| `scoring` | Object with `winCondition` (non-empty string) |
+
+### Identity consistency
+
+When a registry entry is provided, the validator also checks:
+- `metadata.slug` matches `registry.slug`
+- `metadata.title` matches `registry.gameName`
+
+### Integration points
+
+- **Offline CLI** (`scripts/run-real-input-preview.mjs`) — validates before normalization; exits 1 on failure
+- **E2E smoke** (`tests/e2e/tutorial_full_flow_smoke.test.js`) — validates in `beforeAll` before each fixture is normalized/rendered
+- **Standalone CLI** (`scripts/validate-real-input-source-contract.cjs`) — validates one or all fixtures independently
+
+## CI CLI Smoke (continued)
+
 This runs in every `build-and-qa` job (Ubuntu, Windows, macOS) and:
 - Proves the CLI can load the registry, normalize, generate, render, probe, validate, and report
 - Verifies all 10 expected output files exist after the run

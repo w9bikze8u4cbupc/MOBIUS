@@ -21,6 +21,7 @@ const VALIDATE_REAL_INPUT_SCRIPT = path.resolve(__dirname, '../../scripts/valida
 const FIXTURE = path.resolve(__dirname, '../fixtures/tutorial-vertical-slice/gem-collectors.json');
 const NORMALIZER_SCRIPT = path.resolve(__dirname, '../../scripts/normalize-real-input-fixture.cjs');
 const { validateRealInputArtifact } = require('../../scripts/validate-real-input-preview-artifact.cjs');
+const { validateSourceContract } = require('../../scripts/validate-real-input-source-contract.cjs');
 const { createReport, buildFixtureEntry, writeReport } = require('../helpers/realInputSmokeCoverageReport.cjs');
 
 // ---------------------------------------------------------------------------
@@ -274,7 +275,18 @@ describe.each(REAL_INPUT_MATRIX)('Real-Input Smoke ($slug → MP4)', (fixtureEnt
     outDir = path.join(tmpDir, `tutorial-preview-${fixtureEntry.slug}`);
     mp4Path = path.join(outDir, 'preview.mp4');
 
-    // Step 0: Normalize metadata + rulebook-extract into canonical fixture
+    // Step 0: Validate source contracts before normalization
+    const metadataJson = JSON.parse(fs.readFileSync(fixtureEntry.metadata, 'utf8'));
+    const extractJson = JSON.parse(fs.readFileSync(fixtureEntry.extract, 'utf8'));
+    const sourceResult = validateSourceContract(metadataJson, extractJson, {
+      slug: fixtureEntry.slug,
+      gameName: fixtureEntry.gameName,
+    });
+    if (!sourceResult.passed) {
+      throw new Error(`Source contract validation failed for ${fixtureEntry.slug}: ${sourceResult.errors.join('; ')}`);
+    }
+
+    // Step 1: Normalize metadata + rulebook-extract into canonical fixture
     normalizedFixturePath = path.join(tmpDir, `${fixtureEntry.slug}-normalized.json`);
     execFileSync('node', [
       NORMALIZER_SCRIPT,

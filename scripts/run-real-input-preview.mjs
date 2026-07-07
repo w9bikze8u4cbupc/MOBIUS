@@ -28,6 +28,7 @@ const __dirname = dirname(__filename);
 const require = createRequire(import.meta.url);
 const { loadRegistry, findFixtureBySlug, resolveFixturePaths, validateFixtureFiles } = require('../tests/helpers/realInputFixtureRegistry.cjs');
 const { validateRealInputArtifact } = require('./validate-real-input-preview-artifact.cjs');
+const { validateSourceContract } = require('./validate-real-input-source-contract.cjs');
 const { createReport, buildFixtureEntry, writeReport } = require('../tests/helpers/realInputSmokeCoverageReport.cjs');
 
 // ---------------------------------------------------------------------------
@@ -104,6 +105,20 @@ console.log(`[preview-cli] Metadata: ${paths.metadata}`);
 console.log(`[preview-cli] Extract: ${paths.extract}`);
 console.log(`[preview-cli] Expected: ${paths.expected}`);
 console.log(`[preview-cli] Output: ${resolvedOut}`);
+
+// ---------------------------------------------------------------------------
+// Step 2b: Validate source contracts before normalization
+// ---------------------------------------------------------------------------
+console.log('[preview-cli] Validating source contracts...');
+const metadataJson = JSON.parse(readFileSync(paths.metadata, 'utf8'));
+const extractJson = JSON.parse(readFileSync(paths.extract, 'utf8'));
+const sourceResult = validateSourceContract(metadataJson, extractJson, fixture);
+if (!sourceResult.passed) {
+  console.error(`[preview-cli] Source contract validation FAILED (${sourceResult.errors.length} error(s)):`);
+  sourceResult.errors.forEach((e) => console.error(`  - ${e}`));
+  process.exit(1);
+}
+console.log('[preview-cli]   → Source contracts valid');
 
 // ---------------------------------------------------------------------------
 // Step 3: Create output directory
