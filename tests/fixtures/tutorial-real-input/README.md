@@ -229,10 +229,33 @@ generates a structured coverage report at a temporary path:
 
 ### Where the report lives
 
-The report is written to a temporary directory during test execution and is
-**not committed to Git**. It is available for CI inspection via test output logs
-(the path is printed to stdout). Future CI enhancements may upload it as an
-artifact for dashboard consumption.
+The report is written to two locations during test execution:
+
+1. **Temporary directory** — primary copy at `<temp-dir>/real-input-smoke-coverage.json`
+   (path printed to stdout during test run).
+2. **CI artifact path** — `artifacts/real-input-smoke-coverage.json` in the workspace
+   root. This path is uploaded as a downloadable GitHub Actions artifact.
+
+The report is **not committed to Git** (the CI artifact path is in `.gitignore`).
+
+### CI artifact
+
+After each `build-and-qa` job completes, the report is uploaded as:
+
+```
+real-input-smoke-coverage-<os>
+```
+
+For example:
+- `real-input-smoke-coverage-ubuntu-latest`
+- `real-input-smoke-coverage-windows-latest`
+- `real-input-smoke-coverage-macos-latest`
+
+Artifacts are retained for 14 days. Download from the GitHub Actions run page
+under the Artifacts section.
+
+The upload uses `if-no-files-found: ignore` so it does not fail the job if the
+smoke was skipped (e.g., on a machine without FFmpeg during local development).
 
 ### Helper module
 

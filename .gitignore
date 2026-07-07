@@ -84,3 +84,6 @@ Thumbs.db
 !/output/.gitkeep
 !/ffmpeg-bin/README.md
 !/exports/.gitkeep
+
+# Generated CI artifacts (not committed)
+artifacts/real-input-smoke-coverage.json
