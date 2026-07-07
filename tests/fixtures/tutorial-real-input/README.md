@@ -441,3 +441,27 @@ The CLI smoke uses `sakura-market` (the original stable real-input sample) to
 keep CI runtime bounded. The full two-fixture matrix is already exercised by the
 E2E smoke test in the same job. The CLI smoke specifically proves the operator
 CLI path — not fixture coverage breadth.
+
+### Ad-hoc CLI smoke
+
+CI also exercises the ad-hoc local-source mode using explicit file paths (not
+`--fixture` registry lookup):
+
+```
+node scripts/run-real-input-preview.mjs \
+  --metadata tests/fixtures/tutorial-real-input/sakura-market.metadata.json \
+  --rulebook-extract tests/fixtures/tutorial-real-input/sakura-market.rulebook-extract.json \
+  --expected tests/fixtures/tutorial-real-input/sakura-market.expected.json \
+  --out out/real-input-adhoc-cli-smoke/sakura-market
+```
+
+This proves the ad-hoc mode pipeline works end-to-end in CI without depending
+on the fixture registry. Artifacts are uploaded as:
+
+| OS | Artifact name |
+|----|---------------|
+| ubuntu-latest | `real-input-adhoc-cli-smoke-ubuntu-latest` |
+| windows-latest | `real-input-adhoc-cli-smoke-windows-latest` |
+| macos-latest | Skipped (no drawtext) |
+
+The ad-hoc smoke uses the same `drawtext` guard as the registered CLI smoke.
