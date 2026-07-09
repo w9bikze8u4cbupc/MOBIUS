@@ -41,14 +41,17 @@ the PR summary:
 - **Windows (PowerShell)**: Uses native JSON parsing to enforce the identical
   contract, guaranteeing parity with the Unix path.
 
-Any validation failure blocks the summary step and the job surfaces the error in
-the corresponding CI log.
+Any validation failure halts the workflow before the summary step even starts,
+and the job surfaces the exact error in the corresponding CI log for quick
+triage.
 
 ## PR Summary Rendering
 
 - Metrics appear in the PR as a fenced JSON block for readability.
 - The artifact remains machine-readable for downstream automation.
 - Reviewers no longer need to download CI artifacts for loudness checks.
+- If either platform's validation fails, the PR summary step never runs, so no
+  partial or stale metrics reach reviewers.
 
 ## QA Quick-Check
 
@@ -59,9 +62,9 @@ the corresponding CI log.
 
 ## Acceptance / Verification Notes
 
-- Schema validation runs on both Unix/macOS and Windows before the summary
-  step, so any failure stops the pipeline from publishing metrics and surfaces
-  the error in CI logs.
+- Schema validation on both Unix/macOS and Windows is a hard gate: any failure
+  stops the workflow before summary rendering and surfaces the offending error
+  message directly in the CI logs.
 - The PR UI always displays the JSON payload inside a fenced block with exactly
   the two KPIs, while automation continues to consume the stable
   `preview_audio_metrics.json` artifact.
