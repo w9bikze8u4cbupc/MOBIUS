@@ -2,7 +2,8 @@ import fs from "fs";
 import path from "path";
 import { loadProjectScenario } from "./genesisScenario.js";
 import { loadQualityGoals } from "./genesisGoals.js";
-import { checkGenesisFeedbackCompat } from "../compat/genesisCompat.js";
+import pkg from "../compat/genesisCompat.js";
+const { checkGenesisFeedbackCompat } = pkg;
 import { getGenesisMode } from "../config/genesisConfig.js";
 import { getGenesisProfile } from "../config/genesisProfiles.js";
 

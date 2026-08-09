@@ -46,6 +46,8 @@ import {
   createCorsMiddleware,
   ensureProductionKeys
 } from './gatewaySecurity.js';
+import { registerProjectPersistenceRoutes } from './projectPersistenceRoutes.js';
+import { registerRemotionRenderRoutes } from './remotionRenderRoutes.js';
 import { createRequire } from 'module';
 import { registerPhaseERoutes } from './ingestionRoutes.js';
 import { registerImageRoutes } from './imageRoutes.js';
@@ -524,6 +526,9 @@ registerPhaseERoutes(app, {
   validateStoryboard
 });
 
+registerProjectPersistenceRoutes(app, { db });
+registerRemotionRenderRoutes(app, { db });
+
 registerRenderJobConfigRoute(app, {
   loadProjectById: (projectId) => getProjectState(projectId),
 });
@@ -693,33 +698,6 @@ app.post("/api/genesis/campaign/auto-optimize", express.json(), async (req, res)
 
   res.json({ targets, results });
 });
-
-// --- Save Project Endpoint ---
-app.post('/save-project', (req, res) => {
-  const { name, metadata, components, images, script, audio } = req.body;
-
-  db.run(
-    `INSERT INTO projects (name, metadata, components, images, script, audio)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [
-      name,
-      JSON.stringify(metadata),
-      JSON.stringify(components),
-      JSON.stringify(images),
-      script,
-      audio
-    ],
-    function (err) {
-      if (err) {
-        console.error(err); // Log full error for debugging
-        return res.status(500).json({ error: 'Failed to save project. Please try again later.' });
-      }
-      res.json({ status: 'success', projectId: this.lastID });
-    }
-  );
-});
-
-
 
 // --- Helper Functions ---
 
@@ -3581,43 +3559,6 @@ app.post('/api/extract-bgg-html', async (req, res) => {
   }
 });
 
-
-// Load project endpoint
-app.get('/load-project/:id', (req, res) => {
-  const apiKey = req.headers['x-api-key'];
-  if (!apiKey || apiKey !== process.env.API_KEY) {
-    return res.status(401).json({ error: 'Unauthorized: Invalid API key' });
-  }
-  const projectId = req.params.id;
-  db.get(
-    `SELECT * FROM projects WHERE id = ?`,
-    [projectId],
-    (err, row) => {
-      if (err) {
-        console.error(err); // Log full error for debugging
-        return res.status(500).json({ error: 'Failed to load project' });
-      }
-      if (!row) {
-        return res.status(404).json({ error: 'Project not found' });
-      }
-      try {
-        res.json({
-          id: row.id,
-          name: row.name,
-          metadata: JSON.parse(row.metadata),
-          components: JSON.parse(row.components),
-          images: JSON.parse(row.images),
-          script: row.script,
-          audio: row.audio,
-          created_at: row.created_at
-        });
-      } catch (parseErr) {
-        console.error('Failed to parse project data:', parseErr);
-        return res.status(500).json({ error: 'Failed to parse project data' });
-      }
-    }
-  );
-});
 
 // Catch-all route to serve React app for client-side routing
 app.get('*', (req, res) => {

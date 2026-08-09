@@ -41,7 +41,7 @@ function persist() {
 
 function run(sql, params = [], callback) {
   try {
-    const [name, metadata, components, images, script, audio] = params;
+    const [name, metadata, components, images, script, audio, scenes] = params;
     const record = {
       id: nextId++,
       name: name || '',
@@ -50,6 +50,7 @@ function run(sql, params = [], callback) {
       images: images || '[]',
       script: script || '',
       audio: audio || '',
+      ...(scenes === undefined ? {} : { scenes }),
       created_at: new Date().toISOString()
     };
     projects.push(record);

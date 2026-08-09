@@ -89,3 +89,8 @@ Thumbs.db
 artifacts/real-input-smoke-coverage.json
 out/real-input-cli-smoke/
 out/real-input-adhoc-cli-smoke/
+
+# Locally generated renders and private working references
+/out/
+/src/api/uploads/render-jobs/
+/directive utilisé gpt/

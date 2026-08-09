@@ -1,0 +1,24 @@
+[
+  {
+    "id": "intro-scene",
+    "sectionTitle": "Welcome to MOBIUS",
+    "narrationText": "This first scene introduces the tutorial using a local image fixture.",
+    "imageUrls": [
+      "tests/fixtures/images/test-bg-100x100.png",
+      "tests/fixtures/images/test-bg-100x100.png"
+    ],
+    "themeBorderColor": "#E91E63",
+    "durationInFrames": 30
+  },
+  {
+    "id": "rules-scene",
+    "sectionTitle": "Learn the Core Rule",
+    "narrationText": "This second scene explains one focused game rule in the same tutorial layout.",
+    "imageUrls": [
+      "tests/fixtures/images/test-bg-100x100.png",
+      "tests/fixtures/images/test-bg-100x100.png"
+    ],
+    "themeBorderColor": "#E91E63",
+    "durationInFrames": 30
+  }
+]
