@@ -1,36 +1,55 @@
 #!/usr/bin/env node
 
 /**
- * Render a MOBIUS tutorial timeline with Remotion.
+ * Render a MOBIUS tutorial with Remotion.
  *
  * Usage:
- *   node scripts/render-remotion.mjs <scenes.json> [--out-dir <directory>]
- *   node scripts/render-remotion.mjs --input <scenes.json> --output <file.mp4>
+ *   node scripts/render-remotion.mjs <scenes.json> [--out-dir <directory>] [--concat]
+ *   node scripts/render-remotion.mjs --input <scenes.json> --output <file.mp4> [--concat]
  *
  * The JSON document must be a non-empty array of scenes:
  * [{ id, narrationText, imageUrls?, imageUrl?, sectionTitle, themeBorderColor, audioFile?, durationInFrames }]
  *
  * `imageUrls` is the preferred gallery input. `imageUrl` remains supported for
  * existing callers and is normalized to a one-item imageUrls array. Multi-scene
- * renders use the transition-enabled timeline composition.
+ * renders without audio use the transition-enabled timeline. Multi-scene renders
+ * with narration must use `--concat`, which renders one isolated MP4 per scene
+ * before FFmpeg joins the compatible H.264/AAC segments.
  */
 
 import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 
+const execFileAsync = promisify(execFile);
 const SCENE_COMPOSITION_ID = 'MobiusTutorialScene';
 const TIMELINE_COMPOSITION_ID = 'MobiusTutorialTimeline';
 const TIMELINE_OUTPUT_NAME = 'mobius-tutorial.mp4';
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const projectDirectory = resolve(scriptDirectory, '..');
 const entryPoint = resolve(projectDirectory, 'src', 'remotion', 'index.jsx');
+const ffmpegExecutable = resolve(
+  projectDirectory,
+  'ffmpeg-bin',
+  'ffmpeg-master-latest-win64-gpl',
+  'bin',
+  'ffmpeg.exe',
+);
+const ffprobeExecutable = resolve(
+  projectDirectory,
+  'ffmpeg-bin',
+  'ffmpeg-master-latest-win64-gpl',
+  'bin',
+  'ffprobe.exe',
+);
 
 const args = process.argv.slice(2);
-const usage = 'Usage: node scripts/render-remotion.mjs <scenes.json> [--out-dir <directory>] | --input <scenes.json> --output <file.mp4>';
+const usage = 'Usage: node scripts/render-remotion.mjs <scenes.json> [--out-dir <directory>] [--concat] | --input <scenes.json> --output <file.mp4> [--concat]';
 
 function fail(message) {
   console.error(`[render-remotion] ${message}`);
@@ -51,6 +70,7 @@ function parseArguments(argv) {
   let configPath = null;
   let outputDirectory = null;
   let outputPath = null;
+  let concat = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -72,6 +92,11 @@ function parseArguments(argv) {
       }
       outputDirectory = optionValue(argv, index, '--out-dir');
       index += 1;
+    } else if (argument === '--concat') {
+      if (concat) {
+        fail(`${usage}\nProvide --concat only once.`);
+      }
+      concat = true;
     } else if (argument.startsWith('--')) {
       fail(`${usage}\nUnknown option: ${argument}`);
     } else {
@@ -90,6 +115,7 @@ function parseArguments(argv) {
     configPath: configPath || positional[0],
     outputDirectory,
     outputPath,
+    concat,
   };
 }
 
@@ -204,8 +230,129 @@ function safeOutputName(sceneId) {
   return `${safeId}.mp4`;
 }
 
+function assertFfmpegBinaries() {
+  if (!existsSync(ffmpegExecutable) || !existsSync(ffprobeExecutable)) {
+    fail('The bundled FFmpeg and FFprobe binaries are required for --concat rendering.');
+  }
+}
+
+async function runExecutable(executable, executableArgs, description) {
+  try {
+    return await execFileAsync(executable, executableArgs, {
+      windowsHide: true,
+      maxBuffer: 1024 * 1024,
+    });
+  } catch (error) {
+    const stderr = error.stderr?.toString().trim();
+    fail(`${description} failed${stderr ? `: ${stderr}` : '.'}`);
+  }
+}
+
+async function segmentHasAudio(segmentPath) {
+  const { stdout } = await runExecutable(
+    ffprobeExecutable,
+    [
+      '-v', 'error',
+      '-select_streams', 'a:0',
+      '-show_entries', 'stream=codec_type',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
+      segmentPath,
+    ],
+    `Inspecting ${basename(segmentPath)}`,
+  );
+  return stdout.trim() === 'audio';
+}
+
+async function normalizeSegmentAudio(rawSegmentPath, normalizedSegmentPath) {
+  const hasAudio = await segmentHasAudio(rawSegmentPath);
+  const ffmpegArgs = [
+    '-hide_banner',
+    '-loglevel', 'error',
+    '-y',
+    '-i', rawSegmentPath,
+  ];
+
+  if (!hasAudio) {
+    ffmpegArgs.push('-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo');
+  }
+
+  ffmpegArgs.push(
+    '-map', '0:v:0',
+    '-map', hasAudio ? '0:a:0' : '1:a:0',
+    '-c:v', 'copy',
+    ...(hasAudio ? ['-filter:a', 'apad'] : []),
+    '-c:a', 'aac',
+    '-ar', '48000',
+    '-ac', '2',
+    '-shortest',
+    normalizedSegmentPath,
+  );
+
+  await runExecutable(ffmpegExecutable, ffmpegArgs, `Normalizing ${basename(rawSegmentPath)}`);
+}
+
+function concatManifestLine(segmentPath) {
+  return `file '${segmentPath.replace(/\\/g, '/').replace(/'/g, "'\\''")}'`;
+}
+
+async function concatenateSegments(segmentPaths, outputLocation, segmentDirectory) {
+  const manifestPath = join(segmentDirectory, 'concat.txt');
+  writeFileSync(manifestPath, `${segmentPaths.map(concatManifestLine).join('\n')}\n`, 'utf8');
+  await runExecutable(
+    ffmpegExecutable,
+    [
+      '-hide_banner',
+      '-loglevel', 'error',
+      '-y',
+      '-f', 'concat',
+      '-safe', '0',
+      '-i', manifestPath,
+      '-c', 'copy',
+      outputLocation,
+    ],
+    'Concatenating rendered scenes',
+  );
+}
+
+async function renderConcatenatedScenes(serveUrl, scenes, segmentDirectory, outputLocation) {
+  const segmentPaths = [];
+
+  for (let index = 0; index < scenes.length; index += 1) {
+    const scene = scenes[index];
+    const prefix = String(index + 1).padStart(2, '0');
+    const rawSegmentPath = join(segmentDirectory, `${prefix}-${safeOutputName(scene.id).replace(/\.mp4$/, '')}-raw.mp4`);
+    const normalizedSegmentPath = join(segmentDirectory, `${prefix}-${safeOutputName(scene.id)}`);
+    console.log(`[render-remotion] Rendering isolated scene ${index + 1}/${scenes.length}: ${scene.id}`);
+
+    const composition = await selectComposition({
+      serveUrl,
+      id: SCENE_COMPOSITION_ID,
+      inputProps: scene,
+      logLevel: 'warn',
+    });
+    await renderMedia({
+      serveUrl,
+      composition,
+      inputProps: scene,
+      codec: 'h264',
+      audioCodec: 'aac',
+      pixelFormat: 'yuv420p',
+      outputLocation: rawSegmentPath,
+      overwrite: true,
+      concurrency: 1,
+      logLevel: 'warn',
+    });
+
+    await normalizeSegmentAudio(rawSegmentPath, normalizedSegmentPath);
+    segmentPaths.push(normalizedSegmentPath);
+  }
+
+  console.log(`[render-remotion] Concatenating ${segmentPaths.length} isolated scene MP4s…`);
+  await concatenateSegments(segmentPaths, outputLocation, segmentDirectory);
+}
+
 async function main() {
-  const { configPath, outputDirectory, outputPath } = parseArguments(args);
+  const { configPath, outputDirectory, outputPath, concat } = parseArguments(args);
   const resolvedConfigPath = resolve(process.cwd(), configPath);
   if (!existsSync(resolvedConfigPath)) {
     fail(`Config file not found: ${configPath}`);
@@ -233,7 +380,12 @@ async function main() {
         : {}),
     };
   });
-  const isTimeline = scenes.length > 1;
+  const containsMultipleSceneAudio = scenes.length > 1 && scenes.some((scene) => Boolean(scene.audioFile));
+  if (containsMultipleSceneAudio && !concat) {
+    fail('Multi-scene configs with audio require --concat so narration is rendered sequentially without transition overlap.');
+  }
+
+  const isTimeline = scenes.length > 1 && !concat;
   const inputProps = isTimeline ? { scenes } : scenes[0];
   const compositionId = isTimeline ? TIMELINE_COMPOSITION_ID : SCENE_COMPOSITION_ID;
   const defaultOutputDirectory = resolve(projectDirectory, outputDirectory || 'out/remotion');
@@ -241,7 +393,7 @@ async function main() {
     ? resolve(projectDirectory, outputPath)
     : join(
       defaultOutputDirectory,
-      isTimeline ? TIMELINE_OUTPUT_NAME : safeOutputName(scenes[0].id),
+      (isTimeline || concat) ? TIMELINE_OUTPUT_NAME : safeOutputName(scenes[0].id),
     );
   mkdirSync(dirname(outputLocation), { recursive: true });
   const bundleDirectory = join(tmpdir(), `mobius-remotion-bundle-${process.pid}-${Date.now()}`);
@@ -250,27 +402,34 @@ async function main() {
   try {
     console.log(`[render-remotion] Bundling ${basename(entryPoint)}…`);
     const serveUrl = await bundle({ entryPoint, outDir: bundleDirectory });
-    console.log(`[render-remotion] Rendering ${isTimeline ? 'transition-enabled timeline' : scenes[0].id}`);
 
-    const composition = await selectComposition({
-      serveUrl,
-      id: compositionId,
-      inputProps,
-      logLevel: 'warn',
-    });
+    if (concat) {
+      assertFfmpegBinaries();
+      const segmentDirectory = join(bundleDirectory, 'segments');
+      mkdirSync(segmentDirectory, { recursive: true });
+      await renderConcatenatedScenes(serveUrl, scenes, segmentDirectory, outputLocation);
+    } else {
+      console.log(`[render-remotion] Rendering ${isTimeline ? 'transition-enabled timeline' : scenes[0].id}`);
+      const composition = await selectComposition({
+        serveUrl,
+        id: compositionId,
+        inputProps,
+        logLevel: 'warn',
+      });
 
-    await renderMedia({
-      serveUrl,
-      composition,
-      inputProps,
-      codec: 'h264',
-      audioCodec: 'aac',
-      pixelFormat: 'yuv420p',
-      outputLocation,
-      overwrite: true,
-      concurrency: 1,
-      logLevel: 'warn',
-    });
+      await renderMedia({
+        serveUrl,
+        composition,
+        inputProps,
+        codec: 'h264',
+        audioCodec: 'aac',
+        pixelFormat: 'yuv420p',
+        outputLocation,
+        overwrite: true,
+        concurrency: 1,
+        logLevel: 'warn',
+      });
+    }
 
     console.log(`[render-remotion] Complete: ${outputLocation}`);
   } finally {

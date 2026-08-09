@@ -141,9 +141,15 @@ export async function runRemotionRender({
     );
     await fs.mkdir(outputDirectory, { recursive: true });
     await fs.writeFile(configurationPath, JSON.stringify(scenesWithNarration, null, 2), 'utf8');
+    const shouldConcatenate = scenesWithNarration.length > 1
+      && scenesWithNarration.some((scene) => Boolean(scene.audioFile));
+    const rendererArgs = [rendererScript, configurationPath, '--out-dir', outputDirectory];
+    if (shouldConcatenate) {
+      rendererArgs.push('--concat');
+    }
     await execFileAsync(
       process.execPath,
-      [rendererScript, configurationPath, '--out-dir', outputDirectory],
+      rendererArgs,
       {
         cwd: projectDirectory,
         maxBuffer: 1024 * 1024,

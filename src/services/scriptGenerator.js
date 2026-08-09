@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const DEFAULT_MODEL = 'gpt-5';
+const DEFAULT_MODEL = process.env.REMOTION_SCRIPT_MODEL || 'gpt-5';
 const SUPPORTED_LANGUAGES = new Set(['en', 'fr-CA']);
 const SCENE_KEYS = [
   'sectionTitle',
@@ -52,6 +52,20 @@ function hasExactSceneKeys(scene) {
     && actualKeys.every((key, index) => key === expectedKeys[index]);
 }
 
+function normalizeExactSceneCount(options) {
+  const exactSceneCount = options?.exactSceneCount;
+  if (exactSceneCount === undefined) {
+    return undefined;
+  }
+  if (!Number.isInteger(exactSceneCount) || exactSceneCount <= 0) {
+    throw createGenerationError(
+      'REMOTION_SCRIPT_INPUT_INVALID',
+      'exactSceneCount must be a positive integer when provided.',
+    );
+  }
+  return exactSceneCount;
+}
+
 export function cleanNarrationText(value) {
   return value
     .replace(MARKDOWN_MARKERS, '')
@@ -65,7 +79,7 @@ export function estimateDurationInFrames(narrationText) {
   return Math.max(1, Math.round(estimatedSeconds * FRAMES_PER_SECOND));
 }
 
-function validateAndNormalizeScenes(payload) {
+function validateAndNormalizeScenes(payload, exactSceneCount) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     throw createGenerationError(
       'REMOTION_SCRIPT_INVALID_RESPONSE',
@@ -78,6 +92,12 @@ function validateAndNormalizeScenes(payload) {
     throw createGenerationError(
       'REMOTION_SCRIPT_INVALID_RESPONSE',
       'LLM output must contain only a non-empty scenes array.',
+    );
+  }
+  if (exactSceneCount !== undefined && payload.scenes.length !== exactSceneCount) {
+    throw createGenerationError(
+      'REMOTION_SCRIPT_INVALID_RESPONSE',
+      `LLM output must contain exactly ${exactSceneCount} scenes; received ${payload.scenes.length}.`,
     );
   }
 
@@ -125,15 +145,18 @@ function validateAndNormalizeScenes(payload) {
   });
 }
 
-function buildPrompt(rulesText, gameName, language) {
+function buildPrompt(rulesText, gameName, language, exactSceneCount) {
   const languageInstruction = language === 'fr-CA'
     ? 'Write every scene field in Canadian French (fr-CA).'
     : 'Write every scene field in English.';
+  const sceneCountInstruction = exactSceneCount === undefined
+    ? 'Divide the explanation into logical scenes.'
+    : `Return exactly ${exactSceneCount} scenes. Do not return more or fewer scenes.`;
 
   return `Create a concise, beginner-friendly Remotion tutorial script for the board game "${gameName}".
 
 ${languageInstruction}
-Use only facts present in the supplied extracted rules. Divide the explanation into logical scenes.
+Use only facts present in the supplied extracted rules. ${sceneCountInstruction}
 
 Return STRICT JSON only. Return one object with exactly this shape:
 {
@@ -158,7 +181,7 @@ export function createRemotionScriptGenerator(client) {
     throw new TypeError('An OpenAI-compatible chat completions client is required.');
   }
 
-  return async function generateWithClient(rulesText, gameName, language) {
+  return async function generateWithClient(rulesText, gameName, language, options = undefined) {
     if (typeof rulesText !== 'string' || rulesText.trim() === '') {
       throw createGenerationError('REMOTION_SCRIPT_INPUT_INVALID', 'rulesText must be a non-empty string.');
     }
@@ -168,6 +191,7 @@ export function createRemotionScriptGenerator(client) {
     if (!SUPPORTED_LANGUAGES.has(language)) {
       throw createGenerationError('REMOTION_SCRIPT_LANGUAGE_INVALID', 'language must be "en" or "fr-CA".');
     }
+    const exactSceneCount = normalizeExactSceneCount(options);
 
     const response = await client.chat.completions.create({
       model: DEFAULT_MODEL,
@@ -181,7 +205,7 @@ export function createRemotionScriptGenerator(client) {
         },
         {
           role: 'user',
-          content: buildPrompt(rulesText.trim(), gameName.trim(), language),
+          content: buildPrompt(rulesText.trim(), gameName.trim(), language, exactSceneCount),
         },
       ],
     });
@@ -198,7 +222,7 @@ export function createRemotionScriptGenerator(client) {
       throw createGenerationError('REMOTION_SCRIPT_INVALID_RESPONSE', 'LLM response was not valid JSON.');
     }
 
-    return validateAndNormalizeScenes(payload);
+    return validateAndNormalizeScenes(payload, exactSceneCount);
   };
 }
 
@@ -208,8 +232,9 @@ export function createRemotionScriptGenerator(client) {
  * @param {string} rulesText Extracted rulebook text from the ingestion pipeline.
  * @param {string} gameName Display name of the game.
  * @param {'fr-CA' | 'en'} language Requested narration language.
+ * @param {{exactSceneCount?: number}} [options] Optional exact scene count contract.
  * @returns {Promise<Array<{sectionTitle: string, narrationText: string, imageKeyword: string, themeBorderColor: string, durationInFrames: number}>>}
  */
-export async function generateRemotionScript(rulesText, gameName, language) {
-  return getOpenAIGenerator()(rulesText, gameName, language);
+export async function generateRemotionScript(rulesText, gameName, language, options = undefined) {
+  return getOpenAIGenerator()(rulesText, gameName, language, options);
 }

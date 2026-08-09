@@ -13,11 +13,13 @@ describe('Remotion offline MP4 render', () => {
   let temporaryDirectory;
   let outputDirectory;
   let outputPath;
+  let concatenatedOutputPath;
 
   beforeAll(() => {
     temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-remotion-test-'));
     outputDirectory = path.join(temporaryDirectory, 'output');
     outputPath = path.join(outputDirectory, 'mobius-tutorial.mp4');
+    concatenatedOutputPath = path.join(outputDirectory, 'concatenated.mp4');
 
     const configPath = path.join(temporaryDirectory, 'scenes.json');
     fs.writeFileSync(configPath, JSON.stringify([
@@ -50,6 +52,19 @@ describe('Remotion offline MP4 render', () => {
       stdio: 'pipe',
       timeout: 150000,
     });
+
+    execFileSync(process.execPath, [
+      RENDER_SCRIPT,
+      configPath,
+      '--output',
+      concatenatedOutputPath,
+      '--concat',
+    ], {
+      cwd: REPOSITORY_ROOT,
+      encoding: 'utf8',
+      stdio: 'pipe',
+      timeout: 150000,
+    });
   });
 
   afterAll(() => {
@@ -59,5 +74,10 @@ describe('Remotion offline MP4 render', () => {
   test('renders one transition-enabled MP4 from gallery and legacy local-image scenes', () => {
     expect(fs.existsSync(outputPath)).toBe(true);
     expect(fs.statSync(outputPath).size).toBeGreaterThan(0);
+  });
+
+  test('renders isolated scene MP4s and concatenates them into one tutorial', () => {
+    expect(fs.existsSync(concatenatedOutputPath)).toBe(true);
+    expect(fs.statSync(concatenatedOutputPath).size).toBeGreaterThan(0);
   });
 });

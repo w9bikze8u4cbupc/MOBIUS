@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title description">
+  <title id="title">Illustration indisponible</title>
+  <desc id="description">Neutral solid-color placeholder used when a verified game image is not available.</desc>
+  <rect width="1920" height="1080" fill="#241B2F"/>
+  <rect x="600" y="180" width="720" height="720" rx="36" fill="#3A2B4A" stroke="#D9B36C" stroke-width="14"/>
+  <rect x="666" y="246" width="588" height="588" rx="24" fill="#2E203B" stroke="#F3D9A6" stroke-width="6"/>
+  <path d="M960 360l92 155-92 155-92-155z" fill="#D9B36C" opacity=".85"/>
+  <text x="960" y="760" fill="#F7E9CE" font-family="Arial, sans-serif" font-size="44" text-anchor="middle">Illustration indisponible</text>
+</svg>

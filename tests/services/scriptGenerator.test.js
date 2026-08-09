@@ -75,4 +75,36 @@ describe('generateRemotionScript', () => {
     // 8 cleaned words × 60 / 150 seconds × 30 fps = 96 frames.
     expect(scenes[0].durationInFrames).toBe(96);
   });
+
+  test('requests and accepts exactly seven scenes when required', async () => {
+    const sevenScenes = Array.from({ length: 7 }, (_, index) => ({
+      ...mockLlmResponse.scenes[index % mockLlmResponse.scenes.length],
+      sectionTitle: `Scene ${index + 1}`,
+    }));
+    create.mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ scenes: sevenScenes }) } }],
+    });
+
+    const scenes = await generator('Rules text', 'Mock Market', 'fr-CA', { exactSceneCount: 7 });
+
+    expect(scenes).toHaveLength(7);
+    expect(create.mock.calls[0][0].messages[1].content).toContain('Return exactly 7 scenes.');
+  });
+
+  test.each([6, 8])('rejects a response with %i scenes when exactly seven are required', async (sceneCount) => {
+    const mismatchedScenes = Array.from({ length: sceneCount }, (_, index) => ({
+      ...mockLlmResponse.scenes[index % mockLlmResponse.scenes.length],
+      sectionTitle: `Scene ${index + 1}`,
+    }));
+    create.mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ scenes: mismatchedScenes }) } }],
+    });
+
+    await expect(generator('Rules text', 'Mock Market', 'fr-CA', { exactSceneCount: 7 }))
+      .rejects
+      .toMatchObject({
+        code: 'REMOTION_SCRIPT_INVALID_RESPONSE',
+        message: expect.stringContaining(`exactly 7 scenes; received ${sceneCount}`),
+      });
+  });
 });
