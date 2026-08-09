@@ -33,11 +33,9 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL !== undefined
 
 // Updated VOICE_OPTIONS array with the specified ElevenLabs voices
 const VOICE_OPTIONS = [
-  { name: "English - Haseeb", id: "dllHSct4GokGc1AH9JwT", language: "english" },
-  { name: "English - Stephanie", id: "oAoF4NpW2Aqxplg9HdYB", language: "english" },
-  { name: "French - Patrick", id: "XTyroWkQl32ZSd3rRVZ1", language: "french" },
-  { name: "French - Louis", id: "j9RedbMRSNQ74PyikQwD", language: "french" },
-  { name: "French - Anna", id: "gCux0vt1cPsEXPNSbchu", language: "french" }
+  { name: "English - Adam", id: "pNInz6obpgDQGcFmaJgB", language: "english" },
+  { name: "French - Amélie", id: "UJCi4DDncuo0VJDSIegj", language: "french" },
+  { name: "French - Félix", id: "RBhYSNMNu6b2CGZ9Fn1M", language: "french" },
 ];
 
 // Helper function to split markdown text into sections for display/TTS
@@ -1082,7 +1080,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     }
   };
 
-  const handleConfirmStep = (stepId) => {
+  const handleConfirmStep = async (stepId) => {
     const setAndAdvance = () => {
       markStepCompleted(stepId);
       advanceToNextStep(stepId);
@@ -1098,7 +1096,28 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           setError("Enter a game name before continuing.");
           return;
         }
+
         setError("");
+        try {
+          const { data } = await axios.get(`${BACKEND_URL}/api/bgg-search`, {
+            params: { gameName: gameName.trim() },
+          });
+
+          if (data?.found) {
+            setBggUrl(data.bggUrl || "");
+            setMetadata((previous) => ({
+              ...previous,
+              publisher: previous.publisher || data.publisher || "",
+              playerCount: previous.playerCount || data.playerCount || "",
+              gameLength: previous.gameLength || data.gameLength || "",
+              minimumAge: previous.minimumAge || data.minimumAge || "",
+              theme: previous.theme || data.theme || "",
+            }));
+          }
+        } catch (bggError) {
+          console.warn("BGG metadata lookup failed during project confirmation:", bggError);
+        }
+
         setAndAdvance();
         break;
       }

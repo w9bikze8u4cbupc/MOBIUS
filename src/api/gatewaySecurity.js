@@ -10,7 +10,7 @@ export function buildGatewayConfig(env = process.env) {
   const configuredCorsOrigins = parseEnvList(env.MOBIUS_CORS_ORIGINS);
   const allowedOrigins = configuredCorsOrigins.length
     ? configuredCorsOrigins
-    : ['http://localhost:3000'];
+    : ['http://localhost:3000', 'http://localhost:5001', 'http://localhost:8000'];
   const allowWildcard = allowedOrigins.includes('*');
   const apiKeys = parseEnvList(env.MOBIUS_API_KEYS);
   const requireApiKey = environment === 'production' || apiKeys.length > 0;
