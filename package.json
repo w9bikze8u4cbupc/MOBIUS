@@ -4,7 +4,7 @@
   "description": "A pipeline for generating game tutorial videos from structured game rules",
   "main": "index.js",
   "scripts": {
-    "start": "NODE_ENV=production node src/api/index.js",
+    "start": "cross-env NODE_ENV=production node src/api/index.js",
     "build": "cd client && npm run build",
     "dev": "node src/api/index.js",
     "postinstall": "cd client && npm install",
@@ -84,6 +84,7 @@
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@types/node": "^18.0.0",
+    "cross-env": "^10.1.0",
     "jest": "^29.7.0",
     "ts-jest": "^29.4.1",
     "ts-node": "^10.9.1"
