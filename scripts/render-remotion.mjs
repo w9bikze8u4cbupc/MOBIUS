@@ -5,6 +5,7 @@
  *
  * Usage:
  *   node scripts/render-remotion.mjs <scenes.json> [--out-dir <directory>]
+ *   node scripts/render-remotion.mjs --input <scenes.json> --output <file.mp4>
  *
  * The JSON document must be a non-empty array of scenes:
  * [{ id, narrationText, imageUrls?, imageUrl?, sectionTitle, themeBorderColor, audioFile?, durationInFrames }]
@@ -29,7 +30,7 @@ const projectDirectory = resolve(scriptDirectory, '..');
 const entryPoint = resolve(projectDirectory, 'src', 'remotion', 'index.jsx');
 
 const args = process.argv.slice(2);
-const usage = 'Usage: node scripts/render-remotion.mjs <scenes.json> [--out-dir <directory>]';
+const usage = 'Usage: node scripts/render-remotion.mjs <scenes.json> [--out-dir <directory>] | --input <scenes.json> --output <file.mp4>';
 
 function fail(message) {
   console.error(`[render-remotion] ${message}`);
@@ -37,18 +38,39 @@ function fail(message) {
   throw new Error(message);
 }
 
+function optionValue(argv, index, option) {
+  const value = argv[index + 1];
+  if (!value || value.startsWith('--')) {
+    fail(`${usage}\nMissing value for ${option}.`);
+  }
+  return value;
+}
+
 function parseArguments(argv) {
   const positional = [];
+  let configPath = null;
   let outputDirectory = null;
+  let outputPath = null;
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument === '--out-dir') {
-      const value = argv[index + 1];
-      if (!value || value.startsWith('--')) {
-        fail(`${usage}\nMissing value for --out-dir.`);
+    if (argument === '--input') {
+      if (configPath) {
+        fail(`${usage}\nProvide the input config only once.`);
       }
-      outputDirectory = value;
+      configPath = optionValue(argv, index, '--input');
+      index += 1;
+    } else if (argument === '--output') {
+      if (outputPath) {
+        fail(`${usage}\nProvide the output file only once.`);
+      }
+      outputPath = optionValue(argv, index, '--output');
+      index += 1;
+    } else if (argument === '--out-dir') {
+      if (outputDirectory) {
+        fail(`${usage}\nProvide the output directory only once.`);
+      }
+      outputDirectory = optionValue(argv, index, '--out-dir');
       index += 1;
     } else if (argument.startsWith('--')) {
       fail(`${usage}\nUnknown option: ${argument}`);
@@ -57,11 +79,18 @@ function parseArguments(argv) {
     }
   }
 
-  if (positional.length !== 1) {
+  if (positional.length > 1 || (configPath && positional.length === 1) || (!configPath && positional.length !== 1)) {
     fail(`${usage}\nProvide exactly one JSON config path.`);
   }
+  if (outputPath && outputDirectory) {
+    fail(`${usage}\nUse either --output or --out-dir, not both.`);
+  }
 
-  return { configPath: positional[0], outputDirectory };
+  return {
+    configPath: configPath || positional[0],
+    outputDirectory,
+    outputPath,
+  };
 }
 
 function assertNonEmptyString(value, fieldName, sceneIndex) {
@@ -150,7 +179,9 @@ function resolveAssetSource(value, configDirectory, assetType, sceneId) {
     return value;
   }
 
-  const assetPath = resolve(configDirectory, value);
+  const configuredAssetPath = resolve(configDirectory, value);
+  const projectRelativeAssetPath = resolve(projectDirectory, value);
+  const assetPath = existsSync(configuredAssetPath) ? configuredAssetPath : projectRelativeAssetPath;
   if (!existsSync(assetPath) || !statSync(assetPath).isFile()) {
     fail(`Scene "${sceneId}": ${assetType} asset not found: ${value}`);
   }
@@ -174,7 +205,7 @@ function safeOutputName(sceneId) {
 }
 
 async function main() {
-  const { configPath, outputDirectory } = parseArguments(args);
+  const { configPath, outputDirectory, outputPath } = parseArguments(args);
   const resolvedConfigPath = resolve(process.cwd(), configPath);
   if (!existsSync(resolvedConfigPath)) {
     fail(`Config file not found: ${configPath}`);
@@ -202,16 +233,17 @@ async function main() {
         : {}),
     };
   });
-  const resolvedOutputDirectory = resolve(projectDirectory, outputDirectory || 'out/remotion');
-  mkdirSync(resolvedOutputDirectory, { recursive: true });
-
   const isTimeline = scenes.length > 1;
   const inputProps = isTimeline ? { scenes } : scenes[0];
   const compositionId = isTimeline ? TIMELINE_COMPOSITION_ID : SCENE_COMPOSITION_ID;
-  const outputLocation = join(
-    resolvedOutputDirectory,
-    isTimeline ? TIMELINE_OUTPUT_NAME : safeOutputName(scenes[0].id),
-  );
+  const defaultOutputDirectory = resolve(projectDirectory, outputDirectory || 'out/remotion');
+  const outputLocation = outputPath
+    ? resolve(projectDirectory, outputPath)
+    : join(
+      defaultOutputDirectory,
+      isTimeline ? TIMELINE_OUTPUT_NAME : safeOutputName(scenes[0].id),
+    );
+  mkdirSync(dirname(outputLocation), { recursive: true });
   const bundleDirectory = join(tmpdir(), `mobius-remotion-bundle-${process.pid}-${Date.now()}`);
   mkdirSync(bundleDirectory, { recursive: true });
 
