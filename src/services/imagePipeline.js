@@ -3,7 +3,12 @@ import * as path from 'path';
 import fs from 'fs';
 import { promises as fsPromises } from 'fs';
 import { XMLParser } from 'fast-xml-parser';
-import * as pdfToImg from 'pdf-to-img';
+const pdfToImg = {
+  pdf: async (...args) => {
+    const { pdf } = await import('pdf-to-img');
+    return pdf(...args);
+  },
+};
 
 const xmlParser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '' });
 

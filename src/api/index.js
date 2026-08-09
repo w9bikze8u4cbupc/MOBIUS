@@ -5,7 +5,12 @@ import dotenv from 'dotenv';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import OpenAI from 'openai';
-import * as pdfToImg from 'pdf-to-img';
+const pdfToImg = {
+  pdf: async (...args) => {
+    const { pdf } = await import('pdf-to-img');
+    return pdf(...args);
+  },
+};
 import path from 'path';
 import { spawn, execFile } from 'child_process';
 import { ensureDir } from 'fs-extra'; // If you use fs-extra for directory creation
@@ -21,9 +26,12 @@ import pdfParse from 'pdf-parse';
 import xml2js from 'xml2js';
 import { promisify } from 'node:util';
 import { loadGenesisFeedback } from './genesisFeedback.js';
-import { checkGenesisFeedbackCompat } from '../compat/genesisCompat.js';
-import { getGenesisMode } from '../config/genesisConfig.js';
-import { getGenesisProfile } from '../config/genesisProfiles.js';
+import genesisCompatPkg from '../compat/genesisCompat.cjs';
+const { checkGenesisFeedbackCompat } = genesisCompatPkg;
+import genesisConfigPkg from '../config/genesisConfig.js';
+const { getGenesisMode } = genesisConfigPkg;
+import genesisProfilesPkg from '../config/genesisProfiles.js';
+const { getGenesisProfile } = genesisProfilesPkg;
 import { loadGenesisHealthSummary } from '../system/genesisHealth.js';
 import { computeCampaignPlan } from "../system/genesisCampaign.js";
 import { computeCompliance } from '../system/genesisCompliance.js';

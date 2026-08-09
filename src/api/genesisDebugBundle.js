@@ -2,10 +2,12 @@ import fs from "fs";
 import path from "path";
 import { loadProjectScenario } from "./genesisScenario.js";
 import { loadQualityGoals } from "./genesisGoals.js";
-import pkg from "../compat/genesisCompat.js";
-const { checkGenesisFeedbackCompat } = pkg;
-import { getGenesisMode } from "../config/genesisConfig.js";
-import { getGenesisProfile } from "../config/genesisProfiles.js";
+import genesisCompatPkg from "../compat/genesisCompat.cjs";
+const { checkGenesisFeedbackCompat } = genesisCompatPkg;
+import genesisConfigPkg from "../config/genesisConfig.js";
+const { getGenesisMode } = genesisConfigPkg;
+import genesisProfilesPkg from "../config/genesisProfiles.js";
+const { getGenesisProfile } = genesisProfilesPkg;
 
 const EVAL_LOG_RELATIVE = "logs/genesis_evaluations.jsonl";
 

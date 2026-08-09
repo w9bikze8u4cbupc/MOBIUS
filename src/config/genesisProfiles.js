@@ -2,7 +2,7 @@ const RAW_PROFILE = process.env.MOBIUS_GENESIS_PROFILE || "DEFAULT";
 
 const ALLOWED = ["DEFAULT", "BEGINNER", "EXPERT", "ACCESSIBLE"];
 
-export function getGenesisProfile() {
+function getGenesisProfile() {
   const upper = RAW_PROFILE.toUpperCase();
   return ALLOWED.includes(upper) ? upper : "DEFAULT";
 }
@@ -11,7 +11,7 @@ export function getGenesisProfile() {
  * Base tuning per profile.
  * These are *starting points* for the pipeline; GENESIS hints then nudge them.
  */
-export function getProfileBaseConfig(profile) {
+function getProfileBaseConfig(profile) {
   switch (profile) {
     case "BEGINNER":
       return {
@@ -76,3 +76,8 @@ export function getProfileBaseConfig(profile) {
       };
   }
 }
+
+module.exports = {
+  getGenesisProfile,
+  getProfileBaseConfig,
+};

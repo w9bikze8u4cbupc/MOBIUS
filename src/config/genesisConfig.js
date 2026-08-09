@@ -3,23 +3,31 @@ const ENABLED = process.env.MOBIUS_GENESIS_ENABLED !== 'false';
 
 const allowedModes = ['OFF', 'SHADOW', 'ADVISORY', 'ACTIVE'];
 
-export function getGenesisMode() {
+function getGenesisMode() {
   if (!ENABLED) return 'OFF';
   return allowedModes.includes(MODE.toUpperCase()) ? MODE.toUpperCase() : 'OFF';
 }
 
-export function isGenesisEnabled() {
+function isGenesisEnabled() {
   return getGenesisMode() !== 'OFF';
 }
 
-export function isGenesisShadowMode() {
+function isGenesisShadowMode() {
   return getGenesisMode() === 'SHADOW';
 }
 
-export function isGenesisAdvisoryMode() {
+function isGenesisAdvisoryMode() {
   return getGenesisMode() === 'ADVISORY';
 }
 
-export function isGenesisActiveMode() {
+function isGenesisActiveMode() {
   return getGenesisMode() === 'ACTIVE';
 }
+
+module.exports = {
+  getGenesisMode,
+  isGenesisEnabled,
+  isGenesisShadowMode,
+  isGenesisAdvisoryMode,
+  isGenesisActiveMode,
+};
