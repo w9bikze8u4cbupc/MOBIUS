@@ -12,10 +12,6 @@ export function ProjectSetupStep({
   getLanguageVoices,
   detailPercentage,
   setDetailPercentage,
-  renderLang,
-  setRenderLang,
-  renderResolution,
-  setRenderResolution,
   file,
   rulebookText,
   onFileChange,
@@ -264,13 +260,6 @@ export function ProjectSetupStep({
                 <option value={10}>Brief (10%)</option>
                 <option value={25}>Standard (25%)</option>
                 <option value={50}>Detailed (50%)</option>
-              </select>
-            </label>
-            <label>
-              Render Resolution
-              <select value={renderResolution} onChange={(e) => setRenderResolution(e.target.value)}>
-                <option value="1920x1080">1080p HD</option>
-                <option value="3840x2160">4K Ultra HD</option>
               </select>
             </label>
           </div>

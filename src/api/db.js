@@ -41,6 +41,23 @@ function persist() {
 
 function run(sql, params = [], callback) {
   try {
+    if (/^\s*UPDATE\s+projects\s+SET\s+metadata\s*=\s*\?/i.test(sql)) {
+      const [metadata, id] = params;
+      const record = projects.find((project) => project.id === Number(id));
+      if (!record) {
+        if (callback) {
+          callback.call({ changes: 0 }, null);
+        }
+        return { changes: 0 };
+      }
+      record.metadata = metadata || '{}';
+      persist();
+      if (callback) {
+        callback.call({ changes: 1 }, null);
+      }
+      return { changes: 1 };
+    }
+
     const [name, metadata, components, images, script, audio, scenes] = params;
     const record = {
       id: nextId++,

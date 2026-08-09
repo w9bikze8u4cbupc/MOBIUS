@@ -170,6 +170,20 @@ function validateScenes(value) {
     if (scene.audioFile !== undefined && (typeof scene.audioFile !== 'string' || scene.audioFile.trim() === '')) {
       fail(`Scene ${sceneIndex + 1}: audioFile must be an omitted or non-empty string.`);
     }
+    if (scene.backgroundMusicFile !== undefined
+      && (typeof scene.backgroundMusicFile !== 'string' || scene.backgroundMusicFile.trim() === '')) {
+      fail(`Scene ${sceneIndex + 1}: backgroundMusicFile must be an omitted or non-empty string.`);
+    }
+    if (scene.backgroundMusicStartFrom !== undefined
+      && (!Number.isInteger(scene.backgroundMusicStartFrom) || scene.backgroundMusicStartFrom < 0)) {
+      fail(`Scene ${sceneIndex + 1}: backgroundMusicStartFrom must be an omitted or non-negative integer.`);
+    }
+    if (scene.backgroundMusicVolume !== undefined
+      && (typeof scene.backgroundMusicVolume !== 'number'
+        || scene.backgroundMusicVolume < 0
+        || scene.backgroundMusicVolume > 1)) {
+      fail(`Scene ${sceneIndex + 1}: backgroundMusicVolume must be a number between 0 and 1 when provided.`);
+    }
 
     return { ...scene, imageUrl: imageUrls[0], imageUrls };
   });
@@ -378,11 +392,15 @@ async function main() {
       ...(scene.audioFile
         ? { audioFile: resolveAssetSource(scene.audioFile, configDirectory, 'audio', scene.id) }
         : {}),
+      ...(scene.backgroundMusicFile
+        ? { backgroundMusicFile: resolveAssetSource(scene.backgroundMusicFile, configDirectory, 'audio', scene.id) }
+        : {}),
     };
   });
-  const containsMultipleSceneAudio = scenes.length > 1 && scenes.some((scene) => Boolean(scene.audioFile));
+  const containsMultipleSceneAudio = scenes.length > 1
+    && scenes.some((scene) => Boolean(scene.audioFile || scene.backgroundMusicFile));
   if (containsMultipleSceneAudio && !concat) {
-    fail('Multi-scene configs with audio require --concat so narration is rendered sequentially without transition overlap.');
+    fail('Multi-scene configs with narration or background music require --concat so audio is rendered sequentially without transition overlap.');
   }
 
   const isTimeline = scenes.length > 1 && !concat;

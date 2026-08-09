@@ -104,6 +104,103 @@ function buildSyntheticPagesFromText(text) {
 }
 
 
+const REMOTION_PLACEHOLDER_IMAGE = 'src/remotion/assets/hanamikoji-card-placeholder.svg';
+const REMOTION_SCENE_COLORS = ['#E91E63', '#1E88E5', '#43A047', '#FB8C00', '#8E24AA', '#00897B'];
+
+function cleanRemotionText(value) {
+  return String(value || '')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/^[#>\s]+/gm, '')
+    .replace(/[*_`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function splitRemotionSections(script, gameName) {
+  const normalizedScript = String(script || '').trim();
+  if (!normalizedScript) {
+    return [];
+  }
+
+  const headings = [...normalizedScript.matchAll(/^#{1,6}\s+(.+)$/gm)];
+  if (headings.length === 0) {
+    return [{
+      sectionTitle: cleanRemotionText(gameName) || 'Tutorial',
+      narrationText: cleanRemotionText(normalizedScript),
+    }];
+  }
+
+  const result = [];
+  const introduction = cleanRemotionText(normalizedScript.slice(0, headings[0].index));
+  if (introduction) {
+    result.push({
+      sectionTitle: cleanRemotionText(gameName) || 'Introduction',
+      narrationText: introduction,
+    });
+  }
+
+  headings.forEach((heading, index) => {
+    const bodyStart = heading.index + heading[0].length;
+    const nextHeading = headings[index + 1];
+    const narrationText = cleanRemotionText(
+      normalizedScript.slice(bodyStart, nextHeading ? nextHeading.index : normalizedScript.length),
+    );
+    const sectionTitle = cleanRemotionText(heading[1]) || `Step ${index + 1}`;
+    result.push({
+      sectionTitle,
+      narrationText: narrationText || sectionTitle,
+    });
+  });
+
+  return result;
+}
+
+function getRemotionImagePath(image) {
+  const fileKey = typeof image?.fileKey === 'string' ? image.fileKey.trim().replace(/\\/g, '/') : '';
+  if (!fileKey || pathIsAbsolute(fileKey)) {
+    return null;
+  }
+  if (fileKey.startsWith('src/api/uploads/')) {
+    return `/uploads/${fileKey.slice('src/api/uploads/'.length)}`;
+  }
+  if (fileKey.startsWith('uploads/')) {
+    return `/${fileKey}`;
+  }
+  return fileKey.startsWith('data/') ? fileKey : null;
+}
+
+function pathIsAbsolute(filePath) {
+  return /^([a-zA-Z]:)?\//.test(filePath);
+}
+
+export function buildRemotionScenes({ script, gameName, images, componentImageLinks }) {
+  const sections = splitRemotionSections(script, gameName);
+  const linkedImageIds = new Set(
+    Object.values(componentImageLinks || {}).flat().filter(Boolean),
+  );
+  const selectedImages = linkedImageIds.size > 0
+    ? (images || []).filter((image) => linkedImageIds.has(image.id))
+    : (images || []);
+  const imageUrls = selectedImages
+    .map((image) => getRemotionImagePath(image))
+    .filter(Boolean);
+
+  return sections.map((section, index) => {
+    const wordCount = section.narrationText.split(/\s+/).filter(Boolean).length;
+    return {
+      id: `scene-${index + 1}`,
+      sectionTitle: section.sectionTitle,
+      narrationText: section.narrationText,
+      imageUrls: imageUrls.length > 0
+        ? [imageUrls[index % imageUrls.length]]
+        : [REMOTION_PLACEHOLDER_IMAGE],
+      themeBorderColor: REMOTION_SCENE_COLORS[index % REMOTION_SCENE_COLORS.length],
+      durationInFrames: Math.max(90, Math.round((wordCount / 150) * 60 * 30)),
+    };
+  });
+}
+
 function App() {
   // --- State Variables ---
   const [file, setFile] = useState(null);
@@ -146,16 +243,11 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   const [storyboardError, setStoryboardError] = useState("");
   const [ingesting, setIngesting] = useState(false);
   const [storyboarding, setStoryboarding] = useState(false);
-  const [renderLang, setRenderLang] = useState("en");
-  const [renderResolution, setRenderResolution] = useState("1920x1080");
-  const [selectedCaptionLocales, setSelectedCaptionLocales] = useState(["en-US"]);
-  const [burnInCaptions, setBurnInCaptions] = useState(false);
-  const [renderJobConfig, setRenderJobConfig] = useState(null);
-  const [renderConfigError, setRenderConfigError] = useState("");
-  const [showRenderConfigJson, setShowRenderConfigJson] = useState(false);
   const [renderJobState, setRenderJobState] = useState(null);
   const [renderJobError, setRenderJobError] = useState("");
   const [renderJobLoading, setRenderJobLoading] = useState(false);
+  const [backgroundMusicFile, setBackgroundMusicFile] = useState(null);
+  const [backgroundMusicVolume, setBackgroundMusicVolume] = useState(0.12);
   const renderPollRef = useRef(null);
   const [activeStepId, setActiveStepId] = useState(pipelineSteps[0].id);
   const [completedStepIds, setCompletedStepIds] = useState([]);
@@ -402,6 +494,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setSections([]);
     setAudio({});
     setAudioLoading({});
+    setBackgroundMusicFile(null);
+    setBackgroundMusicVolume(0.12);
     setIngestionManifest(null);
     setStoryboardManifest(null);
     setIngestionError("");
@@ -574,88 +668,10 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     }
   };
 
-  const availableCaptionLocales = ["en-US", "fr-FR"];
-
-  const toggleCaptionLocale = (locale) => {
-    setSelectedCaptionLocales((prev) =>
-      prev.includes(locale)
-        ? prev.filter((entry) => entry !== locale)
-        : [...prev, locale],
-    );
-  };
-
-  const handleRenderJobConfig = async () => {
-    setRenderConfigError("");
-    setShowRenderConfigJson(false);
-
-    if (!projectId.trim()) {
-      setRenderConfigError("Project ID is required to generate a render job config.");
-      return;
-    }
-
-    try {
-      const { data } = await axios.get(`${BACKEND_URL}/api/render-job-config`, {
-        params: {
-          projectId: projectId.trim(),
-          lang: renderLang,
-          resolution: renderResolution,
-          captionLocales: selectedCaptionLocales.join(","),
-          burnInCaptions,
-        },
-      });
-
-      setRenderJobConfig(data.config);
-    } catch (err) {
-      const apiError = err.response?.data?.error || err.response?.data?.code || err.message;
-      setRenderConfigError(apiError);
-      setRenderJobConfig(null);
-    }
-  };
-
-  const fetchRenderArtifacts = async (jobId) => {
-    try {
-      const { data } = await axios.get(`${BACKEND_URL}/api/render/${jobId}/artifacts`);
-      setRenderJobState((prev) => ({
-        ...(prev || { id: jobId }),
-        artifacts: data.artifacts || [],
-      }));
-    } catch (err) {
-      const apiError = err.response?.data?.error || err.message;
-      setRenderJobError(apiError);
-    }
-  };
-
-  const pollRenderJob = (jobId) => {
-    if (renderPollRef.current) {
-      clearInterval(renderPollRef.current);
-    }
-
-    renderPollRef.current = setInterval(async () => {
-      try {
-        const { data } = await axios.get(`${BACKEND_URL}/api/render/${jobId}/status`);
-        const job = data.job || {};
-        setRenderJobState(job);
-
-        if (job.status === 'completed') {
-          clearInterval(renderPollRef.current);
-          renderPollRef.current = null;
-          fetchRenderArtifacts(jobId);
-        } else if (job.status === 'failed') {
-          clearInterval(renderPollRef.current);
-          renderPollRef.current = null;
-        }
-      } catch (err) {
-        const apiError = err.response?.data?.error || err.message;
-        setRenderJobError(apiError);
-        clearInterval(renderPollRef.current);
-        renderPollRef.current = null;
-      }
-    }, 3000);
-  };
-
   const handleStartRender = async () => {
     setRenderJobError("");
     setRenderJobLoading(true);
+    setRenderJobState(null);
 
     if (renderPollRef.current) {
       clearInterval(renderPollRef.current);
@@ -663,32 +679,77 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     }
 
     try {
-      const payload = renderJobConfig
-        ? { config: renderJobConfig }
-        : {
-            projectId: projectId.trim(),
-            lang: renderLang,
-            resolution: renderResolution,
-            captionLocales: selectedCaptionLocales,
-            burnInCaptions,
-          };
-
-      if (!payload.projectId && !payload.config) {
-        setRenderJobError("Project ID or a precomputed render job config is required.");
-        setRenderJobLoading(false);
-        return;
+      const script = (editedSummary || summary).trim();
+      if (!script) {
+        throw new Error("Generate or save a tutorial script before rendering.");
+      }
+      if (!voice.trim()) {
+        throw new Error("Select a narration voice before rendering.");
+      }
+      if (!backgroundMusicFile) {
+        throw new Error("Choose a background-music file before rendering.");
       }
 
-      const { data } = await axios.post(`${BACKEND_URL}/api/render`, payload);
-      const job = {
-        id: data.jobId,
-        status: data.status,
-        progress: data.progress || 0,
-        artifacts: [],
-      };
+      const scenes = buildRemotionScenes({
+        script,
+        gameName,
+        images: projectImages,
+        componentImageLinks,
+      });
+      if (scenes.length === 0) {
+        throw new Error("The tutorial script does not contain renderable scenes.");
+      }
 
-      setRenderJobState(job);
-      pollRenderJob(job.id);
+      const renderMetadata = {
+        ...metadata,
+        renderState: {
+          ...(metadata.renderState || {}),
+          ingestionManifest,
+          storyboardManifest,
+        },
+      };
+      const { data: savedProject } = await axios.post(`${BACKEND_URL}/save-project`, {
+        name: gameName.trim() || projectId.trim() || "MOBIUS tutorial",
+        metadata: renderMetadata,
+        components: gameComponents.length > 0 ? gameComponents : (ingestionManifest?.components || []),
+        images: projectImages,
+        script,
+        audio: "",
+        scenes,
+      });
+      if (!savedProject?.projectId) {
+        throw new Error("The project could not be persisted for Remotion rendering.");
+      }
+
+      const musicFormData = new FormData();
+      musicFormData.append("backgroundMusic", backgroundMusicFile);
+      musicFormData.append("volume", String(backgroundMusicVolume));
+      const { data: uploadedMusic } = await axios.post(
+        `${BACKEND_URL}/api/render-remotion/background-music?projectId=${encodeURIComponent(savedProject.projectId)}`,
+        musicFormData,
+      );
+      if (!uploadedMusic?.backgroundMusicPath) {
+        throw new Error("The background-music file could not be saved for rendering.");
+      }
+      setBackgroundMusicFile(null);
+
+      const { data } = await axios.post(`${BACKEND_URL}/api/render-remotion`, {
+        projectId: savedProject.projectId,
+        voiceId: voice.trim(),
+      });
+      if (!data?.ok || !data.outputPath) {
+        throw new Error(data?.error || "Remotion did not return an output video.");
+      }
+
+      setRenderJobState({
+        id: data.projectId,
+        status: "completed",
+        progress: 100,
+        outputFilePath: data.outputPath,
+        resultPaths: data.outputPaths || [data.outputPath],
+        artifacts: [],
+        renderer: "remotion",
+      });
     } catch (err) {
       const apiError = err.response?.data?.error || err.response?.data?.code || err.message;
       setRenderJobError(apiError);
@@ -1142,10 +1203,6 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               getLanguageVoices={getLanguageVoices}
               detailPercentage={detailPercentage}
               setDetailPercentage={setDetailPercentage}
-              renderLang={renderLang}
-              setRenderLang={setRenderLang}
-              renderResolution={renderResolution}
-              setRenderResolution={setRenderResolution}
               file={file}
               rulebookText={rulebookText}
               onFileChange={handleFileChange}
@@ -1230,33 +1287,19 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               audio={audio}
               audioLoading={audioLoading}
               onPlayAudio={handlePlayAudio}
-              availableCaptionLocales={availableCaptionLocales}
-              selectedCaptionLocales={selectedCaptionLocales}
-              onToggleCaptionLocale={toggleCaptionLocale}
             />
           )}
 
           {activeStepId === "render" && (
             <RenderExportStep
-              projectId={projectId}
-              renderLang={renderLang}
-              setRenderLang={setRenderLang}
-              renderResolution={renderResolution}
-              setRenderResolution={setRenderResolution}
-              availableCaptionLocales={availableCaptionLocales}
-              selectedCaptionLocales={selectedCaptionLocales}
-              setSelectedCaptionLocales={setSelectedCaptionLocales}
-              burnInCaptions={burnInCaptions}
-              setBurnInCaptions={setBurnInCaptions}
-              onGenerateConfig={handleRenderJobConfig}
-              renderJobConfig={renderJobConfig}
-              renderConfigError={renderConfigError}
-              showRenderConfigJson={showRenderConfigJson}
-              setShowRenderConfigJson={setShowRenderConfigJson}
               onStartRender={handleStartRender}
               renderJobState={renderJobState}
               renderJobError={renderJobError}
               renderJobLoading={renderJobLoading}
+              backgroundMusicFile={backgroundMusicFile}
+              setBackgroundMusicFile={setBackgroundMusicFile}
+              backgroundMusicVolume={backgroundMusicVolume}
+              setBackgroundMusicVolume={setBackgroundMusicVolume}
             />
           )}
 

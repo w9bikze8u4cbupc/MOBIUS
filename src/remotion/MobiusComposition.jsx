@@ -65,6 +65,9 @@ export const MobiusComposition = ({
   stepNumber = 1,
   themeBorderColor = FALLBACK_BORDER_COLOR,
   audioFile,
+  backgroundMusicFile,
+  backgroundMusicVolume = 0.12,
+  backgroundMusicStartFrom = 0,
 }) => {
   const frame = useCurrentFrame();
   const { fps, height, width } = useVideoConfig();
@@ -127,6 +130,14 @@ export const MobiusComposition = ({
           <MediaGallery imageUrls={resolvedImageUrls} label={sectionTitle} />
         </div>
       </AbsoluteFill>
+      {backgroundMusicFile ? (
+        <Audio
+          src={backgroundMusicFile}
+          volume={backgroundMusicVolume}
+          startFrom={backgroundMusicStartFrom}
+          loop
+        />
+      ) : null}
       {audioFile ? <Audio src={audioFile} /> : null}
     </AbsoluteFill>
   );

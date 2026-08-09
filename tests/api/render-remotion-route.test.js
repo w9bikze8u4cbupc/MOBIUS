@@ -41,14 +41,18 @@ function baseUrl(server) {
   return `http://127.0.0.1:${address.port}`;
 }
 
-function loadTestApp(outputDirectory) {
+function loadTestApp(outputDirectory, remotionOptions = {}) {
   const db = require('../../src/api/db.js').default;
   const { registerProjectPersistenceRoutes } = require('../../src/api/projectPersistenceRoutes.js');
   const { registerRemotionRenderRoutes } = require('../../src/api/remotionRenderRoutes.js');
   const app = express();
   app.use(express.json());
   registerProjectPersistenceRoutes(app, { db });
-  registerRemotionRenderRoutes(app, { db, outputBaseDirectory: outputDirectory });
+  registerRemotionRenderRoutes(app, {
+    db,
+    outputBaseDirectory: outputDirectory,
+    ...remotionOptions,
+  });
   return app;
 }
 
@@ -58,6 +62,7 @@ describe('POST /api/render-remotion', () => {
     DB_DATA_DIR: process.env.DB_DATA_DIR,
     DB_DATA_FILE: process.env.DB_DATA_FILE,
     DB_IN_MEMORY: process.env.DB_IN_MEMORY,
+    ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY,
   };
   let temporaryDirectory;
   let server;
@@ -68,6 +73,7 @@ describe('POST /api/render-remotion', () => {
     process.env.DB_DATA_DIR = temporaryDirectory;
     process.env.DB_DATA_FILE = path.join(temporaryDirectory, 'projects.json');
     delete process.env.DB_IN_MEMORY;
+    process.env.ELEVENLABS_API_KEY = '';
     jest.resetModules();
   });
 
@@ -128,5 +134,195 @@ describe('POST /api/render-remotion', () => {
     const mp4Files = renderedFiles.filter((fileName) => fileName.endsWith('.mp4'));
     expect(mp4Files).toHaveLength(1);
     expect(fs.statSync(path.join(outputDirectory, mp4Files[0])).size).toBeGreaterThan(0);
+  });
+
+  test('adds continuous project-owned background music to persisted scenes before rendering', async () => {
+    const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+    const outputPath = path.join(outputDirectory, 'mobius-tutorial.mp4');
+    const musicUploadDirectory = path.join(temporaryDirectory, 'uploaded-music');
+    const runRemotionRender = jest.fn(async ({ scenes }) => ({ outputPaths: [outputPath], scenes }));
+    const app = loadTestApp(outputDirectory, { runRemotionRender, backgroundMusicUploadDirectory: musicUploadDirectory });
+    server = await startServer(app);
+    const sampleScenes = JSON.parse(fs.readFileSync(SAMPLE_SCRIPT_PATH, 'utf8'));
+
+    const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Project with background music',
+        metadata: {},
+        components: [],
+        images: [],
+        script: JSON.stringify({ scenes: sampleScenes }),
+        audio: '',
+        scenes: sampleScenes,
+      }),
+    });
+    const savedProject = await saveResponse.json();
+
+    const musicPayload = new FormData();
+    musicPayload.append(
+      'backgroundMusic',
+      new Blob([fs.readFileSync(path.join(REPOSITORY_ROOT, 'artifacts', 'test_audio.wav'))], { type: 'audio/wav' }),
+      'test-audio.wav',
+    );
+    musicPayload.append('volume', '0.12');
+    const uploadResponse = await fetch(
+      `${baseUrl(server)}/api/render-remotion/background-music?projectId=${savedProject.projectId}`,
+      { method: 'POST', body: musicPayload },
+    );
+    const uploadedMusic = await uploadResponse.json();
+
+    expect(uploadResponse.status).toBe(201);
+    expect(uploadedMusic).toEqual({
+      ok: true,
+      backgroundMusicPath: expect.stringMatching(new RegExp(`^/uploads/remotion-music/${savedProject.projectId}/remotion-music-.+\\.wav$`)),
+    });
+    expect(fs.existsSync(path.join(
+      musicUploadDirectory,
+      'remotion-music',
+      String(savedProject.projectId),
+      path.basename(uploadedMusic.backgroundMusicPath),
+    ))).toBe(true);
+
+    const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: savedProject.projectId }),
+    });
+
+    expect(renderResponse.status).toBe(200);
+    expect(runRemotionRender).toHaveBeenCalledWith(expect.objectContaining({
+      scenes: expect.arrayContaining([
+        expect.objectContaining({
+          backgroundMusicFile: path.join(
+            REPOSITORY_ROOT,
+            'src',
+            'api',
+            uploadedMusic.backgroundMusicPath.slice(1),
+          ),
+          backgroundMusicVolume: 0.12,
+          backgroundMusicStartFrom: 0,
+        }),
+        expect.objectContaining({
+          backgroundMusicStartFrom: sampleScenes[0].durationInFrames,
+        }),
+      ]),
+    }));
+  });
+
+  test('rejects background music owned by a different project before rendering', async () => {
+    const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+    const runRemotionRender = jest.fn();
+    const app = loadTestApp(outputDirectory, { runRemotionRender });
+    server = await startServer(app);
+    const sampleScenes = JSON.parse(fs.readFileSync(SAMPLE_SCRIPT_PATH, 'utf8'));
+
+    const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Unsafe music source',
+        metadata: { renderState: { backgroundMusic: { file: '/uploads/remotion-music/999/private.wav' } } },
+        components: [],
+        images: [],
+        script: '',
+        audio: '',
+        scenes: sampleScenes,
+      }),
+    });
+    const savedProject = await saveResponse.json();
+
+    const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: savedProject.projectId }),
+    });
+
+    expect(renderResponse.status).toBe(400);
+    await expect(renderResponse.json()).resolves.toEqual({
+      ok: false,
+      code: 'REMOTION_BACKGROUND_MUSIC_INVALID',
+      error: 'Background music must belong to the project being rendered.',
+    });
+    expect(runRemotionRender).not.toHaveBeenCalled();
+  });
+
+  test('rejects a persisted remote image before it can reach the renderer', async () => {
+    const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+    const runRemotionRender = jest.fn();
+    const app = loadTestApp(outputDirectory, { runRemotionRender });
+    server = await startServer(app);
+    const sampleScenes = JSON.parse(fs.readFileSync(SAMPLE_SCRIPT_PATH, 'utf8'));
+    sampleScenes[0].imageUrls = ['https://127.0.0.1/private-image.png'];
+
+    const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Remote image source',
+        metadata: {},
+        components: [],
+        images: [],
+        script: '',
+        audio: '',
+        scenes: sampleScenes,
+      }),
+    });
+    const savedProject = await saveResponse.json();
+
+    const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: savedProject.projectId }),
+    });
+
+    expect(renderResponse.status).toBe(400);
+    await expect(renderResponse.json()).resolves.toEqual({
+      ok: false,
+      code: 'REMOTION_IMAGE_ASSET_INVALID',
+      error: 'Tutorial images must be stored in the project before rendering.',
+    });
+    expect(runRemotionRender).not.toHaveBeenCalled();
+  });
+
+  test('rejects a requested narration voice when ElevenLabs is unavailable', async () => {
+    const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+    const runRemotionRender = jest.fn();
+    const app = loadTestApp(outputDirectory, {
+      runRemotionRender,
+      isNarrationAvailable: () => false,
+    });
+    server = await startServer(app);
+    const sampleScenes = JSON.parse(fs.readFileSync(SAMPLE_SCRIPT_PATH, 'utf8'));
+
+    const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Narration-required project',
+        metadata: {},
+        components: [],
+        images: [],
+        script: '',
+        audio: '',
+        scenes: sampleScenes,
+      }),
+    });
+    const savedProject = await saveResponse.json();
+
+    const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: savedProject.projectId, voiceId: 'selected-voice' }),
+    });
+
+    expect(renderResponse.status).toBe(400);
+    await expect(renderResponse.json()).resolves.toEqual({
+      ok: false,
+      code: 'REMOTION_NARRATION_UNAVAILABLE',
+      error: 'Narration is unavailable because ElevenLabs is not configured.',
+    });
+    expect(runRemotionRender).not.toHaveBeenCalled();
   });
 });
