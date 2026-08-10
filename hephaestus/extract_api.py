@@ -14,8 +14,18 @@ from typing import Dict, List, Any, Optional
 
 import fitz  # PyMuPDF
 from PIL import Image, ImageFilter, ImageOps
-import imagehash
-import numpy as np
+
+try:
+    import imagehash
+except ImportError:
+    imagehash = None
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
+from native_extract import extract_all_native_images
 
 
 def extract_embedded_images(pdf_path: str, min_width: int = 16, min_height: int = 16, min_area: int = 400):
@@ -743,7 +753,7 @@ def main():
     min_width = int(sys.argv[3]) if len(sys.argv) > 3 else 16
     min_height = int(sys.argv[4]) if len(sys.argv) > 4 else 16
     
-    result = extract_components(pdf_path, output_dir, min_width, min_height)
+    result = extract_all_native_images(pdf_path, output_dir)
     print(json.dumps(result, indent=2))
     
     sys.exit(0 if result["success"] else 1)

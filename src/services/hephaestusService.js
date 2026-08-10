@@ -4,20 +4,16 @@ import fs from 'fs';
 
 const HEPHAESTUS_DIR = path.join(process.cwd(), 'hephaestus');
 const PYTHON_SCRIPT = path.join(HEPHAESTUS_DIR, 'extract_api.py');
+const PYTHON_COMMAND =
+  process.env.HEPHAESTUS_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 
 export async function clearHephaestusCache(outputDir) {
-  const imagesDir = path.join(outputDir, 'images', 'all');
   const manifestPath = path.join(outputDir, 'manifest.json');
   
   try {
-    if (fs.existsSync(imagesDir)) {
-      const files = fs.readdirSync(imagesDir);
-      for (const file of files) {
-        if (file.startsWith('component_')) {
-          fs.unlinkSync(path.join(imagesDir, file));
-        }
-      }
-      console.log(`[HEPHAESTUS] Cleared ${files.length} cached images from ${imagesDir}`);
+    if (fs.existsSync(path.join(outputDir, 'images'))) {
+      fs.rmSync(path.join(outputDir, 'images'), { recursive: true, force: true });
+      console.log(`[HEPHAESTUS] Cleared cached extracted images from ${outputDir}`);
     }
     
     if (fs.existsSync(manifestPath)) {
@@ -30,17 +26,19 @@ export async function clearHephaestusCache(outputDir) {
 }
 
 export async function extractWithHephaestus(pdfPath, outputDir, options = {}) {
-  // Use lower thresholds to capture small components
+  // The Python process runs from hephaestus/, so make upload/output paths absolute first.
+  const resolvedPdfPath = path.resolve(pdfPath);
+  const resolvedOutputDir = path.resolve(outputDir);
   const { minWidth = 16, minHeight = 16 } = options;
-  
+
   // Clear cache before extraction
-  await clearHephaestusCache(outputDir);
-  
+  await clearHephaestusCache(resolvedOutputDir);
+
   return new Promise((resolve, reject) => {
     const args = [
       PYTHON_SCRIPT,
-      pdfPath,
-      outputDir,
+      resolvedPdfPath,
+      resolvedOutputDir,
       String(minWidth),
       String(minHeight)
     ];
@@ -48,7 +46,7 @@ export async function extractWithHephaestus(pdfPath, outputDir, options = {}) {
     console.log(`[HEPHAESTUS] Extracting from: ${pdfPath}`);
     console.log(`[HEPHAESTUS] Output to: ${outputDir}`);
     
-    const proc = spawn('python3', args, {
+    const proc = spawn(PYTHON_COMMAND, args, {
       cwd: HEPHAESTUS_DIR
     });
     

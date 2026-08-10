@@ -57,8 +57,10 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
       return res.status(404).json({ error: 'Image not found' });
     }
     
-    // Get file path from fileKey or construct from source
-    let filePath = image.fileKey;
+    // Serve either the 3x full-resolution asset or its generated thumbnail.
+    const filePath = req.query.variant === 'thumbnail' && image.thumbnailKey
+      ? image.thumbnailKey
+      : image.fileKey;
     
     if (!filePath) {
       // For BGG images, redirect to original URL
@@ -354,91 +356,94 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
     }
   });
 
-  // HEPHAESTUS: PyMuPDF-based component extraction with hybrid classification
+  // HEPHAESTUS: extract every native raster image with 3x Lanczos output.
   app.post('/api/projects/:projectId/images/extract-hephaestus', uploadMiddleware.single('file'), async (req, res) => {
     const { projectId } = req.params;
-    const { minWidth = 100, minHeight = 100 } = req.body || {};
-    
+
     try {
       if (!req.file) {
         return res.status(400).json({ error: 'PDF file is required' });
       }
-      
+
       const available = await isHephaestusAvailable();
       if (!available) {
         return res.status(500).json({ error: 'HEPHAESTUS system not available' });
       }
-      
-      console.log('[HEPHAESTUS] Starting extraction from:', req.file.path);
-      
+
       const outputDir = path.join(process.cwd(), 'data', projectId, 'hephaestus');
       const result = await extractWithHephaestus(req.file.path, outputDir, {
-        minWidth: parseInt(minWidth),
-        minHeight: parseInt(minHeight)
+        minWidth: 1,
+        minHeight: 1,
       });
-      
-      // Handle extraction errors vs empty results
       if (!result.success && result.error) {
         return res.status(500).json({ error: result.error });
       }
-      
-      // Remove old HEPHAESTUS images
+
       removeImagesBySource(projectId, 'hephaestus');
-      
-      // Handle zero-image extraction (valid but empty)
-      if (!result.images || result.images.length === 0) {
+      const nativeImages = result.images || [];
+      if (nativeImages.length === 0) {
         const state = listImages(projectId);
         return res.json({
           success: true,
           mode: 'hephaestus',
-          message: 'No component images found in PDF. Try adjusting size thresholds or use page extraction instead.',
+          message: 'No native raster images were found in this PDF.',
           stats: result.stats || {},
           manifestPath: result.manifest_path,
           imagesCount: 0,
           images: state.images,
-          componentImages: state.componentImages
+          componentImages: state.componentImages,
         });
       }
-      
-      // Convert HEPHAESTUS output to MOBIUS image format
-      const images = (result.images || []).map(img => normalizeImageAsset({
-        id: `heph_${img.id}`,
-        fileKey: img.file_path,
-        source: 'hephaestus',
-        width: img.dimensions?.width,
-        height: img.dimensions?.height,
-        tags: [
-          img.classification,
-          img.is_component ? 'component' : 'non-component',
-          img.label || 'unlabeled'
-        ].filter(Boolean),
-        metadata: {
-          page: img.page_index,
-          confidence: img.confidence,
+
+      const images = nativeImages.map((img) => {
+        const imageId = `heph_${img.id}`;
+        const type = ['card', 'token', 'board'].includes(img.type) ? img.type : 'other';
+        const localUrl = `/api/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(imageId)}/file`;
+        return normalizeImageAsset({
+          id: imageId,
+          source: 'hephaestus',
+          name: img.label,
           label: img.label,
-          quantity: img.quantity,
-          classification: img.classification
-        }
-      }));
-      
-      const enhanced = images.map(runImageEnhancement);
-      appendImages(projectId, enhanced);
+          type,
+          fileKey: img.file_path,
+          thumbnailKey: img.thumbnail_path,
+          localUrl,
+          thumbnailUrl: `${localUrl}?variant=thumbnail`,
+          width: img.dimensions?.width,
+          height: img.dimensions?.height,
+          tags: ['native-pdf', type, img.is_component ? 'component' : 'non-component'],
+          metadata: {
+            page: img.page_index,
+            confidence: img.confidence,
+            label: img.label,
+            quantity: img.quantity,
+            classification: type,
+            type,
+            native: img.native === true,
+            originalDimensions: img.original_dimensions,
+            upscaleFactor: img.upscale_factor,
+          },
+          quality: { score: 1, notes: 'Native PyMuPDF image upscaled 3x with Lanczos' },
+        });
+      });
+
+      appendImages(projectId, images.map(runImageEnhancement));
       const updatedState = listImages(projectId);
-      
-      console.log(`[HEPHAESTUS] Extraction complete: ${enhanced.length} images`);
-      res.json({
+
+      console.log(`[HEPHAESTUS] Extraction complete: ${images.length} native images`);
+      return res.json({
         success: true,
         mode: 'hephaestus',
-        message: `Extracted ${enhanced.length} images using HEPHAESTUS`,
-        stats: result.stats,
+        message: `Extracted ${images.length} native images with 3x Lanczos upscaling`,
+        stats: result.stats || {},
         manifestPath: result.manifest_path,
-        imagesCount: enhanced.length,
+        imagesCount: images.length,
         images: updatedState.images,
-        componentImages: updatedState.componentImages
+        componentImages: updatedState.componentImages,
       });
     } catch (err) {
       console.error('[HEPHAESTUS] Extraction failed:', err);
-      res.status(500).json({ error: err.message || 'HEPHAESTUS extraction failed' });
+      return res.status(500).json({ error: err.message || 'HEPHAESTUS extraction failed' });
     }
   });
 

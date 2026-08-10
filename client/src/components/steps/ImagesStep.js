@@ -8,10 +8,19 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL !== undefined
 const getImageUrl = (projectId, image) => {
   if (!image) return null;
   if (image.originalUrl) return image.originalUrl;
+  if (image.localUrl) return `${BACKEND_URL}${image.localUrl}`;
   if (image.fileKey || image.source === 'rulebook' || image.source === 'manual' || image.source === 'ai-crop' || image.source === 'native-pdf' || image.source === 'ai-component-crop' || image.source === 'hephaestus') {
     return `${BACKEND_URL}/api/projects/${projectId}/images/${image.id}/file`;
   }
   return null;
+};
+
+const getImageThumbnailUrl = (projectId, image) => {
+  if (image?.thumbnailUrl) return `${BACKEND_URL}${image.thumbnailUrl}`;
+  if (image?.thumbnailKey) {
+    return `${BACKEND_URL}/api/projects/${projectId}/images/${image.id}/file?variant=thumbnail`;
+  }
+  return getImageUrl(projectId, image);
 };
 
 // eslint-disable-next-line no-unused-vars
@@ -496,8 +505,8 @@ export function ImagesStep({
     try {
       const formData = new FormData();
       formData.append('file', pdfFile);
-      formData.append('minWidth', '100');
-      formData.append('minHeight', '100');
+      formData.append('minWidth', '1');
+      formData.append('minHeight', '1');
       
       const res = await axios.post(
         `${BACKEND_URL}/api/projects/${projectId}/images/extract-hephaestus`,
@@ -982,7 +991,7 @@ export function ImagesStep({
                   borderRadius: 6
                 }}>
                   {imgs.map((img) => {
-                    const imgUrl = getImageUrl(projectId, img);
+                    const imgUrl = getImageThumbnailUrl(projectId, img);
                     return (
                       <div 
                         key={img.id} 
@@ -1165,6 +1174,27 @@ export function ImagesStep({
       {/* Component list with linked images */}
       <div style={{ marginTop: 24 }}>
         <h4>Component Image Links</h4>
+        {localImages.filter((image) => image.source === 'hephaestus').length > 0 && (
+          <div style={{ marginBottom: 12, padding: 12, background: '#fff3e0', borderRadius: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+              HEPHAESTUS Native Images — select a component below to link them
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {localImages.filter((image) => image.source === 'hephaestus').map((image) => {
+                const thumbnailUrl = getImageThumbnailUrl(projectId, image);
+                return (
+                  <div key={image.id} style={{ width: 92, fontSize: 10, color: '#555' }}>
+                    <div style={{ height: 64, border: '1px solid #f44336', borderRadius: 4, overflow: 'hidden', background: 'white' }}>
+                      {thumbnailUrl && <img src={thumbnailUrl} alt={image.label || image.type || 'Native PDF image'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />}
+                    </div>
+                    <div style={{ marginTop: 3, textTransform: 'capitalize' }}>{image.type || image.metadata?.classification || 'other'}</div>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{image.label || image.name || image.id}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {components.length === 0 && (
           <p className="pipeline-muted">No components detected. Go to Step 3 to extract components first.</p>
         )}
@@ -1208,7 +1238,7 @@ export function ImagesStep({
                     {/* Show linked image thumbnails */}
                     {linkedImageIds.slice(0, 3).map(imgId => {
                       const img = getImageById(imgId);
-                      const imgUrl = img ? getImageUrl(projectId, img) : null;
+                      const imgUrl = img ? getImageThumbnailUrl(projectId, img) : null;
                       return imgUrl ? (
                         <div 
                           key={imgId}
@@ -1260,7 +1290,7 @@ export function ImagesStep({
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                           {linkedImageIds.map(imgId => {
                             const img = getImageById(imgId);
-                            const imgUrl = img ? getImageUrl(projectId, img) : null;
+                            const imgUrl = img ? getImageThumbnailUrl(projectId, img) : null;
                             const feedbackKey = `${component.id}-${imgId}`;
                             const status = feedbackStatus[feedbackKey];
                             
@@ -1380,7 +1410,7 @@ export function ImagesStep({
                         })
                         .map((img) => {
                         const isLinked = linkedImageIds.includes(img.id);
-                        const imgUrl = getImageUrl(projectId, img);
+                        const imgUrl = getImageThumbnailUrl(projectId, img);
                         return (
                           <button
                             key={img.id}
