@@ -1,0 +1,18 @@
+{
+  "source": "src/api/uploads/1786645977799_ABYSS.pdf",
+  "description": "Native text extracted from the persisted Abyss PDF pages containing the Contents & Setup section, preserved as page-aware lines for offline deterministic inventory tests.",
+  "pages": [
+    {
+      "number": 2,
+      "text": "Contents & Setup\nPlace the game board in the middle of the table . 1\nShuffle the Exploration cards and form a face down deck on the Exploration 2 Track .\n71 Exploration cards (65 Allies & 6 Monsters):\nBack of the Front\nExploration of the Monsters\ncards Front\nof the Allies\nShuffle the Lord cards and form a face down deck on the Lords space . 3 Then, turn over the top six cards and place them in the Court .\n35 Lords:\nFront of a Back\nMerchant Lord of the Lords"
+    },
+    {
+      "number": 3,
+      "text": "Shuffle the Location tiles and form a face down stack to the side of the\ngame board . THE EXPLORATION TRACK 4 Then, turn over the top tile from the stack .\n20 Locations:\nTHE COUNCIL\nFront of a Location\nBack of the Locations\nShuffle the Monster tokens and place them, face down, by the game board . 5\n20 Monster tokens (2 of value 4, 9 of value 3, and 9 of value 2):\nTHE COURT\nBack of the Front of the\nMonster tokens Monster tokens\nPlace the Threat token on the Threat Track as shown . 6\nPlace the ten Key tokens in a pile near the board 7\nEach player takes one Pearl from the supply, storing it in one of the\nplastic cups. The remaining Pearls are placed in the leftover cups and set 8 beside the board to form a «Treasury».\nRandomly determine the starting player. 9"
+    },
+    {
+      "number": 4,
+      "text": "Game Overview\nThe players take turns, going clockwise."
+    }
+  ]
+}

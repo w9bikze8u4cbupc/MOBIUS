@@ -8,6 +8,7 @@ export function IngestionReviewStep({
   ingestionError,
   gameName,
   gameComponents,
+  componentExtraction,
   setGameComponents,
   onExtractComponents,
   extractingComponents,
@@ -115,6 +116,13 @@ export function IngestionReviewStep({
     acc[cat].push(comp);
     return acc;
   }, {}) || {};
+  const coverage = componentExtraction?.coverage;
+  const reviewRows = (componentExtraction?.rawRows || []).filter((row) => row.reviewRequired);
+  const inventoryCoverageIncomplete = Boolean(componentExtraction && (
+    !componentExtraction.sectionFound
+    || componentExtraction.reviewRequired
+    || (coverage?.unparsedRowCount || 0) > 0
+  ));
   
   return (
     <div className="pipeline-section fade-in">
@@ -182,12 +190,44 @@ export function IngestionReviewStep({
         </div>
       )}
 
+      {inventoryCoverageIncomplete && (
+        <div role="alert" className="status-badge status-badge-warning" style={{ display: 'block', padding: '10px 14px', marginBottom: 12 }}>
+          <strong>Inventory coverage is incomplete.</strong>{' '}
+          {coverage?.rawRowCount ?? 0} source row{coverage?.rawRowCount === 1 ? '' : 's'} inspected;{' '}
+          {coverage?.parsedRowCount ?? 0} parsed; {reviewRows.length} require review;{' '}
+          {coverage?.silentlyDroppedRowCount ?? 0} silently dropped.{' '}
+          {componentExtraction?.sectionFound
+            ? `Detected section: ${componentExtraction.sectionHeading || 'component contents'}.`
+            : 'No component contents heading was detected.'}
+        </div>
+      )}
+
       <div aria-label="Editable component inventory" className="pipeline-card" style={{ marginTop: 16, marginBottom: 16 }}>
         <h4 style={{ margin: 0 }}>Editable Component Inventory</h4>
         <p className="pipeline-muted" style={{ margin: '6px 0 0' }}>
           {namedComponents.length} named component type{namedComponents.length === 1 ? '' : 's'}; edit names, quantities, categories, and details before continuing.
         </p>
       </div>
+
+      {reviewRows.length > 0 && (
+        <div aria-label="Source rows requiring review" className="pipeline-card" style={{ marginTop: 16, marginBottom: 16, borderColor: '#f57c00' }}>
+          <h4 style={{ margin: 0 }}>Source Rows Requiring Review</h4>
+          <p className="pipeline-muted" style={{ margin: '6px 0 12px' }}>
+            These rows are preserved from the detected contents/material section. Resolve them before treating the inventory as complete.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {reviewRows.map((row) => (
+              <div key={row.id} style={{ padding: '10px 12px', background: '#fff8e1', border: '1px solid #ffe0b2', borderRadius: 6 }}>
+                <div style={{ fontSize: 12, color: '#6d4c41', marginBottom: 4 }}>
+                  {row.sourcePage ? `Page ${row.sourcePage}` : 'Page unknown'} · {row.status === 'parsed' ? 'Parsed candidate needs confirmation' : 'Unparsed source row'}
+                </div>
+                <div style={{ fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>“{row.sourceQuote}”</div>
+                {row.reason && <div className="pipeline-muted" style={{ marginTop: 4 }}>{row.reason}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Game Components Section */}
       {gameComponents && (
@@ -359,7 +399,17 @@ export function IngestionReviewStep({
                       </>
                     ) : (
                       <>
-                        <div style={{ fontWeight: 500 }}>{comp.name}</div>
+                        <div>
+                          <div style={{ fontWeight: 500 }}>{comp.name}</div>
+                          <div className="pipeline-muted" style={{ fontSize: 11, marginTop: 3 }}>
+                            {comp.sourcePage ? `Page ${comp.sourcePage}` : 'Page unknown'}{comp.reviewRequired ? ' · Needs review' : ''}
+                          </div>
+                          {comp.sourceQuote && (
+                            <div className="pipeline-muted" style={{ fontSize: 11, marginTop: 2, whiteSpace: 'pre-wrap' }}>
+                              “{comp.sourceQuote}”
+                            </div>
+                          )}
+                        </div>
                         <div style={{ 
                           fontWeight: 600, 
                           color: '#1976d2',

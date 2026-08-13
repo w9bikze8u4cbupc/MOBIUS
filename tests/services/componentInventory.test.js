@@ -95,3 +95,52 @@ describe('component inventory extraction', () => {
     expect(result.components[0]).toMatchObject({ name: 'Ocean cards', quantity: 12, category: 'card', reviewRequired: false });
   });
 });
+
+
+describe('Abyss contents coverage', () => {
+  const abyssContents = require('../fixtures/component-inventory/abyss-contents.json');
+
+  test('preserves every extracted contents row as either a parsed component or an explicit review row', () => {
+    const result = deterministicInventory({ pages: abyssContents.pages });
+
+    expect(result.sectionFound).toBe(true);
+    expect(result.candidateHeadings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ heading: 'Contents & Setup', sourcePage: 2 }),
+    ]));
+    expect(result.coverage.rawRowCount).toBeGreaterThan(0);
+    expect(result.rawRows).toHaveLength(result.coverage.rawRowCount);
+    expect(result.coverage.silentlyDroppedRowCount).toBe(0);
+    expect(result.rawRows.every((row) => row.status === 'parsed' || row.reviewRequired)).toBe(true);
+    expect(result.unparsedRows.every((row) => row.reviewRequired && row.sourceQuote)).toBe(true);
+    expect(result.components).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Exploration cards', quantity: 71, sourcePage: 2, category: 'card' }),
+      expect.objectContaining({ name: 'Lords', quantity: 35, sourcePage: 2, category: 'card' }),
+      expect.objectContaining({ name: 'Locations', quantity: 20, sourcePage: 3, category: 'tile' }),
+      expect.objectContaining({ name: 'Monster tokens', quantity: 20, sourcePage: 3, category: 'token' }),
+      expect.objectContaining({ name: 'game board', sourcePage: 2, category: 'board', reviewRequired: true }),
+      expect.objectContaining({ name: 'Threat token', sourcePage: 3, category: 'token', reviewRequired: true }),
+      expect.objectContaining({ name: 'Key tokens', quantity: 10, sourcePage: 3, category: 'token', reviewRequired: true }),
+      expect.objectContaining({ name: 'Pearl', quantity: 1, sourcePage: 3, category: 'currency', reviewRequired: true }),
+    ]));
+  });
+});
+
+
+test('parses semicolon-separated and table-like quantity rows without losing either cell', () => {
+  const result = deterministicInventory('Components\n7 Cards; 4 tokens    2 dice\nSetup');
+  expect(result.coverage).toMatchObject({ rawRowCount: 3, silentlyDroppedRowCount: 0 });
+  expect(result.components).toEqual(expect.arrayContaining([
+    expect.objectContaining({ name: 'Cards', quantity: 7, category: 'card' }),
+    expect.objectContaining({ name: 'tokens', quantity: 4, category: 'token' }),
+    expect.objectContaining({ name: 'dice', quantity: 2, category: 'dice' }),
+  ]));
+});
+
+test('parses a wrapped quantity-first component row while preserving source-row coverage', () => {
+  const result = deterministicInventory('Components\n71 Exploration\ncards\nSetup');
+  expect(result.components).toEqual(expect.arrayContaining([
+    expect.objectContaining({ name: 'Exploration cards', quantity: 71, category: 'card' }),
+  ]));
+  expect(result.coverage).toMatchObject({ rawRowCount: 2, silentlyDroppedRowCount: 0 });
+  expect(result.rawRows.every((row) => row.status === 'parsed' || row.reviewRequired)).toBe(true);
+});

@@ -304,6 +304,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   const [componentImageLinks, setComponentImageLinks] = useState({});
   const [extractingName, setExtractingName] = useState(false);
   const [gameComponents, setGameComponents] = useState([]);
+  const [componentExtraction, setComponentExtraction] = useState(null);
+  const [rulebookPages, setRulebookPages] = useState([]);
   const [extractingComponents, setExtractingComponents] = useState(false);
 
 
@@ -381,6 +383,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         setIngestionError("");
         const { data } = await axios.post(`${BACKEND_URL}/api/extract-game-components`, {
           text: rulebookText,
+          pages: rulebookPages,
           gameName: gameName || null
         });
         const componentsWithIds = (data.components || [])
@@ -390,6 +393,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
             id: comp.id || `comp-${Date.now()}-${idx}`
           }));
         setGameComponents(componentsWithIds);
+        setComponentExtraction(data);
         if (componentsWithIds.length === 0) {
           setIngestionError(data.message || 'No named physical components were found. Add the inventory manually for review.');
         }
@@ -421,7 +425,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     
     const timer = setTimeout(runAutoExtraction, 300);
     return () => clearTimeout(timer);
-  }, [activeStepId, rulebookText, ingesting, extractingComponents, gameComponents.length, gameName, projectId]);
+  }, [activeStepId, rulebookText, rulebookPages, ingesting, extractingComponents, gameComponents.length, gameName, projectId]);
 
   // Reset auto-trigger when PDF changes
   useEffect(() => {
@@ -441,19 +445,20 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     try {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await getDocument({ data: arrayBuffer }).promise;
+      const pages = [];
       let fullText = "";
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        // Use a space or newline to join items, depending on desired word separation
         const pageText = extractPdfPageText(content.items);
+        pages.push({ number: i, text: pageText });
         fullText += pageText + "\n";
       }
       console.log('Extracted PDF text length:', fullText.length);
       if (!fullText.trim()) {
         throw new Error("No readable text found in the PDF");
       }
-      return fullText;
+      return { text: fullText, pages };
     } catch (err) {
       console.error('PDF extraction error message:', err?.message || 'No message'); console.error('PDF extraction error stack:', err?.stack || 'No stack');
       // Re-throw with a user-friendly message
@@ -548,6 +553,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setIngestionError("");
     setStoryboardError("");
     setGameComponents([]);
+    setComponentExtraction(null);
+    setRulebookPages([]);
     setCompletedStepIds([]);
     setMetadata({ publisher: "", playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "" });
     setShowThemePrompt(false);
@@ -560,9 +567,10 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         setProjectId(createProjectIdFromFilename(file.name));
         setLoading(true);
         const extracted = await extractTextFromPDF(file);
-        setRulebookText(extracted);
+        setRulebookText(extracted.text);
+        setRulebookPages(extracted.pages);
         setLoading(false);
-        extractGameInfoFromText(extracted);
+        extractGameInfoFromText(extracted.text);
       } else {
         setError("Please upload a PDF file");
       }
@@ -616,6 +624,9 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setStoryboardManifest(null);
     setIngestionError("");
     setStoryboardError("");
+    setGameComponents([]);
+    setComponentExtraction(null);
+    setRulebookPages([]);
 
   };
 
@@ -668,6 +679,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       console.log('Extracting game components...');
       const { data } = await axios.post(`${BACKEND_URL}/api/extract-game-components`, {
         text: rulebookText,
+        pages: rulebookPages,
         gameName: gameName || null
       });
       
@@ -680,6 +692,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           id: comp.id || `comp-${Date.now()}-${idx}`
         }));
       setGameComponents(componentsWithIds);
+      setComponentExtraction(data);
       if (componentsWithIds.length === 0) {
         setIngestionError(data.message || 'No named physical components were found. Add the inventory manually for review.');
       }
@@ -1312,6 +1325,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               ingestionError={ingestionError}
               gameName={gameName}
               gameComponents={gameComponents}
+              componentExtraction={componentExtraction}
               setGameComponents={setGameComponents}
               onExtractComponents={handleExtractComponents}
               extractingComponents={extractingComponents}

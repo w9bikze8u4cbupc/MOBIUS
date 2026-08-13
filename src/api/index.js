@@ -327,20 +327,27 @@ ${sampleText}`
 // --- Canonical inventory extraction ---
 app.post('/api/extract-game-components', async (req, res) => {
   try {
-    const { text, gameName } = req.body || {};
-    if (!text || String(text).trim().length < 40) {
+    const { text, pages, gameName } = req.body || {};
+    const normalizedPages = Array.isArray(pages) ? pages : [];
+    const sourceText = String(text || normalizedPages.map((page) => page?.text || '').join('\n'));
+    if (sourceText.trim().length < 40) {
       return res.status(400).json({ error: 'Insufficient text provided for component extraction' });
     }
 
-    const inventory = await extractComponentInventory(String(text), {
-      gameName,
-      llm: openai,
-      llmConfigured: Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY),
-    });
+    // Canonical inventory extraction is deterministic and source-grounded. This route
+    // intentionally never invokes an external model for reviewable inventory evidence.
+    const inventory = await extractComponentInventory(
+      normalizedPages.length > 0 ? { pages: normalizedPages } : sourceText,
+      { gameName, llmConfigured: false },
+    );
 
     console.log(`[Inventory] ${inventory.components.length} named components via ${inventory.extractionMethod}`);
     return res.json({
       components: inventory.components,
+      rawRows: inventory.rawRows,
+      unparsedRows: inventory.unparsedRows,
+      candidateHeadings: inventory.candidateHeadings,
+      coverage: inventory.coverage,
       gameName: gameName || null,
       extractionMethod: inventory.extractionMethod,
       sectionFound: inventory.sectionFound,
