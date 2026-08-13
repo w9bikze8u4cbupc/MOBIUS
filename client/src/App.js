@@ -276,6 +276,7 @@ function App() {
   const [audio, setAudio] = useState({}); // Stores Blob URLs for generated audio sections
   const [audioLoading, setAudioLoading] = useState({}); // Loading state for individual audio sections
   const [error, setError] = useState(""); // General error message display
+  const [summaryWarning, setSummaryWarning] = useState("");
   // eslint-disable-next-line no-unused-vars
 const [dragActive, setDragActive] = useState(false); // For drag and drop file area
   // eslint-disable-next-line no-unused-vars
@@ -559,6 +560,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setMetadata({ publisher: "", playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "" });
     setShowThemePrompt(false);
     setError("");
+    setSummaryWarning("");
     setTranslationStatus({ isTranslating: false, error: null });
 
 
@@ -619,6 +621,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setMetadata({ publisher: "", playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "" });
     setShowThemePrompt(false);
     setError("");
+    setSummaryWarning("");
     setTranslationStatus({ isTranslating: false, error: null });
     setIngestionManifest(null);
     setStoryboardManifest(null);
@@ -637,6 +640,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     }
 
     setIngesting(true);
+    setError("");
     setIngestionError("");
     setStoryboardManifest(null);
 
@@ -658,8 +662,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       setIngestionManifest(data.manifest);
     } catch (err) {
       setIngestionManifest(null);
-      const apiError = err.response?.data?.code || err.response?.data?.error || err.message;
-      setIngestionError(apiError);
+      const apiError = err.response?.data?.code || err.response?.data?.error || err.message || 'Unknown error';
+      setIngestionError(`Document structure analysis failed: ${apiError}`);
     } finally {
       setIngesting(false);
     }
@@ -829,7 +833,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   // Handle submission of the theme prompt modal
   const handleThemeSubmit = async () => {
     if (!metadata.theme.trim() || metadata.theme === "Not found") {
-      setError("Please provide a valid theme for the game");
+      setSummaryWarning("Please provide a valid theme for the optional AI summary.");
       return;
     }
     // Proceed with summarization after theme is provided
@@ -925,7 +929,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   const handleSummarize = async () => {
     // Reset relevant states for a new summarization request
     setLoading(true);
-    setError("");
+    setSummaryWarning("");
     setSummary("");
     setEditedSummary("");
     setSections([]);
@@ -936,12 +940,12 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
     // Basic input validation
     if (!rulebookText.trim()) {
-      setError("Please provide rulebook text.");
+      setSummaryWarning("Please provide rulebook text before generating an optional AI summary.");
       setLoading(false);
       return;
     }
     if (!gameName.trim()) {
-      setError("Please provide a game name.");
+      setSummaryWarning("Please provide a game name before generating an optional AI summary.");
       setLoading(false);
       return;
     }
@@ -987,7 +991,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
       } else {
         // Handle cases where no summary or needsTheme is in the response
-        setError("Backend returned an unexpected response.");
+        setSummaryWarning("Optional AI summary returned an unexpected response.");
         console.error("Unexpected backend response:", response.data);
         setTranslationStatus({ isTranslating: false, error: null }); // Clear translation status on unexpected response
 
@@ -996,7 +1000,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     } catch (err) {
       // Handle errors from the axios request (e.g., network error, 500 status)
       console.error('Error during summarization request:', err);
-      setError(err.response?.data?.error || `Failed to generate summary: ${err.message}`);
+      setSummaryWarning(err.response?.data?.error || `Optional AI summary failed: ${err.message}`);
 
       // Check for specific backend errors related to translation failure
       if (err.response?.data?.fallbackLanguage) {
@@ -1278,7 +1282,6 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           />
 
           {error && (<div style={{ color: "red", marginBottom: 12 }}>{error}</div>)}
-          {translationStatus.error && (<div style={{ color: "orange", marginBottom: 12 }}>{translationStatus.error}</div>)}
 
           {activeStepId === "project" && (
             <ProjectSetupStep
@@ -1359,7 +1362,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               onEdit={handleSummaryEdit}
               onSave={handleSaveSummary}
               translationStatus={translationStatus}
-              error={error}
+              summaryWarning={summaryWarning}
             />
           )}
 

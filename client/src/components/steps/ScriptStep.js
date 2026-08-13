@@ -11,7 +11,7 @@ export function ScriptStep({
   onEdit,
   onSave,
   translationStatus,
-  error,
+  summaryWarning,
 }) {
   const canGenerate = rulebookText?.trim() && gameName?.trim();
   
@@ -19,8 +19,7 @@ export function ScriptStep({
     <div className="pipeline-section fade-in">
       <h3>Script Generation & Edit</h3>
       <p className="pipeline-muted" style={{ marginBottom: 16 }}>
-        Generate a professional tutorial script from your rulebook using AI. 
-        The script will include visual cues and timing suggestions for video production.
+        Generate an optional AI tutorial summary from your rulebook. This does not affect document structure analysis or Ingestion Review confirmation.
       </p>
       
       <div className="pipeline-actions" style={{ marginBottom: 16 }}>
@@ -35,7 +34,7 @@ export function ScriptStep({
               Generating Script...
             </>
           ) : (
-            "Generate Tutorial Script"
+            "Generate optional AI summary"
           )}
         </button>
         <button 
@@ -59,9 +58,9 @@ export function ScriptStep({
         </div>
       )}
       
-      {error && (
-        <div className="status-badge status-badge-error" style={{ display: 'block', padding: '10px 14px', marginBottom: 12 }}>
-          {error}
+      {summaryWarning && (
+        <div className="status-badge status-badge-warning" style={{ display: 'block', padding: '10px 14px', marginBottom: 12 }}>
+          {summaryWarning}
         </div>
       )}
       
