@@ -1,0 +1,46 @@
+[
+  {
+    "id": "card-front-1",
+    "label": "Abyss card front",
+    "type": "card",
+    "is_component": true,
+    "width": 800,
+    "height": 500,
+    "file_path": "data/fixture/card-front-1.png",
+    "thumbnail_path": "data/fixture/card-front-1-thumb.png",
+    "contentHash": "same-card-pixels"
+  },
+  {
+    "id": "card-front-2",
+    "label": "Abyss card front repeated placement",
+    "type": "card",
+    "is_component": true,
+    "width": 800,
+    "height": 500,
+    "file_path": "data/fixture/card-front-2.png",
+    "thumbnail_path": "data/fixture/card-front-2-thumb.png",
+    "contentHash": "same-card-pixels"
+  },
+  {
+    "id": "blue-star-fragment",
+    "label": "decorative blue star glyph",
+    "type": "other",
+    "is_component": false,
+    "width": 24,
+    "height": 24,
+    "file_path": "data/fixture/star.png",
+    "thumbnail_path": "data/fixture/star-thumb.png",
+    "contentHash": "star-pixels"
+  },
+  {
+    "id": "card-back",
+    "label": "Abyss card back",
+    "type": "card",
+    "is_component": true,
+    "width": 800,
+    "height": 500,
+    "file_path": "data/fixture/card-back.png",
+    "thumbnail_path": "data/fixture/card-back-thumb.png",
+    "contentHash": "card-back-pixels"
+  }
+]

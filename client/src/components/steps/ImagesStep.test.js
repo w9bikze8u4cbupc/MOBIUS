@@ -113,3 +113,58 @@ test('Auto-Gather sends the original File as FormData field file', async () => {
 
   expect(axios.post.mock.calls[0][1].get('file')).toBe(pdfFile);
 });
+
+test('separates curated candidates from raw HEPHAESTUS assets and supports ranked preview review', async () => {
+  const curatedImage = {
+    id: 'heph-card-front',
+    source: 'hephaestus',
+    label: 'Ocean Card',
+    type: 'card',
+    fileKey: 'data/abyss/card.png',
+    thumbnailKey: 'data/abyss/card-thumb.png',
+    curation: { candidate: true, score: 0.9, reasons: [] },
+    metadata: { classification: 'card', curation: { candidate: true, score: 0.9 } },
+  };
+  const rawImage = {
+    id: 'heph-star',
+    source: 'hephaestus',
+    label: 'decorative star',
+    fileKey: 'data/abyss/star.png',
+    thumbnailKey: 'data/abyss/star-thumb.png',
+    curation: { candidate: false, score: 0.1, reasons: ['decorative'] },
+    metadata: { curation: { candidate: false, score: 0.1, reasons: ['decorative'] } },
+  };
+  const images = [curatedImage, rawImage];
+  axios.get.mockResolvedValue({ data: { images, componentImages: {} } });
+  axios.post.mockResolvedValue({
+    data: {
+      images,
+      componentImages: {},
+      candidates: {
+        'comp-card': [{ imageId: curatedImage.id, score: 0.9, autoLink: true, reasons: ['category/type match', 'name/OCR proximity'] }],
+      },
+      stats: { total: 1, totalMatched: 1, ruleMatched: 1, unmatched: 0 },
+      matched: 1,
+    },
+  });
+
+  render(
+    <ImagesStep
+      projectId="abyss-upload-abc123"
+      pdfFile={pdfFile}
+      components={[{ id: 'comp-card', name: 'Ocean Card', category: 'card', quantity: 1 }]}
+      images={images}
+      componentImages={{}}
+    />
+  );
+
+  expect(screen.getByText('Curated Component Candidates (1)')).toBeInTheDocument();
+  expect(screen.getByText(/Raw extracted assets \(2\)/i)).toBeInTheDocument();
+  expect(screen.getByText('decorative star').closest('details')).not.toHaveAttribute('open');
+
+  fireEvent.click(screen.getByRole('button', { name: /Auto-Match Components to Images/i }));
+  expect(await screen.findByText(/Ranked candidates \(1\)/i)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /90% auto-link/i }));
+  expect(screen.getByRole('dialog', { name: /Full-resolution image preview/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Link this representative image/i })).toBeInTheDocument();
+});

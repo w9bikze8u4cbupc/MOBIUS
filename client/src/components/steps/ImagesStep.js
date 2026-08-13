@@ -68,6 +68,7 @@ export function ImagesStep({
   const [loading, setLoading] = useState(false);
   const [autoGatherStatus, setAutoGatherStatus] = useState(null);
   const [matchingStatus, setMatchingStatus] = useState(null);
+  const [matchingCandidates, setMatchingCandidates] = useState({});
   const [croppingStatus, setCroppingStatus] = useState(null);
   const [manualBggUrl, setManualBggUrl] = useState(bggUrl || "");
   const [manualPdfPath, setManualPdfPath] = useState("");
@@ -81,6 +82,8 @@ export function ImagesStep({
   const [hephaestusStatus, setHephaestusStatus] = useState(null);
   const [readinessError, setReadinessError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [previewImageId, setPreviewImageId] = useState(null);
+  const [previewComponentId, setPreviewComponentId] = useState(null);
 
   const normalizedProjectId = String(projectId || '').trim();
   const imageActionsReady = Boolean(normalizedProjectId && pdfFile);
@@ -110,14 +113,20 @@ export function ImagesStep({
     load();
   }, [normalizedProjectId, onImagesUpdated]);
 
+  const curatedImages = useMemo(() => (localImages || []).filter((image) => {
+    const curation = image.curation || image.metadata?.curation;
+    return image.source !== 'hephaestus' || curation?.candidate !== false;
+  }), [localImages]);
+  const rawHephaestusImages = useMemo(() => (localImages || []).filter((image) => image.source === 'hephaestus'), [localImages]);
+
   const groupedImages = useMemo(() => {
-    return (localImages || []).reduce((acc, img) => {
+    return curatedImages.reduce((acc, img) => {
       const bucket = img.source || "unknown";
       acc[bucket] = acc[bucket] || [];
       acc[bucket].push(img);
       return acc;
     }, {});
-  }, [localImages]);
+  }, [curatedImages]);
 
   const refreshState = (payload) => {
     setLocalImages(payload.images || []);
@@ -438,6 +447,7 @@ export function ImagesStep({
       });
       
       refreshState(res.data || {});
+      setMatchingCandidates(res.data?.candidates || {});
       
       const stats = res.data.stats || {};
       const matched = res.data.matched || 0;
@@ -576,6 +586,20 @@ export function ImagesStep({
     }
   };
 
+  const handleRepresentativeLink = async (componentId, imageId) => {
+    if (!projectId || !componentId || !imageId) return;
+    const next = new Set(localLinks[componentId] || []);
+    next.add(imageId);
+    try {
+      const res = await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/components/${componentId}/images`, {
+        imageIds: Array.from(next),
+      });
+      refreshState(res.data || {});
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const toggleSourceExpand = (source) => {
     setExpandedSources(prev => ({ ...prev, [source]: !prev[source] }));
   };
@@ -619,9 +643,13 @@ export function ImagesStep({
   const getCategoryIcon = (category) => {
     const icons = {
       cards: '🃏',
+      card: '🃏',
       tokens: '🔘',
+      token: '🔘',
       boards: '🎲',
+      board: '🎲',
       tiles: '🧩',
+      tile: '🧩',
       dice: '🎯',
       meeples: '👤',
       miniatures: '🏰',
@@ -981,11 +1009,11 @@ export function ImagesStep({
         </details>
       )}
 
-      {/* Image gallery */}
-      {localImages.length > 0 && (
+      {/* Curated image gallery */}
+      {curatedImages.length > 0 && (
         <div style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <h4 style={{ margin: 0 }}>Available Images ({localImages.length})</h4>
+            <h4 style={{ margin: 0 }}>Curated Component Candidates ({curatedImages.length})</h4>
             <button
               onClick={async () => {
                 setRefreshing(true);
@@ -1128,8 +1156,28 @@ export function ImagesStep({
         </div>
       )}
 
+      {rawHephaestusImages.length > 0 && (
+        <details style={{ marginBottom: 20 }}>
+          <summary style={{ cursor: 'pointer', color: '#666', fontSize: 14 }}>
+            Raw extracted assets ({rawHephaestusImages.length}) — advanced/debug view
+          </summary>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10, padding: 10, background: '#fafafa', borderRadius: 8 }}>
+            {rawHephaestusImages.map((image) => {
+              const thumbnailUrl = getImageThumbnailUrl(projectId, image);
+              return (
+                <button key={image.id} type="button" onClick={() => setPreviewImageId(image.id)} style={{ width: 88, padding: 4, border: '1px solid #ddd', background: 'white', borderRadius: 4 }}>
+                  {thumbnailUrl && <img src={thumbnailUrl} alt={image.label || image.id} style={{ width: 76, height: 56, objectFit: 'contain' }} />}
+                  <div style={{ fontSize: 9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{image.label || image.id}</div>
+                  <div style={{ fontSize: 9, color: '#777' }}>{image.metadata?.curation?.reasons?.join(', ') || 'raw asset'}</div>
+                </button>
+              );
+            })}
+          </div>
+        </details>
+      )}
+
       {/* Component matching section */}
-      {components.length > 0 && localImages.length > 0 && (
+      {components.length > 0 && curatedImages.length > 0 && (
         <div style={{ 
           background: 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)', 
           padding: 20, 
@@ -1235,13 +1283,13 @@ export function ImagesStep({
       {/* Component list with linked images */}
       <div style={{ marginTop: 24 }}>
         <h4>Component Image Links</h4>
-        {localImages.filter((image) => image.source === 'hephaestus').length > 0 && (
+        {curatedImages.filter((image) => image.source === 'hephaestus').length > 0 && (
           <div style={{ marginBottom: 12, padding: 12, background: '#fff3e0', borderRadius: 8 }}>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
               HEPHAESTUS Native Images — select a component below to link them
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {localImages.filter((image) => image.source === 'hephaestus').map((image) => {
+              {curatedImages.filter((image) => image.source === 'hephaestus').map((image) => {
                 const thumbnailUrl = getImageThumbnailUrl(projectId, image);
                 return (
                   <div key={image.id} style={{ width: 92, fontSize: 10, color: '#555' }}>
@@ -1283,7 +1331,11 @@ export function ImagesStep({
                     justifyContent: 'space-between',
                     cursor: 'pointer'
                   }}
-                  onClick={() => setSelectedComponent(isSelected ? null : component.id)}
+                  onClick={() => {
+                    setSelectedComponent(isSelected ? null : component.id);
+                    setPreviewImageId(null);
+                    setPreviewComponentId(null);
+                  }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 20 }}>{getCategoryIcon(component.category)}</span>
@@ -1339,9 +1391,52 @@ export function ImagesStep({
                     <span style={{ color: '#999' }}>{isSelected ? '▲' : '▼'}</span>
                   </div>
                 </div>
-                
+
+                {matchingCandidates[component.id]?.length > 0 && (
+                  <div style={{ marginTop: 10, padding: 10, background: '#f3f8ff', borderRadius: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+                      Ranked candidates ({matchingCandidates[component.id].length})
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {matchingCandidates[component.id].slice(0, 6).map((candidate) => {
+                        const candidateImage = getImageById(candidate.imageId);
+                        const candidateUrl = candidateImage ? getImageThumbnailUrl(projectId, candidateImage) : null;
+                        return (
+                          <button
+                            key={candidate.imageId}
+                            type="button"
+                            onClick={() => { setSelectedComponent(component.id); setPreviewImageId(candidate.imageId); setPreviewComponentId(component.id); }}
+                            title={candidate.reasons.join('; ')}
+                            style={{ padding: 4, border: candidate.autoLink ? '2px solid #43a047' : '1px solid #90a4ae', background: 'white', borderRadius: 5, width: 88 }}
+                          >
+                            {candidateUrl && <img src={candidateUrl} alt={candidateImage.label || candidate.imageId} style={{ width: 76, height: 56, objectFit: 'contain' }} />}
+                            <div style={{ fontSize: 10 }}>{Math.round(candidate.score * 100)}% {candidate.autoLink ? 'auto-link' : 'review'}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {isSelected && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e0e0e0' }}>
+                  <>
+                    {previewComponentId === component.id && previewImageId && localImages.find((image) => image.id === previewImageId) && (
+                      <div role="dialog" aria-label="Full-resolution image preview" style={{ marginTop: 12, padding: 12, background: '#fffde7', border: '1px solid #fbc02d', borderRadius: 6 }}>
+                        <div style={{ fontWeight: 600, marginBottom: 8 }}>Full-resolution preview</div>
+                        <img
+                          src={getImageUrl(projectId, localImages.find((image) => image.id === previewImageId))}
+                          alt={localImages.find((image) => image.id === previewImageId).label || previewImageId}
+                          style={{ maxWidth: '100%', maxHeight: 420, objectFit: 'contain', display: 'block', marginBottom: 8 }}
+                        />
+                        <button type="button" className="pipeline-btn pipeline-btn-primary" onClick={() => { handleRepresentativeLink(component.id, previewImageId); setPreviewImageId(null); setPreviewComponentId(null); }}>
+                          Link this representative image
+                        </button>
+                        <button type="button" className="pipeline-btn" onClick={() => setPreviewImageId(null)} style={{ marginLeft: 8 }}>
+                          Close preview
+                        </button>
+                      </div>
+                    )}
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e0e0e0' }}>
                     {/* Show currently linked images with thumbnails */}
                     {linkedImageIds.length > 0 && (
                       <div style={{ marginBottom: 16 }}>
@@ -1454,7 +1549,7 @@ export function ImagesStep({
                       gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', 
                       gap: 8 
                     }}>
-                      {[...localImages]
+                      {[...curatedImages]
                         .sort((a, b) => {
                           // Prioritize HEPHAESTUS images
                           if (a.source === 'hephaestus' && b.source !== 'hephaestus') return -1;
@@ -1476,7 +1571,7 @@ export function ImagesStep({
                           <button
                             key={img.id}
                             className="image-thumbnail-btn"
-                            onClick={() => handleComponentLink(component.id, img.id)}
+                            onClick={() => { setSelectedComponent(component.id); setPreviewImageId(img.id); }}
                             style={{
                               padding: 4,
                               borderRadius: 6,
@@ -1517,6 +1612,7 @@ export function ImagesStep({
                       })}
                     </div>
                   </div>
+                  </>
                 )}
               </div>
             );

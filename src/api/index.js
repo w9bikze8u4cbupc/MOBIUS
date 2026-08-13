@@ -72,7 +72,7 @@ import {
   normalizeImageAsset,
   runImageEnhancement,
 } from '../services/imagePipeline.js';
-import { fetchImagesFromExtractor } from '../services/imageExtractorClient.js';
+import { extractComponentInventory } from '../services/componentInventory.js';
 
 
 
@@ -324,85 +324,34 @@ ${sampleText}`
   }
 });
 
-// --- AI-Powered Game Component Extraction ---
-// Extracts exact physical game components with quantities from rulebook text
+// --- Canonical inventory extraction ---
 app.post('/api/extract-game-components', async (req, res) => {
   try {
-    const { text, gameName } = req.body;
-    
-    if (!text || text.length < 100) {
+    const { text, gameName } = req.body || {};
+    if (!text || String(text).trim().length < 40) {
       return res.status(400).json({ error: 'Insufficient text provided for component extraction' });
     }
-    
-    console.log('Extracting game components for:', gameName || 'Unknown game');
-    
-    // Use first 8000 chars for component extraction
-    const sampleText = text.substring(0, 8000);
-    
-    const response = await openai.chat.completions.create({
-      model: DEFAULT_AI_MODEL,
-      messages: [
-        {
-          role: 'user',
-          content: `List all physical game components from this board game rulebook. Return ONLY a JSON array.
 
-Each component should have:
-- name: component name
-- quantity: number or description like "4" or "1 per player"
-- category: one of cards, tokens, boards, tiles, dice, meeples, miniatures, markers, cubes, other
-- details: colors or other details, or empty string
-
-Example format:
-[{"name": "Player Board", "quantity": "4", "category": "boards", "details": "double-sided"},{"name": "Resource Tokens", "quantity": "50", "category": "tokens", "details": "10 each of 5 colors"}]
-
-Rulebook text:
-${sampleText}
-
-Return only the JSON array:`
-        }
-      ],
-      max_completion_tokens: 1500
+    const inventory = await extractComponentInventory(String(text), {
+      gameName,
+      llm: openai,
+      llmConfigured: Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY),
     });
-    
-    let content = response.choices[0]?.message?.content?.trim() || '[]';
-    content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    
-    let components = [];
-    try {
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        components = JSON.parse(jsonMatch[0]);
-      } else {
-        components = JSON.parse(content);
-      }
-    } catch (parseErr) {
-      console.error('Failed to parse components JSON:', parseErr.message);
-      return res.status(500).json({ error: 'Failed to parse component list', raw: content });
-    }
-    
-    if (!Array.isArray(components)) {
-      components = [];
-    }
-    
-    // Normalize and validate components
-    const normalizedComponents = components.map((c, idx) => ({
-      id: `comp-${idx + 1}`,
-      name: c.name || 'Unknown Component',
-      quantity: c.quantity || 'N/A',
-      category: c.category || 'other',
-      details: c.details || '',
-    }));
-    
-    console.log(`Extracted ${normalizedComponents.length} components`);
-    res.json({ 
-      components: normalizedComponents,
+
+    console.log(`[Inventory] ${inventory.components.length} named components via ${inventory.extractionMethod}`);
+    return res.json({
+      components: inventory.components,
       gameName: gameName || null,
-      extractedAt: new Date().toISOString()
+      extractionMethod: inventory.extractionMethod,
+      sectionFound: inventory.sectionFound,
+      sectionHeading: inventory.sectionHeading,
+      reviewRequired: inventory.reviewRequired,
+      message: inventory.message,
+      extractedAt: new Date().toISOString(),
     });
-    
   } catch (err) {
-    console.error('Component extraction error:', err.message);
-    res.status(500).json({ error: 'Failed to extract components', details: err.message });
+    console.error('Component inventory extraction error:', err);
+    return res.status(500).json({ error: 'Failed to extract components', details: err.message });
   }
 });
 

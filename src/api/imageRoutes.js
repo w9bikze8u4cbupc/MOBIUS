@@ -40,9 +40,9 @@ import {
   extractWithHephaestus,
   isHephaestusAvailable,
 } from '../services/hephaestusService.js';
-import {
-  hybridMatch,
-} from '../services/hybridMatcher.js';
+import { curateHephaestusAssets } from '../services/hephaestusCuration.js';
+import { hybridMatch } from '../services/hybridMatcher.js';
+
 
 export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {}) {
   const uploadMiddleware = upload || { single: () => (_req, _res, next) => next() };
@@ -395,9 +395,10 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         });
       }
 
-      const images = nativeImages.map((img) => {
+      const curatedResult = curateHephaestusAssets(nativeImages);
+      const images = curatedResult.assets.map((img) => {
         const imageId = `heph_${img.id}`;
-        const type = ['card', 'token', 'board'].includes(img.type) ? img.type : 'other';
+        const type = ['card', 'token', 'board', 'tile', 'dice', 'marker', 'miniature', 'currency'].includes(img.type) ? img.type : 'other';
         const localUrl = `/api/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(imageId)}/file`;
         return normalizeImageAsset({
           id: imageId,
@@ -422,8 +423,11 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
             native: img.native === true,
             originalDimensions: img.original_dimensions,
             upscaleFactor: img.upscale_factor,
+            contentHash: img.contentHash,
+            curation: img.curation,
           },
-          quality: { score: 1, notes: 'Native PyMuPDF image upscaled 3x with Lanczos' },
+          curation: img.curation,
+          quality: { score: img.curation.score, notes: img.curation.reasons.join('; ') || 'Curated native PDF asset' },
         });
       });
 
@@ -434,10 +438,11 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
       return res.json({
         success: true,
         mode: 'hephaestus',
-        message: `Extracted ${images.length} native images with 3x Lanczos upscaling`,
-        stats: result.stats || {},
+        message: `Extracted ${images.length} raw native images; ${curatedResult.stats.curatedCount} curated candidates are ready for review`,
+        stats: { ...(result.stats || {}), ...curatedResult.stats },
         manifestPath: result.manifest_path,
         imagesCount: images.length,
+        curatedCount: curatedResult.stats.curatedCount,
         images: updatedState.images,
         componentImages: updatedState.componentImages,
       });
@@ -618,8 +623,13 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
   app.post('/api/projects/:projectId/images/auto-match', async (req, res) => {
     const { projectId } = req.params;
     const { components = [], gameName } = req.body || {};
+    const validComponents = components.filter((component) => component && String(component.name || '').trim());
+
+    if (validComponents.length === 0) {
+      return res.status(400).json({ error: 'A named component inventory is required before matching.' });
+    }
     
-    console.log('[HybridMatch] Starting for', components.length, 'components');
+    console.log('[HybridMatch] Starting for', validComponents.length, 'components');
     
     try {
       const state = listImages(projectId);
@@ -629,14 +639,14 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         return res.json({ 
           message: 'No images available for matching',
           matched: 0,
-          stats: { total: components.length, totalMatched: 0 },
+          stats: { total: validComponents.length, totalMatched: 0 },
           images: [],
           componentImages: {} 
         });
       }
       
       // Use hybrid matching: rule-based first, then AI vision for remaining
-      const result = await hybridMatch(components, images, gameName, openai);
+      const result = await hybridMatch(validComponents, images, gameName, openai);
       
       // Apply the matches
       for (const [componentId, imageIds] of Object.entries(result.matches)) {
@@ -650,6 +660,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
       
       res.json({ 
         matched: result.stats.totalMatched,
+        candidates: result.candidates,
         stats: result.stats,
         images: updatedState.images, 
         componentImages: updatedState.componentImages 

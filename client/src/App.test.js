@@ -10,7 +10,7 @@ jest.mock('axios', () => ({
 
 import axios from 'axios';
 import { getDocument } from 'pdfjs-dist';
-import App, { createProjectIdFromFilename } from './App';
+import App, { createProjectIdFromFilename, hasValidComponentInventory, extractPdfPageText } from './App';
 
 jest.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: {},
@@ -83,4 +83,18 @@ test('successful game-name extraction does not overwrite the filename-derived pr
   });
 
   expect(screen.getByPlaceholderText('Auto-generated from uploaded PDF filename').value).toMatch(/^abyss-/);
+});
+
+test('inventory confirmation rejects blank and sentence-shaped pseudo-components', () => {
+  expect(hasValidComponentInventory([{ id: 'blank', name: '   ' }])).toBe(false);
+  expect(hasValidComponentInventory([{ id: 'page', name: 'This is a whole page of rulebook text with no component boundary.' }])).toBe(false);
+  expect(hasValidComponentInventory([{ id: 'card', name: 'Ocean cards' }])).toBe(true);
+});
+
+test('PDF text extraction preserves positioned text lines for inventory parsing', () => {
+  expect(extractPdfPageText([
+    { str: 'Components', transform: [1, 0, 0, 1, 20, 100] },
+    { str: '7 Cards', transform: [1, 0, 0, 1, 20, 80] },
+    { str: 'Setup', transform: [1, 0, 0, 1, 20, 60] },
+  ])).toBe('Components\n7 Cards\nSetup');
 });

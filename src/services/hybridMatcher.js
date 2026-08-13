@@ -19,6 +19,7 @@ const CATEGORY_TO_CLASSIFICATION = {
   'resources': ['resource', 'token', 'cube'],
   'money': ['coin', 'token', 'currency'],
   'coins': ['coin', 'token'],
+  'currency': ['coin', 'coins', 'currency', 'money'],
 };
 
 function normalizeCategory(cat) {
@@ -31,60 +32,92 @@ function normalizeClassification(cls) {
   return cls.toLowerCase().replace(/[^a-z]/g, '');
 }
 
+function tokenize(value) {
+  return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter((token) => token.length > 2);
+}
+
+function rankCandidate(component, image) {
+  const componentName = normalizeCategory(component.name);
+  const componentTokens = tokenize(component.name);
+  const metadata = image.metadata || {};
+  const label = normalizeCategory(`${image.label || ''} ${image.name || ''} ${metadata.label || ''} ${(image.tags || []).join(' ')}`);
+  const classification = normalizeClassification(metadata.classification || image.type);
+  const allowedClassifications = Object.entries(CATEGORY_TO_CLASSIFICATION)
+    .filter(([cat]) => normalizeCategory(cat) === normalizeCategory(component.category) || normalizeCategory(cat).includes(normalizeCategory(component.category)))
+    .flatMap(([, values]) => values);
+
+  const reasons = [];
+  let score = 0;
+  if (allowedClassifications.some((value) => classification.includes(normalizeClassification(value)) || label.includes(normalizeClassification(value)))) {
+    score += 0.35;
+    reasons.push('category/type match');
+  }
+  const nameTokenMatches = componentTokens.filter((token) => label.includes(token));
+  if (componentName && label.includes(componentName)) {
+    score += 0.4;
+    reasons.push('exact name/label match');
+  } else if (nameTokenMatches.length > 0) {
+    score += Math.min(0.3, nameTokenMatches.length * 0.1);
+    reasons.push(`name/OCR proximity (${nameTokenMatches.join(', ')})`);
+  }
+  if (Number.isInteger(component.sourcePage) && Number.isInteger(metadata.page) && component.sourcePage === metadata.page) {
+    score += 0.08;
+    reasons.push('same source page');
+  }
+  const curationScore = Number(image.curation?.score ?? metadata.curation?.score ?? 0);
+  if (curationScore > 0) {
+    score += Math.min(0.12, curationScore * 0.12);
+    reasons.push(`curation score ${curationScore.toFixed(2)}`);
+  }
+  const confidence = Number(metadata.confidence || 0);
+  if (confidence > 0) score += Math.min(0.1, confidence * 0.1);
+  if (image.curation?.isDuplicate || metadata.curation?.isDuplicate) {
+    score -= 0.2;
+    reasons.push('duplicate deprioritized');
+  }
+  return {
+    imageId: image.id,
+    score: Number(Math.max(0, Math.min(1, score)).toFixed(3)),
+    autoLink: score >= 0.72 && !image.curation?.isDuplicate && !metadata.curation?.isDuplicate,
+    reasons: reasons.length ? reasons : ['weak visual/category evidence; operator review required'],
+  };
+}
+
+function isCuratedCandidate(image) {
+  const curation = image.curation || image.metadata?.curation;
+  return curation?.candidate !== false && curation?.isDuplicate !== true;
+}
+
+function rankInventoryCandidates(components, images) {
+  const rankedCandidates = {};
+  for (const component of components) {
+    const ranked = images
+      .filter(isCuratedCandidate)
+      .map((image) => rankCandidate(component, image))
+      .sort((a, b) => b.score - a.score);
+    rankedCandidates[component.id] = ranked;
+  }
+  return rankedCandidates;
+}
+
 function ruleBasedMatch(components, images) {
+  const rankedCandidates = rankInventoryCandidates(components, images);
   const matches = {};
   const unmatchedComponents = [];
   const usedImages = new Set();
 
   for (const component of components) {
-    const compCategory = normalizeCategory(component.category);
-    const compName = (component.name || '').toLowerCase();
-    
-    const allowedClassifications = [];
-    for (const [cat, classes] of Object.entries(CATEGORY_TO_CLASSIFICATION)) {
-      if (compCategory.includes(normalizeCategory(cat)) || normalizeCategory(cat).includes(compCategory)) {
-        allowedClassifications.push(...classes);
-      }
-    }
-    
-    if (allowedClassifications.length === 0) {
-      allowedClassifications.push(compCategory);
-    }
-
-    const candidateImages = images.filter(img => {
-      if (usedImages.has(img.id)) return false;
-      
-      const imgClassification = normalizeClassification(img.metadata?.classification);
-      const imgLabel = (img.metadata?.label || '').toLowerCase();
-      const imgTags = (img.tags || []).map(t => t.toLowerCase());
-      
-      const classMatch = allowedClassifications.some(cls => 
-        imgClassification.includes(cls) || imgTags.some(t => t.includes(cls))
-      );
-      
-      const labelMatch = imgLabel && (
-        compName.includes(imgLabel) || 
-        imgLabel.includes(compName.split(' ')[0])
-      );
-      
-      return classMatch || labelMatch;
-    });
-
-    if (candidateImages.length > 0) {
-      const sorted = candidateImages.sort((a, b) => {
-        const confA = a.metadata?.confidence || 0;
-        const confB = b.metadata?.confidence || 0;
-        return confB - confA;
-      });
-      
-      matches[component.id] = sorted.slice(0, 3).map(img => img.id);
-      sorted.slice(0, 1).forEach(img => usedImages.add(img.id));
+    const ranked = rankedCandidates[component.id] || [];
+    const highConfidence = ranked.filter((candidate) => candidate.autoLink && !usedImages.has(candidate.imageId));
+    if (highConfidence.length > 0) {
+      matches[component.id] = [highConfidence[0].imageId];
+      usedImages.add(highConfidence[0].imageId);
     } else {
       unmatchedComponents.push(component);
     }
   }
 
-  return { matches, unmatchedComponents, usedImages };
+  return { matches, rankedCandidates, unmatchedComponents, usedImages };
 }
 
 async function visionMatch(components, images, gameName, openai) {
@@ -115,6 +148,7 @@ async function visionMatch(components, images, gameName, openai) {
         
         // Filter and sort images by relevance to this component
         const candidateImages = images
+          .filter(isCuratedCandidate)
           .filter(img => img.fileKey && fs.existsSync(img.fileKey))
           .map(img => {
             const imgClass = normalizeClassification(img.metadata?.classification);
@@ -207,8 +241,7 @@ async function hybridMatch(components, images, gameName, openai) {
   console.log(`[HybridMatcher] Using ${hephaestusImages.length} HEPHAESTUS images for matching`);
 
   console.log('[HybridMatcher] Stage 1: Rule-based matching');
-  const { matches: ruleMatches, unmatchedComponents } = ruleBasedMatch(components, hephaestusImages);
-  
+  const { matches: ruleMatches, rankedCandidates, unmatchedComponents } = ruleBasedMatch(components, hephaestusImages);
   const ruleMatchedCount = Object.keys(ruleMatches).filter(k => ruleMatches[k]?.length > 0).length;
   console.log(`[HybridMatcher] Rule-based matched ${ruleMatchedCount}/${components.length} components`);
 
@@ -216,33 +249,39 @@ async function hybridMatch(components, images, gameName, openai) {
   if (unmatchedComponents.length > 0 && openai) {
     console.log(`[HybridMatcher] Stage 2: Vision matching ${unmatchedComponents.length} remaining components`);
     visionMatches = await visionMatch(unmatchedComponents, hephaestusImages, gameName, openai);
-    console.log(`[HybridMatcher] Vision matched ${Object.keys(visionMatches).length} additional components`);
-  }
-
-  const allMatches = { ...ruleMatches };
-  for (const [compId, imgIds] of Object.entries(visionMatches)) {
-    if (!allMatches[compId] || allMatches[compId].length === 0) {
-      allMatches[compId] = imgIds;
+    for (const [componentId, imageIds] of Object.entries(visionMatches)) {
+      const existing = rankedCandidates[componentId] || [];
+      const known = new Set(existing.map((candidate) => candidate.imageId));
+      imageIds.forEach((imageId) => {
+        if (!known.has(imageId)) {
+          existing.push({ imageId, score: 0.68, autoLink: false, reasons: ['vision suggestion; operator review required'] });
+        }
+      });
+      rankedCandidates[componentId] = existing.sort((a, b) => b.score - a.score);
     }
   }
 
-  const totalMatched = Object.keys(allMatches).filter(k => allMatches[k]?.length > 0).length;
-  console.log(`[HybridMatcher] Complete: ${totalMatched}/${components.length} components matched`);
+  const totalMatched = Object.keys(ruleMatches).filter(k => ruleMatches[k]?.length > 0).length;
+  console.log(`[HybridMatcher] Complete: ${totalMatched}/${components.length} components auto-linked`);
 
   return {
-    matches: allMatches,
+    matches: ruleMatches,
+    candidates: rankedCandidates,
+    rankedCandidates,
     stats: {
       total: components.length,
       ruleMatched: ruleMatchedCount,
       visionMatched: Object.keys(visionMatches).length,
       totalMatched,
-      unmatched: components.length - totalMatched
+      unmatched: components.length - totalMatched,
+      candidateCount: Object.values(rankedCandidates).reduce((sum, list) => sum + list.length, 0),
     }
   };
 }
 
 export {
   ruleBasedMatch,
+  rankInventoryCandidates,
   visionMatch,
   hybridMatch,
 };

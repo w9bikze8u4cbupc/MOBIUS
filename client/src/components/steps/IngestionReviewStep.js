@@ -18,24 +18,37 @@ export function IngestionReviewStep({
   const [showAddForm, setShowAddForm] = useState(false);
   
   const categoryIcons = {
+    board: '📋',
+    card: '🃏',
+    token: '🪙',
+    tile: '🧩',
+    dice: '🎲',
+    marker: '📍',
+    miniature: '🎭',
+    currency: '💰',
     cards: '🃏',
     tokens: '🪙',
     boards: '📋',
     tiles: '🧩',
-    dice: '🎲',
     meeples: '🧍',
     miniatures: '🎭',
-    markers: '📍',
     cubes: '🔲',
     other: '📦'
   };
   
   const categoryColors = {
+    board: '#e8f5e9',
+    card: '#e3f2fd',
+    token: '#fff3e0',
+    tile: '#fce4ec',
+    dice: '#f3e5f5',
+    marker: '#ede7f6',
+    miniature: '#fff8e1',
+    currency: '#fffde7',
     cards: '#e3f2fd',
     tokens: '#fff3e0',
     boards: '#e8f5e9',
     tiles: '#fce4ec',
-    dice: '#f3e5f5',
     meeples: '#e0f7fa',
     miniatures: '#fff8e1',
     markers: '#ede7f6',
@@ -44,9 +57,21 @@ export function IngestionReviewStep({
   };
   
   const handleUpdateComponent = (id, field, value) => {
-    setGameComponents(prev => prev.map(comp => 
-      comp.id === id ? { ...comp, [field]: value } : comp
-    ));
+    setGameComponents(prev => prev.map(comp => {
+      if (comp.id !== id) return comp;
+      if (field === 'name') {
+        return {
+          ...comp,
+          name: value,
+          normalizedName: String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+        };
+      }
+      if (field === 'quantity') {
+        const quantity = value === '' ? null : Number(value);
+        return { ...comp, quantity: Number.isInteger(quantity) ? quantity : null, reviewRequired: quantity === null };
+      }
+      return { ...comp, [field]: value };
+    }));
   };
   
   const handleDeleteComponent = (id) => {
@@ -54,15 +79,37 @@ export function IngestionReviewStep({
   };
   
   const handleAddComponent = () => {
-    if (newComponent.name.trim()) {
+    const name = newComponent.name.trim();
+    if (name) {
+      const quantity = newComponent.quantity === '' ? null : Number(newComponent.quantity);
       const id = `comp-${Date.now()}`;
-      setGameComponents(prev => [...prev, { ...newComponent, id }]);
+      setGameComponents(prev => [...prev, {
+        id,
+        name,
+        normalizedName: name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+        category: newComponent.category || 'other',
+        quantity: Number.isInteger(quantity) ? quantity : null,
+        sourcePage: null,
+        sourceQuote: name,
+        confidence: 1,
+        reviewRequired: quantity === null,
+        details: newComponent.details || '',
+      }]);
       setNewComponent({ name: '', quantity: '', category: 'other', details: '' });
       setShowAddForm(false);
     }
   };
   
-  const groupedComponents = gameComponents?.reduce((acc, comp) => {
+  const isUsableInventoryName = (value) => {
+    const name = String(value || '').trim();
+    return name
+      && !/^(unknown|unknown component|component|components|item|items|n\/a|none|null)$/i.test(name)
+      && name.split(/\s+/).length <= 12
+      && !/[.!?]/.test(name);
+  };
+  const namedComponents = (gameComponents || []).filter((component) => isUsableInventoryName(component?.name));
+  const invalidCount = (gameComponents || []).length - namedComponents.length;
+  const groupedComponents = namedComponents.reduce((acc, comp) => {
     const cat = comp.category || 'other';
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(comp);
@@ -129,14 +176,27 @@ export function IngestionReviewStep({
         </div>
       )}
       
+      {invalidCount > 0 && (
+        <div role="alert" className="status-badge status-badge-warning" style={{ display: 'block', padding: '10px 14px', marginBottom: 12 }}>
+          {invalidCount} unnamed or malformed inventory candidate{invalidCount === 1 ? '' : 's'} require a concise component name before Ingestion Review can be confirmed.
+        </div>
+      )}
+
+      <div aria-label="Editable component inventory" className="pipeline-card" style={{ marginTop: 16, marginBottom: 16 }}>
+        <h4 style={{ margin: 0 }}>Editable Component Inventory</h4>
+        <p className="pipeline-muted" style={{ margin: '6px 0 0' }}>
+          {namedComponents.length} named component type{namedComponents.length === 1 ? '' : 's'}; edit names, quantities, categories, and details before continuing.
+        </p>
+      </div>
+
       {/* Game Components Section */}
-      {gameComponents && gameComponents.length > 0 && (
+      {gameComponents && (
         <div className="pipeline-card fade-in" style={{ marginTop: 16 }}>
           <div className="pipeline-card-header" style={{ marginBottom: 16 }}>
             <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              📦 Game Components
+              📦 Component Inventory
               <span className="status-badge status-badge-success">
-                {gameComponents.length} items found
+                {namedComponents.length} named types
               </span>
             </h4>
             <button 
@@ -172,15 +232,14 @@ export function IngestionReviewStep({
                   onChange={(e) => setNewComponent(prev => ({ ...prev, category: e.target.value }))}
                   className="pipeline-input"
                 >
-                  <option value="cards">Cards</option>
-                  <option value="tokens">Tokens</option>
-                  <option value="boards">Boards</option>
-                  <option value="tiles">Tiles</option>
+                  <option value="board">Board</option>
+                  <option value="card">Card</option>
+                  <option value="token">Token</option>
+                  <option value="tile">Tile</option>
                   <option value="dice">Dice</option>
-                  <option value="meeples">Meeples</option>
-                  <option value="miniatures">Miniatures</option>
-                  <option value="markers">Markers</option>
-                  <option value="cubes">Cubes</option>
+                  <option value="marker">Marker</option>
+                  <option value="miniature">Miniature</option>
+                  <option value="currency">Currency</option>
                   <option value="other">Other</option>
                 </select>
                 <input
@@ -231,7 +290,7 @@ export function IngestionReviewStep({
                     key={comp.id}
                     style={{ 
                       display: 'grid',
-                      gridTemplateColumns: editingComponent === comp.id ? '2fr 1fr 2fr auto' : '2fr 1fr 2fr auto',
+                      gridTemplateColumns: '2fr 1fr 1fr 2fr auto',
                       gap: 12,
                       alignItems: 'center',
                       padding: '10px 14px',
@@ -250,12 +309,29 @@ export function IngestionReviewStep({
                           style={{ fontSize: 14 }}
                         />
                         <input
-                          type="text"
-                          value={comp.quantity}
+                          type="number"
+                          min="0"
+                          value={comp.quantity ?? ''}
                           onChange={(e) => handleUpdateComponent(comp.id, 'quantity', e.target.value)}
                           className="pipeline-input"
                           style={{ fontSize: 14 }}
                         />
+                        <select
+                          value={comp.category || 'other'}
+                          onChange={(e) => handleUpdateComponent(comp.id, 'category', e.target.value)}
+                          className="pipeline-input"
+                          style={{ fontSize: 14 }}
+                        >
+                          <option value="board">Board</option>
+                          <option value="card">Card</option>
+                          <option value="token">Token</option>
+                          <option value="tile">Tile</option>
+                          <option value="dice">Dice</option>
+                          <option value="marker">Marker</option>
+                          <option value="miniature">Miniature</option>
+                          <option value="currency">Currency</option>
+                          <option value="other">Other</option>
+                        </select>
                         <input
                           type="text"
                           value={comp.details}
@@ -293,7 +369,7 @@ export function IngestionReviewStep({
                           textAlign: 'center',
                           fontSize: 13
                         }}>
-                          {comp.quantity}
+                          {comp.quantity ?? '—'}
                         </div>
                         <div style={{ color: '#666', fontSize: 13 }}>
                           {comp.details || '-'}

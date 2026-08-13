@@ -41,6 +41,47 @@ export function createProjectIdFromFilename(filename, suffix = null) {
   return `${slug}-${uniqueSuffix}`;
 }
 
+export function hasValidComponentInventory(components = []) {
+  return Array.isArray(components)
+    && components.some((component) => isUsableComponentName(component?.name));
+}
+
+export function isUsableComponentName(value) {
+  const name = String(value || '').trim();
+  if (!name || /^(unknown|unknown component|component|components|item|items|n\/a|none|null)$/i.test(name)) return false;
+  if (name.split(/\s+/).length > 12 || /[.!?]/.test(name)) return false;
+  return true;
+}
+
+export function extractPdfPageText(items = []) {
+  const entries = items
+    .map((item, index) => ({
+      text: String(item?.str || '').trim(),
+      x: Number(item?.transform?.[4]),
+      y: Number(item?.transform?.[5]),
+      index,
+    }))
+    .filter((entry) => entry.text);
+  if (entries.length === 0) return '';
+  if (!entries.every((entry) => Number.isFinite(entry.x) && Number.isFinite(entry.y))) {
+    return entries.map((entry) => entry.text).join('\n');
+  }
+
+  const lines = [];
+  for (const entry of entries) {
+    let line = lines.find((candidate) => Math.abs(candidate.y - entry.y) <= 2);
+    if (!line) {
+      line = { y: entry.y, entries: [] };
+      lines.push(line);
+    }
+    line.entries.push(entry);
+  }
+  return lines
+    .sort((a, b) => b.y - a.y)
+    .map((line) => line.entries.sort((a, b) => a.x - b.x || a.index - b.index).map((entry) => entry.text).join(' '))
+    .join('\n');
+}
+
 // Updated VOICE_OPTIONS array with the specified ElevenLabs voices
 const VOICE_OPTIONS = [
   { name: "English - Adam", id: "pNInz6obpgDQGcFmaJgB", language: "english" },
@@ -342,15 +383,15 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           text: rulebookText,
           gameName: gameName || null
         });
-        const componentsWithIds = (data.components || []).map((comp, idx) => ({
-          ...comp,
-          id: comp.id || `comp-${Date.now()}-${idx}`
-        }));
+        const componentsWithIds = (data.components || [])
+          .filter((comp) => comp && typeof comp === 'object')
+          .map((comp, idx) => ({
+            ...comp,
+            id: comp.id || `comp-${Date.now()}-${idx}`
+          }));
         setGameComponents(componentsWithIds);
-        if (componentsWithIds.length > 0) {
-          setCompletedStepIds(prev => 
-            prev.includes('ingestion') ? prev : [...prev, 'ingestion']
-          );
+        if (componentsWithIds.length === 0) {
+          setIngestionError(data.message || 'No named physical components were found. Add the inventory manually for review.');
         }
       } catch (err) {
         console.error('Auto component extraction failed:', err);
@@ -405,7 +446,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         // Use a space or newline to join items, depending on desired word separation
-        const pageText = content.items.map(item => item.str).join(" ");
+        const pageText = extractPdfPageText(content.items);
         fullText += pageText + "\n";
       }
       console.log('Extracted PDF text length:', fullText.length);
@@ -506,7 +547,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setStoryboardManifest(null);
     setIngestionError("");
     setStoryboardError("");
-    // Reset metadata to empty strings
+    setGameComponents([]);
+    setCompletedStepIds([]);
     setMetadata({ publisher: "", playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "" });
     setShowThemePrompt(false);
     setError("");
@@ -631,18 +673,17 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       
       console.log('Extracted components:', data.components);
       
-      // Ensure all components have unique IDs
-      const componentsWithIds = (data.components || []).map((comp, idx) => ({
-        ...comp,
-        id: comp.id || `comp-${Date.now()}-${idx}`
-      }));
-      
+      const componentsWithIds = (data.components || [])
+        .filter((comp) => comp && typeof comp === 'object')
+        .map((comp, idx) => ({
+          ...comp,
+          id: comp.id || `comp-${Date.now()}-${idx}`
+        }));
       setGameComponents(componentsWithIds);
-      
-      // Mark ingestion step as complete if we have components
-      if (componentsWithIds.length > 0 && !completedStepIds.includes('ingestion')) {
-        setCompletedStepIds(prev => [...prev, 'ingestion']);
+      if (componentsWithIds.length === 0) {
+        setIngestionError(data.message || 'No named physical components were found. Add the inventory manually for review.');
       }
+
     } catch (err) {
       console.error('Component extraction error:', err);
       const apiError = err.response?.data?.error || err.message;
@@ -1148,6 +1189,10 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           setError("Run deterministic ingestion first.");
           return;
         }
+        if (!hasValidComponentInventory(gameComponents)) {
+          setError("Add at least one named physical component to the inventory before continuing.");
+          return;
+        }
         setError("");
         setAndAdvance();
         break;
@@ -1276,7 +1321,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           {activeStepId === "images" && (
             <ImagesStep
               projectId={projectId}
-              components={gameComponents.length > 0 ? gameComponents : (ingestionManifest?.components || [])}
+              components={gameComponents}
               images={projectImages}
               componentImages={componentImageLinks}
               onImagesUpdated={({ images, componentImages }) => {
