@@ -31,6 +31,16 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL !== undefined
   ? process.env.REACT_APP_BACKEND_URL 
   : '';
 
+export function createProjectIdFromFilename(filename, suffix = null) {
+  const baseName = String(filename || 'rulebook').replace(/\.[^/.]+$/, '');
+  const slug = baseName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'rulebook';
+  const uniqueSuffix = suffix || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  return `${slug}-${uniqueSuffix}`;
+}
+
 // Updated VOICE_OPTIONS array with the specified ElevenLabs voices
 const VOICE_OPTIONS = [
   { name: "English - Adam", id: "pNInz6obpgDQGcFmaJgB", language: "english" },
@@ -427,8 +437,6 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       
       if (extractedName) {
         setGameName(extractedName);
-        const slug = extractedName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-        setProjectId(slug);
         
         // Store PDF metadata (may have empty strings)
         const pdfMetadata = {
@@ -507,6 +515,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
     try {
       if (file.type === "application/pdf") {
+        setProjectId(createProjectIdFromFilename(file.name));
         setLoading(true);
         const extracted = await extractTextFromPDF(file);
         setRulebookText(extracted);
@@ -1095,6 +1104,10 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         if (!gameName.trim()) {
           setError("Enter a game name before continuing.");
           return;
+        }
+
+        if (!projectId.trim()) {
+          setProjectId(createProjectIdFromFilename(file?.name || "rulebook.pdf"));
         }
 
         setError("");

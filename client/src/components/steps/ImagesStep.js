@@ -79,7 +79,15 @@ export function ImagesStep({
   const [feedbackMode, setFeedbackMode] = useState(false);
   const [feedbackStatus, setFeedbackStatus] = useState({});
   const [hephaestusStatus, setHephaestusStatus] = useState(null);
+  const [readinessError, setReadinessError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+
+  const normalizedProjectId = String(projectId || '').trim();
+  const imageActionsReady = Boolean(normalizedProjectId && pdfFile);
+  const readinessMessages = [
+    !normalizedProjectId && 'Project identifier is missing. Return to Project Setup and enter or generate a Project ID.',
+    !pdfFile && 'The original rulebook PDF is not available. Return to Project Setup and upload it again.',
+  ].filter(Boolean);
 
   useEffect(() => {
     setLocalImages(images || []);
@@ -90,17 +98,17 @@ export function ImagesStep({
   }, [componentImages]);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!normalizedProjectId) return;
     const load = async () => {
       try {
-        const res = await axios.get(`${BACKEND_URL}/api/projects/${projectId}/images`);
+        const res = await axios.get(`${BACKEND_URL}/api/projects/${normalizedProjectId}/images`);
         onImagesUpdated?.(res.data || {});
       } catch (err) {
         console.error("Failed to load images", err);
       }
     };
     load();
-  }, [projectId, onImagesUpdated]);
+  }, [normalizedProjectId, onImagesUpdated]);
 
   const groupedImages = useMemo(() => {
     return (localImages || []).reduce((acc, img) => {
@@ -119,7 +127,15 @@ export function ImagesStep({
 
   // Automatic image gathering - uses native extraction first, then page-level fallback
   const handleAutoGather = async () => {
-    if (!projectId) return;
+    if (!normalizedProjectId) {
+      setReadinessError('Project identifier is missing. Return to Project Setup and enter or generate a Project ID.');
+      return;
+    }
+    if (!pdfFile) {
+      setReadinessError('The original rulebook PDF is not available. Return to Project Setup and upload it again.');
+      return;
+    }
+    setReadinessError("");
     setLoading(true);
     setAutoGatherStatus({ status: 'gathering', message: 'Gathering images from all sources...' });
     
@@ -142,7 +158,7 @@ export function ImagesStep({
           formData.append('file', pdfFile);
           
           const nativeRes = await axios.post(
-            `${BACKEND_URL}/api/projects/${projectId}/images/extract-native`,
+            `${BACKEND_URL}/api/projects/${normalizedProjectId}/images/extract-native`,
             formData,
             { headers: { 'Content-Type': 'multipart/form-data' } }
           );
@@ -181,7 +197,7 @@ export function ImagesStep({
             formData.append('file', pdfFile);
             
             const pdfRes = await axios.post(
-              `${BACKEND_URL}/api/projects/${projectId}/images/extract-pdf`,
+              `${BACKEND_URL}/api/projects/${normalizedProjectId}/images/extract-pdf`,
               formData,
               { headers: { 'Content-Type': 'multipart/form-data' } }
             );
@@ -202,7 +218,7 @@ export function ImagesStep({
         try {
           setAutoGatherStatus({ status: 'gathering', message: 'Searching BoardGameGeek for images...' });
           const bggRes = await axios.post(
-            `${BACKEND_URL}/api/projects/${projectId}/images/fetch-bgg`,
+            `${BACKEND_URL}/api/projects/${normalizedProjectId}/images/fetch-bgg`,
             { bggUrl: manualBggUrl || bggUrl || gameName }
           );
           
@@ -220,7 +236,7 @@ export function ImagesStep({
         }
       }
       
-      const state = await axios.get(`${BACKEND_URL}/api/projects/${projectId}/images`);
+      const state = await axios.get(`${BACKEND_URL}/api/projects/${normalizedProjectId}/images`);
       refreshState(state.data || {});
       
       if (results.totalImages === 0 && results.errors.length === 0) {
@@ -279,7 +295,7 @@ export function ImagesStep({
     });
     
     try {
-      const res = await axios.post(`${BACKEND_URL}/api/projects/${projectId}/images/detect-components`, {
+      const res = await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/images/detect-components`, {
         components: components.map(c => ({
           name: c.name,
           category: c.category,
@@ -364,7 +380,7 @@ export function ImagesStep({
     });
     
     try {
-      const res = await axios.post(`${BACKEND_URL}/api/projects/${projectId}/images/crop-components`, {
+      const res = await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/images/crop-components`, {
         components: components.map(c => ({
           name: c.name,
           category: c.category,
@@ -416,7 +432,7 @@ export function ImagesStep({
     setMatchingStatus({ status: 'matching', message: 'Stage 1: Rule-based matching by component type...' });
     
     try {
-      const res = await axios.post(`${BACKEND_URL}/api/projects/${projectId}/images/auto-match`, {
+      const res = await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/images/auto-match`, {
         components,
         gameName
       });
@@ -457,7 +473,7 @@ export function ImagesStep({
     if (!projectId || !manualBggUrl) return;
     setLoading(true);
     try {
-      const res = await axios.post(`${BACKEND_URL}/api/projects/${projectId}/images/fetch-bgg`, { bggUrl: manualBggUrl });
+      const res = await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/images/fetch-bgg`, { bggUrl: manualBggUrl });
       refreshState(res.data || {});
     } catch (err) {
       console.error(err);
@@ -470,7 +486,7 @@ export function ImagesStep({
     if (!projectId || !manualPdfPath) return;
     setLoading(true);
     try {
-      const res = await axios.post(`${BACKEND_URL}/api/projects/${projectId}/images/extract-rulebook`, { pdfPath: manualPdfPath });
+      const res = await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/images/extract-rulebook`, { pdfPath: manualPdfPath });
       refreshState(res.data || {});
     } catch (err) {
       console.error(err);
@@ -485,7 +501,7 @@ export function ImagesStep({
     try {
       const form = new FormData();
       form.append("file", manualFile);
-      const res = await axios.post(`${BACKEND_URL}/api/projects/${projectId}/images/manual`, form, {
+      const res = await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/images/manual`, form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       refreshState(res.data || {});
@@ -498,7 +514,15 @@ export function ImagesStep({
   };
 
   const handleHephaestusExtract = async () => {
-    if (!projectId || !pdfFile) return;
+    if (!normalizedProjectId) {
+      setReadinessError('Project identifier is missing. Return to Project Setup and enter or generate a Project ID.');
+      return;
+    }
+    if (!pdfFile) {
+      setReadinessError('The original rulebook PDF is not available. Return to Project Setup and upload it again.');
+      return;
+    }
+    setReadinessError("");
     setLoading(true);
     setHephaestusStatus({ status: 'extracting', message: 'Running HEPHAESTUS extraction pipeline...' });
     
@@ -509,7 +533,7 @@ export function ImagesStep({
       formData.append('minHeight', '1');
       
       const res = await axios.post(
-        `${BACKEND_URL}/api/projects/${projectId}/images/extract-hephaestus`,
+        `${BACKEND_URL}/api/projects/${normalizedProjectId}/images/extract-hephaestus`,
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       );
@@ -543,7 +567,7 @@ export function ImagesStep({
       next.add(imageId);
     }
     try {
-      const res = await axios.post(`${BACKEND_URL}/api/projects/${projectId}/components/${componentId}/images`, {
+      const res = await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/components/${componentId}/images`, {
         imageIds: Array.from(next),
       });
       refreshState(res.data || {});
@@ -567,7 +591,7 @@ export function ImagesStep({
     if (!image) return;
     
     try {
-      await axios.post(`${BACKEND_URL}/api/projects/${projectId}/match-feedback`, {
+      await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/match-feedback`, {
         gameName,
         componentId: component.id,
         componentName: component.name,
@@ -627,6 +651,32 @@ export function ImagesStep({
         Then match them to your game components for the tutorial.
       </p>
 
+      {/* Image extraction readiness */}
+      <div
+        role="status"
+        aria-label="Image extraction readiness"
+        style={{
+          marginBottom: 20,
+          padding: 14,
+          borderRadius: 8,
+          background: imageActionsReady ? '#e8f5e9' : '#fff3e0',
+          border: `1px solid ${imageActionsReady ? '#81c784' : '#ffb74d'}`,
+          fontSize: 14,
+        }}
+      >
+        <div><strong>Image extraction readiness</strong></div>
+        <div>Project ID: {normalizedProjectId || 'Missing'}</div>
+        <div>Original PDF: {pdfFile ? 'Available' : 'Missing'}</div>
+        {!imageActionsReady && (
+          <div role="alert" style={{ marginTop: 6, color: '#a44a00' }}>
+            {readinessError || readinessMessages.join(' ')}
+          </div>
+        )}
+        {readinessError && imageActionsReady && (
+          <div role="alert" style={{ marginTop: 6, color: '#b71c1c' }}>{readinessError}</div>
+        )}
+      </div>
+
       {/* Auto-gather section */}
       <div style={{ 
         background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)', 
@@ -644,16 +694,17 @@ export function ImagesStep({
         
         <button 
           onClick={handleAutoGather} 
-          disabled={loading || !projectId}
+          disabled={loading || !imageActionsReady}
           style={{
             padding: '12px 24px',
             fontSize: 16,
             fontWeight: 'bold',
-            background: loading ? '#90caf9' : '#1976d2',
+            background: loading ? '#90caf9' : !imageActionsReady ? '#90a4ae' : '#1976d2',
             color: 'white',
             border: 'none',
             borderRadius: 8,
-            cursor: loading ? 'wait' : 'pointer',
+            cursor: loading ? 'wait' : !imageActionsReady ? 'not-allowed' : 'pointer',
+            opacity: imageActionsReady ? 1 : 0.6,
             display: 'flex',
             alignItems: 'center',
             gap: 8
@@ -669,6 +720,11 @@ export function ImagesStep({
           )}
         </button>
         
+        {!imageActionsReady && (
+          <p style={{ margin: '10px 0 0', color: '#7a4b00', fontSize: 13 }}>
+            Auto-Gather is unavailable until both a Project ID and the original PDF are available.
+          </p>
+        )}
         {autoGatherStatus && (
           <div style={{ 
             marginTop: 12, 
@@ -809,8 +865,7 @@ export function ImagesStep({
       )}
 
       {/* HEPHAESTUS: PyMuPDF-based Component Extraction */}
-      {pdfFile && (
-        <div style={{ 
+      <div style={{
           background: 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)', 
           padding: 20, 
           borderRadius: 12, 
@@ -824,19 +879,25 @@ export function ImagesStep({
             Advanced PyMuPDF-based extraction with hybrid classification and perceptual deduplication.
             Directly extracts embedded images from PDF with smart component detection.
           </p>
+          {!imageActionsReady && (
+            <p style={{ margin: '-8px 0 16px', color: '#7a1c1c', fontSize: 13 }}>
+              HEPHAESTUS is unavailable until both a Project ID and the original PDF are available.
+            </p>
+          )}
           
           <button 
             onClick={handleHephaestusExtract} 
-            disabled={loading}
+            disabled={loading || !imageActionsReady}
             style={{
               padding: '12px 24px',
               fontSize: 16,
               fontWeight: 'bold',
-              background: loading && hephaestusStatus?.status === 'extracting' ? '#ef9a9a' : '#f44336',
+              background: loading && hephaestusStatus?.status === 'extracting' ? '#ef9a9a' : !imageActionsReady ? '#b0bec5' : '#f44336',
               color: 'white',
               border: 'none',
               borderRadius: 8,
-              cursor: loading ? 'wait' : 'pointer',
+              cursor: loading ? 'wait' : !imageActionsReady ? 'not-allowed' : 'pointer',
+              opacity: imageActionsReady ? 1 : 0.6,
               display: 'flex',
               alignItems: 'center',
               gap: 8
@@ -888,7 +949,7 @@ export function ImagesStep({
             </div>
           )}
         </div>
-      )}
+      }
       
       {/* Legacy AI Component Cropping (fallback) */}
       {localImages.filter(img => img.source === 'rulebook').length > 0 && (
@@ -929,7 +990,7 @@ export function ImagesStep({
               onClick={async () => {
                 setRefreshing(true);
                 try {
-                  const res = await axios.get(`${BACKEND_URL}/api/projects/${projectId}/images`);
+                  const res = await axios.get(`${BACKEND_URL}/api/projects/${normalizedProjectId}/images`);
                   console.log('Refresh loaded', res.data?.images?.length, 'images');
                   refreshState(res.data || {});
                 } catch (err) {

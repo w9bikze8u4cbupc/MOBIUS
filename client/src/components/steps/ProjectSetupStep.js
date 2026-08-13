@@ -153,7 +153,7 @@ export function ProjectSetupStep({
                 type="text"
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                placeholder="Auto-generated from game name"
+                placeholder="Auto-generated from uploaded PDF filename"
               />
             </label>
           </div>
