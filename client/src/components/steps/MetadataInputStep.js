@@ -25,6 +25,9 @@ export function MetadataInputStep({
   handleMetadataChange,
   gameName,
   file,
+  onLookupBgg,
+  bggLookupLoading,
+  bggLookupWarning,
 }) {
   const hasAnyMetadata = metadata && Object.values(metadata).some(v => v && v.trim());
   
@@ -81,7 +84,16 @@ export function MetadataInputStep({
       
       <div className="pipeline-card">
         <h4 style={{ margin: '0 0 16px 0' }}>BoardGameGeek Integration</h4>
-        <label style={{ marginBottom: 0 }}>
+        <p style={{ margin: '0 0 12px', fontSize: 13, color: '#666' }}>
+          BGG lookup is optional and never runs automatically.
+        </p>
+        <button type="button" onClick={onLookupBgg} disabled={bggLookupLoading || !gameName?.trim()}>
+          {bggLookupLoading ? 'Looking up BGG metadata...' : 'Look up optional BGG metadata'}
+        </button>
+        {bggLookupWarning && (
+          <div role="alert" style={{ marginTop: 10, color: '#8a4b00', fontSize: 13 }}>{bggLookupWarning}</div>
+        )}
+        <label style={{ margin: '16px 0 0' }}>
           BGG URL (optional)
           <input
             type="url"
@@ -91,7 +103,7 @@ export function MetadataInputStep({
             className="pipeline-input"
           />
           <span style={{ fontSize: 12, color: '#666', marginTop: 4, display: 'block' }}>
-            We'll try to fetch additional metadata from BoardGameGeek if available
+            You can also enter a BGG URL manually.
           </span>
         </label>
       </div>

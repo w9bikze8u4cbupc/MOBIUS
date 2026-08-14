@@ -84,12 +84,9 @@ test('treats a whitespace-only project ID as missing', () => {
   expect(screen.getByRole('button', { name: /Extract with HEPHAESTUS/i })).toBeDisabled();
 });
 
-test('Auto-Gather sends the original File as FormData field file', async () => {
-  axios.post.mockImplementation((url) => {
-    if (url.includes('/extract-native')) {
-      return Promise.resolve({ data: { images: [], mode: 'native', nativeCount: 0 } });
-    }
-    return Promise.resolve({ data: {} });
+test('Auto-Gather uses only HEPHAESTUS and returns a clean local result without legacy or BGG calls', async () => {
+  axios.post.mockResolvedValue({
+    data: { images: [], componentImages: {}, imagesCount: 433, mode: 'hephaestus', stats: { native: 433 } },
   });
 
   render(
@@ -105,13 +102,19 @@ test('Auto-Gather sends the original File as FormData field file', async () => {
 
   await waitFor(() => {
     expect(axios.post).toHaveBeenCalledWith(
-      expect.stringContaining('/api/projects/abyss-upload-abc123/images/extract-native'),
+      expect.stringContaining('/api/projects/abyss-upload-abc123/images/extract-hephaestus'),
       expect.any(FormData),
       expect.objectContaining({ headers: { 'Content-Type': 'multipart/form-data' } }),
     );
   });
 
-  expect(axios.post.mock.calls[0][1].get('file')).toBe(pdfFile);
+  const [url, formData] = axios.post.mock.calls[0];
+  expect(formData.get('file')).toBe(pdfFile);
+  expect(formData.get('minWidth')).toBe('1');
+  expect(formData.get('minHeight')).toBe('1');
+  expect(url).not.toMatch(/extract-native|extract-pdf|fetch-bgg/);
+  expect(axios.post.mock.calls).toHaveLength(1);
+  expect(await screen.findByText(/Extracted 433 local images using HEPHAESTUS/i)).toBeInTheDocument();
 });
 
 test('separates curated candidates from raw HEPHAESTUS assets and supports ranked preview review', async () => {

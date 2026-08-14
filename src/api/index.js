@@ -319,8 +319,14 @@ ${sampleText}`
     console.log('Extracted game info:', result);
     res.json(result);
   } catch (err) {
-    console.error('Game info extraction error:', err.message, err);
-    res.status(500).json({ error: 'Failed to extract game info', details: err.message });
+    console.error('[GameInfoExtraction]', JSON.stringify({
+      event: 'failed',
+      message: err?.message || 'unknown error',
+      status: err?.status || err?.response?.status || null,
+    }));
+    res.status(502).json({
+      error: 'AI game-info extraction is unavailable. Continue with the editable filename-derived name.',
+    });
   }
 });
 
@@ -371,16 +377,20 @@ app.get('/api/bgg-search', async (req, res) => {
       return res.status(400).json({ error: 'Game name required' });
     }
     
-    console.log('Searching BGG for:', gameName);
-    
-    const bggApiKey = process.env.BGG_API_KEY;
-    const headers = { 
-      'User-Agent': 'MobiusGamesTutorialGenerator/1.0',
-      'Accept': 'application/xml'
-    };
-    if (bggApiKey) {
-      headers['Authorization'] = `Bearer ${bggApiKey}`;
+    const bggApiToken = process.env.BGG_API_TOKEN;
+    if (!bggApiToken) {
+      return res.json({
+        found: false,
+        reason: 'BGG lookup is unavailable until BGG_API_TOKEN is configured.',
+      });
     }
+
+    console.log('[BGG]', JSON.stringify({ event: 'search', gameName }));
+    const headers = {
+      'User-Agent': 'MobiusGamesTutorialGenerator/1.0',
+      'Accept': 'application/xml',
+      'Authorization': `Bearer ${bggApiToken}`,
+    };
     
     const searchUrl = `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(gameName)}&type=boardgame&exact=1`;
     let searchResponse;
@@ -388,8 +398,8 @@ app.get('/api/bgg-search', async (req, res) => {
       searchResponse = await axios.get(searchUrl, { headers, timeout: 10000 });
     } catch (searchErr) {
       if (searchErr.response?.status === 401 || searchErr.response?.status === 403) {
-        console.log('BGG API requires authentication. Skipping BGG metadata.');
-        return res.json({ found: false, reason: 'BGG API requires authentication' });
+        console.warn('[BGG]', JSON.stringify({ event: 'authentication-required', status: searchErr.response.status }));
+        return res.json({ found: false, reason: 'BGG lookup is unavailable until BGG_API_TOKEN is configured.' });
       }
       throw searchErr;
     }
@@ -419,7 +429,7 @@ app.get('/api/bgg-search', async (req, res) => {
         }
       } catch (fuzzyErr) {
         if (fuzzyErr.response?.status === 401 || fuzzyErr.response?.status === 403) {
-          return res.json({ found: false, reason: 'BGG API requires authentication' });
+          return res.json({ found: false, reason: 'BGG lookup is unavailable until BGG_API_TOKEN is configured.' });
         }
       }
     }
@@ -437,7 +447,7 @@ app.get('/api/bgg-search', async (req, res) => {
       detailsResponse = await axios.get(detailsUrl, { headers, timeout: 10000 });
     } catch (detailsErr) {
       if (detailsErr.response?.status === 401 || detailsErr.response?.status === 403) {
-        return res.json({ found: false, reason: 'BGG API requires authentication' });
+        return res.json({ found: false, reason: 'BGG lookup is unavailable until BGG_API_TOKEN is configured.' });
       }
       throw detailsErr;
     }
@@ -473,8 +483,8 @@ app.get('/api/bgg-search', async (req, res) => {
     console.log('BGG metadata fetched:', metadata.gameName);
     res.json(metadata);
   } catch (err) {
-    console.error('BGG search error:', err.message);
-    res.json({ found: false, error: err.message });
+    console.error('[BGG]', JSON.stringify({ event: 'search-failed', message: err?.message || 'unknown error' }));
+    res.json({ found: false, reason: 'BGG lookup could not complete. Try again later.' });
   }
 });
 

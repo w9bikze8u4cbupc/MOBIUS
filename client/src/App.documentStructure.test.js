@@ -29,8 +29,12 @@ jest.mock('./components/PipelineStepper', () => ({
 }));
 jest.mock('./components/steps/ProjectSetupStep', () => ({
   MetadataInputStep: () => null,
-  ProjectSetupStep: ({ onFileChange }) => (
-    <input aria-label="Rulebook PDF" type="file" onChange={onFileChange} />
+  ProjectSetupStep: ({ onFileChange, gameName, rulebookText }) => (
+    <>
+      <input aria-label="Rulebook PDF" type="file" onChange={onFileChange} />
+      <div>{gameName}</div>
+      <div data-testid="rulebook-text">{rulebookText}</div>
+    </>
   ),
 }));
 jest.mock('./components/steps/MetadataInputStep', () => ({ MetadataInputStep: () => <div>Metadata step</div> }));
@@ -42,7 +46,7 @@ jest.mock('./components/steps/RenderExportStep', () => ({ RenderExportStep: () =
 
 import axios from 'axios';
 import { getDocument } from 'pdfjs-dist';
-import App from './App';
+import App, { createDisplayNameFromFilename } from './App';
 
 const completedManifest = {
   outline: [{ id: 'heading-setup', title: 'Setup', page: 1 }],
@@ -77,9 +81,13 @@ async function openIngestionReview() {
   Object.defineProperty(pdfFile, 'arrayBuffer', { value: () => Promise.resolve(new ArrayBuffer(0)) });
   fireEvent.change(screen.getByLabelText('Rulebook PDF'), { target: { files: [pdfFile] } });
 
-  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/api/extract-game-name'), expect.any(Object)));
+  await screen.findByText('Abyss');
+  await waitFor(() => expect(screen.getByTestId('rulebook-text')).toHaveTextContent('Setup'));
+  expect(axios.post.mock.calls.some(([url]) => url.endsWith('/api/extract-game-name'))).toBe(false);
+  expect(axios.get).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Confirm current step' }));
   await screen.findByText('Metadata step');
+  expect(axios.get).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Confirm current step' }));
   await screen.findByRole('button', { name: /Analyze Document Structure/i });
 }
@@ -87,6 +95,10 @@ async function openIngestionReview() {
 describe('Analyze Document Structure workflow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  test('formats an uppercase PDF filename as a local provisional game name', () => {
+    expect(createDisplayNameFromFilename('ABYSS.pdf')).toBe('Abyss');
   });
 
   test('clears stale global errors and completes deterministically when the optional summary service would reject', async () => {

@@ -41,6 +41,18 @@ export function createProjectIdFromFilename(filename, suffix = null) {
   return `${slug}-${uniqueSuffix}`;
 }
 
+export function createDisplayNameFromFilename(filename) {
+  const baseName = String(filename || '')
+    .replace(/\.[^/.]+$/, '')
+    .replace(/[._-]+/g, ' ')
+    .trim();
+  if (!baseName) return '';
+
+  return baseName
+    .toLowerCase()
+    .replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
+}
+
 export function hasValidComponentInventory(components = []) {
   return Array.isArray(components)
     && components.some((component) => isUsableComponentName(component?.name));
@@ -304,6 +316,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   const [projectImages, setProjectImages] = useState([]);
   const [componentImageLinks, setComponentImageLinks] = useState({});
   const [extractingName, setExtractingName] = useState(false);
+  const [bggLookupLoading, setBggLookupLoading] = useState(false);
+  const [metadataWarning, setMetadataWarning] = useState('');
   const [gameComponents, setGameComponents] = useState([]);
   const [componentExtraction, setComponentExtraction] = useState(null);
   const [rulebookPages, setRulebookPages] = useState([]);
@@ -467,70 +481,69 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     }
   };
 
-  // Extract game info from rulebook text using AI and then fetch BGG metadata
-  const extractGameInfoFromText = async (text) => {
+  // Optional AI enrichment. Upload always uses the deterministic filename first.
+  const extractGameInfoFromText = async () => {
+    if (!rulebookText.trim()) {
+      setMetadataWarning('Upload a readable PDF before requesting optional AI metadata.');
+      return;
+    }
+
     try {
       setExtractingName(true);
-      console.log('Extracting game info from PDF...');
-      
-      // Step 1: Extract game info from PDF - use first 8000 chars for better coverage
-      const pdfResponse = await axios.post(`${BACKEND_URL}/api/extract-game-name`, {
-        text: text.substring(0, 8000)
+      setMetadataWarning('');
+      const { data } = await axios.post(`${BACKEND_URL}/api/extract-game-name`, {
+        text: rulebookText.substring(0, 8000),
       });
-      console.log('PDF extraction response:', pdfResponse.data);
-      
-      const pdfData = pdfResponse.data || {};
-      const extractedName = pdfData.gameName || '';
-      
-      if (extractedName) {
-        setGameName(extractedName);
-        
-        // Store PDF metadata (may have empty strings)
-        const pdfMetadata = {
-          publisher: pdfData.publisher || '',
-          playerCount: pdfData.playerCount || '',
-          gameLength: pdfData.gameLength || '',
-          minimumAge: pdfData.minimumAge || '',
-          theme: pdfData.theme || '',
-          edition: pdfData.edition || ''
-        };
-        
-        // Step 2: Search BGG for additional metadata
-        console.log('Searching BGG for:', extractedName);
-        let bggMetadata = null;
-        try {
-          const bggResponse = await axios.get(`${BACKEND_URL}/api/bgg-search`, {
-            params: { gameName: extractedName }
-          });
-          console.log('BGG response:', bggResponse.data);
-          
-          if (bggResponse.data?.found) {
-            bggMetadata = bggResponse.data;
-            setBggUrl(bggMetadata.bggUrl || '');
-          }
-        } catch (bggErr) {
-          console.log('BGG search failed:', bggErr.message);
-        }
-        
-        // Step 3: Merge metadata - prefer PDF values, fall back to BGG for empty fields
-        const mergedMetadata = {
-          publisher: pdfMetadata.publisher || bggMetadata?.publisher || '',
-          playerCount: pdfMetadata.playerCount || bggMetadata?.playerCount || '',
-          gameLength: pdfMetadata.gameLength || bggMetadata?.gameLength || '',
-          minimumAge: pdfMetadata.minimumAge || bggMetadata?.minimumAge || '',
-          theme: pdfMetadata.theme || bggMetadata?.theme || '',
-          edition: pdfMetadata.edition || ''
-        };
-        
-        setMetadata(mergedMetadata);
-        console.log('Merged metadata:', mergedMetadata);
-      } else {
-        console.log('No game name found in PDF');
-      }
+      const extractedName = String(data?.gameName || '').trim();
+      if (extractedName) setGameName(extractedName);
+      setMetadata((previous) => ({
+        ...previous,
+        publisher: previous.publisher || data?.publisher || '',
+        playerCount: previous.playerCount || data?.playerCount || '',
+        gameLength: previous.gameLength || data?.gameLength || '',
+        minimumAge: previous.minimumAge || data?.minimumAge || '',
+        theme: previous.theme || data?.theme || '',
+        edition: previous.edition || data?.edition || '',
+      }));
     } catch (err) {
-      console.error('Failed to extract game info:', err);
+      setMetadataWarning(
+        err.response?.data?.error
+          || 'AI game-info extraction could not complete. You can continue with the editable filename-derived name.',
+      );
     } finally {
       setExtractingName(false);
+    }
+  };
+
+  const lookupBggMetadata = async () => {
+    const name = gameName.trim();
+    if (!name) {
+      setMetadataWarning('Enter a game name before requesting an optional BGG lookup.');
+      return;
+    }
+
+    try {
+      setBggLookupLoading(true);
+      setMetadataWarning('');
+      const { data } = await axios.get(`${BACKEND_URL}/api/bgg-search`, { params: { gameName: name } });
+      if (!data?.found) {
+        setMetadataWarning(data?.reason || 'No BoardGameGeek match was found for this game name.');
+        return;
+      }
+
+      setBggUrl(data.bggUrl || '');
+      setMetadata((previous) => ({
+        ...previous,
+        publisher: previous.publisher || data.publisher || '',
+        playerCount: previous.playerCount || data.playerCount || '',
+        gameLength: previous.gameLength || data.gameLength || '',
+        minimumAge: previous.minimumAge || data.minimumAge || '',
+        theme: previous.theme || data.theme || '',
+      }));
+    } catch (err) {
+      setMetadataWarning(err.response?.data?.error || 'BGG lookup could not complete. You can continue without external metadata.');
+    } finally {
+      setBggLookupLoading(false);
     }
   };
 
@@ -541,6 +554,9 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setFile(file);
     setGameName("");
     setProjectId("");
+    setBggUrl("");
+    setMetadataWarning("");
+    setBggLookupLoading(false);
     setRulebookText("");
     setSummary("");
     setEditedSummary("");
@@ -567,12 +583,12 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     try {
       if (file.type === "application/pdf") {
         setProjectId(createProjectIdFromFilename(file.name));
+        setGameName(createDisplayNameFromFilename(file.name));
         setLoading(true);
         const extracted = await extractTextFromPDF(file);
         setRulebookText(extracted.text);
         setRulebookPages(extracted.pages);
         setLoading(false);
-        extractGameInfoFromText(extracted.text);
       } else {
         setError("Please upload a PDF file");
       }
@@ -1169,26 +1185,6 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         }
 
         setError("");
-        try {
-          const { data } = await axios.get(`${BACKEND_URL}/api/bgg-search`, {
-            params: { gameName: gameName.trim() },
-          });
-
-          if (data?.found) {
-            setBggUrl(data.bggUrl || "");
-            setMetadata((previous) => ({
-              ...previous,
-              publisher: previous.publisher || data.publisher || "",
-              playerCount: previous.playerCount || data.playerCount || "",
-              gameLength: previous.gameLength || data.gameLength || "",
-              minimumAge: previous.minimumAge || data.minimumAge || "",
-              theme: previous.theme || data.theme || "",
-            }));
-          }
-        } catch (bggError) {
-          console.warn("BGG metadata lookup failed during project confirmation:", bggError);
-        }
-
         setAndAdvance();
         break;
       }
@@ -1305,6 +1301,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               metadata={metadata}
               setMetadata={setMetadata}
               bggUrl={bggUrl}
+              onExtractGameInfo={extractGameInfoFromText}
+              metadataWarning={metadataWarning}
             />
           )}
 
@@ -1316,6 +1314,9 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               handleMetadataChange={handleMetadataChange}
               gameName={gameName}
               file={file}
+              onLookupBgg={lookupBggMetadata}
+              bggLookupLoading={bggLookupLoading}
+              bggLookupWarning={metadataWarning}
             />
           )}
 

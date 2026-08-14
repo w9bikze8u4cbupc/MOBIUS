@@ -54,3 +54,17 @@ test('operator edits to Project ID are sent through the controlled input', () =>
 
   expect(props.setProjectId).toHaveBeenCalledWith('operator-abyss-id');
 });
+
+test('offers AI extraction only as an operator action and displays a non-blocking warning', () => {
+  const onExtractGameInfo = jest.fn();
+  renderProjectSetup({
+    gameName: 'Abyss',
+    onExtractGameInfo,
+    metadataWarning: 'AI game-info extraction is unavailable. Continue with the editable filename-derived name.',
+  });
+
+  fireEvent.click(screen.getByRole('button', { name: /Extract optional AI metadata/i }));
+
+  expect(onExtractGameInfo).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('alert')).toHaveTextContent('AI game-info extraction is unavailable.');
+});

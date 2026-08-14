@@ -21,6 +21,8 @@ export function ProjectSetupStep({
   metadata,
   setMetadata,
   bggUrl,
+  onExtractGameInfo,
+  metadataWarning,
 }) {
   const voices = getLanguageVoices(language);
   const dropRef = useRef(null);
@@ -120,7 +122,7 @@ export function ProjectSetupStep({
               or click to browse
             </div>
             <div style={{ marginTop: 16, padding: '8px 16px', backgroundColor: '#bbdefb', borderRadius: 8, display: 'inline-block' }}>
-              We'll automatically extract the game name and content
+              Your game name is derived locally from the filename, and you can edit it before continuing
             </div>
           </div>
         )}
@@ -156,6 +158,19 @@ export function ProjectSetupStep({
                 placeholder="Auto-generated from uploaded PDF filename"
               />
             </label>
+          </div>
+
+          <div style={{ marginTop: 16, padding: 14, backgroundColor: '#f5f5f5', borderRadius: 8 }}>
+            <strong style={{ display: 'block', marginBottom: 6 }}>Optional AI game-info extraction</strong>
+            <p style={{ margin: '0 0 10px', fontSize: 13, color: '#555' }}>
+              Your editable game name comes from the PDF filename. Request AI metadata only if you want to enrich it.
+            </p>
+            <button type="button" onClick={onExtractGameInfo} disabled={extractingName || !rulebookText.trim()}>
+              {extractingName ? 'Requesting AI metadata...' : 'Extract optional AI metadata'}
+            </button>
+            {metadataWarning && (
+              <div role="alert" style={{ marginTop: 10, color: '#8a4b00', fontSize: 13 }}>{metadataWarning}</div>
+            )}
           </div>
 
           {metadata && (

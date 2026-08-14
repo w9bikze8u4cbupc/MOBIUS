@@ -154,7 +154,7 @@ export function ImagesStep({
     onImagesUpdated?.(payload);
   };
 
-  // Automatic image gathering - uses native extraction first, then page-level fallback
+  // Canonical local image gathering: HEPHAESTUS uses the PyMuPDF path and never falls back to legacy rendering.
   const handleAutoGather = async () => {
     if (!normalizedProjectId) {
       setReadinessError('Project identifier is missing. Return to Project Setup and enter or generate a Project ID.');
@@ -164,131 +164,33 @@ export function ImagesStep({
       setReadinessError('The original rulebook PDF is not available. Return to Project Setup and upload it again.');
       return;
     }
-    setReadinessError("");
+
+    setReadinessError('');
     setLoading(true);
-    setAutoGatherStatus({ status: 'gathering', message: 'Gathering images from all sources...' });
-    
+    setAutoGatherStatus({ status: 'gathering', message: 'Running local HEPHAESTUS extraction...' });
     try {
-      const results = {
-        sources: [],
-        totalImages: 0,
-        errors: [],
-        nativeFound: 0
-      };
-      
-      // Step 1: Try native embedded image extraction first (best quality)
-      if (pdfFile) {
-        try {
-          setAutoGatherStatus({ 
-            status: 'gathering', 
-            message: 'Extracting embedded images from PDF...' 
-          });
-          const formData = new FormData();
-          formData.append('file', pdfFile);
-          
-          const nativeRes = await axios.post(
-            `${BACKEND_URL}/api/projects/${normalizedProjectId}/images/extract-native`,
-            formData,
-            { headers: { 'Content-Type': 'multipart/form-data' } }
-          );
-          
-          if (nativeRes.data?.images) {
-            const mode = nativeRes.data.mode;
-            const count = mode === 'native' ? nativeRes.data.nativeCount : nativeRes.data.pagesCount;
-            results.sources.push({ 
-              source: mode === 'native' ? 'native-pdf' : 'rulebook', 
-              count 
-            });
-            results.totalImages += nativeRes.data.images.length;
-            results.nativeFound = nativeRes.data.nativeCount || 0;
-            refreshState(nativeRes.data);
-            
-            if (mode === 'native' && count > 0) {
-              setAutoGatherStatus({ 
-                status: 'gathering', 
-                message: `Found ${count} embedded images, checking other sources...` 
-              });
-            } else {
-              setAutoGatherStatus({ 
-                status: 'gathering', 
-                message: `Extracted ${count} pages, checking other sources...` 
-              });
-            }
-          }
-        } catch (err) {
-          console.error('Native extraction failed:', err);
-          results.errors.push({ source: 'native-pdf', error: err.message });
-          
-          // Fallback to full page extraction
-          try {
-            setAutoGatherStatus({ status: 'gathering', message: 'Extracting pages from PDF...' });
-            const formData = new FormData();
-            formData.append('file', pdfFile);
-            
-            const pdfRes = await axios.post(
-              `${BACKEND_URL}/api/projects/${normalizedProjectId}/images/extract-pdf`,
-              formData,
-              { headers: { 'Content-Type': 'multipart/form-data' } }
-            );
-            
-            if (pdfRes.data?.images) {
-              results.sources.push({ source: 'rulebook', count: pdfRes.data.images.length });
-              results.totalImages += pdfRes.data.images.length;
-              refreshState(pdfRes.data);
-            }
-          } catch (fallbackErr) {
-            console.error('Fallback PDF extraction failed:', fallbackErr);
-          }
-        }
-      }
-      
-      // Step 2: Fetch BGG images
-      if (gameName) {
-        try {
-          setAutoGatherStatus({ status: 'gathering', message: 'Searching BoardGameGeek for images...' });
-          const bggRes = await axios.post(
-            `${BACKEND_URL}/api/projects/${normalizedProjectId}/images/fetch-bgg`,
-            { bggUrl: manualBggUrl || bggUrl || gameName }
-          );
-          
-          if (bggRes.data?.images) {
-            const newCount = bggRes.data.images.length - results.totalImages;
-            if (newCount > 0) {
-              results.sources.push({ source: 'bgg', count: newCount });
-              results.totalImages = bggRes.data.images.length;
-            }
-            refreshState(bggRes.data);
-          }
-        } catch (err) {
-          console.error('BGG fetch failed:', err);
-          results.errors.push({ source: 'bgg', error: err.message });
-        }
-      }
-      
-      const state = await axios.get(`${BACKEND_URL}/api/projects/${normalizedProjectId}/images`);
-      refreshState(state.data || {});
-      
-      if (results.totalImages === 0 && results.errors.length === 0) {
-        setAutoGatherStatus({
-          status: 'warning',
-          message: 'No images found. Try uploading a PDF or providing a BGG URL.',
-          sources: results.sources,
-          errors: results.errors
-        });
-      } else {
-        const cropsMsg = results.cropsFound > 0 ? ` (${results.cropsFound} AI-detected component crops)` : '';
-        setAutoGatherStatus({
-          status: 'complete',
-          message: `Found ${results.totalImages} images from ${results.sources.length} sources${cropsMsg}`,
-          sources: results.sources,
-          errors: results.errors
-        });
-      }
+      const formData = new FormData();
+      formData.append('file', pdfFile);
+      formData.append('minWidth', '1');
+      formData.append('minHeight', '1');
+      const { data } = await axios.post(
+        `${BACKEND_URL}/api/projects/${normalizedProjectId}/images/extract-hephaestus`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+
+      refreshState(data || {});
+      const count = data?.imagesCount ?? data?.images?.length ?? 0;
+      setAutoGatherStatus({
+        status: 'complete',
+        message: `Extracted ${count} local images using HEPHAESTUS.`,
+        sources: [{ source: 'hephaestus', count }],
+      });
     } catch (err) {
-      console.error('Auto-gather failed:', err);
-      setAutoGatherStatus({ 
-        status: 'error', 
-        message: err.response?.data?.error || 'Failed to gather images' 
+      console.warn('Local HEPHAESTUS extraction failed:', err?.message || 'unknown error');
+      setAutoGatherStatus({
+        status: 'error',
+        message: err.response?.data?.error || 'Local HEPHAESTUS extraction failed. Check the server diagnostic and try again.',
       });
     } finally {
       setLoading(false);
@@ -737,8 +639,7 @@ export function ImagesStep({
           Automatic Image Collection
         </h4>
         <p style={{ margin: '0 0 16px 0', color: '#555', fontSize: 14 }}>
-          Click the button below to automatically gather images from the rulebook PDF, 
-          BoardGameGeek, and web search.
+          Click the button below to extract local rulebook images with HEPHAESTUS (PyMuPDF). No external image sources are queried.
         </p>
         
         <button 

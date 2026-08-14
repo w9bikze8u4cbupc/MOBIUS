@@ -147,8 +147,12 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         componentImages: state.componentImages 
       });
     } catch (err) {
-      console.error('Failed to extract PDF images', err);
-      res.status(400).json({ error: err.message || 'Unable to extract PDF images' });
+      console.error('[ImageExtraction]', JSON.stringify({
+        route: 'extract-pdf',
+        engine: 'legacy-page-renderer',
+        message: err?.message || 'unknown error',
+      }));
+      res.status(500).json({ error: 'Legacy PDF page extraction failed. Use local HEPHAESTUS extraction instead.' });
     }
   });
 
@@ -200,8 +204,12 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         componentImages: state.componentImages 
       });
     } catch (err) {
-      console.error('Failed to extract native images:', err);
-      res.status(500).json({ error: err.message || 'Failed to extract native images' });
+      console.error('[ImageExtraction]', JSON.stringify({
+        route: 'extract-native',
+        engine: 'native-or-legacy-fallback',
+        message: err?.message || 'unknown error',
+      }));
+      res.status(500).json({ error: 'Native PDF extraction failed. Use local HEPHAESTUS extraction instead.' });
     }
   });
 
@@ -449,8 +457,11 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         componentImages: updatedState.componentImages,
       });
     } catch (err) {
-      console.error('[HEPHAESTUS] Extraction failed:', err);
-      return res.status(500).json({ error: err.message || 'HEPHAESTUS extraction failed' });
+      console.error('[HEPHAESTUS]', JSON.stringify({
+        event: 'extraction-failed',
+        message: err?.message || 'unknown error',
+      }));
+      return res.status(500).json({ error: 'HEPHAESTUS extraction failed. Check the server diagnostic and retry.' });
     }
   });
 

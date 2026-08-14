@@ -38,7 +38,7 @@ test('filename helper creates a safe unique ID', () => {
   expect(createProjectIdFromFilename('Abyss final.pdf', 'test123')).toBe('abyss-final-test123');
 });
 
-test('PDF upload creates a project ID when game-name extraction fails', async () => {
+test('PDF upload creates a project ID without calling game-name extraction', async () => {
   getDocument.mockReturnValue({
     promise: Promise.resolve({
       numPages: 1,
@@ -61,7 +61,7 @@ test('PDF upload creates a project ID when game-name extraction fails', async ()
   expect(screen.getByPlaceholderText('Auto-generated from uploaded PDF filename').value).toMatch(/^abyss-/);
 });
 
-test('successful game-name extraction does not overwrite the filename-derived project ID', async () => {
+test('PDF upload keeps the filename-derived game name and project ID without automatic AI or BGG calls', async () => {
   getDocument.mockReturnValue({
     promise: Promise.resolve({
       numPages: 1,
@@ -70,8 +70,6 @@ test('successful game-name extraction does not overwrite the filename-derived pr
       }),
     }),
   });
-  axios.post.mockResolvedValueOnce({ data: { gameName: 'Detected Abyss' } });
-  axios.get.mockResolvedValue({ data: { found: false } });
 
   const { container } = render(<App />);
   const pdfFile = new File(['pdf contents'], 'Abyss.pdf', { type: 'application/pdf' });
@@ -79,10 +77,12 @@ test('successful game-name extraction does not overwrite the filename-derived pr
   fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [pdfFile] } });
 
   await waitFor(() => {
-    expect(screen.getByPlaceholderText('Extracted from PDF')).toHaveValue('Detected Abyss');
+    expect(screen.getByPlaceholderText('Extracted from PDF')).toHaveValue('Abyss');
   });
 
   expect(screen.getByPlaceholderText('Auto-generated from uploaded PDF filename').value).toMatch(/^abyss-/);
+  expect(axios.post).not.toHaveBeenCalled();
+  expect(axios.get).not.toHaveBeenCalled();
 });
 
 test('inventory confirmation rejects blank and sentence-shaped pseudo-components', () => {
