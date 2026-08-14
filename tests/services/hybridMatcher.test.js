@@ -49,3 +49,26 @@ describe('inventory-guided hybrid matching', () => {
     )['comp-pearl'];
     expect(ranked[0].reasons).toContain('category/type match');
   });
+
+
+test('never auto-links a blank board-like candidate to game board from generic category and area scoring', () => {
+  const result = ruleBasedMatch(
+    [{ id: 'comp-game-board', name: 'game board', category: 'board', quantity: null, sourcePage: 2, reviewRequired: true, eligibility: 'setup', inferenceReason: 'Setup-derived physical object; confirm this component before matching.' }],
+    [{
+      id: 'img-blank-board',
+      source: 'hephaestus',
+      label: 'Native board image',
+      type: 'board',
+      metadata: { classification: 'board', page: 2, confidence: 1, curation: { candidate: true, score: 1, lowInformation: true } },
+      curation: { candidate: true, score: 1, lowInformation: true },
+    }],
+  );
+
+  expect(result.matches).toEqual({});
+  expect(result.rankedCandidates['comp-game-board'][0]).toMatchObject({ imageId: 'img-blank-board', autoLink: false });
+  expect(result.rankedCandidates['comp-game-board'][0].reasons).toEqual(expect.arrayContaining([
+    'category/type match',
+    'same source page',
+    'low-information asset; operator review required',
+  ]));
+});

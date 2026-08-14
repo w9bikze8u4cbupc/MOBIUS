@@ -39,6 +39,15 @@ const PLACEHOLDER_NAMES = new Set([
   '', 'unknown', 'unknown component', 'component', 'components', 'item', 'items', 'n/a', 'none', 'null',
 ]);
 
+const GENERIC_COMPONENT_NAMES = new Set([
+  'card', 'cards', 'tile', 'tiles', 'token', 'tokens', 'track', 'tracks', 'board', 'boards',
+  'marker', 'markers', 'other', 'icon', 'icons', 'number', 'numbers',
+]);
+
+const ACTION_PREFIX = /^(?:place|shuffle|turn|then|take|form|put|draw|move|each|randomly|discard|attach|play|reveal|resolve|activate|select|choose|gain|spend|return|remove|deal|collect|roll|pay|build|use|claim|pass|start|end)\b/i;
+const ACTION_PHRASE_PATTERN = /^[A-Za-zÀ-ÿ]+\s+(?:a|an|the|your|each|any|all|one|two|three|\d+)\b/i;
+const VISUAL_LABEL_PATTERN = /\b(?:front|back|court|council|exploration track|threat track)\b/i;
+
 const NUMBER_WORDS = {
   one: 1, un: 1, une: 1, two: 2, deux: 2, three: 3, trois: 3, four: 4, quatre: 4,
   five: 5, cinq: 5, six: 6, sept: 7, seven: 7, eight: 8, huit: 8, nine: 9, neuf: 9,
@@ -271,32 +280,91 @@ function hasComponentTerm(value) {
   return Object.values(COMPONENT_TERMS).flat().some((term) => new RegExp(`\\b${fold(term).replace(/ /g, '\\s+')}\\b`, 'i').test(text));
 }
 
-function isShortInventoryLabel(name, rawLine) {
-  const foldedName = fold(name);
-  const words = foldedName.split(/\s+/).filter(Boolean);
-  if (words.length > 7 || /[.;!?]/.test(rawLine)) return false;
-  if (/^(shuffle|then|place|each|randomly|when|if|and|to|your|you|on|the)\b/.test(foldedName)) return false;
-  if (/\b(back|front)\b/.test(foldedName) || /^(?:of the|the)\b/.test(foldedName)) return false;
-  return true;
+function isGenericComponentName(name) {
+  return GENERIC_COMPONENT_NAMES.has(fold(name));
 }
 
-function isStepNumberInstruction(rawLine) {
-  return /^(?:place|shuffle|form|take|each player|randomly)\b/i.test(rawLine)
-    && /\s\d+\s*\.?$/.test(rawLine);
-}
-
-function isLikelyVisualCaption(rawLine) {
-  const text = fold(rawLine);
-  return /\b(front|back)\b/.test(text)
-    || /^(?:the council|the court)$/.test(text)
+function isLikelyVisualCaption(value) {
+  const text = fold(value);
+  return VISUAL_LABEL_PATTERN.test(text)
+    || /^(?:the\s+)?(?:council|court)$/.test(text)
     || /^(?:merchant\s+)?lord of the lords?$/.test(text)
     || /^(monster tokens?)(\s+\1)+$/.test(text)
     || /^of the\s+/.test(text);
 }
 
+function isAllCapsDiagramLabel(value) {
+  const cleaned = String(value || '').replace(/[^A-Za-z]/g, '');
+  return cleaned.length > 2 && cleaned === cleaned.toUpperCase();
+}
+
+function isSentenceOrAction(value) {
+  const text = String(value || '').trim();
+  const words = fold(text).split(/\s+/).filter(Boolean);
+  return ACTION_PREFIX.test(text) || ACTION_PHRASE_PATTERN.test(text) || words.length > 6 || /[.!?]/.test(text);
+}
+
+function hasControlledPhysicalObjectPattern(name) {
+  const text = fold(name);
+  if (!text || isGenericComponentName(text) || /\btracks?\b/.test(text)) return false;
+  return hasComponentTerm(text);
+}
+
+/**
+ * Deterministically decides whether a candidate is a named physical object.
+ * Setup-prose objects are deliberately review-only; only quantified records in a
+ * detected contents/material section are admitted as verified inventory entries.
+ */
+function validateComponentEligibility({ name, rawLine = '', parsed = {}, source = {}, inferred = false } = {}) {
+  const clean = cleanName(name);
+  const quantityIsExplicit = Number.isInteger(parsed.quantity) || Array.isArray(parsed.quantityRange);
+  const inContentsSection = Number.isInteger(source.sectionIndex);
+
+  if (!clean || PLACEHOLDER_NAMES.has(fold(clean))) {
+    return { eligible: false, reviewRequired: true, reason: 'Excluded non-component evidence: empty or placeholder label.' };
+  }
+  if (isGenericComponentName(clean)) {
+    return { eligible: false, reviewRequired: true, reason: 'Excluded non-component evidence: generic category label.' };
+  }
+  if (isLikelyVisualCaption(clean) || isAllCapsDiagramLabel(clean)) {
+    return { eligible: false, reviewRequired: true, reason: 'Excluded non-component evidence: diagram label or visual caption.' };
+  }
+  if (isSentenceOrAction(clean)) {
+    return { eligible: false, reviewRequired: true, reason: 'Excluded non-component evidence: instruction, sentence, or clause.' };
+  }
+  if (!hasControlledPhysicalObjectPattern(clean)) {
+    return { eligible: false, reviewRequired: true, reason: 'Excluded non-component evidence: not a controlled physical-object name.' };
+  }
+  if (!inferred && inContentsSection && quantityIsExplicit) {
+    return { eligible: true, reviewRequired: false, kind: 'contents', reason: null };
+  }
+  return {
+    eligible: true,
+    reviewRequired: true,
+    kind: 'setup',
+    reason: 'Setup-derived physical object; confirm this component before matching.',
+  };
+}
+
+function isEligibleComponentForMatching(component) {
+  if (!component || !String(component.name || '').trim()) return false;
+  if (component.matchEligible === false || component.eligibility === 'excluded') return false;
+  const isCanonicalSetupRecord = component.eligibility === 'setup'
+    && component.inferenceReason === 'Setup-derived physical object; confirm this component before matching.';
+  if (component.reviewRequired === true && !isCanonicalSetupRecord) return false;
+  const parsed = { quantity: Number.isInteger(component.quantity) ? component.quantity : null };
+  return validateComponentEligibility({
+    name: component.name,
+    rawLine: component.sourceQuote || component.name,
+    parsed,
+    source: { sectionIndex: component.eligibility === 'contents' ? 0 : null },
+    inferred: isCanonicalSetupRecord,
+  }).eligible;
+}
+
 function extractComponentPhrase(rawLine) {
   const cleaned = rawLine.replace(/^[•●▪◦*-]+\s*/, '').replace(/\s+/g, ' ').trim();
-  if (isLikelyVisualCaption(cleaned)) return null;
+  if (isLikelyVisualCaption(cleaned) && !ACTION_PREFIX.test(cleaned)) return null;
   const terms = Object.values(COMPONENT_TERMS).flat()
     .sort((a, b) => b.length - a.length)
     .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s+'));
@@ -327,13 +395,13 @@ function splitRowFragments(sourceQuote) {
     .filter(Boolean);
 }
 
-function recordFromParsed(parsed, source, index, { inferred = false } = {}) {
+function recordFromParsed(parsed, source, index, { inferred = false, eligibility } = {}) {
   const nameAndDetails = splitParentheticalDetails(parsed.name);
   const name = cleanName(nameAndDetails.name);
   const normalizedName = normalizeName(name);
   const category = normalizeCategory('', name);
   const quantity = Number.isInteger(parsed.quantity) ? parsed.quantity : null;
-  const reviewRequired = inferred || quantity === null || parsed.confidence < 0.8 || category === 'other';
+  const reviewRequired = Boolean(eligibility?.reviewRequired) || inferred || quantity === null || parsed.confidence < 0.8 || category === 'other';
   return {
     id: `comp-${index + 1}`,
     name,
@@ -344,28 +412,33 @@ function recordFromParsed(parsed, source, index, { inferred = false } = {}) {
     sourceQuote: source.text,
     confidence: parsed.confidence,
     reviewRequired,
+    eligibility: eligibility?.kind || 'setup',
+    matchEligible: true,
     details: parsed.details || nameAndDetails.details || '',
     quantityRange: parsed.quantityRange || null,
     qualifier: parsed.qualifier || null,
-    inferenceReason: inferred ? 'Grounded by the detected contents/material section; confirm quantity and classification.' : null,
+    inferenceReason: eligibility?.reason || (inferred ? 'Setup-derived physical object; confirm this component before matching.' : null),
   };
 }
 
 function parseSourceFragment(fragment, source, index, continuation = null) {
   const parsed = parseQuantity(fragment);
-  const isImperative = isStepNumberInstruction(fragment);
   const explicitName = splitParentheticalDetails(parsed.name).name;
-  const explicitIsComponent = hasComponentTerm(explicitName);
+  const explicitEligibility = validateComponentEligibility({ name: explicitName, rawLine: fragment, parsed, source, inferred: false });
 
-  if (!isLikelyVisualCaption(fragment) && !isImperative && explicitIsComponent && (parsed.method !== 'name-only' || isShortInventoryLabel(explicitName, fragment))) {
-    const record = recordFromParsed(parsed, { ...source, text: fragment }, index, { inferred: false });
-    if (!PLACEHOLDER_NAMES.has(fold(record.name))) return { record, reason: null };
+  if (explicitEligibility.eligible) {
+    const record = recordFromParsed(parsed, { ...source, text: fragment }, index, { inferred: false, eligibility: explicitEligibility });
+    return { record, reason: null };
   }
 
   const inferred = extractComponentPhrase(fragment);
   if (inferred) {
-    const record = recordFromParsed(inferred, { ...source, text: fragment }, index, { inferred: true });
-    if (!PLACEHOLDER_NAMES.has(fold(record.name))) return { record, reason: null };
+    const inferredEligibility = validateComponentEligibility({ name: inferred.name, rawLine: fragment, parsed: inferred, source, inferred: true });
+    if (inferredEligibility.eligible) {
+      const record = recordFromParsed(inferred, { ...source, text: fragment }, index, { inferred: true, eligibility: inferredEligibility });
+      return { record, reason: null };
+    }
+    return { record: null, reason: inferredEligibility.reason };
   }
 
   if (continuation
@@ -377,12 +450,7 @@ function parseSourceFragment(fragment, source, index, continuation = null) {
     if (wrapped.record) return wrapped;
   }
 
-  return {
-    record: null,
-    reason: hasComponentTerm(fragment)
-      ? 'Component-like source row could not be parsed into a safe named inventory record.'
-      : 'Unparsed source row in the detected contents/material section; operator review is required.',
-  };
+  return { record: null, reason: explicitEligibility.reason };
 }
 
 function preferRecord(existing, candidate) {
@@ -457,11 +525,15 @@ function deterministicInventory(input) {
   const components = componentOrder.map((key) => componentsByName.get(key));
   const unparsedRows = rawRows.filter((row) => row.status !== 'parsed');
   const reviewRequiredRows = rawRows.filter((row) => row.reviewRequired);
+  const nonComponentEvidenceRows = rawRows.filter((row) => String(row.reason || '').startsWith('Excluded non-component evidence:'));
   const coverage = {
     rawRowCount: rawRows.length,
     parsedRowCount: rawRows.filter((row) => row.status === 'parsed').length,
     reviewRequiredRowCount: reviewRequiredRows.length,
     unparsedRowCount: unparsedRows.length,
+    nonComponentEvidenceCount: nonComponentEvidenceRows.length,
+    validPhysicalComponentCount: components.filter((component) => component.eligibility === 'contents').length,
+    setupDerivedComponentCount: components.filter((component) => component.eligibility === 'setup').length,
     silentlyDroppedRowCount: 0,
   };
   const firstSection = sections[0];
@@ -569,6 +641,8 @@ export {
   parseQuantity,
   normalizeName,
   normalizeCategory,
+  validateComponentEligibility,
+  isEligibleComponentForMatching,
   deterministicInventory,
   extractComponentInventory,
 };

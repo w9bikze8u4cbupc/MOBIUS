@@ -28,7 +28,7 @@ test('does not render anonymous inventory rows and shows a visible review warnin
   expect(screen.getByText('Ocean cards')).toBeInTheDocument();
   expect(screen.queryByText('blank')).not.toBeInTheDocument();
   expect(screen.getByRole('alert')).toHaveTextContent(/inventory candidate/i);
-  expect(screen.getByText(/1 named component type/i)).toBeInTheDocument();
+  expect(screen.getByText(/1 valid physical component type/i)).toBeInTheDocument();
 });
 
 test('allows the operator to add a named editable component', () => {
@@ -101,4 +101,30 @@ test('shows inventory coverage, source provenance, and unparsed review rows', ()
   expect(screen.getByText(/Back of the Front/i)).toBeInTheDocument();
   expect(screen.getAllByText(/Page 2/i).length).toBeGreaterThan(0);
   expect(screen.getByText(/71 Exploration cards/)).toBeInTheDocument();
+});
+
+
+test('shows separate valid, setup-review, and excluded-evidence counts', () => {
+  render(
+    <IngestionReviewStep
+      onRunIngestion={jest.fn()}
+      ingesting={false}
+      rulebookText="Contents & Setup"
+      ingestionManifest={null}
+      ingestionError=""
+      gameName="Abyss"
+      gameComponents={[
+        { id: 'exploration', name: 'Exploration cards', category: 'card', quantity: 71, eligibility: 'contents', matchEligible: true },
+        { id: 'board', name: 'game board', category: 'board', quantity: null, reviewRequired: true, eligibility: 'setup', matchEligible: true },
+      ]}
+      componentExtraction={{ coverage: { nonComponentEvidenceCount: 6 } }}
+      setGameComponents={jest.fn()}
+      onExtractComponents={jest.fn()}
+      extractingComponents={false}
+    />
+  );
+
+  expect(screen.getByText(/1 valid physical component type/i)).toBeInTheDocument();
+  expect(screen.getByText(/1 setup-derived component requiring review/i)).toBeInTheDocument();
+  expect(screen.getByText(/6 non-component evidence rows excluded from matching/i)).toBeInTheDocument();
 });

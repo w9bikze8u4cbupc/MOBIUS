@@ -109,6 +109,8 @@ export function IngestionReviewStep({
       && !/[.!?]/.test(name);
   };
   const namedComponents = (gameComponents || []).filter((component) => isUsableInventoryName(component?.name));
+  const validPhysicalComponents = namedComponents.filter((component) => component.eligibility === 'contents' || (!component.reviewRequired && component.matchEligible !== false));
+  const setupDerivedComponents = namedComponents.filter((component) => component.eligibility === 'setup' || (component.reviewRequired && component.matchEligible !== false));
   const invalidCount = (gameComponents || []).length - namedComponents.length;
   const groupedComponents = namedComponents.reduce((acc, comp) => {
     const cat = comp.category || 'other';
@@ -205,7 +207,9 @@ export function IngestionReviewStep({
       <div aria-label="Editable component inventory" className="pipeline-card" style={{ marginTop: 16, marginBottom: 16 }}>
         <h4 style={{ margin: 0 }}>Editable Component Inventory</h4>
         <p className="pipeline-muted" style={{ margin: '6px 0 0' }}>
-          {namedComponents.length} named component type{namedComponents.length === 1 ? '' : 's'}; edit names, quantities, categories, and details before continuing.
+          {validPhysicalComponents.length} valid physical component type{validPhysicalComponents.length === 1 ? '' : 's'};{' '}
+          {setupDerivedComponents.length} setup-derived component{setupDerivedComponents.length === 1 ? '' : 's'} requiring review;{' '}
+          {coverage?.nonComponentEvidenceCount ?? 0} non-component evidence row{coverage?.nonComponentEvidenceCount === 1 ? '' : 's'} excluded from matching.
         </p>
       </div>
 

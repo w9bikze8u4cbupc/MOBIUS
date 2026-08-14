@@ -1,8 +1,8 @@
 import {
   deterministicInventory,
-  extractComponentInventory,
   findComponentSection,
   parseQuantity,
+  validateComponentEligibility,
 } from '../../src/services/componentInventory.js';
 
 describe('component inventory extraction', () => {
@@ -16,15 +16,14 @@ describe('component inventory extraction', () => {
     ['Matériel', true],
     ['Éléments du jeu', true],
   ])('detects EN/FR component heading %s', (heading, found) => {
-    expect(findComponentSection(`${heading}\n7 Cards\nSetup\nShuffle the deck`).found).toBe(found);
+    expect(findComponentSection(`${heading}\n71 Exploration cards\nSetup\nShuffle the deck`).found).toBe(found);
   });
 
   test.each([
-    ['7 Cards', 'Cards', 7],
-    ['Cards: 7', 'Cards', 7],
-    ['Cards (7)', 'Cards', 7],
-    ['4 cartes', 'cartes', 4],
-    ['10 jetons', 'jetons', 10],
+    ['71 Exploration cards', 'Exploration cards', 71],
+    ['Lords: 35', 'Lords', 35],
+    ['20 Locations', 'Locations', 20],
+    ['20 Monster tokens', 'Monster tokens', 20],
   ])('parses deterministic quantity format %s', (line, name, quantity) => {
     const parsed = parseQuantity(line);
     expect(parsed.name).toBe(name);
@@ -32,76 +31,84 @@ describe('component inventory extraction', () => {
   });
 
   test('preserves qualifiers for of-each and per-player quantities', () => {
-    expect(parseQuantity('10 of each token')).toMatchObject({ name: 'token', quantity: 10, qualifier: 'of each' });
-    expect(parseQuantity('2 cards per player')).toMatchObject({ name: 'cards', quantity: 2, qualifier: 'per player' });
+    expect(parseQuantity('10 of each Key token')).toMatchObject({ name: 'Key token', quantity: 10, qualifier: 'of each' });
+    expect(parseQuantity('2 Exploration cards per player')).toMatchObject({ name: 'Exploration cards', quantity: 2, qualifier: 'per player' });
   });
 
-  test('extracts named records with the required provenance schema', () => {
+  test('admits only quantified named physical records from a contents section', () => {
     const result = deterministicInventory([
       'Components',
-      '7 Cards',
-      'Cards: 7',
-      '4 cartes',
-      '10 jetons',
+      '71 Exploration cards',
+      '20 Monster tokens',
+      '10 Key tokens',
       'Setup',
       'Shuffle the deck',
     ].join('\n'));
 
     expect(result.sectionFound).toBe(true);
-    expect(result.components).toHaveLength(2);
     expect(result.components).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'Cards', category: 'card', quantity: 7, reviewRequired: false }),
-      expect.objectContaining({ name: 'jetons', category: 'token', quantity: 10 }),
+      expect.objectContaining({ name: 'Exploration cards', category: 'card', quantity: 71, reviewRequired: false, eligibility: 'contents', matchEligible: true }),
+      expect.objectContaining({ name: 'Monster tokens', category: 'token', quantity: 20, reviewRequired: false, eligibility: 'contents', matchEligible: true }),
+      expect.objectContaining({ name: 'Key tokens', category: 'token', quantity: 10, reviewRequired: false, eligibility: 'contents', matchEligible: true }),
     ]));
-    for (const component of result.components) {
-      expect(component).toEqual(expect.objectContaining({
-        id: expect.any(String),
-        name: expect.any(String),
-        normalizedName: expect.any(String),
-        category: expect.any(String),
-        quantity: expect.any(Number),
-        sourcePage: null,
-        sourceQuote: expect.any(String),
-        confidence: expect.any(Number),
-        reviewRequired: expect.any(Boolean),
-      }));
-    }
+    expect(result.components).toHaveLength(3);
   });
 
-  test('returns review-required candidates when no component section exists', () => {
-    const result = deterministicInventory('The game includes 3 cards and a board.');
+  test('rejects generic and sentence-like evidence when no component section exists', () => {
+    const result = deterministicInventory('Then, turn over the top six cards and place them in the Court.\ncard\nTrack');
     expect(result.sectionFound).toBe(false);
     expect(result.reviewRequired).toBe(true);
-    expect(result.components.length).toBeGreaterThan(0);
-    expect(result.components[0].reviewRequired).toBe(true);
-  });
-
-  test('uses structured JSON LLM fallback only when configured', async () => {
-    const llm = {
-      chat: {
-        completions: {
-          create: jest.fn().mockResolvedValue({
-            choices: [{ message: { content: '[{"name":"Ocean cards","category":"card","quantity":12,"sourcePage":3,"sourceQuote":"12 Ocean cards","confidence":0.9}]' } }],
-          }),
-        },
-      },
-    };
-    const result = await extractComponentInventory('A rulebook paragraph without a contents heading.', {
-      llm,
-      llmConfigured: true,
-    });
-    expect(llm.chat.completions.create).toHaveBeenCalled();
-    expect(result.extractionMethod).toBe('deterministic-plus-llm');
-    expect(result.components[0]).toMatchObject({ name: 'Ocean cards', quantity: 12, category: 'card', reviewRequired: false });
+    expect(result.components).toHaveLength(0);
+    expect(result.rawRows.every((row) => row.reviewRequired && row.sourceQuote)).toBe(true);
+    expect(result.rawRows.every((row) => /Excluded non-component evidence/.test(row.reason))).toBe(true);
   });
 });
 
+describe('strict eligibility validation', () => {
+  test('accepts a quantified contents record and setup-derived physical object', () => {
+    expect(validateComponentEligibility({
+      name: '71 Exploration cards',
+      parsed: { quantity: 71 },
+      source: { sectionIndex: 0 },
+    }).eligible).toBe(true);
+    expect(validateComponentEligibility({
+      name: 'Threat token',
+      parsed: { quantity: null },
+      source: { sectionIndex: 0 },
+      inferred: true,
+    })).toMatchObject({ eligible: true, reviewRequired: true, kind: 'setup' });
+  });
+
+  test.each([
+    'Then, turn over the top six cards and place them in the Court.',
+    'EXPLORATION TRACK',
+    'Track',
+    'tile',
+    'Front of a Location',
+    'Back of the Lords',
+  ])('rejects non-component candidate %s', (name) => {
+    expect(validateComponentEligibility({ name, parsed: {}, source: { sectionIndex: 0 } })).toMatchObject({
+      eligible: false,
+      reviewRequired: true,
+      reason: expect.stringMatching(/Excluded non-component evidence/),
+    });
+  });
+});
 
 describe('Abyss contents coverage', () => {
   const abyssContents = require('../fixtures/component-inventory/abyss-contents.json');
+  const falseComponentNames = [
+    'Then, turn over the top six cards and place them in the Court.',
+    'EXPLORATION TRACK',
+    'Track',
+    'tile',
+    'Front of a Location',
+    'Back of the Lords',
+  ];
 
-  test('preserves every extracted contents row as either a parsed component or an explicit review row', () => {
+  test('preserves every extracted contents row while admitting only matching-eligible physical objects', () => {
     const result = deterministicInventory({ pages: abyssContents.pages });
+    const componentNames = result.components.map((component) => component.name);
 
     expect(result.sectionFound).toBe(true);
     expect(result.candidateHeadings).toEqual(expect.arrayContaining([
@@ -113,27 +120,34 @@ describe('Abyss contents coverage', () => {
     expect(result.rawRows.every((row) => row.status === 'parsed' || row.reviewRequired)).toBe(true);
     expect(result.unparsedRows.every((row) => row.reviewRequired && row.sourceQuote)).toBe(true);
     expect(result.components).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'Exploration cards', quantity: 71, sourcePage: 2, category: 'card' }),
-      expect.objectContaining({ name: 'Lords', quantity: 35, sourcePage: 2, category: 'card' }),
-      expect.objectContaining({ name: 'Locations', quantity: 20, sourcePage: 3, category: 'tile' }),
-      expect.objectContaining({ name: 'Monster tokens', quantity: 20, sourcePage: 3, category: 'token' }),
-      expect.objectContaining({ name: 'game board', sourcePage: 2, category: 'board', reviewRequired: true }),
-      expect.objectContaining({ name: 'Threat token', sourcePage: 3, category: 'token', reviewRequired: true }),
-      expect.objectContaining({ name: 'Key tokens', quantity: 10, sourcePage: 3, category: 'token', reviewRequired: true }),
-      expect.objectContaining({ name: 'Pearl', quantity: 1, sourcePage: 3, category: 'currency', reviewRequired: true }),
+      expect.objectContaining({ name: 'Exploration cards', quantity: 71, sourcePage: 2, category: 'card', eligibility: 'contents' }),
+      expect.objectContaining({ name: 'Lords', quantity: 35, sourcePage: 2, category: 'card', eligibility: 'contents' }),
+      expect.objectContaining({ name: 'Locations', quantity: 20, sourcePage: 3, category: 'tile', eligibility: 'contents' }),
+      expect.objectContaining({ name: 'Monster tokens', quantity: 20, sourcePage: 3, category: 'token', eligibility: 'contents' }),
+      expect.objectContaining({ name: 'game board', sourcePage: 2, category: 'board', reviewRequired: true, eligibility: 'setup' }),
+      expect.objectContaining({ name: 'Threat token', sourcePage: 3, category: 'token', reviewRequired: true, eligibility: 'setup' }),
+      expect.objectContaining({ name: 'Key tokens', quantity: 10, sourcePage: 3, category: 'token', reviewRequired: true, eligibility: 'setup' }),
+      expect.objectContaining({ name: 'Pearl', quantity: 1, sourcePage: 3, category: 'currency', reviewRequired: true, eligibility: 'setup' }),
+      expect.objectContaining({ name: 'plastic cups', sourcePage: 3, reviewRequired: true, eligibility: 'setup' }),
     ]));
+    falseComponentNames.forEach((name) => expect(componentNames).not.toContain(name));
+    expect(result.rawRows.some((row) => row.sourceQuote === 'Front of a Location' && /Excluded non-component evidence/.test(row.reason))).toBe(true);
+    expect(result.coverage).toMatchObject({
+      validPhysicalComponentCount: 4,
+      setupDerivedComponentCount: 5,
+      nonComponentEvidenceCount: expect.any(Number),
+    });
   });
 });
 
-
-test('parses semicolon-separated and table-like quantity rows without losing either cell', () => {
-  const result = deterministicInventory('Components\n7 Cards; 4 tokens    2 dice\nSetup');
+test('parses semicolon-separated and table-like rows without admitting generic labels', () => {
+  const result = deterministicInventory('Components\n71 Exploration cards; 4 tokens    2 dice\nSetup');
   expect(result.coverage).toMatchObject({ rawRowCount: 3, silentlyDroppedRowCount: 0 });
   expect(result.components).toEqual(expect.arrayContaining([
-    expect.objectContaining({ name: 'Cards', quantity: 7, category: 'card' }),
-    expect.objectContaining({ name: 'tokens', quantity: 4, category: 'token' }),
+    expect.objectContaining({ name: 'Exploration cards', quantity: 71, category: 'card' }),
     expect.objectContaining({ name: 'dice', quantity: 2, category: 'dice' }),
   ]));
+  expect(result.components.map((component) => component.name)).not.toContain('tokens');
 });
 
 test('parses a wrapped quantity-first component row while preserving source-row coverage', () => {

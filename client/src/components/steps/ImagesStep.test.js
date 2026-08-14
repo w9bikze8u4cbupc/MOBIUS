@@ -168,3 +168,66 @@ test('separates curated candidates from raw HEPHAESTUS assets and supports ranke
   expect(screen.getByRole('dialog', { name: /Full-resolution image preview/i })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Link this representative image/i })).toBeInTheDocument();
 });
+
+
+test('lists only strict physical components in Component Image Links', () => {
+  const images = [{
+    id: 'board-image',
+    source: 'manual',
+    label: 'Board reference',
+    type: 'board',
+    localUrl: '/board.png',
+  }];
+  axios.get.mockResolvedValue({ data: { images, componentImages: {} } });
+
+  render(
+    <ImagesStep
+      projectId="abyss-upload-abc123"
+      pdfFile={pdfFile}
+      images={images}
+      componentImages={{}}
+      components={[
+        { id: 'game-board', name: 'game board', category: 'board', reviewRequired: true, eligibility: 'setup', inferenceReason: 'Setup-derived physical object; confirm this component before matching.', matchEligible: true },
+        { id: 'instruction', name: 'Then, turn over the top six cards and place them in the Court.', category: 'card', matchEligible: false },
+        { id: 'track', name: 'EXPLORATION TRACK', category: 'marker', matchEligible: false },
+        { id: 'caption', name: 'Lord of the Lords', category: 'card', reviewRequired: true, eligibility: 'setup', matchEligible: true },
+        { id: 'star', name: 'blue star', category: 'other', reviewRequired: true, eligibility: 'setup', matchEligible: true },
+      ]}
+    />
+  );
+
+  expect(screen.getByRole('heading', { name: 'Component Image Links' })).toBeInTheDocument();
+  expect(screen.getByText('game board')).toBeInTheDocument();
+  expect(screen.queryByText(/Then, turn over the top six cards/i)).not.toBeInTheDocument();
+  expect(screen.queryByText('EXPLORATION TRACK')).not.toBeInTheDocument();
+  expect(screen.queryByText('Lord of the Lords')).not.toBeInTheDocument();
+  expect(screen.queryByText('blue star')).not.toBeInTheDocument();
+});
+
+
+test('does not submit non-physical evidence to automatic matching', async () => {
+  const images = [{ id: 'board-image', source: 'manual', label: 'Board reference', type: 'board', localUrl: '/board.png' }];
+  axios.get.mockResolvedValue({ data: { images, componentImages: {} } });
+  axios.post.mockResolvedValue({ data: { images, componentImages: {}, candidates: {}, matched: 0, stats: { total: 1, unmatched: 1 } } });
+
+  render(
+    <ImagesStep
+      projectId="abyss-upload-abc123"
+      pdfFile={pdfFile}
+      images={images}
+      componentImages={{}}
+      components={[
+        { id: 'game-board', name: 'game board', category: 'board', reviewRequired: true, eligibility: 'setup', inferenceReason: 'Setup-derived physical object; confirm this component before matching.', matchEligible: true },
+        { id: 'caption', name: 'Lord of the Lords', category: 'card', reviewRequired: true, eligibility: 'setup', matchEligible: true },
+        { id: 'star', name: 'blue star', category: 'other', reviewRequired: true, eligibility: 'setup', matchEligible: true },
+      ]}
+    />
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: /Auto-Match Components to Images/i }));
+  await waitFor(() => expect(axios.post).toHaveBeenCalled());
+  const autoMatchCall = axios.post.mock.calls.find(([url]) => url.includes('/images/auto-match'));
+  expect(autoMatchCall[1].components).toEqual([
+    expect.objectContaining({ id: 'game-board', name: 'game board' }),
+  ]);
+});

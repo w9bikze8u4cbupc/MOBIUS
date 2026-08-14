@@ -23,6 +23,25 @@ const getImageThumbnailUrl = (projectId, image) => {
   return getImageUrl(projectId, image);
 };
 
+const isMatchableComponent = (component) => {
+  const name = String(component?.name || '').trim();
+  const folded = name.toLowerCase();
+  if (!name || component?.matchEligible === false || component?.eligibility === 'excluded') return false;
+  const isCanonicalSetupRecord = component?.eligibility === 'setup'
+    && component?.inferenceReason === 'Setup-derived physical object; confirm this component before matching.';
+  if (component?.reviewRequired === true && !isCanonicalSetupRecord) return false;
+  if (/^(?:card|tile|token|track|board|marker|other)s?$/i.test(name)) return false;
+  if (/^(?:place|shuffle|turn|then|take|form|put|draw|move|each|randomly)\b/i.test(name)) return false;
+  if (/\b(?:front|back|court|council|exploration track|threat track)\b/i.test(name)) return false;
+  if (/^(?:merchant\s+)?lord of the lords?$/i.test(name)) return false;
+  if (name.split(/\s+/).length > 6 || /[.!?]/.test(name)) return false;
+  const letters = name.replace(/[^A-Za-z]/g, '');
+  if (letters.length > 2 && letters === letters.toUpperCase()) return false;
+  if (/\btracks?\b/i.test(name)) return false;
+  return /\b(?:boards?|cards?|tokens?|tiles?|dice|markers?|miniatures?|meeples?|pawns?|standees?|coins?|currency|pearls?|cups?|lords?|locations?)\b/i.test(name)
+    && !/^(?:unknown|component|item|none|null)$/.test(folded);
+};
+
 // eslint-disable-next-line no-unused-vars
 const getSourceLabel = (source) => {
   const labels = {
@@ -75,6 +94,7 @@ export function ImagesStep({
   const [manualFile, setManualFile] = useState(null);
   const [localImages, setLocalImages] = useState(images);
   const [localLinks, setLocalLinks] = useState(componentImages || {});
+  const matchingComponents = useMemo(() => (components || []).filter(isMatchableComponent), [components]);
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [expandedSources, setExpandedSources] = useState({});
   const [feedbackMode, setFeedbackMode] = useState(false);
@@ -434,15 +454,15 @@ export function ImagesStep({
     }
   };
 
-  // Hybrid component-to-image matching (rule-based + AI vision)
+  // Deterministic component-to-image matching; suggestions remain operator review only.
   const handleAutoMatch = async () => {
-    if (!projectId || localImages.length === 0) return;
+    if (!projectId || localImages.length === 0 || matchingComponents.length === 0) return;
     setLoading(true);
-    setMatchingStatus({ status: 'matching', message: 'Stage 1: Rule-based matching by component type...' });
+    setMatchingStatus({ status: 'matching', message: 'Matching strict physical components using deterministic evidence...' });
     
     try {
       const res = await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/images/auto-match`, {
-        components,
+        components: matchingComponents,
         gameName
       });
       
@@ -451,16 +471,15 @@ export function ImagesStep({
       
       const stats = res.data.stats || {};
       const matched = res.data.matched || 0;
-      const total = stats.total || components.length;
+      const total = stats.total || matchingComponents.length;
       const ruleMatched = stats.ruleMatched || 0;
-      const visionMatched = stats.visionMatched || 0;
       
-      let message = `Matched ${matched}/${total} components`;
-      if (ruleMatched > 0 || visionMatched > 0) {
-        message += ` (${ruleMatched} by rules, ${visionMatched} by AI vision)`;
+      let message = `Automatically linked ${matched}/${total} components at 90% or higher`;
+      if (ruleMatched > 0) {
+        message += ` (${ruleMatched} by deterministic rules)`;
       }
       if (stats.unmatched > 0) {
-        message += `. ${stats.unmatched} need manual matching.`;
+        message += `. ${stats.unmatched} have review suggestions only.`;
       }
       
       setMatchingStatus({
@@ -579,6 +598,7 @@ export function ImagesStep({
     try {
       const res = await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/components/${componentId}/images`, {
         imageIds: Array.from(next),
+        manualImageIds: next.has(imageId) ? [imageId] : [],
       });
       refreshState(res.data || {});
     } catch (err) {
@@ -593,6 +613,7 @@ export function ImagesStep({
     try {
       const res = await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/components/${componentId}/images`, {
         imageIds: Array.from(next),
+        manualImageIds: [imageId],
       });
       refreshState(res.data || {});
     } catch (err) {
@@ -1177,7 +1198,7 @@ export function ImagesStep({
       )}
 
       {/* Component matching section */}
-      {components.length > 0 && curatedImages.length > 0 && (
+      {matchingComponents.length > 0 && curatedImages.length > 0 && (
         <div style={{ 
           background: 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)', 
           padding: 20, 
@@ -1188,7 +1209,7 @@ export function ImagesStep({
             Component-to-Image Matching
           </h4>
           <p style={{ margin: '0 0 16px 0', color: '#555', fontSize: 14 }}>
-            AI will analyze your images and automatically match them to the game components.
+            Strictly eligible physical components are ranked with deterministic category, name/OCR, and source-page evidence. Only explainable matches at 90% or higher are linked automatically.
           </p>
           
           <button 
@@ -1235,8 +1256,7 @@ export function ImagesStep({
               {matchingStatus.stats && matchingStatus.status !== 'matching' && (
                 <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
                   <span style={{ marginRight: 16 }}>📋 Rule-based: {matchingStatus.stats.ruleMatched || 0}</span>
-                  <span style={{ marginRight: 16 }}>👁️ AI Vision: {matchingStatus.stats.visionMatched || 0}</span>
-                  <span>❓ Unmatched: {matchingStatus.stats.unmatched || 0}</span>
+                  <span>❓ Review suggestions: {matchingStatus.stats.unmatched || 0}</span>
                 </div>
               )}
             </div>
@@ -1304,12 +1324,12 @@ export function ImagesStep({
             </div>
           </div>
         )}
-        {components.length === 0 && (
+        {matchingComponents.length === 0 && (
           <p className="pipeline-muted">No components detected. Go to Step 3 to extract components first.</p>
         )}
         
         <div style={{ display: 'grid', gap: 12 }}>
-          {components.map((component) => {
+          {matchingComponents.map((component) => {
             const linkedCount = getLinkedImagesCount(component.id);
             const linkedImageIds = localLinks[component.id] || [];
             const isSelected = selectedComponent === component.id;
@@ -1410,7 +1430,7 @@ export function ImagesStep({
                             style={{ padding: 4, border: candidate.autoLink ? '2px solid #43a047' : '1px solid #90a4ae', background: 'white', borderRadius: 5, width: 88 }}
                           >
                             {candidateUrl && <img src={candidateUrl} alt={candidateImage.label || candidate.imageId} style={{ width: 76, height: 56, objectFit: 'contain' }} />}
-                            <div style={{ fontSize: 10 }}>{Math.round(candidate.score * 100)}% {candidate.autoLink ? 'auto-link' : 'review'}</div>
+                            <div style={{ fontSize: 10 }}>{Math.round(candidate.score * 100)}% {candidate.autoLink ? 'auto-link' : 'Review suggestion'}</div>
                           </button>
                         );
                       })}

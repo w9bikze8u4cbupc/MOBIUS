@@ -40,7 +40,7 @@ jest.mock('../../src/services/componentCropper.js', () => ({
 import axios from 'axios';
 import express from 'express';
 import { registerImageRoutes } from '../../src/api/imageRoutes.js';
-import { resetImageStore } from '../../src/services/imageStore.js';
+import { appendImages, linkImagesToComponent, resetImageStore } from '../../src/services/imageStore.js';
 
 describe('images api routes', () => {
   let server;
@@ -129,5 +129,46 @@ describe('images api routes', () => {
     const linkPayload = await linkRes.json();
     expect(linkPayload.componentImages.token).toContain(target.id);
   });
-});
 
+  it('keeps a blank board-like candidate as a review suggestion and clears stale automatic links', async () => {
+    appendImages('demo', [{
+      id: 'blank-board',
+      source: 'hephaestus',
+      label: 'Native board image',
+      type: 'board',
+      metadata: { classification: 'board', page: 2, confidence: 1, curation: { candidate: true, score: 1, lowInformation: true } },
+      curation: { candidate: true, score: 1, lowInformation: true },
+    }]);
+    linkImagesToComponent('demo', 'game-board', ['stale-auto'], { origin: 'auto' });
+
+    const response = await fetch(`${baseUrl}/api/projects/demo/images/auto-match`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        gameName: 'Abyss',
+        components: [{ id: 'game-board', name: 'game board', category: 'board', sourcePage: 2, reviewRequired: true, eligibility: 'setup', inferenceReason: 'Setup-derived physical object; confirm this component before matching.', matchEligible: true }],
+      }),
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.componentImages['game-board']).toBeUndefined();
+    expect(payload.candidates['game-board'][0]).toMatchObject({ imageId: 'blank-board', autoLink: false });
+    expect(payload.candidates['game-board'][0].reasons).toContain('low-information asset; operator review required');
+  });
+
+  it('rejects review-required action text from the automatic matching queue', async () => {
+    const response = await fetch(`${baseUrl}/api/projects/demo/images/auto-match`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        components: [{ id: 'instruction', name: 'Attach token', category: 'token', reviewRequired: true, eligibility: 'setup', inferenceReason: 'Setup-derived physical object; confirm this component before matching.', matchEligible: true }],
+      }),
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toMatch(/strict physical component inventory/i);
+  });
+
+});

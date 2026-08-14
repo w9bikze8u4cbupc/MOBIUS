@@ -19,6 +19,7 @@ const USE_FILE_STORAGE = process.env.DB_IN_MEMORY === 'true' ? false : process.e
 let store = {
   imagesByProject: {},
   componentLinks: {},
+  componentLinkMetadata: {},
 };
 
 function ensureStorage() {
@@ -36,6 +37,7 @@ function ensureStorage() {
       store = {
         imagesByProject: parsed.imagesByProject || {},
         componentLinks: parsed.componentLinks || {},
+        componentLinkMetadata: parsed.componentLinkMetadata || {},
       };
     } catch (err) {
       console.warn('Failed to load image store, starting fresh', err);
@@ -59,6 +61,7 @@ function listImages(projectId) {
   return {
     images: [...(store.imagesByProject[key] || [])],
     componentImages: { ...(store.componentLinks[key] || {}) },
+    componentImageLinkDetails: { ...(store.componentLinkMetadata[key] || {}) },
   };
 }
 
@@ -110,17 +113,67 @@ function removeImagesBySource(projectId, source) {
   return saveImages(projectId, filtered);
 }
 
-function linkImagesToComponent(projectId, componentId, imageIds = []) {
+function linkImagesToComponent(projectId, componentId, imageIds = [], { origin = 'manual', manualImageIds = null } = {}) {
   const key = getProjectKey(projectId);
   const links = { ...(store.componentLinks[key] || {}) };
-  links[componentId] = Array.isArray(imageIds) ? imageIds : [];
+  const metadata = { ...(store.componentLinkMetadata[key] || {}) };
+  const existingMetadata = metadata[componentId] || {};
+  const ids = [...new Set((Array.isArray(imageIds) ? imageIds : []).filter(Boolean))];
+  const explicitlyManual = Array.isArray(manualImageIds) ? new Set(manualImageIds) : null;
+  links[componentId] = ids;
+  metadata[componentId] = Object.fromEntries(ids.map((imageId) => [imageId, {
+    ...(existingMetadata[imageId] || {}),
+    origin: explicitlyManual
+      ? (explicitlyManual.has(imageId) ? 'manual' : (existingMetadata[imageId]?.origin || origin))
+      : origin,
+  }]));
   store.componentLinks[key] = links;
+  store.componentLinkMetadata[key] = metadata;
   persist();
   return links;
 }
 
+/** Removes only matcher-owned links, preserving legacy and operator-manual links. */
+function reconcileAutomaticLinks(projectId, components = [], matches = {}) {
+  const key = getProjectKey(projectId);
+  const links = { ...(store.componentLinks[key] || {}) };
+  const metadata = { ...(store.componentLinkMetadata[key] || {}) };
+  const currentComponents = new Map(components.map((component) => [component.id, component]));
+
+  for (const [componentId, imageIds] of Object.entries(links)) {
+    const component = currentComponents.get(componentId);
+    const details = metadata[componentId] || {};
+    const preservedIds = imageIds.filter((imageId) => details[imageId]?.origin !== 'auto');
+    if (preservedIds.length > 0) {
+      links[componentId] = preservedIds;
+      metadata[componentId] = Object.fromEntries(preservedIds.map((imageId) => [imageId, details[imageId] || { origin: 'manual' }]));
+    } else {
+      delete links[componentId];
+      delete metadata[componentId];
+    }
+    if (!component) continue;
+  }
+
+  for (const [componentId, imageIds] of Object.entries(matches)) {
+    if (!currentComponents.has(componentId) || !Array.isArray(imageIds) || imageIds.length === 0) continue;
+    const existingIds = links[componentId] || [];
+    const details = metadata[componentId] || {};
+    const nextIds = [...new Set([...existingIds, ...imageIds])];
+    links[componentId] = nextIds;
+    metadata[componentId] = {
+      ...details,
+      ...Object.fromEntries(imageIds.map((imageId) => [imageId, { origin: details[imageId]?.origin || 'auto' }])),
+    };
+  }
+
+  store.componentLinks[key] = links;
+  store.componentLinkMetadata[key] = metadata;
+  persist();
+  return listImages(projectId);
+}
+
 function resetImageStore() {
-  store = { imagesByProject: {}, componentLinks: {} };
+  store = { imagesByProject: {}, componentLinks: {}, componentLinkMetadata: {} };
   persist();
 }
 
@@ -133,6 +186,7 @@ export {
   appendImages,
   removeImagesBySource,
   linkImagesToComponent,
+  reconcileAutomaticLinks,
   resetImageStore,
 };
 

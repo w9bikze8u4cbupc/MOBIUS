@@ -1,5 +1,8 @@
 import fs from 'fs';
 import path from 'path';
+import { isEligibleComponentForMatching } from './componentInventory.js';
+
+const AUTO_LINK_THRESHOLD = 0.9;
 
 const CATEGORY_TO_CLASSIFICATION = {
   'cards': ['card', 'deck'],
@@ -36,6 +39,12 @@ function tokenize(value) {
   return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter((token) => token.length > 2);
 }
 
+function hasDistinctiveNameEvidence(component, label) {
+  const genericTokens = new Set(['game', 'player', 'board', 'card', 'cards', 'token', 'tokens', 'tile', 'tiles', 'marker', 'markers', 'track', 'tracks', 'plastic', 'cup', 'cups']);
+  const distinctiveTokens = tokenize(component.name).filter((token) => !genericTokens.has(token));
+  return distinctiveTokens.some((token) => label.includes(token));
+}
+
 function rankCandidate(component, image) {
   const componentName = normalizeCategory(component.name);
   const componentTokens = tokenize(component.name);
@@ -48,12 +57,14 @@ function rankCandidate(component, image) {
 
   const reasons = [];
   let score = 0;
-  if (allowedClassifications.some((value) => classification.includes(normalizeClassification(value)) || label.includes(normalizeClassification(value)))) {
+  const categoryCompatible = allowedClassifications.some((value) => classification.includes(normalizeClassification(value)) || label.includes(normalizeClassification(value)));
+  if (categoryCompatible) {
     score += 0.35;
     reasons.push('category/type match');
   }
   const nameTokenMatches = componentTokens.filter((token) => label.includes(token));
-  if (componentName && label.includes(componentName)) {
+  const hasExactNameMatch = componentName && label.includes(componentName);
+  if (hasExactNameMatch) {
     score += 0.4;
     reasons.push('exact name/label match');
   } else if (nameTokenMatches.length > 0) {
@@ -71,14 +82,23 @@ function rankCandidate(component, image) {
   }
   const confidence = Number(metadata.confidence || 0);
   if (confidence > 0) score += Math.min(0.1, confidence * 0.1);
-  if (image.curation?.isDuplicate || metadata.curation?.isDuplicate) {
+  const lowInformation = image.curation?.lowInformation || metadata.curation?.lowInformation;
+  const duplicate = image.curation?.isDuplicate || metadata.curation?.isDuplicate;
+  if (duplicate) {
     score -= 0.2;
     reasons.push('duplicate deprioritized');
   }
+  if (lowInformation) reasons.push('low-information asset; operator review required');
+  const distinctiveNameEvidence = hasDistinctiveNameEvidence(component, label);
+  const autoLink = score >= AUTO_LINK_THRESHOLD
+    && categoryCompatible
+    && distinctiveNameEvidence
+    && !duplicate
+    && !lowInformation;
   return {
     imageId: image.id,
     score: Number(Math.max(0, Math.min(1, score)).toFixed(3)),
-    autoLink: score >= 0.72 && !image.curation?.isDuplicate && !metadata.curation?.isDuplicate,
+    autoLink,
     reasons: reasons.length ? reasons : ['weak visual/category evidence; operator review required'],
   };
 }
@@ -90,7 +110,7 @@ function isCuratedCandidate(image) {
 
 function rankInventoryCandidates(components, images) {
   const rankedCandidates = {};
-  for (const component of components) {
+  for (const component of components.filter(isEligibleComponentForMatching)) {
     const ranked = images
       .filter(isCuratedCandidate)
       .map((image) => rankCandidate(component, image))
@@ -101,12 +121,13 @@ function rankInventoryCandidates(components, images) {
 }
 
 function ruleBasedMatch(components, images) {
-  const rankedCandidates = rankInventoryCandidates(components, images);
+  const eligibleComponents = components.filter(isEligibleComponentForMatching);
+  const rankedCandidates = rankInventoryCandidates(eligibleComponents, images);
   const matches = {};
   const unmatchedComponents = [];
   const usedImages = new Set();
 
-  for (const component of components) {
+  for (const component of eligibleComponents) {
     const ranked = rankedCandidates[component.id] || [];
     const highConfidence = ranked.filter((candidate) => candidate.autoLink && !usedImages.has(candidate.imageId));
     if (highConfidence.length > 0) {

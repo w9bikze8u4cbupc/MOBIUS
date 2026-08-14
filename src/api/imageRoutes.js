@@ -4,6 +4,7 @@ import {
   appendImages,
   linkImagesToComponent,
   listImages,
+  reconcileAutomaticLinks,
   upsertImage,
   removeImagesBySource,
 } from '../services/imageStore.js';
@@ -42,6 +43,7 @@ import {
 } from '../services/hephaestusService.js';
 import { curateHephaestusAssets } from '../services/hephaestusCuration.js';
 import { hybridMatch } from '../services/hybridMatcher.js';
+import { isEligibleComponentForMatching } from '../services/componentInventory.js';
 
 
 export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {}) {
@@ -508,8 +510,13 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
 
   app.post('/api/projects/:projectId/components/:componentId/images', (req, res) => {
     const { projectId, componentId } = req.params;
-    const { imageIds } = req.body || {};
-    const links = linkImagesToComponent(projectId, componentId, Array.isArray(imageIds) ? imageIds : []);
+    const { imageIds, manualImageIds } = req.body || {};
+    const links = linkImagesToComponent(
+      projectId,
+      componentId,
+      Array.isArray(imageIds) ? imageIds : [],
+      { manualImageIds: Array.isArray(manualImageIds) ? manualImageIds : null },
+    );
     const state = listImages(projectId);
     res.json({ images: state.images, componentImages: links });
   });
@@ -619,51 +626,44 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
     }
   });
 
-  // Hybrid automatic component-to-image matching (rule-based + vision)
+  // Deterministic automatic component-to-image matching. Optional vision is intentionally not used here.
   app.post('/api/projects/:projectId/images/auto-match', async (req, res) => {
     const { projectId } = req.params;
     const { components = [], gameName } = req.body || {};
-    const validComponents = components.filter((component) => component && String(component.name || '').trim());
+    const eligibleComponents = components.filter(isEligibleComponentForMatching);
 
-    if (validComponents.length === 0) {
-      return res.status(400).json({ error: 'A named component inventory is required before matching.' });
+    if (eligibleComponents.length === 0) {
+      return res.status(400).json({ error: 'A strict physical component inventory is required before matching.' });
     }
-    
-    console.log('[HybridMatch] Starting for', validComponents.length, 'components');
-    
+
+    console.log('[HybridMatch] Starting for', eligibleComponents.length, 'eligible components');
+
     try {
       const state = listImages(projectId);
       const images = state.images || [];
-      
+
       if (images.length === 0) {
-        return res.json({ 
+        const updatedState = reconcileAutomaticLinks(projectId, eligibleComponents, {});
+        return res.json({
           message: 'No images available for matching',
           matched: 0,
-          stats: { total: validComponents.length, totalMatched: 0 },
-          images: [],
-          componentImages: {} 
+          stats: { total: eligibleComponents.length, totalMatched: 0, ruleMatched: 0, visionMatched: 0, unmatched: eligibleComponents.length },
+          candidates: {},
+          images: updatedState.images,
+          componentImages: updatedState.componentImages,
         });
       }
-      
-      // Use hybrid matching: rule-based first, then AI vision for remaining
-      const result = await hybridMatch(validComponents, images, gameName, openai);
-      
-      // Apply the matches
-      for (const [componentId, imageIds] of Object.entries(result.matches)) {
-        if (imageIds && imageIds.length > 0) {
-          linkImagesToComponent(projectId, componentId, imageIds);
-        }
-      }
-      
-      const updatedState = listImages(projectId);
+
+      const result = await hybridMatch(eligibleComponents, images, gameName, null);
+      const updatedState = reconcileAutomaticLinks(projectId, eligibleComponents, result.matches);
       console.log('[HybridMatch] Complete:', result.stats);
-      
-      res.json({ 
+
+      res.json({
         matched: result.stats.totalMatched,
         candidates: result.candidates,
         stats: result.stats,
-        images: updatedState.images, 
-        componentImages: updatedState.componentImages 
+        images: updatedState.images,
+        componentImages: updatedState.componentImages,
       });
     } catch (err) {
       console.error('Hybrid match failed:', err);
