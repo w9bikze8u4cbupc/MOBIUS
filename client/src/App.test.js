@@ -34,6 +34,10 @@ jest.mock('./components/steps/StoryboardStep', () => ({ StoryboardStep: () => nu
 jest.mock('./components/steps/VoiceStep', () => ({ VoiceStep: () => null }));
 jest.mock('./components/steps/RenderExportStep', () => ({ RenderExportStep: () => null }));
 
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
 test('filename helper creates a safe unique ID', () => {
   expect(createProjectIdFromFilename('Abyss final.pdf', 'test123')).toBe('abyss-final-test123');
 });
@@ -83,6 +87,35 @@ test('PDF upload keeps the filename-derived game name and project ID without aut
   expect(screen.getByPlaceholderText('Auto-generated from uploaded PDF filename').value).toMatch(/^abyss-/);
   expect(axios.post).not.toHaveBeenCalled();
   expect(axios.get).not.toHaveBeenCalled();
+});
+
+test('optional AI metadata is requested only after the operator clicks its explicit button', async () => {
+  getDocument.mockReturnValue({
+    promise: Promise.resolve({
+      numPages: 1,
+      getPage: () => Promise.resolve({
+        getTextContent: () => Promise.resolve({ items: [{ str: 'Rulebook text' }] }),
+      }),
+    }),
+  });
+  axios.post.mockResolvedValue({ data: { gameName: 'Abyss' } });
+
+  const { container } = render(<App />);
+  const pdfFile = new File(['pdf contents'], 'ABYSS.pdf', { type: 'application/pdf' });
+  Object.defineProperty(pdfFile, 'arrayBuffer', { value: () => Promise.resolve(new ArrayBuffer(0)) });
+  fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [pdfFile] } });
+
+  await waitFor(() => expect(screen.getByPlaceholderText('Extracted from PDF')).toHaveValue('Abyss'));
+  expect(axios.post).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole('button', { name: /Extract optional AI metadata/i }));
+
+  await waitFor(() => {
+    expect(axios.post).toHaveBeenCalledWith(
+      expect.stringContaining('/api/extract-game-name'),
+      expect.objectContaining({ text: expect.stringContaining('Rulebook text') }),
+    );
+  });
 });
 
 test('inventory confirmation rejects blank and sentence-shaped pseudo-components', () => {

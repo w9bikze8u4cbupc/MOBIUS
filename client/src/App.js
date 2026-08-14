@@ -481,8 +481,9 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     }
   };
 
-  // Optional AI enrichment. Upload always uses the deterministic filename first.
-  const extractGameInfoFromText = async () => {
+  // Optional AI enrichment. A caller must explicitly mark this as an operator request.
+  const extractGameInfoFromText = async ({ operatorInitiated = false } = {}) => {
+    if (!operatorInitiated) return;
     if (!rulebookText.trim()) {
       setMetadataWarning('Upload a readable PDF before requesting optional AI metadata.');
       return;
@@ -1301,7 +1302,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               metadata={metadata}
               setMetadata={setMetadata}
               bggUrl={bggUrl}
-              onExtractGameInfo={extractGameInfoFromText}
+              onExtractGameInfo={() => extractGameInfoFromText({ operatorInitiated: true })}
               metadataWarning={metadataWarning}
             />
           )}

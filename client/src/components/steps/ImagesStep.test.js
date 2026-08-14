@@ -166,10 +166,95 @@ test('separates curated candidates from raw HEPHAESTUS assets and supports ranke
   expect(screen.getByText('decorative star').closest('details')).not.toHaveAttribute('open');
 
   fireEvent.click(screen.getByRole('button', { name: /Auto-Match Components to Images/i }));
-  expect(await screen.findByText(/Ranked candidates \(1\)/i)).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: /90% auto-link/i }));
-  expect(screen.getByRole('dialog', { name: /Full-resolution image preview/i })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /Link this representative image/i })).toBeInTheDocument();
+  expect(await screen.findByText(/Top review suggestions/i)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /Select Ocean Card for Ocean Card; 90% automatic link/i }));
+  expect(screen.getByRole('dialog', { name: /Selected image preview/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Link selected image to Ocean Card/i })).toBeInTheDocument();
+});
+test('requires explicit confirmation to manually link and remove a sub-90% review suggestion', async () => {
+  const explorationImage = {
+    id: 'exploration-card',
+    source: 'hephaestus',
+    label: 'Exploration Card',
+    type: 'card',
+    width: 600,
+    height: 900,
+    fileKey: 'data/abyss/exploration-card.png',
+    thumbnailKey: 'data/abyss/exploration-card-thumb.png',
+    curation: { candidate: true, score: 0.89, reasons: ['native component image'] },
+    metadata: { classification: 'card', page: 7, curation: { candidate: true, score: 0.89 } },
+  };
+  const component = { id: 'exploration-card-component', name: 'Exploration Card', category: 'card', quantity: 1 };
+  const candidates = {
+    [component.id]: [{ imageId: explorationImage.id, score: 0.89, autoLink: false, reasons: ['category/type match', 'label proximity'] }],
+  };
+  axios.get.mockResolvedValue({ data: { images: [explorationImage], componentImages: {} } });
+  axios.post.mockImplementation((url, body) => {
+    if (url.includes('/images/auto-match')) {
+      return Promise.resolve({ data: { images: [explorationImage], componentImages: {}, candidates, stats: { total: 1, totalMatched: 0, ruleMatched: 0, unmatched: 1 }, matched: 0 } });
+    }
+    if (url.includes(`/components/${component.id}/images`)) {
+      const imageIds = body.imageIds || [];
+      return Promise.resolve({ data: { images: [explorationImage], componentImages: imageIds.length ? { [component.id]: imageIds } : {} } });
+    }
+    return Promise.resolve({ data: {} });
+  });
+
+  render(
+    <ImagesStep
+      projectId="abyss-upload-abc123"
+      pdfFile={pdfFile}
+      components={[component]}
+      images={[explorationImage]}
+      componentImages={{}}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: /Auto-Match Components to Images/i }));
+  const suggestion = await screen.findByRole('button', { name: /Select Exploration Card for Exploration Card; 89% review suggestion/i });
+  expect(screen.getByText('0 images')).toBeInTheDocument();
+
+  fireEvent.click(suggestion);
+  expect(screen.getByRole('dialog', { name: /Selected image preview/i })).toHaveTextContent('600 × 900');
+  expect(screen.getByRole('dialog', { name: /Selected image preview/i })).toHaveTextContent('Source page');
+  expect(axios.post.mock.calls.filter(([url]) => url.includes(`/components/${component.id}/images`))).toHaveLength(0);
+
+  fireEvent.click(screen.getByRole('button', { name: /Link selected image to Exploration Card/i }));
+  await waitFor(() => expect(screen.getByText('1 image')).toBeInTheDocument());
+  const linkCall = axios.post.mock.calls.find(([url]) => url.includes(`/components/${component.id}/images`));
+  expect(linkCall[1]).toEqual({ imageIds: [explorationImage.id], manualImageIds: [explorationImage.id] });
+  expect(screen.getByText('Linked Images:')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Remove link' }));
+  await waitFor(() => expect(screen.getByText('0 images')).toBeInTheDocument());
+  const removeCall = axios.post.mock.calls.filter(([url]) => url.includes(`/components/${component.id}/images`))[1];
+  expect(removeCall[1]).toEqual({ imageIds: [], manualImageIds: [] });
+});
+
+test('shows only the top six review suggestions until the operator asks to view all candidates', async () => {
+  const component = { id: 'exploration-cards', name: 'Exploration Cards', category: 'card', quantity: 1 };
+  const images = Array.from({ length: 7 }, (_value, index) => ({
+    id: `candidate-${index + 1}`,
+    source: 'hephaestus',
+    label: `Candidate ${index + 1}`,
+    type: 'card',
+    fileKey: `data/abyss/candidate-${index + 1}.png`,
+    thumbnailKey: `data/abyss/candidate-${index + 1}-thumb.png`,
+    curation: { candidate: true, score: 0.8, reasons: [] },
+    metadata: { classification: 'card', curation: { candidate: true, score: 0.8 } },
+  }));
+  const candidates = images.map((image, index) => ({ imageId: image.id, score: 0.89 - (index * 0.01), autoLink: false, reasons: ['category/type match'] }));
+  axios.get.mockResolvedValue({ data: { images, componentImages: {} } });
+  axios.post.mockResolvedValue({ data: { images, componentImages: {}, candidates: { [component.id]: candidates }, stats: { total: 1, totalMatched: 0, ruleMatched: 0, unmatched: 1 }, matched: 0 } });
+
+  render(<ImagesStep projectId="abyss-upload-abc123" pdfFile={pdfFile} components={[component]} images={images} componentImages={{}} />);
+  fireEvent.click(screen.getByRole('button', { name: /Auto-Match Components to Images/i }));
+
+  expect(await screen.findByText(/Top review suggestions \(showing 6 of 7\)/i)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Select Candidate 7/i })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'View all 7 candidates' }));
+  expect(screen.getByRole('button', { name: /Select Candidate 7/i })).toBeInTheDocument();
+  expect(screen.queryByText(/Ranked candidates/i)).not.toBeInTheDocument();
 });
 
 

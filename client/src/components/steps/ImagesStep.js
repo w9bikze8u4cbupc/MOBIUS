@@ -104,6 +104,7 @@ export function ImagesStep({
   const [refreshing, setRefreshing] = useState(false);
   const [previewImageId, setPreviewImageId] = useState(null);
   const [previewComponentId, setPreviewComponentId] = useState(null);
+  const [showAllCandidates, setShowAllCandidates] = useState({});
 
   const normalizedProjectId = String(projectId || '').trim();
   const imageActionsReady = Boolean(normalizedProjectId && pdfFile);
@@ -489,18 +490,15 @@ export function ImagesStep({
     }
   };
 
-  const handleComponentLink = async (componentId, imageId) => {
-    if (!projectId || !componentId) return;
+  const handleRemoveLink = async (componentId, imageId) => {
+    if (!projectId || !componentId || !imageId) return;
     const next = new Set(localLinks[componentId] || []);
-    if (next.has(imageId)) {
-      next.delete(imageId);
-    } else {
-      next.add(imageId);
-    }
+    if (!next.has(imageId)) return;
+    next.delete(imageId);
     try {
       const res = await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/components/${componentId}/images`, {
         imageIds: Array.from(next),
-        manualImageIds: next.has(imageId) ? [imageId] : [],
+        manualImageIds: [],
       });
       refreshState(res.data || {});
     } catch (err) {
@@ -1204,27 +1202,6 @@ export function ImagesStep({
       {/* Component list with linked images */}
       <div style={{ marginTop: 24 }}>
         <h4>Component Image Links</h4>
-        {curatedImages.filter((image) => image.source === 'hephaestus').length > 0 && (
-          <div style={{ marginBottom: 12, padding: 12, background: '#fff3e0', borderRadius: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
-              HEPHAESTUS Native Images — select a component below to link them
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {curatedImages.filter((image) => image.source === 'hephaestus').map((image) => {
-                const thumbnailUrl = getImageThumbnailUrl(projectId, image);
-                return (
-                  <div key={image.id} style={{ width: 92, fontSize: 10, color: '#555' }}>
-                    <div style={{ height: 64, border: '1px solid #f44336', borderRadius: 4, overflow: 'hidden', background: 'white' }}>
-                      {thumbnailUrl && <img src={thumbnailUrl} alt={image.label || image.type || 'Native PDF image'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />}
-                    </div>
-                    <div style={{ marginTop: 3, textTransform: 'capitalize' }}>{image.type || image.metadata?.classification || 'other'}</div>
-                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{image.label || image.name || image.id}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
         {matchingComponents.length === 0 && (
           <p className="pipeline-muted">No components detected. Go to Step 3 to extract components first.</p>
         )}
@@ -1313,50 +1290,114 @@ export function ImagesStep({
                   </div>
                 </div>
 
-                {matchingCandidates[component.id]?.length > 0 && (
-                  <div style={{ marginTop: 10, padding: 10, background: '#f3f8ff', borderRadius: 6 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-                      Ranked candidates ({matchingCandidates[component.id].length})
+                {matchingCandidates[component.id]?.length > 0 && (() => {
+                  const candidates = matchingCandidates[component.id];
+                  const showingAll = Boolean(showAllCandidates[component.id]);
+                  const visibleCandidates = showingAll ? candidates : candidates.slice(0, 6);
+                  return (
+                    <div style={{ marginTop: 10, padding: 10, background: '#f3f8ff', borderRadius: 6 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+                        Top review suggestions{candidates.length > 6 ? ` (showing ${visibleCandidates.length} of ${candidates.length})` : ''}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {visibleCandidates.map((candidate) => {
+                          const candidateImage = getImageById(candidate.imageId);
+                          const candidateUrl = candidateImage ? getImageThumbnailUrl(projectId, candidateImage) : null;
+                          const isCandidateSelected = previewComponentId === component.id && previewImageId === candidate.imageId;
+                          const score = Math.round(candidate.score * 100);
+                          return (
+                            <button
+                              key={candidate.imageId}
+                              type="button"
+                              aria-pressed={isCandidateSelected}
+                              aria-label={`Select ${candidateImage?.label || candidate.imageId} for ${component.name}; ${score}% ${candidate.autoLink ? 'automatic link' : 'review suggestion'}`}
+                              onClick={() => {
+                                setSelectedComponent(component.id);
+                                setPreviewImageId(candidate.imageId);
+                                setPreviewComponentId(component.id);
+                              }}
+                              title={candidate.reasons.join('; ')}
+                              style={{
+                                padding: 4,
+                                border: isCandidateSelected ? '3px solid #1976d2' : candidate.autoLink ? '2px solid #43a047' : '1px solid #90a4ae',
+                                background: isCandidateSelected ? '#e3f2fd' : 'white',
+                                borderRadius: 5,
+                                width: 100,
+                              }}
+                            >
+                              {candidateUrl && <img src={candidateUrl} alt="" style={{ width: 88, height: 56, objectFit: 'contain' }} />}
+                              <div style={{ fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{candidateImage?.label || candidate.imageId}</div>
+                              <div style={{ fontSize: 10 }}>{score}% {candidate.autoLink ? 'auto-link' : 'Review suggestion'}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {candidates.length > 6 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllCandidates((previous) => ({ ...previous, [component.id]: !showingAll }))}
+                          style={{ marginTop: 10 }}
+                        >
+                          {showingAll ? 'Show top 6 suggestions' : `View all ${candidates.length} candidates`}
+                        </button>
+                      )}
                     </div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {matchingCandidates[component.id].slice(0, 6).map((candidate) => {
-                        const candidateImage = getImageById(candidate.imageId);
-                        const candidateUrl = candidateImage ? getImageThumbnailUrl(projectId, candidateImage) : null;
-                        return (
-                          <button
-                            key={candidate.imageId}
-                            type="button"
-                            onClick={() => { setSelectedComponent(component.id); setPreviewImageId(candidate.imageId); setPreviewComponentId(component.id); }}
-                            title={candidate.reasons.join('; ')}
-                            style={{ padding: 4, border: candidate.autoLink ? '2px solid #43a047' : '1px solid #90a4ae', background: 'white', borderRadius: 5, width: 88 }}
-                          >
-                            {candidateUrl && <img src={candidateUrl} alt={candidateImage.label || candidate.imageId} style={{ width: 76, height: 56, objectFit: 'contain' }} />}
-                            <div style={{ fontSize: 10 }}>{Math.round(candidate.score * 100)}% {candidate.autoLink ? 'auto-link' : 'Review suggestion'}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {isSelected && (
                   <>
-                    {previewComponentId === component.id && previewImageId && localImages.find((image) => image.id === previewImageId) && (
-                      <div role="dialog" aria-label="Full-resolution image preview" style={{ marginTop: 12, padding: 12, background: '#fffde7', border: '1px solid #fbc02d', borderRadius: 6 }}>
-                        <div style={{ fontWeight: 600, marginBottom: 8 }}>Full-resolution preview</div>
-                        <img
-                          src={getImageUrl(projectId, localImages.find((image) => image.id === previewImageId))}
-                          alt={localImages.find((image) => image.id === previewImageId).label || previewImageId}
-                          style={{ maxWidth: '100%', maxHeight: 420, objectFit: 'contain', display: 'block', marginBottom: 8 }}
-                        />
-                        <button type="button" className="pipeline-btn pipeline-btn-primary" onClick={() => { handleRepresentativeLink(component.id, previewImageId); setPreviewImageId(null); setPreviewComponentId(null); }}>
-                          Link this representative image
-                        </button>
-                        <button type="button" className="pipeline-btn" onClick={() => setPreviewImageId(null)} style={{ marginLeft: 8 }}>
-                          Close preview
-                        </button>
-                      </div>
-                    )}
+                    {previewComponentId === component.id && previewImageId && (() => {
+                      const previewImage = localImages.find((image) => image.id === previewImageId);
+                      if (!previewImage) return null;
+                      const selectedCandidate = (matchingCandidates[component.id] || []).find((candidate) => candidate.imageId === previewImageId);
+                      const isLinked = linkedImageIds.includes(previewImageId);
+                      const detectedCategory = previewImage.metadata?.classification || previewImage.type || 'other';
+                      const width = previewImage.width || previewImage.metadata?.dimensions?.width || previewImage.metadata?.originalDimensions?.width;
+                      const height = previewImage.height || previewImage.metadata?.dimensions?.height || previewImage.metadata?.originalDimensions?.height;
+                      const sourcePage = previewImage.metadata?.page ?? previewImage.page ?? previewImage.parentPage;
+                      return (
+                        <div role="dialog" aria-label="Selected image preview" style={{ marginTop: 12, padding: 12, background: '#fffde7', border: '1px solid #fbc02d', borderRadius: 6 }}>
+                          <div style={{ fontWeight: 600, marginBottom: 8 }}>Selected image preview</div>
+                          <img
+                            src={getImageUrl(projectId, previewImage)}
+                            alt={previewImage.label || previewImage.name || previewImageId}
+                            style={{ maxWidth: '100%', maxHeight: 420, objectFit: 'contain', display: 'block', marginBottom: 8 }}
+                          />
+                          <dl style={{ margin: '0 0 12px', display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '4px 10px', fontSize: 13 }}>
+                            <dt>Label</dt><dd style={{ margin: 0 }}>{previewImage.label || previewImage.name || previewImageId}</dd>
+                            <dt>Category</dt><dd style={{ margin: 0, textTransform: 'capitalize' }}>{detectedCategory}</dd>
+                            <dt>Dimensions</dt><dd style={{ margin: 0 }}>{width && height ? `${width} × ${height}` : 'Not available'}</dd>
+                            <dt>Source page</dt><dd style={{ margin: 0 }}>{sourcePage ?? 'Not available'}</dd>
+                            <dt>Suggestion</dt><dd style={{ margin: 0 }}>{selectedCandidate ? `${Math.round(selectedCandidate.score * 100)}% — ${selectedCandidate.reasons.join('; ')}` : 'Selected manually from the curated gallery'}</dd>
+                          </dl>
+                          {!isLinked ? (
+                            <button
+                              type="button"
+                              className="pipeline-btn pipeline-btn-primary"
+                              onClick={() => {
+                                handleRepresentativeLink(component.id, previewImageId);
+                                setPreviewImageId(null);
+                                setPreviewComponentId(null);
+                              }}
+                            >
+                              Link selected image to {component.name}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="pipeline-btn"
+                              onClick={() => handleRemoveLink(component.id, previewImageId)}
+                            >
+                              Remove link
+                            </button>
+                          )}
+                          <button type="button" className="pipeline-btn" onClick={() => { setPreviewImageId(null); setPreviewComponentId(null); }} style={{ marginLeft: 8 }}>
+                            Close preview
+                          </button>
+                        </div>
+                      );
+                    })()}
                     <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e0e0e0' }}>
                     {/* Show currently linked images with thumbnails */}
                     {linkedImageIds.length > 0 && (
@@ -1405,6 +1446,13 @@ export function ImagesStep({
                                 <div style={{ fontSize: 10, color: '#666', textAlign: 'center', marginTop: 4 }}>
                                   {img?.metadata?.classification || img?.tags?.find(t => t.startsWith('page-')) || 'Image'}
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveLink(component.id, imgId)}
+                                  style={{ width: '100%', marginTop: 4, fontSize: 10 }}
+                                >
+                                  Remove link
+                                </button>
                                 
                                 {/* Feedback buttons in learning mode */}
                                 {feedbackMode && !status && (
@@ -1428,7 +1476,7 @@ export function ImagesStep({
                                       onClick={(e) => { 
                                         e.stopPropagation(); 
                                         handleFeedback(component, imgId, false);
-                                        handleComponentLink(component.id, imgId);
+                                        handleRemoveLink(component.id, imgId);
                                       }}
                                       style={{
                                         flex: 1,
@@ -1463,7 +1511,7 @@ export function ImagesStep({
                     )}
                     
                     <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>
-                      Click an image to link/unlink it from this component:
+                      Select an image to inspect it, then explicitly confirm a link for this component:
                     </div>
                     <div style={{ 
                       display: 'grid', 
@@ -1487,17 +1535,21 @@ export function ImagesStep({
                         })
                         .map((img) => {
                         const isLinked = linkedImageIds.includes(img.id);
+                        const isPreviewSelected = previewComponentId === component.id && previewImageId === img.id;
                         const imgUrl = getImageThumbnailUrl(projectId, img);
                         return (
                           <button
                             key={img.id}
                             className="image-thumbnail-btn"
-                            onClick={() => { setSelectedComponent(component.id); setPreviewImageId(img.id); }}
+                            type="button"
+                            aria-pressed={previewComponentId === component.id && previewImageId === img.id}
+                            aria-label={`Select ${img.label || img.name || img.id} for ${component.name}`}
+                            onClick={() => { setSelectedComponent(component.id); setPreviewImageId(img.id); setPreviewComponentId(component.id); }}
                             style={{
                               padding: 4,
                               borderRadius: 6,
-                              border: isLinked ? '3px solid #4caf50' : '1px solid #ccc',
-                              background: isLinked ? '#e8f5e9' : '#fafafa',
+                              border: isPreviewSelected ? '3px solid #1976d2' : isLinked ? '3px solid #4caf50' : '1px solid #ccc',
+                              background: isPreviewSelected ? '#e3f2fd' : isLinked ? '#e8f5e9' : '#fafafa',
                               cursor: 'pointer',
                               display: 'flex',
                               flexDirection: 'column',
