@@ -4,7 +4,7 @@ import path from 'path';
 import { proposeRegions, extractRegionImage } from './regionProposal.js';
 import { classifyAsPhoto, matchComponentWithOCR, calculateVisualQuality, computeConfidenceScore } from './photoClassifier.js';
 import { extractTextNearRegion, fuzzyMatchComponent, terminateWorker } from './ocrService.js';
-import { getAiModel } from '../config/aiConfig.js';
+import { getAiConfig, getAiModel, getGenerationOptions } from '../config/aiConfig.js';
 
 const activeJobs = new Map();
 
@@ -55,9 +55,11 @@ OTHER: Everything else`;
           { type: 'image_url', image_url: { url: `data:image/png;base64,${base64Image}`, detail: 'low' } }
         ]
       }],
-      max_tokens: 200,
-      temperature: 0.1,
-      response_format: { type: 'json_object' }
+      ...getGenerationOptions(getAiConfig(), {
+        max_tokens: 200,
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+      })
     });
 
     const result = JSON.parse(response.choices[0]?.message?.content || '{}');

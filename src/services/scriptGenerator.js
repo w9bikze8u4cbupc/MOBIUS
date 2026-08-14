@@ -1,4 +1,4 @@
-import { getAiClient, getAiModel, requireAiReady } from '../config/aiConfig.js';
+import { getAiClient, getAiConfig, getAiModel, getGenerationOptions, requireAiReady } from '../config/aiConfig.js';
 const SUPPORTED_LANGUAGES = new Set(['en', 'fr-CA']);
 const SCENE_KEYS = [
   'sectionTitle',
@@ -187,9 +187,11 @@ export function createRemotionScriptGenerator(client) {
 
     const response = await client.chat.completions.create({
       model: getAiModel(),
-      temperature: 0,
-      max_completion_tokens: 3000,
-      response_format: { type: 'json_object' },
+      ...getGenerationOptions(getAiConfig(), {
+        temperature: 0,
+        max_completion_tokens: 3000,
+        response_format: { type: 'json_object' },
+      }),
       messages: [
         {
           role: 'system',

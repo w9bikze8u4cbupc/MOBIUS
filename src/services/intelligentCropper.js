@@ -2,7 +2,7 @@ import * as path from 'path';
 import { promises as fsPromises } from 'fs';
 import * as pdfToImg from 'pdf-to-img';
 import sharp from 'sharp';
-import { getAiModel } from '../config/aiConfig.js';
+import { getAiConfig, getAiModel, getGenerationOptions } from '../config/aiConfig.js';
 
 function createCropId(prefix = 'crop') {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -64,7 +64,9 @@ If no component images are found on this page, return an empty array: []`
           ]
         }
       ],
-      max_completion_tokens: 2000
+      ...getGenerationOptions(getAiConfig(), {
+        max_completion_tokens: 2000,
+      })
     });
 
     let content = response.choices[0]?.message?.content?.trim() || '[]';

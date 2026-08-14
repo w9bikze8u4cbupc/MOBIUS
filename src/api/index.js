@@ -3,7 +3,15 @@ import express from 'express';
 import db from './db.js';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { getAiClient, getAiConfig, getAiModel, getAiStatus, requireAiReady } from '../config/aiConfig.js';
+import {
+  getAiClient,
+  getAiConfig,
+  getAiModel,
+  getAiStatus,
+  getGenerationOptionCompatibilityError,
+  getGenerationOptions,
+  requireAiReady,
+} from '../config/aiConfig.js';
 const pdfToImg = {
   pdf: async (...args) => {
     const { pdf } = await import('pdf-to-img');
@@ -277,7 +285,9 @@ Rulebook text:
 ${sampleText}`
         }
       ],
-      max_completion_tokens: 500
+      ...getGenerationOptions(getAiConfig(), {
+        max_completion_tokens: 500,
+      })
     });
     
     console.log('OpenAI response:', JSON.stringify(response.choices[0]));
@@ -724,7 +734,7 @@ async function generatePreviewImage(filePath, outputPath = 'uploads/tmp', qualit
       .resize(300, 300, {  
         fit: 'inside',  
         withoutEnlargement: true  
-      })  
+      })
       .jpeg({ quality })  
       .toFile(previewPath);  
   
@@ -1686,7 +1696,10 @@ function splitIntoSections(text) {
   return sections.filter(Boolean);
 }
 
-async function extractMetadata(rulebookText) {
+async function extractMetadata(rulebookText, generationOptions = getGenerationOptions(getAiConfig(), {
+  max_completion_tokens: 500,
+  temperature: 0.5,
+})) {
   await requireAiReady();
   const prompt = `You are an expert boardgame analyst. Your task is to extract key metadata from the following boardgame rulebook, which is provided in PDF format.   
 
@@ -1732,13 +1745,16 @@ async function extractMetadata(rulebookText) {
         { role: 'system', content: 'You are a precise metadata extractor.' },
         { role: 'user', content: prompt },
       ],
-      max_completion_tokens: 500,
-      temperature: 0.5,
+      ...generationOptions,
     });
     
     const metadata = JSON.parse(response.choices[0].message.content.trim());
     return metadata;
   } catch (err) {
+    const compatibilityError = getGenerationOptionCompatibilityError(err);
+    if (compatibilityError) {
+      throw compatibilityError;
+    }
     console.error('Error parsing metadata JSON:', err);
     return {
       publisher: 'Not found',
@@ -1751,7 +1767,10 @@ async function extractMetadata(rulebookText) {
   }
 }
 
-async function summarizeChunkEnglish(chunk) {
+async function summarizeChunkEnglish(chunk, generationOptions = getGenerationOptions(getAiConfig(), {
+  max_completion_tokens: 500,
+  temperature: 0.7,
+})) {
   await requireAiReady();
   const prompt = `SYou are an expert boardgame explainer. Your task is to read the following boardgame rulebook text and produce a clear, concise summary of the game’s core rules, suitable for use as a script in a YouTube video tutorial.  
   
@@ -1780,14 +1799,17 @@ ${chunk}`;
         { role: 'system', content: 'You are a professional boardgame educator and scriptwriter for a popular YouTube channel. Your job is to transform complex boardgame rulebooks into clear, concise, and engaging tutorial scripts that are easy for viewers to understand. You always focus on the core rules, logical structure, and accessible language, making sure the summary is suitable for narration in a video. Avoid unnecessary details, and prioritize clarity, flow, and audience engagement.' },
         { role: 'user', content: prompt },
       ],
-      max_completion_tokens: 500,
-      temperature: 0.7,
+      ...generationOptions,
     });
     
     const summary = response.choices[0].message.content.trim();
     console.log(`Chunk summary generated (${summary.length} chars)`);
     return summary;
   } catch (error) {
+    const compatibilityError = getGenerationOptionCompatibilityError(error);
+    if (compatibilityError) {
+      throw compatibilityError;
+    }
     console.error('English chunk summarization error:', error);
     return "Error summarizing chunk.";
   }
@@ -2039,8 +2061,10 @@ async function identifyComponents(text) {
           content: prompt  
         }  
       ],  
-      temperature: 0.3,  
-      max_completion_tokens: 1000  
+      ...getGenerationOptions(getAiConfig(), {
+        temperature: 0.3,
+        max_completion_tokens: 1000,
+      })
     });  
     
     // Parse the response  
@@ -2255,8 +2279,19 @@ app.post('/summarize', async (req, res) => {
       return res.status(error.statusCode || 422).json({ error: error.message, code: error.code });
     }
     
+    // Resolve the configured model's compatible options before any summary generation starts.
+    const summaryAiConfig = getAiConfig();
+    const metadataGenerationOptions = getGenerationOptions(summaryAiConfig, {
+      max_completion_tokens: 500,
+      temperature: 0.5,
+    });
+    const chunkGenerationOptions = getGenerationOptions(summaryAiConfig, {
+      max_completion_tokens: 500,
+      temperature: 0.7,
+    });
+
     // Metadata Extraction and Merging
-    const extractedMetadata = await extractMetadata(rulebookText);
+    const extractedMetadata = await extractMetadata(rulebookText, metadataGenerationOptions);
     let tempMetadata = {
       publisher: metadata?.publisher || extractedMetadata.publisher,
       playerCount: metadata?.playerCount || extractedMetadata.playerCount,
@@ -2299,7 +2334,7 @@ app.post('/summarize', async (req, res) => {
     console.log(`Processing ${chunksToProcess} chunks for initial summarization.`);
     
     for (let i = 0; i < chunksToProcess; i++) {
-      const summary = await summarizeChunkEnglish(chunks[i]);
+      const summary = await summarizeChunkEnglish(chunks[i], chunkGenerationOptions);
       chunkSummaries.push(summary);
       await delay(1000);
     }
@@ -2430,8 +2465,10 @@ console.log('Generating final English script using OpenAI...')
         },  
         { role: 'user', content: finalPrompt },
       ],  
-      max_completion_tokens: 4096,  
-      temperature: 0.7,  
+      ...getGenerationOptions(getAiConfig(), {
+        max_completion_tokens: 4096,
+        temperature: 0.7,
+      }),
     });  
     
     const englishSummary = englishSummaryResponse.choices[0].message.content.trim();  
@@ -2462,8 +2499,10 @@ console.log('Generating final English script using OpenAI...')
             },  
             { role: 'user', content: translationPrompt },  
           ],  
-          max_completion_tokens: 4096,  
-          temperature: 0.3,  
+          ...getGenerationOptions(getAiConfig(), {
+            max_completion_tokens: 4096,
+            temperature: 0.3,
+          }),
         });  
         
         finalOutputSummary = translationResponse.choices[0].message.content.trim();  
@@ -2501,7 +2540,16 @@ console.log('Generating final English script using OpenAI...')
     console.log('Sending summary response to frontend.');    
     res.json({ summary: finalOutputSummary, metadata: metadataForPrompt, components: components });    
   } catch (error) {    
-    console.error('Summarization failed:', error.message);
+    const compatibilityError = error.code === 'AI_GENERATION_OPTION_UNSUPPORTED'
+      ? error
+      : getGenerationOptionCompatibilityError(error);
+    console.error('Summarization failed:', compatibilityError || error);
+    if (compatibilityError) {
+      return res.status(compatibilityError.statusCode).json({
+        error: compatibilityError.message,
+        code: compatibilityError.code,
+      });
+    }
     res.status(500).json({ error: 'Failed to generate summary', details: error.message });    
   }    
 });
@@ -2649,8 +2697,10 @@ if (!mainContentText || mainContentText.length < 30) {
         { role: 'system', content: 'You are an expert boardgame metadata analyst and content strategist for YouTube tutorial videos. Your job is to extract all relevant information from provided boardgame text, focusing on details that will help create clear, engaging, and comprehensive video tutorials. You always prioritize accuracy, completeness, and clarity. You understand what information is most useful for teaching, explaining, and visually presenting boardgames to new and casual players. You return only the requested data as a clean, well-structured JSON object, using empty strings or empty arrays for any missing fields. You never add commentary or invent information' },
         { role: 'user', content: prompt }
       ],
-      temperature: 0,
-      max_completion_tokens: 800,
+      ...getGenerationOptions(getAiConfig(), {
+        temperature: 0,
+        max_completion_tokens: 800,
+      }),
     });
 
     const content = response.choices[0].message.content;
@@ -3501,8 +3551,10 @@ app.post('/api/extract-bgg-html', async (req, res) => {
         },
         { role: 'user', content: prompt }
       ],
-      temperature: 0,
-      max_completion_tokens: 1200,
+      ...getGenerationOptions(getAiConfig(), {
+        temperature: 0,
+        max_completion_tokens: 1200,
+      }),
     });
 
     const content = response.choices[0].message.content;

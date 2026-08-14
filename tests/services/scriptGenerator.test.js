@@ -108,4 +108,16 @@ describe('generateRemotionScript', () => {
         message: expect.stringContaining(`exactly 7 scenes; received ${sceneCount}`),
       });
   });
+
+  test('omits temperature for gpt-5.6-sol while retaining structured-output options', async () => {
+    process.env.OPENAI_MODEL = 'gpt-5.6-sol';
+
+    await generator('Rules text', 'Mock Market', 'en');
+
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      response_format: { type: 'json_object' },
+      max_completion_tokens: 3000,
+    }));
+    expect(create.mock.calls[0][0]).not.toHaveProperty('temperature');
+  });
 });

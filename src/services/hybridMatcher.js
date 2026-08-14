@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { isEligibleComponentForMatching } from './componentInventory.js';
 
-import { getAiModel } from '../config/aiConfig.js';
+import { getAiConfig, getAiModel, getGenerationOptions } from '../config/aiConfig.js';
 
 const AUTO_LINK_THRESHOLD = 0.9;
 
@@ -234,7 +234,9 @@ If none match, return []`
               ]
             }
           ],
-          max_completion_tokens: 200
+          ...getGenerationOptions(getAiConfig(), {
+            max_completion_tokens: 200,
+          })
         });
 
         let content = response.choices[0]?.message?.content?.trim() || '[]';

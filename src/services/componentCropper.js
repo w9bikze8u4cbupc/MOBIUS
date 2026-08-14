@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getAiModel } from '../config/aiConfig.js';
+import { getAiConfig, getAiModel, getGenerationOptions } from '../config/aiConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -104,9 +104,11 @@ export async function detectComponentBoundingBoxes(openai, imageBuffer, pageNum,
           ]
         }
       ],
-      max_tokens: 2000,
-      temperature: 0.1,
-      response_format: { type: 'json_object' }
+      ...getGenerationOptions(getAiConfig(), {
+        max_tokens: 2000,
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+      })
     });
 
     const content = response.choices[0]?.message?.content || '{"components": []}';

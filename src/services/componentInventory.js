@@ -1,4 +1,4 @@
-import { getAiModel } from '../config/aiConfig.js';
+import { getAiConfig, getAiModel, getGenerationOptions } from '../config/aiConfig.js';
 
 const COMPONENT_CATEGORIES = [
   'board',
@@ -611,7 +611,9 @@ async function extractComponentInventory(input, { gameName = null, llm = null, l
         role: 'user',
         content: `Extract only physical board-game component TYPES from this rulebook. Return ONLY a JSON array, never Markdown. Each object must contain name, category (${COMPONENT_CATEGORIES.join('|')}), quantity (integer or null), sourcePage (integer or null), sourceQuote, confidence (0 to 1). Do not invent components. Game: ${gameName || 'unknown'}\n\n${sourceText.slice(0, 20000)}`,
       }],
-      max_completion_tokens: 1800,
+      ...getGenerationOptions(getAiConfig(), {
+        max_completion_tokens: 1800,
+      }),
     });
     const llmComponents = normalizeLlmComponents(response.choices?.[0]?.message?.content, sourceText);
     if (llmComponents.length > 0) {

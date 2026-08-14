@@ -80,4 +80,65 @@ describe('AI preflight routes', () => {
     expect(mockRetrieve).toHaveBeenCalledTimes(1);
     expect(mockCompletionCreate).not.toHaveBeenCalled();
   });
+
+  test('summary metadata and chunk requests omit temperature for gpt-5.6-sol', async () => {
+    process.env.OPENAI_MODEL = 'gpt-5.6-sol';
+    mockRetrieve.mockResolvedValueOnce({ id: 'gpt-5.6-sol' });
+    mockCompletionCreate
+      .mockResolvedValueOnce({ choices: [{ message: { content: JSON.stringify({ theme: 'undersea politics' }) } }] })
+      .mockResolvedValueOnce({ choices: [{ message: { content: 'First chunk summary.' } }] })
+      .mockRejectedValueOnce({
+        code: 'unsupported_value',
+        param: 'top_p',
+        message: 'Unsupported value: top_p',
+      });
+
+    const response = await fetch(`${baseUrl}/summarize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({
+        rulebookText: `INTRODUCTION\n${'Abyss rules. '.repeat(12)}\nRULES\n${'Choose a card. '.repeat(12)}`,
+        gameName: 'Abyss',
+      }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body).toEqual({
+      error: 'AI generation option "top_p" is not supported by configured model "gpt-5.6-sol".',
+      code: 'AI_GENERATION_OPTION_UNSUPPORTED',
+    });
+    expect(mockCompletionCreate.mock.calls[0][0]).not.toHaveProperty('temperature');
+    expect(mockCompletionCreate.mock.calls[1][0]).not.toHaveProperty('temperature');
+  });
+
+  test('an unsupported generation option stops the summary before later chunks', async () => {
+    process.env.OPENAI_MODEL = 'test-model';
+    mockRetrieve.mockResolvedValueOnce({ id: 'test-model' });
+    mockCompletionCreate
+      .mockResolvedValueOnce({ choices: [{ message: { content: JSON.stringify({ theme: 'undersea politics' }) } }] })
+      .mockRejectedValueOnce({
+        code: 'unsupported_value',
+        param: 'temperature',
+        message: 'Unsupported value: temperature',
+      });
+
+    const response = await fetch(`${baseUrl}/summarize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify({
+        rulebookText: `INTRODUCTION\n${'Abyss rules. '.repeat(12)}\nRULES\n${'Choose a card. '.repeat(12)}`,
+        gameName: 'Abyss',
+      }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body).toEqual({
+      error: 'AI generation option "temperature" is not supported by configured model "test-model".',
+      code: 'AI_GENERATION_OPTION_UNSUPPORTED',
+    });
+    expect(JSON.stringify(body)).not.toContain('Unsupported value: temperature');
+    expect(mockCompletionCreate).toHaveBeenCalledTimes(2);
+  });
 });

@@ -1,4 +1,4 @@
-import { getAiClient, getAiModel, requireAiReady } from '../config/aiConfig.js';
+import { getAiClient, getAiConfig, getAiModel, getGenerationOptions, requireAiReady } from '../config/aiConfig.js';
 
 export async function explainChunkWithAI(chunk, language = 'en') {
   if (!chunk || chunk.trim().length === 0) {
@@ -22,8 +22,10 @@ export async function explainChunkWithAI(chunk, language = 'en') {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      max_completion_tokens: 500,
-      temperature: 0.7,
+      ...getGenerationOptions(getAiConfig(), {
+        max_completion_tokens: 500,
+        temperature: 0.7,
+      }),
     });
 
     return response.choices[0].message.content.trim();
@@ -67,8 +69,10 @@ Return ONLY a valid JSON array, no additional text.`;
         },
         { role: 'user', content: prompt },
       ],
-      max_completion_tokens: 1500,
-      temperature: 0.3,
+      ...getGenerationOptions(getAiConfig(), {
+        max_completion_tokens: 1500,
+        temperature: 0.3,
+      }),
     });
 
     const content = response.choices[0].message.content.trim();

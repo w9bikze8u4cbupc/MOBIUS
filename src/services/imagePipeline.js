@@ -10,7 +10,7 @@ const pdfToImg = {
   },
 };
 
-import { getAiModel } from '../config/aiConfig.js';
+import { getAiConfig, getAiModel, getGenerationOptions } from '../config/aiConfig.js';
 
 const xmlParser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '' });
 
@@ -366,7 +366,9 @@ Only include confident matches. Omit components with no matches.
 Return ONLY valid JSON, no markdown or explanations.`
         }
       ],
-      max_completion_tokens: 2000
+      ...getGenerationOptions(getAiConfig(), {
+        max_completion_tokens: 2000,
+      })
     });
     
     let content = response.choices[0]?.message?.content?.trim() || '{}';

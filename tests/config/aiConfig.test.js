@@ -12,6 +12,7 @@ jest.mock('openai', () => ({
 
 import {
   getAiStatus,
+  getGenerationOptions,
   listAccessibleModelIds,
   resetAiConfigForTests,
   setAiClientForTests,
@@ -91,4 +92,24 @@ test('model discovery lists accessible IDs with credentials but without OPENAI_M
   expect(mockList).toHaveBeenCalledTimes(1);
   expect(mockRetrieve).not.toHaveBeenCalled();
   expect(mockCompletionCreate).not.toHaveBeenCalled();
+});
+
+test('gpt-5.6-sol omits temperature while preserving other requested generation options', () => {
+  const options = getGenerationOptions(
+    { model: 'gpt-5.6-sol' },
+    { temperature: 0.5, max_completion_tokens: 500, response_format: { type: 'json_object' } },
+  );
+
+  expect(options).toEqual({
+    max_completion_tokens: 500,
+    response_format: { type: 'json_object' },
+  });
+  expect(options).not.toHaveProperty('temperature');
+});
+
+test('models without a restricted profile retain the requested temperature', () => {
+  expect(getGenerationOptions(
+    { model: 'test-model' },
+    { temperature: 0.7, max_completion_tokens: 1000 },
+  )).toEqual({ temperature: 0.7, max_completion_tokens: 1000 });
 });

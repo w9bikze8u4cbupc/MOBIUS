@@ -27,6 +27,44 @@ export function getAiConfig(env = process.env) {
   };
 }
 
+export function getGenerationOptions(config = getAiConfig(), requestedOptions = {}) {
+  const options = { ...requestedOptions };
+  if (config.model === 'gpt-5.6-sol') {
+    delete options.temperature;
+  }
+  return options;
+}
+
+function getProviderError(error) {
+  return error?.error || error?.response?.data?.error || error || {};
+}
+
+export function getGenerationOptionCompatibilityError(error, config = getAiConfig()) {
+  const providerError = getProviderError(error);
+  const code = String(providerError.code || error?.code || '').toLowerCase();
+  const message = String(providerError.message || error?.message || '');
+  const isUnsupportedOption = code === 'unsupported_value'
+    || code === 'unsupported_parameter'
+    || code === 'unsupported-parameter'
+    || /unsupported[-_ ]?(?:value|parameter)|does not support/i.test(message);
+
+  if (!isUnsupportedOption) {
+    return null;
+  }
+
+  const parameter = providerError.param
+    || error?.param
+    || message.match(/['"]([^'"]+)['"]/)?.[1]
+    || 'requested generation option';
+  const compatibilityError = new Error(
+    `AI generation option "${parameter}" is not supported by configured model "${config.model}".`,
+  );
+  compatibilityError.code = 'AI_GENERATION_OPTION_UNSUPPORTED';
+  compatibilityError.statusCode = 422;
+  compatibilityError.cause = error;
+  return compatibilityError;
+}
+
 function getSetupMessage(config) {
   if (!config.apiKey) {
     return `AI script generation is unavailable: set OPENAI_API_KEY in ${ENV_FILE_PATH}, restart the server, then try again.`;

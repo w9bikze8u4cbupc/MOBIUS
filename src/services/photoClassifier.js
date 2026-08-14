@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { getAiModel } from '../config/aiConfig.js';
+import { getAiConfig, getAiModel, getGenerationOptions } from '../config/aiConfig.js';
 
 const PHOTO_CLASSIFICATION_PROMPT = `Analyze this cropped image from a board game rulebook.
 
@@ -75,9 +75,11 @@ export async function classifyAsPhoto(openai, imageBuffer) {
           ]
         }
       ],
-      max_tokens: 300,
-      temperature: 0.1,
-      response_format: { type: 'json_object' }
+      ...getGenerationOptions(getAiConfig(), {
+        max_tokens: 300,
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+      })
     });
 
     const content = response.choices[0]?.message?.content || '{}';
@@ -126,9 +128,11 @@ export async function matchComponentWithOCR(openai, imageBuffer, components, ocr
           ]
         }
       ],
-      max_tokens: 400,
-      temperature: 0.1,
-      response_format: { type: 'json_object' }
+      ...getGenerationOptions(getAiConfig(), {
+        max_tokens: 400,
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+      })
     });
 
     const content = response.choices[0]?.message?.content || '{}';
