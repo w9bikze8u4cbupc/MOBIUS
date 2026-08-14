@@ -2242,21 +2242,64 @@ app.post('/upload-images', upload.array('images', 10), async (req, res) => {
 });
 
 
+function isUsableScriptComponentName(value) {
+  const name = String(value || '').trim();
+  if (!name || /^(unknown|unknown component|component|components|item|items|n\/a|none|null)$/i.test(name)) return false;
+  if (name.split(/\s+/).length > 12 || /[.!?]/.test(name)) return false;
+  return true;
+}
+
+function isSupportedScriptLanguage(value) {
+  return ['english', 'french'].includes(String(value || '').trim().toLowerCase());
+}
+
+function validateScriptGenerationContext({ projectId, gameName, rulebookText, components, language }) {
+  if (typeof projectId !== 'string' || !projectId.trim()) {
+    return 'Cannot generate: this project has no ID. Return to Project Setup and confirm the project.';
+  }
+  if (typeof rulebookText !== 'string' || !rulebookText.trim()) {
+    return 'Cannot generate: this project has no persisted rulebook text. Return to Project Setup and re-import the PDF.';
+  }
+  if (typeof gameName !== 'string' || !gameName.trim()) {
+    return 'Cannot generate: this project has no game name. Return to Project Setup and enter a game name.';
+  }
+  if (!Array.isArray(components) || !components.some((component) => isUsableScriptComponentName(component?.name))) {
+    return 'Cannot generate: this project has no validated component inventory. Return to Ingestion Review and confirm at least one named component.';
+  }
+  if (typeof language !== 'string' || !language.trim()) {
+    return 'Cannot generate: this project has no selected language. Return to Project Setup and select a language.';
+  }
+  if (!isSupportedScriptLanguage(language)) {
+    return 'Cannot generate: this project has an unsupported language. Return to Project Setup and select English or French.';
+  }
+  return null;
+}
+
 app.post('/summarize', async (req, res) => {
   console.log('--- Summarization started ---');
   
   try {
-    const {
+    let {
+      projectId,
       rulebookText,
-      language = 'english',
+      language,
       gameName,
       metadata,
       detailPercentage = 25,
       resummarize = false,
       baseWordCount = 0,
       previousSummary = '',
-      components = []
-    } = req.body;
+      components
+    } = req.body || {};
+
+    const contextError = validateScriptGenerationContext({ projectId, gameName, rulebookText, components, language });
+    if (contextError) {
+      return res.status(422).json({ error: contextError, code: 'SCRIPT_CONTEXT_INCOMPLETE' });
+    }
+    projectId = projectId.trim();
+    gameName = gameName.trim();
+    language = language.trim().toLowerCase();
+    rulebookText = rulebookText.trim();
     
     console.log('Received rulebookText length:', rulebookText ? rulebookText.length : 'undefined');
     console.log('Requested output language:', language);
@@ -2538,8 +2581,14 @@ console.log('Generating final English script using OpenAI...')
     await fsPromises.writeFile(summaryPath, summaryContent); // ✅ Fixed
     console.log('Summary saved to:', summaryPath);    
     console.log('Sending summary response to frontend.');    
-    res.json({ summary: finalOutputSummary, metadata: metadataForPrompt, components: components });    
-  } catch (error) {    
+    res.json({
+      generated: true,
+      projectId,
+      summary: finalOutputSummary,
+      metadata: metadataForPrompt,
+      components,
+    });
+  } catch (error) {
     const compatibilityError = error.code === 'AI_GENERATION_OPTION_UNSUPPORTED'
       ? error
       : getGenerationOptionCompatibilityError(error);

@@ -20,6 +20,13 @@ import { ScriptStep } from "./components/steps/ScriptStep";
 import { StoryboardStep } from "./components/steps/StoryboardStep";
 import { VoiceStep } from "./components/steps/VoiceStep";
 import { RenderExportStep } from "./components/steps/RenderExportStep";
+import {
+  buildScriptGenerationRequest,
+  createPersistedProjectContext,
+  getScriptInputReadiness,
+  loadLatestProjectContext,
+  saveProjectContext,
+} from "./projectContext";
 import "./styles/pipeline.css";
 
 // Configure PDF.js worker
@@ -283,6 +290,7 @@ function App() {
   const [showThemePrompt, setShowThemePrompt] = useState(false); // To show the theme input modal
   const [loading, setLoading] = useState(false); // For main processing loading state
   const [summary, setSummary] = useState(""); // The generated script (Markdown)
+  const [generatedScript, setGeneratedScript] = useState(false);
   const [editedSummary, setEditedSummary] = useState(""); // The script in the editable textarea
   const [sections, setSections] = useState([]); // Summary split into sections for TTS
   const [audio, setAudio] = useState({}); // Stores Blob URLs for generated audio sections
@@ -293,6 +301,8 @@ function App() {
 const [dragActive, setDragActive] = useState(false); // For drag and drop file area
   // eslint-disable-next-line no-unused-vars
 const fileInputRef = useRef(); // Ref for the hidden file input
+  const hasHydratedProjectContextRef = useRef(false);
+  const previousProjectIdRef = useRef("");
 
   // State for displaying translation status/errors
   const [translationStatus, setTranslationStatus] = useState({
@@ -367,8 +377,76 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   }, []);
 
   useEffect(() => {
-    setProjectImages([]);
-    setComponentImageLinks({});
+    if (typeof window === 'undefined') {
+      hasHydratedProjectContextRef.current = true;
+      return;
+    }
+
+    const context = loadLatestProjectContext(window.localStorage);
+    if (context) {
+      setProjectId(context.projectId);
+      setGameName(context.gameName);
+      setLanguage(context.language);
+      setRulebookText(context.rulebookText);
+      setRulebookPages(context.rulebookPages);
+      setGameComponents(context.components);
+      setMetadata(context.metadata);
+      setProjectImages(context.images);
+      setComponentImageLinks(context.componentImageLinks);
+      setSummary(context.script);
+      setGeneratedScript(context.generatedScript);
+      setEditedSummary(context.script);
+      setActiveStepId(context.activeStepId);
+      setCompletedStepIds(context.completedStepIds);
+      previousProjectIdRef.current = context.projectId;
+    }
+    hasHydratedProjectContextRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydratedProjectContextRef.current || !projectId.trim() || typeof window === 'undefined') return;
+    saveProjectContext(window.localStorage, createPersistedProjectContext({
+      projectId,
+      gameName,
+      language,
+      rulebookText,
+      rulebookPages,
+      components: gameComponents,
+      metadata,
+      images: projectImages,
+      componentImageLinks,
+      script: editedSummary || summary,
+      generatedScript,
+      activeStepId,
+      completedStepIds,
+    }));
+  }, [
+    activeStepId,
+    completedStepIds,
+    componentImageLinks,
+    editedSummary,
+    gameComponents,
+    gameName,
+    generatedScript,
+    language,
+    metadata,
+    projectId,
+    projectImages,
+    rulebookPages,
+    rulebookText,
+    summary,
+  ]);
+
+  useEffect(() => {
+    if (!previousProjectIdRef.current) {
+      previousProjectIdRef.current = projectId;
+      return;
+    }
+    if (previousProjectIdRef.current !== projectId) {
+      previousProjectIdRef.current = projectId;
+      setProjectImages([]);
+      setComponentImageLinks({});
+    }
   }, [projectId]);
 
   // Loading the Script step reads configuration only; it never probes the provider.
@@ -630,6 +708,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setBggLookupLoading(false);
     setRulebookText("");
     setSummary("");
+    setGeneratedScript(false);
     setEditedSummary("");
     setSections([]);
     setAudio({});
@@ -700,6 +779,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setRulebookText(e.target.value);
     setFile(null); // Clear file if user starts typing
     setSummary("");
+    setGeneratedScript(false);
     setEditedSummary("");
     setSections([]);
     setAudio({});
@@ -860,9 +940,25 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           storyboardManifest,
         },
       };
+      const projectContext = createPersistedProjectContext({
+        projectId,
+        gameName,
+        language,
+        rulebookText,
+        rulebookPages,
+        components: gameComponents,
+        metadata,
+        images: projectImages,
+        componentImageLinks,
+        script,
+        generatedScript,
+        activeStepId,
+        completedStepIds,
+      });
       const { data: savedProject } = await axios.post(`${BACKEND_URL}/save-project`, {
         name: gameName.trim() || projectId.trim() || "MOBIUS tutorial",
         metadata: renderMetadata,
+        projectContext,
         components: gameComponents.length > 0 ? gameComponents : (ingestionManifest?.components || []),
         images: projectImages,
         script,
@@ -1013,41 +1109,31 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
 
   // --- Main Summarization Handler ---
-  const handleSummarize = async () => {
-    // Reset relevant states for a new summarization request
-    setLoading(true);
-    setSummaryWarning("");
-    setSummary("");
-    setEditedSummary("");
-    setSections([]);
-    setAudio({});
-    setAudioLoading({});
-    setShowThemePrompt(false); // Hide prompt if it was showing
-    setTranslationStatus({ isTranslating: false, error: null }); // Reset translation status
+  const handleSummarize = async () => {
+    const scriptContext = {
+      projectId,
+      gameName,
+      language,
+      rulebookText,
+      components: gameComponents,
+      metadata,
+    };
+    const { request, readiness } = buildScriptGenerationRequest(scriptContext);
+    if (!request) {
+      setSummaryWarning(readiness.message);
+      return;
+    }
 
-    // Basic input validation
-    if (!rulebookText.trim()) {
-      setSummaryWarning("Please provide rulebook text before generating an optional AI summary.");
-      setLoading(false);
-      return;
-    }
-    if (!gameName.trim()) {
-      setSummaryWarning("Please provide a game name before generating an optional AI summary.");
-      setLoading(false);
-      return;
-    }
+    setLoading(true);
+    setSummaryWarning("");
+    setShowThemePrompt(false);
+    setTranslationStatus({ isTranslating: false, error: null });
 
-    try {
+    try {
       await requireAiPreflight();
       console.log(`Sending rulebookText length: ${rulebookText.length} to backend for summarization.`);
       // Make the POST request to the backend's summarize endpoint
-      const response = await axios.post(`${BACKEND_URL}/summarize`, {
-        rulebookText,
-        language, // Send the requested output language ('english' or 'french')
-        gameName,
-        metadata, // Send the current metadata state
-        detailPercentage // Send the detail percentage
-      });
+      const response = await axios.post(`${BACKEND_URL}/summarize`, request);
 
       // Handle the backend response
       console.log('Received response from backend /summarize.');
@@ -1055,15 +1141,13 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
 
       if (response.data.needsTheme) {
-        // If backend needs theme, update metadata and show the prompt
+        // The operator's current metadata remains canonical; only prompt for the missing enrichment.
         console.log('Backend requested theme.');
-        setMetadata(response.data.metadata); // Update metadata (should include 'Not found' theme)
-        setShowThemePrompt(true); // Show the modal
-      } else if (response.data.summary) {
-        // If summary is received, update state
-        const generatedSummary = response.data.summary;
-        setSummary(generatedSummary); // This will trigger the effect to set editedSummary and sections
-        setMetadata(response.data.metadata); // Update metadata based on backend response
+        setShowThemePrompt(true);
+      } else if (response.data.generated === true && typeof response.data.summary === 'string' && response.data.summary.trim()) {
+        const generatedSummary = response.data.summary.trim();
+        setSummary(generatedSummary);
+        setGeneratedScript(true);
 
         // Check for translation warnings/errors from the backend
         if (response.data.warning) {
@@ -1093,16 +1177,11 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       // Check for specific backend errors related to translation failure
       if (err.response?.data?.fallbackLanguage) {
         setTranslationStatus({
-          isTranslating: false, // Not currently translating
-          error: `Translation failed. Showing ${err.response.data.fallbackLanguage} version. Details: ${err.response.data.error}`
+          isTranslating: false,
+          error: `Translation failed. ${err.response.data.error}`
         });
-        // Optionally set the received fallback summary if provided
-        if (err.response.data.summary) {
-          setSummary(err.response.data.summary); // This will trigger useEffect to update editedSummary/sections
-        }
-
       } else {
-        setTranslationStatus({ isTranslating: false, error: null }); // Clear translation status on unrelated error
+        setTranslationStatus({ isTranslating: false, error: null });
       }
 
 
@@ -1335,6 +1414,14 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
 
   
+  const scriptInputReadiness = getScriptInputReadiness({
+    projectId,
+    gameName,
+    language,
+    rulebookText,
+    components: gameComponents,
+  });
+
   // --- Rendered Output (JSX) ---
   return (
     <div style={{ maxWidth: "1200px", margin: "24px auto", fontFamily: "sans-serif", padding: 20 }}>
@@ -1427,9 +1514,14 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           {activeStepId === "script" && (
             <ScriptStep
               loading={loading}
+              projectId={projectId}
               rulebookText={rulebookText}
               gameName={gameName}
+              language={language}
+              components={gameComponents}
+              scriptInputReadiness={scriptInputReadiness}
               onSummarize={handleSummarize}
+              hasGeneratedScript={generatedScript}
               summary={summary}
               editedSummary={editedSummary}
               onEdit={handleSummaryEdit}

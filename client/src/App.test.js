@@ -11,6 +11,7 @@ jest.mock('axios', () => ({
 import axios from 'axios';
 import { getDocument } from 'pdfjs-dist';
 import App, { createProjectIdFromFilename, hasValidComponentInventory, extractPdfPageText } from './App';
+import { saveProjectContext } from './projectContext';
 
 jest.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: {},
@@ -29,12 +30,22 @@ jest.mock('./components/PipelineStepper', () => ({ PipelineStepper: () => null }
 jest.mock('./components/steps/MetadataInputStep', () => ({ MetadataInputStep: () => null }));
 jest.mock('./components/steps/IngestionReviewStep', () => ({ IngestionReviewStep: () => null }));
 jest.mock('./components/steps/ImagesStep', () => ({ ImagesStep: () => null }));
-jest.mock('./components/steps/ScriptStep', () => ({ ScriptStep: () => null }));
+jest.mock('./components/steps/ScriptStep', () => ({
+  ScriptStep: ({ onSummarize, scriptInputReadiness, hasGeneratedScript, summary, editedSummary }) => (
+    <div>
+      <div data-testid="script-readiness">{scriptInputReadiness?.message || 'ready'}</div>
+      <div data-testid="editable-script">{editedSummary}</div>
+      <button onClick={onSummarize} disabled={!scriptInputReadiness?.ready}>Generate optional AI summary</button>
+      {hasGeneratedScript && summary ? <div>Script generated successfully</div> : null}
+    </div>
+  ),
+}));
 jest.mock('./components/steps/StoryboardStep', () => ({ StoryboardStep: () => null }));
 jest.mock('./components/steps/VoiceStep', () => ({ VoiceStep: () => null }));
 jest.mock('./components/steps/RenderExportStep', () => ({ RenderExportStep: () => null }));
 
 beforeEach(() => {
+  window.localStorage.clear();
   jest.clearAllMocks();
 });
 
@@ -159,4 +170,86 @@ test('optional AI metadata preflight failure prevents its rulebook POST', async 
   await waitFor(() => {
     expect(screen.getByText(/OPENAI_MODEL is not accessible/i)).toBeInTheDocument();
   });
+});
+
+
+test('hydrates canonical Abyss context and sends it unchanged to the summary API', async () => {
+  const rulebookText = 'A'.repeat(20916);
+  const components = Array.from({ length: 9 }, (_, index) => ({
+    id: `component-${index + 1}`,
+    name: `Abyss component ${index + 1}`,
+    category: 'card',
+  }));
+  const metadata = { theme: 'undersea strategy', publisher: 'Bombyx' };
+  saveProjectContext(window.localStorage, {
+    version: 1,
+    projectId: 'abyss-approved-project',
+    gameName: 'Abyss',
+    language: 'english',
+    rulebookText,
+    components,
+    metadata,
+    images: [{ id: 'image-1' }],
+    componentImageLinks: { 'component-1': ['image-1'] },
+    script: 'Operator-edited script',
+    activeStepId: 'script',
+    completedStepIds: ['project', 'metadata', 'ingestion', 'images'],
+  });
+  axios.get.mockResolvedValue({ data: { ready: true, message: 'AI model is ready.' } });
+  axios.post.mockResolvedValue({
+    data: { generated: true, summary: 'Generated tutorial script', metadata, components },
+  });
+
+  render(<App />);
+
+  const generate = await screen.findByRole('button', { name: 'Generate optional AI summary' });
+  await waitFor(() => expect(generate).toBeEnabled());
+  fireEvent.click(generate);
+
+  await waitFor(() => {
+    expect(axios.post).toHaveBeenCalledWith(
+      expect.stringContaining('/summarize'),
+      {
+        projectId: 'abyss-approved-project',
+        gameName: 'Abyss',
+        language: 'english',
+        rulebookText,
+        components,
+        metadata,
+      },
+    );
+  });
+  expect(screen.getByText('Script generated successfully')).toBeInTheDocument();
+});
+
+
+test('does not replace an editable script or show success for an ungenerated fallback response', async () => {
+  const existingScript = 'Operator-approved script must remain editable.';
+  saveProjectContext(window.localStorage, {
+    projectId: 'abyss-approved-project',
+    gameName: 'Abyss',
+    language: 'english',
+    rulebookText: 'Approved Abyss rulebook text',
+    components: [{ id: 'cards', name: 'Cards' }],
+    metadata: { theme: 'undersea strategy' },
+    script: existingScript,
+    activeStepId: 'script',
+  });
+  axios.get.mockResolvedValue({ data: { ready: true, message: 'AI model is ready.' } });
+  axios.post.mockResolvedValue({
+    data: {
+      summary: 'Cannot create a tutorial because rulebook text, game name, and components are empty.',
+    },
+  });
+
+  render(<App />);
+
+  const generate = await screen.findByRole('button', { name: 'Generate optional AI summary' });
+  await waitFor(() => expect(generate).toBeEnabled());
+  await waitFor(() => expect(screen.getByTestId('editable-script')).toHaveTextContent(existingScript));
+  fireEvent.click(generate);
+
+  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/summarize'), expect.any(Object)));
+  expect(screen.getByTestId('editable-script')).toHaveTextContent(existingScript);
+  expect(screen.queryByText('Script generated successfully')).not.toBeInTheDocument();
 });

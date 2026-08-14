@@ -71,7 +71,13 @@ describe('AI preflight routes', () => {
     const response = await fetch(`${baseUrl}/summarize`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
-      body: JSON.stringify({ rulebookText: 'A sufficiently long rulebook section '.repeat(10), gameName: 'Abyss' }),
+      body: JSON.stringify({
+        projectId: 'abyss-test',
+        rulebookText: 'A sufficiently long rulebook section '.repeat(10),
+        gameName: 'Abyss',
+        language: 'english',
+        components: [{ id: 'cards', name: 'Cards' }],
+      }),
     });
     const body = await response.json();
 
@@ -98,7 +104,10 @@ describe('AI preflight routes', () => {
       headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
       body: JSON.stringify({
         rulebookText: `INTRODUCTION\n${'Abyss rules. '.repeat(12)}\nRULES\n${'Choose a card. '.repeat(12)}`,
+        projectId: 'abyss-test',
         gameName: 'Abyss',
+        language: 'english',
+        components: [{ id: 'cards', name: 'Cards' }],
       }),
     });
     const body = await response.json();
@@ -128,7 +137,10 @@ describe('AI preflight routes', () => {
       headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
       body: JSON.stringify({
         rulebookText: `INTRODUCTION\n${'Abyss rules. '.repeat(12)}\nRULES\n${'Choose a card. '.repeat(12)}`,
+        projectId: 'abyss-test',
         gameName: 'Abyss',
+        language: 'english',
+        components: [{ id: 'cards', name: 'Cards' }],
       }),
     });
     const body = await response.json();
@@ -140,5 +152,56 @@ describe('AI preflight routes', () => {
     });
     expect(JSON.stringify(body)).not.toContain('Unsupported value: temperature');
     expect(mockCompletionCreate).toHaveBeenCalledTimes(2);
+  });
+});
+
+
+describe('script context validation', () => {
+  let server;
+  let baseUrl;
+
+  beforeAll((done) => {
+    server = app.listen(0, () => {
+      baseUrl = `http://127.0.0.1:${server.address().port}`;
+      done();
+    });
+  });
+
+  afterAll(() => {
+    server?.close();
+  });
+
+  beforeEach(() => {
+    process.env.OPENAI_API_KEY = 'test-key';
+    process.env.OPENAI_MODEL = 'test-model';
+    mockRetrieve.mockReset();
+    mockCompletionCreate.mockReset();
+    resetAiConfigForTests();
+    setAiClientForTests({
+      models: { retrieve: mockRetrieve, list: jest.fn() },
+      chat: { completions: { create: mockCompletionCreate } },
+    });
+  });
+
+  test.each([
+    [{ projectId: 'abyss', gameName: 'Abyss', language: 'english', components: [{ id: 'cards', name: 'Cards' }] }, /no persisted rulebook text/i],
+    [{ projectId: 'abyss', gameName: 'Abyss', language: 'english', rulebookText: 'Approved rules', components: [] }, /no validated component inventory/i],
+    [{ projectId: 'abyss', gameName: 'Abyss', language: 'english', rulebookText: 'Approved rules', components: [{ id: 'components', name: 'Components' }] }, /no validated component inventory/i],
+    [{ projectId: 'abyss', gameName: 'Abyss', language: 'english', rulebookText: 'Approved rules', components: [{ id: 'sentence', name: 'This is a whole page of rulebook text with no component boundary.' }] }, /no validated component inventory/i],
+    [{ projectId: 'abyss', gameName: 'Abyss', rulebookText: 'Approved rules', components: [{ id: 'cards', name: 'Cards' }] }, /no selected language/i],
+    [{ projectId: 'abyss', gameName: 'Abyss', language: '   ', rulebookText: 'Approved rules', components: [{ id: 'cards', name: 'Cards' }] }, /no selected language/i],
+    [{ projectId: 'abyss', gameName: 'Abyss', language: 'german', rulebookText: 'Approved rules', components: [{ id: 'cards', name: 'Cards' }] }, /unsupported language/i],
+  ])('rejects incomplete script context before AI preflight', async (payload, message) => {
+    const response = await fetch(`${baseUrl}/summarize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify(payload),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body).toEqual({ error: expect.stringMatching(message), code: 'SCRIPT_CONTEXT_INCOMPLETE' });
+    expect(mockRetrieve).not.toHaveBeenCalled();
+    expect(mockCompletionCreate).not.toHaveBeenCalled();
   });
 });

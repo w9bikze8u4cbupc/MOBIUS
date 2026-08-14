@@ -3,9 +3,14 @@ import ReactMarkdown from "react-markdown";
 
 export function ScriptStep({
   loading,
+  projectId,
   rulebookText,
   gameName,
+  language,
+  components = [],
+  scriptInputReadiness,
   onSummarize,
+  hasGeneratedScript,
   summary,
   editedSummary,
   onEdit,
@@ -16,7 +21,11 @@ export function ScriptStep({
   aiStatusLoading,
   onRefreshAiStatus,
 }) {
-  const canGenerate = rulebookText?.trim() && gameName?.trim();
+  const readiness = scriptInputReadiness || {
+    ready: false,
+    message: 'Cannot generate: Script input readiness has not been established.',
+  };
+  const canGenerate = readiness.ready;
   const aiReady = Boolean(aiStatus?.ready);
   const aiMessage = aiStatusLoading
     ? 'Loading local AI configuration…'
@@ -28,6 +37,22 @@ export function ScriptStep({
       <p className="pipeline-muted" style={{ marginBottom: 16 }}>
         Generate an optional AI tutorial summary from your rulebook. This does not affect document structure analysis or Ingestion Review confirmation.
       </p>
+
+      <div className="pipeline-card" style={{ marginBottom: 16 }} aria-label="Script input readiness">
+        <h4 style={{ marginTop: 0 }}>Script Input Readiness</h4>
+        <dl className="pipeline-grid-two" style={{ margin: 0 }}>
+          <div><dt>Project ID</dt><dd>{projectId || 'Missing'}</dd></div>
+          <div><dt>Game name</dt><dd>{gameName || 'Missing'}</dd></div>
+          <div><dt>Rulebook text</dt><dd>{`${(rulebookText || '').length.toLocaleString()} characters`}</dd></div>
+          <div><dt>Validated components</dt><dd>{`${Array.isArray(components) ? components.length : 0} components`}</dd></div>
+          <div><dt>Language</dt><dd>{language || 'Missing'}</dd></div>
+        </dl>
+        {!canGenerate && (
+          <p className="status-badge status-badge-warning" style={{ display: 'block', padding: '10px 14px', marginBottom: 0 }}>
+            {readiness.message}
+          </p>
+        )}
+      </div>
 
       <div className="pipeline-card" style={{ marginBottom: 16 }} aria-label="AI readiness">
         <h4 style={{ marginTop: 0 }}>AI readiness</h4>
@@ -66,11 +91,6 @@ export function ScriptStep({
           Save Edits
         </button>
 
-        {!canGenerate && !loading && (
-          <span className="status-badge status-badge-warning">
-            Enter game name and rulebook text first
-          </span>
-        )}
       </div>
 
       {loading && (
@@ -91,7 +111,7 @@ export function ScriptStep({
         </div>
       )}
 
-      {summary && (
+      {hasGeneratedScript && summary && (
         <div className="status-badge status-badge-success" style={{ marginBottom: 12 }}>
           Script generated successfully
         </div>

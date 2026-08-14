@@ -100,6 +100,25 @@ describe('/save-project persistence', () => {
     const firstApp = loadPersistenceApp();
     activeServer = await startServer(firstApp.app);
 
+    const projectContext = {
+      version: 1,
+      projectId: 'sushi-go-approved',
+      gameName: 'Sushi Go',
+      language: 'english',
+      rulebookText: 'Choose a card, then reveal it together.',
+      rulebookPages: [{ number: 1, text: 'Choose a card, then reveal it together.' }],
+      components: Array.from({ length: 9 }, (_, index) => ({
+        id: `component-${index + 1}`,
+        name: `Sushi Go component ${index + 1}`,
+      })),
+      metadata: { publisher: 'Gamewright', difficulty: 'beginner' },
+      images: [{ id: 'card-image-1', path: 'uploads/card-1.png' }],
+      componentImageLinks: { 'component-1': ['card-image-1'] },
+      script: 'Choose a card, then reveal it together.',
+      generatedScript: true,
+      activeStepId: 'script',
+      completedStepIds: ['project', 'metadata', 'ingestion', 'images'],
+    };
     const project = {
       name: 'Restart-safe project',
       metadata: {
@@ -108,6 +127,7 @@ describe('/save-project persistence', () => {
         ingestionManifest: { version: '1.0.0', document: { title: 'Sushi Go Rules' } },
         storyboardManifest: { storyboardContractVersion: '1.1.0', scenes: [] },
       },
+      projectContext,
       components: [{ id: 'card-1', type: 'card', quantity: 108 }],
       images: [{ id: 'card-image-1', path: 'uploads/card-1.png' }],
       script: 'Choose a card, then reveal it together.',
@@ -140,15 +160,36 @@ describe('/save-project persistence', () => {
     );
     const loaded = await loadResponse.json();
 
+    const persistedMetadata = { ...project.metadata, projectContext };
     expect(loadResponse.status).toBe(200);
     expect(loaded).toEqual({
       id: created.projectId,
-      ...project,
+      name: project.name,
+      metadata: persistedMetadata,
+      projectContext,
+      components: project.components,
+      images: project.images,
+      script: project.script,
+      audio: project.audio,
       created_at: expect.any(String),
+    });
+    expect(loaded.projectContext).toMatchObject({
+      gameName: 'Sushi Go',
+      language: 'english',
+      rulebookText: projectContext.rulebookText,
+      components: expect.arrayContaining([expect.objectContaining({ name: 'Sushi Go component 9' })]),
+      componentImageLinks: projectContext.componentImageLinks,
+      script: project.script,
     });
     expect(restartedApp.getProjectState(created.projectId)).toEqual({
       projectId: String(created.projectId),
-      ...project,
+      name: project.name,
+      metadata: persistedMetadata,
+      projectContext,
+      components: project.components,
+      images: project.images,
+      script: project.script,
+      audio: project.audio,
       ingestionManifest: project.metadata.ingestionManifest,
       storyboardManifest: project.metadata.storyboardManifest,
       resolution: undefined,

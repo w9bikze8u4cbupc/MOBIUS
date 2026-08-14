@@ -23,10 +23,15 @@ export function buildRenderProjectState(row) {
       ? metadata.renderState
       : {};
 
+  const projectContext = metadata.projectContext && typeof metadata.projectContext === 'object'
+    ? metadata.projectContext
+    : null;
+
   return {
     projectId: String(row.id),
     name: row.name || '',
     metadata,
+    projectContext,
     components: Array.isArray(components) ? components : [],
     images: Array.isArray(images) ? images : [],
     script: row.script || '',
@@ -59,14 +64,18 @@ export function registerProjectPersistenceRoutes(app, { db }) {
   hydrateRenderProjectState(db);
 
   app.post('/save-project', (req, res) => {
-    const { name, metadata, components, images, script, audio, scenes } = req.body;
+    const { name, metadata, components, images, script, audio, scenes, projectContext } = req.body;
+    const persistedMetadata = {
+      ...(metadata && typeof metadata === 'object' ? metadata : {}),
+      ...(projectContext && typeof projectContext === 'object' ? { projectContext } : {}),
+    };
 
     db.run(
       `INSERT INTO projects (name, metadata, components, images, script, audio, scenes)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         name,
-        JSON.stringify(metadata),
+        JSON.stringify(persistedMetadata),
         JSON.stringify(components),
         JSON.stringify(images),
         script,
@@ -115,10 +124,12 @@ export function registerProjectPersistenceRoutes(app, { db }) {
         }
 
         try {
+          const parsedMetadata = JSON.parse(row.metadata);
           const project = {
             id: row.id,
             name: row.name,
-            metadata: JSON.parse(row.metadata),
+            metadata: parsedMetadata,
+            projectContext: parsedMetadata?.projectContext || null,
             components: JSON.parse(row.components),
             images: JSON.parse(row.images),
             script: row.script,

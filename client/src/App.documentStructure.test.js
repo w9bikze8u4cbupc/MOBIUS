@@ -94,6 +94,7 @@ async function openIngestionReview() {
 
 describe('Analyze Document Structure workflow', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     jest.clearAllMocks();
   });
 
