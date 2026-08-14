@@ -127,3 +127,32 @@ test.each([
   expect(screen.queryByText('Script generated successfully')).not.toBeInTheDocument();
   expect(screen.getByDisplayValue('Existing operator script')).toBeInTheDocument();
 });
+
+
+test('shows compact source coverage status only when a generation status is available', () => {
+  render(
+    <ScriptStep
+      loading={false}
+      projectId="abyss-project"
+      rulebookText="Rulebook text"
+      gameName="Abyss"
+      language="english"
+      components={[{ id: 'cards', name: 'Cards' }]}
+      scriptInputReadiness={{ ready: true, message: '' }}
+      onSummarize={jest.fn()}
+      hasGeneratedScript
+      summary="Generated script"
+      editedSummary="Generated script"
+      onEdit={jest.fn()}
+      onSave={jest.fn()}
+      translationStatus={{ error: null }}
+      summaryWarning=""
+      generationStatus={{ sourceChars: 20914, chunkCount: 4, completedChunks: 4, finalScriptLength: 1696 }}
+      aiStatus={{ ready: true, message: 'AI model is ready.' }}
+      aiStatusLoading={false}
+      onRefreshAiStatus={jest.fn()}
+    />,
+  );
+
+  expect(screen.getByLabelText('Generation status')).toHaveTextContent(/Source: 20[\s,]914 chars · Chunks: 4\/4 · Final script: 1[\s,]696 chars/);
+});

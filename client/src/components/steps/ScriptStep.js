@@ -17,6 +17,7 @@ export function ScriptStep({
   onSave,
   translationStatus,
   summaryWarning,
+  generationStatus,
   aiStatus,
   aiStatusLoading,
   onRefreshAiStatus,
@@ -102,6 +103,12 @@ export function ScriptStep({
       {summaryWarning && (
         <div className="status-badge status-badge-warning" style={{ display: 'block', padding: '10px 14px', marginBottom: 12 }}>
           {summaryWarning}
+        </div>
+      )}
+
+      {generationStatus && (
+        <div className="status-badge status-badge-info" aria-label="Generation status" style={{ display: 'block', padding: '10px 14px', marginBottom: 12 }}>
+          Source: {Number(generationStatus.sourceChars || 0).toLocaleString()} chars · Chunks: {generationStatus.completedChunks || 0}/{generationStatus.chunkCount || 0} · Final script: {Number(generationStatus.finalScriptLength || 0).toLocaleString()} chars
         </div>
       )}
 

@@ -80,6 +80,7 @@ import {
   runImageEnhancement,
 } from '../services/imagePipeline.js';
 import { extractComponentInventory } from '../services/componentInventory.js';
+import { buildRulebookChunks, MAX_RULEBOOK_CHUNK_CHARS } from '../services/rulebookChunker.js';
 
 
 
@@ -2242,6 +2243,90 @@ app.post('/upload-images', upload.array('images', 10), async (req, res) => {
 });
 
 
+function createGenerationStatus({ coverage, chunkCount, completedChunks, finalScriptLength = 0, metadataAvailable = false }) {
+  return {
+    sourceChars: coverage.sourceChars,
+    chunkCount,
+    completedChunks,
+    sourceCoverageRatio: coverage.coverageRatio,
+    sourceComplete: coverage.complete && completedChunks === chunkCount,
+    finalScriptLength,
+    metadataAvailable,
+  };
+}
+
+function createScriptGenerationError(message, { stage, generationStatus } = {}) {
+  const error = new Error(message);
+  error.code = 'SCRIPT_GENERATION_INCOMPLETE';
+  error.statusCode = 422;
+  error.stage = stage;
+  error.generationStatus = generationStatus;
+  return error;
+}
+
+function requireUsableModelText(response, stage) {
+  const text = typeof response?.choices?.[0]?.message?.content === 'string'
+    ? response.choices[0].message.content.trim()
+    : '';
+  if (!text) {
+    throw createScriptGenerationError(`Script generation stopped: ${stage} produced no usable output. No script was saved.`, { stage });
+  }
+  return text;
+}
+
+function normalizeExtractedMetadata(value) {
+  const metadata = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const asText = (candidate) => typeof candidate === 'string' && candidate.trim() ? candidate.trim() : null;
+  const categoryTheme = Array.isArray(metadata.categories)
+    ? metadata.categories.map(asText).find(Boolean)
+    : null;
+  return {
+    publisher: asText(metadata.publisher),
+    playerCount: asText(metadata.playerCount) || asText(metadata.player_count),
+    gameLength: asText(metadata.gameLength) || asText(metadata.play_time),
+    minimumAge: asText(metadata.minimumAge) || asText(metadata.recommended_age),
+    theme: asText(metadata.theme) || categoryTheme,
+    edition: asText(metadata.edition) || asText(metadata.year_published),
+  };
+}
+
+async function extractOptionalMetadata(rulebookText, generationOptions) {
+  try {
+    const response = await getAiClient().chat.completions.create({
+      model: getAiModel(),
+      messages: [
+        { role: 'system', content: 'You are a precise metadata extractor. Return only a JSON object.' },
+        { role: 'user', content: `Extract optional boardgame metadata from this rulebook excerpt. Return JSON with publisher, player_count, play_time, recommended_age, theme, year_published, and categories. Use null or [] when unknown.\n\n${rulebookText.slice(0, MAX_RULEBOOK_CHUNK_CHARS)}` },
+      ],
+      ...generationOptions,
+    });
+    const text = typeof response?.choices?.[0]?.message?.content === 'string'
+      ? response.choices[0].message.content.trim()
+      : '';
+    if (!text) {
+      return { metadata: {}, available: false, warning: 'Optional metadata was unavailable.' };
+    }
+    return { metadata: normalizeExtractedMetadata(JSON.parse(text)), available: true, warning: null };
+  } catch (error) {
+    const compatibilityError = getGenerationOptionCompatibilityError(error);
+    if (compatibilityError) throw compatibilityError;
+    console.info('summary_metadata_unavailable', JSON.stringify({ reason: error?.message || 'malformed response' }));
+    return { metadata: {}, available: false, warning: 'Optional metadata was unavailable.' };
+  }
+}
+
+async function summarizeRequiredChunk(chunk, generationOptions) {
+  const response = await getAiClient().chat.completions.create({
+    model: getAiModel(),
+    messages: [
+      { role: 'system', content: 'You are a precise boardgame rulebook summarizer. Return only a concise source-grounded summary.' },
+      { role: 'user', content: `Summarize this numbered rulebook section. Preserve rules, setup, components, scoring, and exceptions found here. Do not invent information.\n\nSection ${chunk.index} (source offsets ${chunk.startOffset}-${chunk.endOffset}):\n${chunk.text}` },
+    ],
+    ...generationOptions,
+  });
+  return requireUsableModelText(response, `rulebook section ${chunk.index}`);
+}
+
 function isUsableScriptComponentName(value) {
   const name = String(value || '').trim();
   if (!name || /^(unknown|unknown component|component|components|item|items|n\/a|none|null)$/i.test(name)) return false;
@@ -2333,56 +2418,65 @@ app.post('/summarize', async (req, res) => {
       temperature: 0.7,
     });
 
-    // Metadata Extraction and Merging
-    const extractedMetadata = await extractMetadata(rulebookText, metadataGenerationOptions);
-    let tempMetadata = {
-      publisher: metadata?.publisher || extractedMetadata.publisher,
-      playerCount: metadata?.playerCount || extractedMetadata.playerCount,
-      gameLength: metadata?.gameLength || extractedMetadata.gameLength,
-      minimumAge: metadata?.minimumAge || extractedMetadata.minimumAge,
-      theme: metadata?.theme || extractedMetadata.theme,
-      edition: metadata?.edition || extractedMetadata.edition,
-    };
-    
-    const metadataForPrompt = {};
-    const fieldsToCustomize = {
-      publisher: "Publisher",
-      playerCount: "Player Count",
-      gameLength: "Game Length",
-      minimumAge: "Minimum Age",
-      theme: "Theme",
-      edition: "Edition"
-    };
-    
-    for (const key in fieldsToCustomize) {
-      metadataForPrompt[key] = tempMetadata[key] && tempMetadata[key] !== 'Not found' ? tempMetadata[key] : 'Not found';
+    const { chunks, coverage } = buildRulebookChunks(rulebookText);
+    let generationStatus = createGenerationStatus({
+      coverage,
+      chunkCount: chunks.length,
+      completedChunks: 0,
+    });
+    console.info('rulebook_chunk_coverage', JSON.stringify({
+      projectId,
+      maxChunkChars: MAX_RULEBOOK_CHUNK_CHARS,
+      chunkCount: chunks.length,
+      ...coverage,
+    }));
+    if (!coverage.complete || chunks.length === 0) {
+      throw createScriptGenerationError('Script generation stopped: rulebook source coverage is incomplete. No script was saved.', {
+        stage: 'source_coverage',
+        generationStatus,
+      });
     }
-    
-    console.log('Metadata used for prompt/frontend:', metadataForPrompt);
-    
-    if (metadataForPrompt.theme === 'Not found') {
-      console.log('Theme is missing, requesting from user.');
-      return res.status(200).json({ needsTheme: true, metadata: metadataForPrompt });
-    }
-    
-    // Chunk Summarization
-    const chunks = splitIntoSections(rulebookText);
-    console.log(`Text split into ${chunks.length} potential sections/chunks.`);
-    
+
+    // Metadata is optional enrichment. Malformed or empty metadata never blocks rules generation.
+    const metadataResult = await extractOptionalMetadata(rulebookText, metadataGenerationOptions);
+    const metadataForPrompt = {
+      publisher: metadata?.publisher || metadataResult.metadata.publisher || 'Not specified',
+      playerCount: metadata?.playerCount || metadataResult.metadata.playerCount || 'Not specified',
+      gameLength: metadata?.gameLength || metadataResult.metadata.gameLength || 'Not specified',
+      minimumAge: metadata?.minimumAge || metadataResult.metadata.minimumAge || 'Not specified',
+      theme: metadata?.theme || metadataResult.metadata.theme || 'Not specified',
+      edition: metadata?.edition || metadataResult.metadata.edition || 'Not specified',
+    };
+
     const chunkSummaries = [];
-    const maxChunks = 15;
-    const chunksToProcess = Math.min(chunks.length, maxChunks);
-    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-    
-    console.log(`Processing ${chunksToProcess} chunks for initial summarization.`);
-    
-    for (let i = 0; i < chunksToProcess; i++) {
-      const summary = await summarizeChunkEnglish(chunks[i], chunkGenerationOptions);
-      chunkSummaries.push(summary);
-      await delay(1000);
+    for (const chunk of chunks) {
+      try {
+        const summary = await summarizeRequiredChunk(chunk, chunkGenerationOptions);
+        chunkSummaries.push({ ...chunk, summary });
+        generationStatus = createGenerationStatus({
+          coverage,
+          chunkCount: chunks.length,
+          completedChunks: chunkSummaries.length,
+          metadataAvailable: metadataResult.available,
+        });
+      } catch (error) {
+        const compatibilityError = error.code === 'AI_GENERATION_OPTION_UNSUPPORTED'
+          ? error
+          : getGenerationOptionCompatibilityError(error);
+        if (compatibilityError) throw compatibilityError;
+        throw createScriptGenerationError(
+          `Script generation stopped: rulebook section ${chunk.index} produced no usable summary. No script was saved.`,
+          { stage: `chunk_${chunk.index}`, generationStatus },
+        );
+      }
     }
-    
-    console.log(`Generated summaries for ${chunkSummaries.length} chunks.`);  
+
+    if (chunkSummaries.length !== chunks.length || chunkSummaries.some((chunk) => !chunk.summary.trim())) {
+      throw createScriptGenerationError('Script generation stopped: rulebook source summaries are incomplete. No script was saved.', {
+        stage: 'source_completeness',
+        generationStatus,
+      });
+    }
   
     // --- Resummarize logic ---
     let targetWordCount = 0;
@@ -2452,7 +2546,10 @@ app.post('/summarize', async (req, res) => {
       `;
 
       const componentsJson = JSON.stringify(components);
-      const metadataJson = JSON.stringify(metadata);
+      const metadataJson = JSON.stringify(metadataForPrompt);
+      const sourceGroundedSummaries = chunkSummaries.map((chunk) => (
+        `Section ${chunk.index} (source offsets ${chunk.startOffset}-${chunk.endOffset}):\n${chunk.summary}`
+      )).join('\n\n');
       
       let finalPrompt;
       if (resummarize && previousSummary) {
@@ -2495,6 +2592,8 @@ Rulebook Text:`
           );
       }
 
+      finalPrompt += `\n\nConfirmed Game Name: ${gameName}\nRequested Language: ${language}\nValidated Component Inventory: ${componentsJson}\nSource Coverage: ${generationStatus.sourceCoverageRatio * 100}% across ${generationStatus.completedChunks}/${generationStatus.chunkCount} sections\n\nSource-grounded Rulebook Section Summaries:\n${sourceGroundedSummaries}`;
+
       console.log('Final prompt (truncated):', finalPrompt.slice(0, 500));
       
 // Generate the summary
@@ -2514,9 +2613,24 @@ console.log('Generating final English script using OpenAI...')
       }),
     });  
     
-    const englishSummary = englishSummaryResponse.choices[0].message.content.trim();  
-    console.log('Generated English script length:', englishSummary.length);  
-    
+    let englishSummary;
+    try {
+      englishSummary = requireUsableModelText(englishSummaryResponse, 'final synthesis');
+    } catch (_error) {
+      throw createScriptGenerationError('Script generation stopped: final synthesis produced no usable script. No script was saved.', {
+        stage: 'final_synthesis',
+        generationStatus,
+      });
+    }
+    generationStatus = createGenerationStatus({
+      coverage,
+      chunkCount: chunks.length,
+      completedChunks: chunkSummaries.length,
+      finalScriptLength: englishSummary.length,
+      metadataAvailable: metadataResult.available,
+    });
+    console.log('Generated English script length:', englishSummary.length);
+
     let finalOutputSummary = englishSummary;  
     
     // If French is requested, use GPT-4 to translate  
@@ -2548,16 +2662,32 @@ console.log('Generating final English script using OpenAI...')
           }),
         });  
         
-        finalOutputSummary = translationResponse.choices[0].message.content.trim();  
+        try {
+          finalOutputSummary = requireUsableModelText(translationResponse, 'French translation');
+        } catch (_error) {
+          throw createScriptGenerationError('Script generation stopped: French translation produced no usable script. No script was saved.', {
+            stage: 'translation',
+            generationStatus,
+          });
+        }
+        generationStatus = createGenerationStatus({
+          coverage,
+          chunkCount: chunks.length,
+          completedChunks: chunkSummaries.length,
+          finalScriptLength: finalOutputSummary.length,
+          metadataAvailable: metadataResult.available,
+        });
         console.log('Successfully translated summary to French.');  
-      } catch (translateError) {  
-        console.error('Translation failed:', translateError.message);
-        return res.status(500).json({  
-          error: 'Translation failed',  
-          summary: englishSummary,  
-          metadata: metadataForPrompt,  
-          warning: 'Translation failed. Showing English version instead.'  
-        });  
+      } catch (translateError) {
+        const compatibilityError = translateError.code === 'AI_GENERATION_OPTION_UNSUPPORTED'
+          ? translateError
+          : getGenerationOptionCompatibilityError(translateError);
+        if (compatibilityError) throw compatibilityError;
+        if (translateError.code === 'SCRIPT_GENERATION_INCOMPLETE') throw translateError;
+        throw createScriptGenerationError('Script generation stopped: French translation failed. No script was saved.', {
+          stage: 'translation',
+          generationStatus,
+        });
       }  
     }  
     
@@ -2586,7 +2716,10 @@ console.log('Generating final English script using OpenAI...')
       projectId,
       summary: finalOutputSummary,
       metadata: metadataForPrompt,
+      metadataWarning: metadataResult.warning,
       components,
+      sourceCompleteness: { complete: generationStatus.sourceComplete },
+      generationStatus,
     });
   } catch (error) {
     const compatibilityError = error.code === 'AI_GENERATION_OPTION_UNSUPPORTED'
@@ -2597,6 +2730,14 @@ console.log('Generating final English script using OpenAI...')
       return res.status(compatibilityError.statusCode).json({
         error: compatibilityError.message,
         code: compatibilityError.code,
+      });
+    }
+    if (error.code === 'SCRIPT_GENERATION_INCOMPLETE') {
+      return res.status(error.statusCode || 422).json({
+        error: error.message,
+        code: error.code,
+        stage: error.stage,
+        generationStatus: error.generationStatus || null,
       });
     }
     res.status(500).json({ error: 'Failed to generate summary', details: error.message });    

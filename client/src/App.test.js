@@ -197,7 +197,20 @@ test('hydrates canonical Abyss context and sends it unchanged to the summary API
   });
   axios.get.mockResolvedValue({ data: { ready: true, message: 'AI model is ready.' } });
   axios.post.mockResolvedValue({
-    data: { generated: true, summary: 'Generated tutorial script', metadata, components },
+    data: {
+      generated: true,
+      summary: 'Generated tutorial script',
+      metadata,
+      components,
+      sourceCompleteness: { complete: true },
+      generationStatus: {
+        sourceChars: rulebookText.length,
+        chunkCount: 4,
+        completedChunks: 4,
+        sourceComplete: true,
+        finalScriptLength: 25,
+      },
+    },
   });
 
   render(<App />);
@@ -244,6 +257,40 @@ test('does not replace an editable script or show success for an ungenerated fal
 
   render(<App />);
 
+  const generate = await screen.findByRole('button', { name: 'Generate optional AI summary' });
+  await waitFor(() => expect(generate).toBeEnabled());
+  await waitFor(() => expect(screen.getByTestId('editable-script')).toHaveTextContent(existingScript));
+  fireEvent.click(generate);
+
+  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/summarize'), expect.any(Object)));
+  expect(screen.getByTestId('editable-script')).toHaveTextContent(existingScript);
+  expect(screen.queryByText('Script generated successfully')).not.toBeInTheDocument();
+});
+
+
+test('does not replace an editable script when generated output lacks source completeness', async () => {
+  const existingScript = 'Keep this operator-approved script.';
+  saveProjectContext(window.localStorage, {
+    projectId: 'abyss-incomplete-source',
+    gameName: 'Abyss',
+    language: 'english',
+    rulebookText: 'Approved rulebook text',
+    components: [{ id: 'cards', name: 'Cards' }],
+    metadata: {},
+    script: existingScript,
+    activeStepId: 'script',
+  });
+  axios.get.mockResolvedValue({ data: { ready: true, message: 'AI model is ready.' } });
+  axios.post.mockResolvedValue({
+    data: {
+      generated: true,
+      summary: 'Fallback-looking script that must not replace the operator text.',
+      sourceCompleteness: { complete: false },
+      generationStatus: { sourceChars: 20914, chunkCount: 4, completedChunks: 2, sourceComplete: false, finalScriptLength: 0 },
+    },
+  });
+
+  render(<App />);
   const generate = await screen.findByRole('button', { name: 'Generate optional AI summary' });
   await waitFor(() => expect(generate).toBeEnabled());
   await waitFor(() => expect(screen.getByTestId('editable-script')).toHaveTextContent(existingScript));

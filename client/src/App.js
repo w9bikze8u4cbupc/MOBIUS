@@ -297,6 +297,7 @@ function App() {
   const [audioLoading, setAudioLoading] = useState({}); // Loading state for individual audio sections
   const [error, setError] = useState(""); // General error message display
   const [summaryWarning, setSummaryWarning] = useState("");
+  const [generationStatus, setGenerationStatus] = useState(null);
   // eslint-disable-next-line no-unused-vars
 const [dragActive, setDragActive] = useState(false); // For drag and drop file area
   // eslint-disable-next-line no-unused-vars
@@ -1126,6 +1127,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
     setLoading(true);
     setSummaryWarning("");
+    setGenerationStatus(null);
     setShowThemePrompt(false);
     setTranslationStatus({ isTranslating: false, error: null });
 
@@ -1140,14 +1142,14 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       console.log('Received summary length:', response.data?.summary?.length);
 
 
-      if (response.data.needsTheme) {
-        // The operator's current metadata remains canonical; only prompt for the missing enrichment.
-        console.log('Backend requested theme.');
-        setShowThemePrompt(true);
-      } else if (response.data.generated === true && typeof response.data.summary === 'string' && response.data.summary.trim()) {
+            const sourceComplete = response.data?.sourceCompleteness?.complete === true
+        && response.data?.generationStatus?.sourceComplete === true;
+      if (response.data.generated === true && sourceComplete && typeof response.data.summary === 'string' && response.data.summary.trim()) {
         const generatedSummary = response.data.summary.trim();
         setSummary(generatedSummary);
         setGeneratedScript(true);
+        setGenerationStatus(response.data.generationStatus);
+        setSummaryWarning(response.data.metadataWarning || '');
 
         // Check for translation warnings/errors from the backend
         if (response.data.warning) {
@@ -1163,7 +1165,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
       } else {
         // Handle cases where no summary or needsTheme is in the response
-        setSummaryWarning("Optional AI summary returned an unexpected response.");
+        setGenerationStatus(response.data?.generationStatus || null);
+        setSummaryWarning(response.data?.error || "Optional AI summary returned an unexpected response.");
         console.error("Unexpected backend response:", response.data);
         setTranslationStatus({ isTranslating: false, error: null }); // Clear translation status on unexpected response
 
@@ -1172,6 +1175,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     } catch (err) {
       // Handle errors from the axios request (e.g., network error, 500 status)
       console.error('Error during summarization request:', err);
+      setGenerationStatus(err.response?.data?.generationStatus || null);
       setSummaryWarning(err.response?.data?.error || `Optional AI summary failed: ${err.message}`);
 
       // Check for specific backend errors related to translation failure
@@ -1528,6 +1532,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               onSave={handleSaveSummary}
               translationStatus={translationStatus}
               summaryWarning={summaryWarning}
+              generationStatus={generationStatus}
               aiStatus={aiStatus}
               aiStatusLoading={aiStatusLoading}
               onRefreshAiStatus={refreshAiStatus}
