@@ -4,9 +4,9 @@ import { loadProjectScenario } from "./genesisScenario.js";
 import { loadQualityGoals } from "./genesisGoals.js";
 import genesisCompatPkg from "../compat/genesisCompat.cjs";
 const { checkGenesisFeedbackCompat } = genesisCompatPkg;
-import genesisConfigPkg from "../config/genesisConfig.js";
+import genesisConfigPkg from "../config/genesisConfig.cjs";
 const { getGenesisMode } = genesisConfigPkg;
-import genesisProfilesPkg from "../config/genesisProfiles.js";
+import genesisProfilesPkg from "../config/genesisProfiles.cjs";
 const { getGenesisProfile } = genesisProfilesPkg;
 
 const EVAL_LOG_RELATIVE = "logs/genesis_evaluations.jsonl";

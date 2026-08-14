@@ -8,6 +8,7 @@
     "build": "cd client && npm run build",
     "dev": "node src/api/index.js",
     "ai:models": "node scripts/list-ai-models.mjs",
+    "test:ai-models-module": "node --test scripts/list-ai-models.module-compat.test.mjs",
     "postinstall": "cd client && npm install",
     "compile-shotlist": "node scripts/compile-shotlist.mjs",
     "bind-alignment": "node scripts/bind-alignment.mjs",
