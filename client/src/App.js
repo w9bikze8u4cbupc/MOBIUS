@@ -322,6 +322,14 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   const [componentExtraction, setComponentExtraction] = useState(null);
   const [rulebookPages, setRulebookPages] = useState([]);
   const [extractingComponents, setExtractingComponents] = useState(false);
+  const [aiStatus, setAiStatus] = useState({
+    configured: false,
+    provider: null,
+    model: null,
+    ready: false,
+    message: 'AI readiness has not been checked yet.',
+  });
+  const [aiStatusLoading, setAiStatusLoading] = useState(false);
 
 
   // --- Effects ---
@@ -362,6 +370,32 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setProjectImages([]);
     setComponentImageLinks({});
   }, [projectId]);
+
+  // Loading the Script step reads configuration only; it never probes the provider.
+  useEffect(() => {
+    if (activeStepId !== 'script') return;
+    let active = true;
+    setAiStatusLoading(true);
+    axios.get(`${BACKEND_URL}/api/ai/status`)
+      .then(({ data }) => {
+        if (active) setAiStatus(data);
+      })
+      .catch(() => {
+        if (active) {
+          setAiStatus({
+            configured: false,
+            provider: null,
+            model: null,
+            ready: false,
+            message: 'AI status is unavailable. Confirm that the backend is running, then refresh AI status.',
+          });
+        }
+      })
+      .finally(() => {
+        if (active) setAiStatusLoading(false);
+      });
+    return () => { active = false; };
+  }, [activeStepId]);
 
   // Ref to track auto-extraction state without causing re-renders
   const autoExtractionRef = useRef({ triggered: false, processedHash: '' });
@@ -452,6 +486,40 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
 
   // --- Helper Functions ---
+  const checkAiStatus = async ({ checkAccess = false } = {}) => {
+    const suffix = checkAccess ? '?check=1' : '';
+    const { data } = await axios.get(`${BACKEND_URL}/api/ai/status${suffix}`);
+    setAiStatus(data);
+    return data;
+  };
+
+  const refreshAiStatus = async () => {
+    setAiStatusLoading(true);
+    try {
+      return await checkAiStatus({ checkAccess: true });
+    } catch (_error) {
+      const unavailable = {
+        configured: false,
+        provider: null,
+        model: null,
+        ready: false,
+        message: 'AI status is unavailable. Confirm that the backend is running, then refresh AI status.',
+      };
+      setAiStatus(unavailable);
+      return unavailable;
+    } finally {
+      setAiStatusLoading(false);
+    }
+  };
+
+  const requireAiPreflight = async () => {
+    const status = await checkAiStatus({ checkAccess: true });
+    if (!status?.ready) {
+      throw new Error(status?.message || 'AI script generation is unavailable. Refresh AI status and update the local configuration.');
+    }
+    return status;
+  };
+
   // Get available voice options filtered by language
   const getLanguageVoices = (lang) => VOICE_OPTIONS.filter(v => v.language === lang);
 
@@ -492,6 +560,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     try {
       setExtractingName(true);
       setMetadataWarning('');
+      await requireAiPreflight();
       const { data } = await axios.post(`${BACKEND_URL}/api/extract-game-name`, {
         text: rulebookText.substring(0, 8000),
       });
@@ -509,6 +578,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     } catch (err) {
       setMetadataWarning(
         err.response?.data?.error
+          || err.message
           || 'AI game-info extraction could not complete. You can continue with the editable filename-derived name.',
       );
     } finally {
@@ -968,6 +1038,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     }
 
     try {
+      await requireAiPreflight();
       console.log(`Sending rulebookText length: ${rulebookText.length} to backend for summarization.`);
       // Make the POST request to the backend's summarize endpoint
       const response = await axios.post(`${BACKEND_URL}/summarize`, {
@@ -1365,6 +1436,9 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               onSave={handleSaveSummary}
               translationStatus={translationStatus}
               summaryWarning={summaryWarning}
+              aiStatus={aiStatus}
+              aiStatusLoading={aiStatusLoading}
+              onRefreshAiStatus={refreshAiStatus}
             />
           )}
 

@@ -98,6 +98,7 @@ test('optional AI metadata is requested only after the operator clicks its expli
       }),
     }),
   });
+  axios.get.mockResolvedValue({ data: { ready: true, message: 'AI model is ready.' } });
   axios.post.mockResolvedValue({ data: { gameName: 'Abyss' } });
 
   const { container } = render(<App />);
@@ -130,4 +131,32 @@ test('PDF text extraction preserves positioned text lines for inventory parsing'
     { str: '7 Cards', transform: [1, 0, 0, 1, 20, 80] },
     { str: 'Setup', transform: [1, 0, 0, 1, 20, 60] },
   ])).toBe('Components\n7 Cards\nSetup');
+});
+
+test('optional AI metadata preflight failure prevents its rulebook POST', async () => {
+  getDocument.mockReturnValue({
+    promise: Promise.resolve({
+      numPages: 1,
+      getPage: () => Promise.resolve({
+        getTextContent: () => Promise.resolve({ items: [{ str: 'Rulebook text' }] }),
+      }),
+    }),
+  });
+  axios.get.mockResolvedValue({
+    data: { ready: false, message: 'OPENAI_MODEL is not accessible to this API key.' },
+  });
+
+  const { container } = render(<App />);
+  const pdfFile = new File(['pdf contents'], 'ABYSS.pdf', { type: 'application/pdf' });
+  Object.defineProperty(pdfFile, 'arrayBuffer', { value: () => Promise.resolve(new ArrayBuffer(0)) });
+  fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [pdfFile] } });
+
+  await waitFor(() => expect(screen.getByPlaceholderText('Extracted from PDF')).toHaveValue('Abyss'));
+  fireEvent.click(screen.getByRole('button', { name: /Extract optional AI metadata/i }));
+
+  await waitFor(() => expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('/api/ai/status?check=1')));
+  expect(axios.post).not.toHaveBeenCalled();
+  await waitFor(() => {
+    expect(screen.getByText(/OPENAI_MODEL is not accessible/i)).toBeInTheDocument();
+  });
 });

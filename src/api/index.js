@@ -1,10 +1,9 @@
 
 import express from 'express';
 import db from './db.js';
-import dotenv from 'dotenv';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import OpenAI from 'openai';
+import { getAiClient, getAiConfig, getAiModel, getAiStatus, requireAiReady } from '../config/aiConfig.js';
 const pdfToImg = {
   pdf: async (...args) => {
     const { pdf } = await import('pdf-to-img');
@@ -76,13 +75,9 @@ import { extractComponentInventory } from '../services/componentInventory.js';
 
 
 
-dotenv.config();
-
-// Using Replit AI Integrations for OpenAI access - no API key management needed
-// Charges are billed to your Replit credits
-const aiIntegrationsConfigured = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL && process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-console.log('Replit AI Integrations configured:', aiIntegrationsConfigured ? 'Yes' : 'No');
-console.log('Legacy OpenAI key:', process.env.OPENAI_API_KEY ? 'Yes (fallback)' : 'No');
+// AI configuration is loaded lazily by the centralized configuration service.
+const { provider: configuredAiProvider, configured: aiConfigured } = getAiConfig();
+console.log(`AI provider: ${configuredAiProvider}; configured: ${aiConfigured ? 'Yes' : 'No'}`);
 
 console.log('API file loaded!');
 
@@ -123,16 +118,14 @@ if (existsSync(clientBuildPath)) {
 // --- API Configuration ---
 const BACKEND_URL = `http://localhost:${port}`;
 const IMAGE_EXTRACTOR_API_KEY = process.env.IMAGE_EXTRACTOR_API_KEY;
-// This uses Replit's AI Integrations service for OpenAI-compatible API access
-// Falls back to direct OpenAI API key if AI Integrations is not configured
-const openai = new OpenAI({
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || undefined,
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-});
-
-// the newest OpenAI model is "gpt-5" which was released August 7, 2025
-// gpt-4o is the recommended model for Replit AI Integrations
-const DEFAULT_AI_MODEL = 'gpt-4o';
+// Keep image routes injectable without constructing an AI client during startup.
+const openai = {
+  chat: {
+    completions: {
+      create: (...args) => getAiClient().chat.completions.create(...args),
+    },
+  },
+};
 
 // Validate OUTPUT_DIR at startup  
 const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(moduleDirname, 'uploads', 'MobiusGames');
@@ -158,6 +151,12 @@ console.warn = function (...args) {
 // --- Health check (unauthenticated) ---
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
+});
+
+// Safe local configuration status. `?check=1` performs one cached model-metadata check.
+app.get('/api/ai/status', async (req, res) => {
+  const status = await getAiStatus({ checkAccess: String(req.query.check) === '1' });
+  res.json(status);
 });
 
 // --- Ingestion API endpoint ---
@@ -235,13 +234,19 @@ app.post('/api/extract-game-name', async (req, res) => {
     if (!text || text.length < 50) {
       return res.status(400).json({ error: 'Insufficient text provided' });
     }
+
+    try {
+      await requireAiReady();
+    } catch (error) {
+      return res.status(error.statusCode || 422).json({ error: error.message, code: error.code });
+    }
     
     // Use first 8,000 chars to stay within context limits
     const sampleText = text.substring(0, 8000);
     console.log('Extracting game info from PDF text (first 8000 chars)');
     
-    const response = await openai.chat.completions.create({
-      model: DEFAULT_AI_MODEL,
+    const response = await getAiClient().chat.completions.create({
+      model: getAiModel(),
       messages: [
         {
           role: 'system',
@@ -1682,6 +1687,7 @@ function splitIntoSections(text) {
 }
 
 async function extractMetadata(rulebookText) {
+  await requireAiReady();
   const prompt = `You are an expert boardgame analyst. Your task is to extract key metadata from the following boardgame rulebook, which is provided in PDF format.   
 
     Carefully read the entire rulebook and return the metadata in the following structured JSON format:  
@@ -1720,8 +1726,8 @@ async function extractMetadata(rulebookText) {
   
   try {
     console.log('Extracting metadata...');
-    const response = await openai.chat.completions.create({
-      model: 'gpt-5',  // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+    const response = await getAiClient().chat.completions.create({
+      model: getAiModel(),
       messages: [
         { role: 'system', content: 'You are a precise metadata extractor.' },
         { role: 'user', content: prompt },
@@ -1746,6 +1752,7 @@ async function extractMetadata(rulebookText) {
 }
 
 async function summarizeChunkEnglish(chunk) {
+  await requireAiReady();
   const prompt = `SYou are an expert boardgame explainer. Your task is to read the following boardgame rulebook text and produce a clear, concise summary of the game’s core rules, suitable for use as a script in a YouTube video tutorial.  
   
 Instructions:  
@@ -1767,8 +1774,8 @@ ${chunk}`;
   
   try {
     console.log(`Summarizing chunk (${chunk.length} chars) in English`);
-    const response = await openai.chat.completions.create({
-      model: 'gpt-5',  // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+    const response = await getAiClient().chat.completions.create({
+      model: getAiModel(),
       messages: [
         { role: 'system', content: 'You are a professional boardgame educator and scriptwriter for a popular YouTube channel. Your job is to transform complex boardgame rulebooks into clear, concise, and engaging tutorial scripts that are easy for viewers to understand. You always focus on the core rules, logical structure, and accessible language, making sure the summary is suitable for narration in a video. Avoid unnecessary details, and prioritize clarity, flow, and audience engagement.' },
         { role: 'user', content: prompt },
@@ -1963,8 +1970,9 @@ registerImageRoutes(app, { upload, extractorApiKey: IMAGE_EXTRACTOR_API_KEY, ope
 
 // Helper function to identify components using AI  
 async function identifyComponents(text) {
-  // ...calls OpenAI to extract components as JSON    
+  // ...calls the configured OpenAI-compatible model to extract components as JSON
   try {
+    await requireAiReady();
     const prompt = `  
       You are an expert board-game video-tutorial producer.    
       Your task is to read the following rulebook text (extracted from a PDF) and identify **every element needed to create a complete, high-quality YouTube tutorial** for this game.  
@@ -2019,8 +2027,8 @@ async function identifyComponents(text) {
       3. Do **not** add any commentary outside the JSON.  
       4. Output valid JSON only`;
     
-    const response = await openai.chat.completions.create({  
-      model: "gpt-5",  // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+    const response = await getAiClient().chat.completions.create({
+      model: getAiModel(),
       messages: [  
         {  
           role: "system",  
@@ -2240,6 +2248,12 @@ app.post('/summarize', async (req, res) => {
       console.error('No game name provided');
       return res.status(400).json({ error: 'No game name provided' });
     }
+
+    try {
+      await requireAiReady();
+    } catch (error) {
+      return res.status(error.statusCode || 422).json({ error: error.message, code: error.code });
+    }
     
     // Metadata Extraction and Merging
     const extractedMetadata = await extractMetadata(rulebookText);
@@ -2407,8 +2421,8 @@ Rulebook Text:`
       
 // Generate the summary
 console.log('Generating final English script using OpenAI...')
-    const englishSummaryResponse = await openai.chat.completions.create({  
-      model: 'gpt-5',  // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+    const englishSummaryResponse = await getAiClient().chat.completions.create({
+      model: getAiModel(),
       messages: [  
         {  
           role: 'system',  
@@ -2439,8 +2453,8 @@ console.log('Generating final English script using OpenAI...')
         Here is the script to translate:  
         ${englishSummary}`;  
         
-        const translationResponse = await openai.chat.completions.create({  
-          model: 'gpt-5',  // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+        const translationResponse = await getAiClient().chat.completions.create({
+          model: getAiModel(),
           messages: [  
             {  
               role: 'system',  
@@ -2455,7 +2469,7 @@ console.log('Generating final English script using OpenAI...')
         finalOutputSummary = translationResponse.choices[0].message.content.trim();  
         console.log('Successfully translated summary to French.');  
       } catch (translateError) {  
-        console.error('An error occurred during translation:', translateError);  
+        console.error('Translation failed:', translateError.message);
         return res.status(500).json({  
           error: 'Translation failed',  
           summary: englishSummary,  
@@ -2487,7 +2501,7 @@ console.log('Generating final English script using OpenAI...')
     console.log('Sending summary response to frontend.');    
     res.json({ summary: finalOutputSummary, metadata: metadataForPrompt, components: components });    
   } catch (error) {    
-    console.error('An unexpected error occurred during summarization:', error);    
+    console.error('Summarization failed:', error.message);
     res.status(500).json({ error: 'Failed to generate summary', details: error.message });    
   }    
 });
@@ -2629,8 +2643,8 @@ if (!mainContentText || mainContentText.length < 30) {
   return res.status(400).json({ error: 'No extractable content found on the page.' });
 }
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-5',  // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+    const response = await getAiClient().chat.completions.create({
+      model: getAiModel(),
       messages: [
         { role: 'system', content: 'You are an expert boardgame metadata analyst and content strategist for YouTube tutorial videos. Your job is to extract all relevant information from provided boardgame text, focusing on details that will help create clear, engaging, and comprehensive video tutorials. You always prioritize accuracy, completeness, and clarity. You understand what information is most useful for teaching, explaining, and visually presenting boardgames to new and casual players. You return only the requested data as a clean, well-structured JSON object, using empty strings or empty arrays for any missing fields. You never add commentary or invent information' },
         { role: 'user', content: prompt }
@@ -3478,8 +3492,8 @@ app.post('/api/extract-bgg-html', async (req, res) => {
     """${mainContentText.slice(0, 8000)}"""
     `;
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-5',  // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+    const response = await getAiClient().chat.completions.create({
+      model: getAiModel(),
       messages: [
         { 
           role: 'system', 

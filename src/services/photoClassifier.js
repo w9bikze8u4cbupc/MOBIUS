@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { getAiModel } from '../config/aiConfig.js';
 
 const PHOTO_CLASSIFICATION_PROMPT = `Analyze this cropped image from a board game rulebook.
 
@@ -58,7 +59,7 @@ export async function classifyAsPhoto(openai, imageBuffer) {
   
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: getAiModel(),
       messages: [
         {
           role: 'user',
@@ -109,7 +110,7 @@ export async function matchComponentWithOCR(openai, imageBuffer, components, ocr
   
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: getAiModel(),
       messages: [
         {
           role: 'user',

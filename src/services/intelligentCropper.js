@@ -2,6 +2,7 @@ import * as path from 'path';
 import { promises as fsPromises } from 'fs';
 import * as pdfToImg from 'pdf-to-img';
 import sharp from 'sharp';
+import { getAiModel } from '../config/aiConfig.js';
 
 function createCropId(prefix = 'crop') {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -18,7 +19,7 @@ async function detectComponentRegions(pageImageBuffer, pageNumber, components, o
     const componentList = components.map(c => `- ${c.name} (${c.category})`).join('\n');
     
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: getAiModel(),
       messages: [
         {
           role: 'user',

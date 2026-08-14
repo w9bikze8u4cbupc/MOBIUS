@@ -213,7 +213,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
     }
   });
 
-  // AI-powered component cropping - uses GPT-4o Vision to detect and crop game components
+  // AI-powered component cropping uses the configured OpenAI-compatible vision model.
   app.post('/api/projects/:projectId/images/crop-components', async (req, res) => {
     const { projectId } = req.params;
     const { components = [], force = false } = req.body || {};

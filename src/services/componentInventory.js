@@ -1,3 +1,5 @@
+import { getAiModel } from '../config/aiConfig.js';
+
 const COMPONENT_CATEGORIES = [
   'board',
   'card',
@@ -604,7 +606,7 @@ async function extractComponentInventory(input, { gameName = null, llm = null, l
       ? input
       : normalizeSourceInput(input).map((line) => line.text).join('\n');
     const response = await llm.chat.completions.create({
-      model: 'gpt-4o',
+      model: getAiModel(),
       messages: [{
         role: 'user',
         content: `Extract only physical board-game component TYPES from this rulebook. Return ONLY a JSON array, never Markdown. Each object must contain name, category (${COMPONENT_CATEGORIES.join('|')}), quantity (integer or null), sourcePage (integer or null), sourceQuote, confidence (0 to 1). Do not invent components. Game: ${gameName || 'unknown'}\n\n${sourceText.slice(0, 20000)}`,

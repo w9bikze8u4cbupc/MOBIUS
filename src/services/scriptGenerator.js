@@ -1,9 +1,4 @@
-import OpenAI from 'openai';
-import dotenv from 'dotenv';
-
-dotenv.config();
-
-const DEFAULT_MODEL = process.env.REMOTION_SCRIPT_MODEL || 'gpt-5';
+import { getAiClient, getAiModel, requireAiReady } from '../config/aiConfig.js';
 const SUPPORTED_LANGUAGES = new Set(['en', 'fr-CA']);
 const SCENE_KEYS = [
   'sectionTitle',
@@ -20,10 +15,7 @@ let generateWithOpenAI;
 
 function getOpenAIGenerator() {
   if (!generateWithOpenAI) {
-    const openai = new OpenAI({
-      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || undefined,
-      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-    });
+    const openai = getAiClient();
     generateWithOpenAI = createRemotionScriptGenerator(openai);
   }
   return generateWithOpenAI;
@@ -194,7 +186,7 @@ export function createRemotionScriptGenerator(client) {
     const exactSceneCount = normalizeExactSceneCount(options);
 
     const response = await client.chat.completions.create({
-      model: DEFAULT_MODEL,
+      model: getAiModel(),
       temperature: 0,
       max_completion_tokens: 3000,
       response_format: { type: 'json_object' },
@@ -236,5 +228,6 @@ export function createRemotionScriptGenerator(client) {
  * @returns {Promise<Array<{sectionTitle: string, narrationText: string, imageKeyword: string, themeBorderColor: string, durationInFrames: number}>>}
  */
 export async function generateRemotionScript(rulesText, gameName, language, options = undefined) {
+  await requireAiReady();
   return getOpenAIGenerator()(rulesText, gameName, language, options);
 }

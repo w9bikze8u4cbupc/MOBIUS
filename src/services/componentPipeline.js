@@ -4,6 +4,7 @@ import path from 'path';
 import { proposeRegions, extractRegionImage } from './regionProposal.js';
 import { classifyAsPhoto, matchComponentWithOCR, calculateVisualQuality, computeConfidenceScore } from './photoClassifier.js';
 import { extractTextNearRegion, fuzzyMatchComponent, terminateWorker } from './ocrService.js';
+import { getAiModel } from '../config/aiConfig.js';
 
 const activeJobs = new Map();
 
@@ -46,7 +47,7 @@ OTHER: Everything else`;
 
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: getAiModel(),
       messages: [{
         role: 'user',
         content: [

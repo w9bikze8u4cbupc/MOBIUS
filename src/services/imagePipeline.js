@@ -10,6 +10,8 @@ const pdfToImg = {
   },
 };
 
+import { getAiModel } from '../config/aiConfig.js';
+
 const xmlParser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '' });
 
 function createImageId(prefix = 'img') {
@@ -339,7 +341,7 @@ async function matchComponentsToImages(components, images, gameName, openai) {
   
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: getAiModel(),
       messages: [
         {
           role: 'user',

@@ -2,6 +2,7 @@ import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getAiModel } from '../config/aiConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -87,7 +88,7 @@ export async function detectComponentBoundingBoxes(openai, imageBuffer, pageNum,
   
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: getAiModel(),
       messages: [
         {
           role: 'user',

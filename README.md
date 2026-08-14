@@ -1,3 +1,28 @@
+## AI script-generation setup
+## AI script-generation setup
+
+AI generation is deliberately disabled until both values are configured in `C:\\mobius-games-tutorial-generator\\.env`.
+
+First set your provider credential:
+
+```dotenv
+OPENAI_API_KEY=your-api-key
+```
+
+Then run this developer-only PowerShell command to discover accessible model IDs:
+
+```powershell
+npm run ai:models
+```
+
+The command calls only the provider model-list endpoint, prints accessible model IDs, and never sends rulebook content or requests generated text. Copy one listed ID into the same `.env` file, then restart the backend:
+
+```dotenv
+OPENAI_MODEL=accessible-model-id
+```
+
+The Script step stays disabled until **Refresh AI status** completes its metadata-only access check.
+
 ## Continuous Integration
 
 - [CI Audio Metrics Pipeline Summary](CI_AUDIO_METRICS_PIPELINE_SUMMARY.md)

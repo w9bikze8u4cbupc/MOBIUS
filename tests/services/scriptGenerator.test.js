@@ -26,6 +26,7 @@ describe('generateRemotionScript', () => {
   });
 
   beforeEach(() => {
+    process.env.OPENAI_MODEL = 'test-model';
     create.mockReset();
     create.mockResolvedValue({
       choices: [{ message: { content: JSON.stringify(mockLlmResponse) } }],

@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { isEligibleComponentForMatching } from './componentInventory.js';
 
+import { getAiModel } from '../config/aiConfig.js';
+
 const AUTO_LINK_THRESHOLD = 0.9;
 
 const CATEGORY_TO_CLASSIFICATION = {
@@ -209,7 +211,7 @@ async function visionMatch(components, images, gameName, openai) {
         ).join('\n');
 
         const response = await openai.chat.completions.create({
-          model: 'gpt-4o',
+          model: getAiModel(),
           messages: [
             {
               role: 'user',
