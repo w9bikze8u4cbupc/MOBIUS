@@ -87,7 +87,7 @@ describe('AI preflight routes', () => {
     expect(mockCompletionCreate).not.toHaveBeenCalled();
   });
 
-  test('summary metadata and chunk requests omit temperature for gpt-5.6-sol', async () => {
+  test('summary metadata and chunk requests omit unsupported options for gpt-5.6-sol', async () => {
     process.env.OPENAI_MODEL = 'gpt-5.6-sol';
     mockRetrieve.mockResolvedValueOnce({ id: 'gpt-5.6-sol' });
     mockCompletionCreate
@@ -118,7 +118,9 @@ describe('AI preflight routes', () => {
       code: 'AI_GENERATION_OPTION_UNSUPPORTED',
     });
     expect(mockCompletionCreate.mock.calls[0][0]).not.toHaveProperty('temperature');
+    expect(mockCompletionCreate.mock.calls[0][0]).not.toHaveProperty('reasoning_effort');
     expect(mockCompletionCreate.mock.calls[1][0]).not.toHaveProperty('temperature');
+    expect(mockCompletionCreate.mock.calls[1][0]).not.toHaveProperty('reasoning_effort');
   });
 
   test('an unsupported generation option stops the summary before later chunks', async () => {

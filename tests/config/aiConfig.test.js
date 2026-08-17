@@ -95,10 +95,15 @@ test('model discovery lists accessible IDs with credentials but without OPENAI_M
   expect(mockCompletionCreate).not.toHaveBeenCalled();
 });
 
-test('gpt-5.6-sol omits temperature while preserving other requested generation options', () => {
+test('gpt-5.6-sol omits unsupported temperature and reasoning_effort while preserving compatible options', () => {
   const options = getGenerationOptions(
     { model: 'gpt-5.6-sol' },
-    { temperature: 0.5, max_completion_tokens: 500, response_format: { type: 'json_object' } },
+    {
+      temperature: 0.5,
+      reasoning_effort: 'minimal',
+      max_completion_tokens: 500,
+      response_format: { type: 'json_object' },
+    },
   );
 
   expect(options).toEqual({
@@ -106,26 +111,31 @@ test('gpt-5.6-sol omits temperature while preserving other requested generation 
     response_format: { type: 'json_object' },
   });
   expect(options).not.toHaveProperty('temperature');
+  expect(options).not.toHaveProperty('reasoning_effort');
 });
 
-test('models without a restricted profile retain the requested temperature', () => {
+test('models without a restricted profile retain explicitly requested compatible options', () => {
   expect(getGenerationOptions(
     { model: 'test-model' },
-    { temperature: 0.7, max_completion_tokens: 1000 },
-  )).toEqual({ temperature: 0.7, max_completion_tokens: 1000 });
+    { temperature: 0.7, reasoning_effort: 'minimal', max_completion_tokens: 1000 },
+  )).toEqual({ temperature: 0.7, reasoning_effort: 'minimal', max_completion_tokens: 1000 });
 });
 
 
-test('gpt-5.6-sol centralizes a minimal-reasoning 1,200-token chunk-summary profile', () => {
+test('gpt-5.6-sol centralizes a compatible 1,200-token chunk-summary profile', () => {
   expect(getModelGenerationProfile('gpt-5.6-sol')).toMatchObject({
     omitTemperature: true,
+    omitReasoningEffort: true,
     operations: {
-      summary_chunk: { max_completion_tokens: 1200, reasoning_effort: 'minimal' },
+      summary_chunk: { max_completion_tokens: 1200 },
     },
   });
-  expect(getGenerationOptions(
+  const options = getGenerationOptions(
     { model: 'gpt-5.6-sol' },
-    { temperature: 0.7, max_completion_tokens: 500 },
+    { temperature: 0.7, reasoning_effort: 'minimal', max_completion_tokens: 500 },
     'summary_chunk',
-  )).toEqual({ max_completion_tokens: 1200, reasoning_effort: 'minimal' });
+  );
+  expect(options).toEqual({ max_completion_tokens: 1200 });
+  expect(options).not.toHaveProperty('temperature');
+  expect(options).not.toHaveProperty('reasoning_effort');
 });

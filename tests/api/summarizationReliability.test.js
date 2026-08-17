@@ -152,9 +152,9 @@ describe('gpt-5.6-sol completion diagnostics', () => {
     expect(response.status).toBe(200);
     expect(mockCompletionCreate.mock.calls[1][0]).toMatchObject({
       max_completion_tokens: 1200,
-      reasoning_effort: 'minimal',
     });
     expect(mockCompletionCreate.mock.calls[1][0]).not.toHaveProperty('temperature');
+    expect(mockCompletionCreate.mock.calls[1][0]).not.toHaveProperty('reasoning_effort');
   });
 
   test('classifies an empty length-finished chunk as output budget exhaustion without final synthesis', async () => {

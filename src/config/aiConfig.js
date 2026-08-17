@@ -33,10 +33,10 @@ export function getAiConfig(env = process.env) {
 const MODEL_GENERATION_PROFILES = Object.freeze({
   'gpt-5.6-sol': Object.freeze({
     omitTemperature: true,
+    omitReasoningEffort: true,
     operations: Object.freeze({
       summary_chunk: Object.freeze({
         max_completion_tokens: 1200,
-        reasoning_effort: 'minimal',
       }),
     }),
   }),
@@ -52,6 +52,9 @@ export function getGenerationOptions(config = getAiConfig(), requestedOptions = 
   const options = { ...requestedOptions, ...(operationOptions || {}) };
   if (profile?.omitTemperature) {
     delete options.temperature;
+  }
+  if (profile?.omitReasoningEffort) {
+    delete options.reasoning_effort;
   }
   return options;
 }
