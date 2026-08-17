@@ -27,16 +27,32 @@ export function getAiConfig(env = process.env) {
   };
 }
 
+// Canonical defaults keep summary-stage settings out of route call sites. Individual
+// model profiles may override only the stages they explicitly support.
+const GENERATION_OPERATION_DEFAULTS = Object.freeze({
+  summary_chunk: Object.freeze({
+    max_completion_tokens: 500,
+    temperature: 0.7,
+  }),
+  summary_final: Object.freeze({
+    max_completion_tokens: 4096,
+    temperature: 0.7,
+  }),
+});
+
 // Model-owned generation capabilities keep provider-specific controls out of route callers.
-// A 1,200-token chunk budget leaves room for a complete source-grounded summary of a
-// 6,000-character rulebook section; the legacy universal 500-token budget can truncate it.
+// The gpt-5.6-sol budgets accommodate observed reasoning-token use for 6,000-character
+// chunks and final tutorial synthesis without introducing unsupported tuning options.
 const MODEL_GENERATION_PROFILES = Object.freeze({
   'gpt-5.6-sol': Object.freeze({
     omitTemperature: true,
     omitReasoningEffort: true,
     operations: Object.freeze({
       summary_chunk: Object.freeze({
-        max_completion_tokens: 1200,
+        max_completion_tokens: 2400,
+      }),
+      summary_final: Object.freeze({
+        max_completion_tokens: 3200,
       }),
     }),
   }),
@@ -48,8 +64,9 @@ export function getModelGenerationProfile(model) {
 
 export function getGenerationOptions(config = getAiConfig(), requestedOptions = {}, operation = null) {
   const profile = getModelGenerationProfile(config.model);
+  const defaultOptions = operation ? GENERATION_OPERATION_DEFAULTS[operation] : null;
   const operationOptions = operation ? profile?.operations?.[operation] : null;
-  const options = { ...requestedOptions, ...(operationOptions || {}) };
+  const options = { ...(defaultOptions || {}), ...requestedOptions, ...(operationOptions || {}) };
   if (profile?.omitTemperature) {
     delete options.temperature;
   }

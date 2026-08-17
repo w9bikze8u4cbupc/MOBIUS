@@ -150,11 +150,18 @@ describe('gpt-5.6-sol completion diagnostics', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(mockCompletionCreate.mock.calls[1][0]).toMatchObject({
-      max_completion_tokens: 1200,
+    const chunkRequest = mockCompletionCreate.mock.calls[1][0];
+    const finalRequest = mockCompletionCreate.mock.calls[2][0];
+    expect({ max_completion_tokens: chunkRequest.max_completion_tokens }).toEqual({
+      max_completion_tokens: 2400,
     });
-    expect(mockCompletionCreate.mock.calls[1][0]).not.toHaveProperty('temperature');
-    expect(mockCompletionCreate.mock.calls[1][0]).not.toHaveProperty('reasoning_effort');
+    expect({ max_completion_tokens: finalRequest.max_completion_tokens }).toEqual({
+      max_completion_tokens: 3200,
+    });
+    [chunkRequest, finalRequest].forEach((request) => {
+      expect(request).not.toHaveProperty('temperature');
+      expect(request).not.toHaveProperty('reasoning_effort');
+    });
   });
 
   test('classifies an empty length-finished chunk as output budget exhaustion without final synthesis', async () => {
@@ -165,7 +172,7 @@ describe('gpt-5.6-sol completion diagnostics', () => {
       return Promise.resolve({
         id: 'chunk-length',
         choices: [{ finish_reason: 'length', message: { content: null } }],
-        usage: { prompt_tokens: 700, completion_tokens: 1200, total_tokens: 1900 },
+        usage: { prompt_tokens: 700, completion_tokens: 2400, total_tokens: 3100 },
       });
     });
 

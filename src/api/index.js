@@ -2493,10 +2493,7 @@ app.post('/summarize', async (req, res) => {
       max_completion_tokens: 500,
       temperature: 0.5,
     }, 'summary_metadata');
-    const chunkGenerationOptions = getGenerationOptions(summaryAiConfig, {
-      max_completion_tokens: 500,
-      temperature: 0.7,
-    }, 'summary_chunk');
+    const chunkGenerationOptions = getGenerationOptions(summaryAiConfig, {}, 'summary_chunk');
 
     const { chunks, coverage } = buildRulebookChunks(rulebookText);
     let generationStatus = createGenerationStatus({
@@ -2700,10 +2697,7 @@ console.log('Generating final English script using OpenAI...')
         },  
         { role: 'user', content: finalPrompt },
       ],  
-      ...getGenerationOptions(summaryAiConfig, {
-        max_completion_tokens: 4096,
-        temperature: 0.7,
-      }, 'summary_final'),
+      ...getGenerationOptions(summaryAiConfig, {}, 'summary_final'),
     });  
     
     let englishSummary;

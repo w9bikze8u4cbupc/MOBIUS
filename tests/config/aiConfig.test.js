@@ -122,20 +122,29 @@ test('models without a restricted profile retain explicitly requested compatible
 });
 
 
-test('gpt-5.6-sol centralizes a compatible 1,200-token chunk-summary profile', () => {
+test('gpt-5.6-sol centralizes compatible stage-specific summary budgets', () => {
   expect(getModelGenerationProfile('gpt-5.6-sol')).toMatchObject({
     omitTemperature: true,
     omitReasoningEffort: true,
     operations: {
-      summary_chunk: { max_completion_tokens: 1200 },
+      summary_chunk: { max_completion_tokens: 2400 },
+      summary_final: { max_completion_tokens: 3200 },
     },
   });
-  const options = getGenerationOptions(
+  const chunkOptions = getGenerationOptions(
     { model: 'gpt-5.6-sol' },
     { temperature: 0.7, reasoning_effort: 'minimal', max_completion_tokens: 500 },
     'summary_chunk',
   );
-  expect(options).toEqual({ max_completion_tokens: 1200 });
-  expect(options).not.toHaveProperty('temperature');
-  expect(options).not.toHaveProperty('reasoning_effort');
+  const finalOptions = getGenerationOptions(
+    { model: 'gpt-5.6-sol' },
+    { temperature: 0.7, reasoning_effort: 'minimal', max_completion_tokens: 4096 },
+    'summary_final',
+  );
+  expect(chunkOptions).toEqual({ max_completion_tokens: 2400 });
+  expect(finalOptions).toEqual({ max_completion_tokens: 3200 });
+  [chunkOptions, finalOptions].forEach((options) => {
+    expect(options).not.toHaveProperty('temperature');
+    expect(options).not.toHaveProperty('reasoning_effort');
+  });
 });
