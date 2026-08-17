@@ -2,7 +2,9 @@ import {
   buildScriptGenerationRequest,
   getScriptInputReadiness,
   loadLatestProjectContext,
+  PROJECT_CONTEXT_VERSION,
   saveProjectContext,
+  SCRIPT_PROVENANCE,
 } from './projectContext';
 
 describe('project context persistence', () => {
@@ -88,4 +90,55 @@ test('rejects unsupported script languages', () => {
     message: 'Cannot generate: this project has an unsupported language. Return to Project Setup and select English or French.',
   });
   expect(buildScriptGenerationRequest(context).request).toBeNull();
+});
+
+
+test('migrates only the known legacy fallback to invalid output and removes script confirmation', () => {
+  const fallback = 'Rulebook Text section is empty. I can’t produce a complete, rules-accurate tutorial.';
+  saveProjectContext(window.localStorage, {
+    version: 1,
+    projectId: 'abyss-legacy-fallback',
+    gameName: 'Abyss',
+    language: 'english',
+    rulebookText: 'Approved rulebook text',
+    components: [{ id: 'cards', name: 'Cards' }],
+    script: fallback,
+    generatedScript: true,
+    activeStepId: 'script',
+    completedStepIds: ['project', 'script'],
+  });
+
+  const hydrated = loadLatestProjectContext(window.localStorage);
+
+  expect(hydrated).toMatchObject({
+    version: PROJECT_CONTEXT_VERSION,
+    script: '',
+    generatedScript: false,
+    scriptProvenance: SCRIPT_PROVENANCE.LEGACY_INVALID_FALLBACK,
+  });
+  expect(hydrated.completedStepIds).not.toContain('script');
+});
+
+test('preserves legacy non-generated operator text as manual and confirmable', () => {
+  saveProjectContext(window.localStorage, {
+    version: 1,
+    projectId: 'abyss-legacy-manual',
+    gameName: 'Abyss',
+    language: 'english',
+    rulebookText: 'Approved rulebook text',
+    components: [{ id: 'cards', name: 'Cards' }],
+    script: 'Operator-authored manual tutorial.',
+    generatedScript: false,
+    activeStepId: 'script',
+    completedStepIds: ['project', 'script'],
+  });
+
+  const hydrated = loadLatestProjectContext(window.localStorage);
+
+  expect(hydrated).toMatchObject({
+    script: 'Operator-authored manual tutorial.',
+    scriptProvenance: SCRIPT_PROVENANCE.MANUAL,
+    generatedScript: false,
+  });
+  expect(hydrated.completedStepIds).toContain('script');
 });

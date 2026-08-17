@@ -24,7 +24,9 @@ import {
   buildScriptGenerationRequest,
   createPersistedProjectContext,
   getScriptInputReadiness,
+  isTrustedScriptProvenance,
   loadLatestProjectContext,
+  SCRIPT_PROVENANCE,
   saveProjectContext,
 } from "./projectContext";
 import "./styles/pipeline.css";
@@ -291,6 +293,7 @@ function App() {
   const [loading, setLoading] = useState(false); // For main processing loading state
   const [summary, setSummary] = useState(""); // The generated script (Markdown)
   const [generatedScript, setGeneratedScript] = useState(false);
+  const [scriptProvenance, setScriptProvenance] = useState(null);
   const [editedSummary, setEditedSummary] = useState(""); // The script in the editable textarea
   const [sections, setSections] = useState([]); // Summary split into sections for TTS
   const [audio, setAudio] = useState({}); // Stores Blob URLs for generated audio sections
@@ -396,7 +399,12 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       setComponentImageLinks(context.componentImageLinks);
       setSummary(context.script);
       setGeneratedScript(context.generatedScript);
+      setScriptProvenance(context.scriptProvenance);
       setEditedSummary(context.script);
+      setGenerationStatus(null);
+      if (context.scriptProvenance === SCRIPT_PROVENANCE.LEGACY_INVALID_FALLBACK) {
+        setSummaryWarning('A previous incomplete fallback was discarded. Generate a source-complete script to continue.');
+      }
       setActiveStepId(context.activeStepId);
       setCompletedStepIds(context.completedStepIds);
       previousProjectIdRef.current = context.projectId;
@@ -418,6 +426,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       componentImageLinks,
       script: editedSummary || summary,
       generatedScript,
+      scriptProvenance,
       activeStepId,
       completedStepIds,
     }));
@@ -435,6 +444,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     projectImages,
     rulebookPages,
     rulebookText,
+    scriptProvenance,
     summary,
   ]);
 
@@ -710,6 +720,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setRulebookText("");
     setSummary("");
     setGeneratedScript(false);
+    setScriptProvenance(null);
+    setGenerationStatus(null);
     setEditedSummary("");
     setSections([]);
     setAudio({});
@@ -781,6 +793,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setFile(null); // Clear file if user starts typing
     setSummary("");
     setGeneratedScript(false);
+    setScriptProvenance(null);
+    setGenerationStatus(null);
     setEditedSummary("");
     setSections([]);
     setAudio({});
@@ -1034,7 +1048,11 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       console.error('handleSummaryEdit: Event or e.target is undefined');
       return;
     }
-    setEditedSummary(e.target.value);
+    const nextScript = e.target.value;
+    setEditedSummary(nextScript);
+    setScriptProvenance(nextScript.trim() ? SCRIPT_PROVENANCE.MANUAL : null);
+    setGeneratedScript(false);
+    setGenerationStatus(null);
   };
 
   // Save edited summary and re-split sections
@@ -1043,6 +1061,9 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setError("");
     try {
       setSummary(editedSummary); // Update the official summary state
+      setGeneratedScript(false);
+      setScriptProvenance(editedSummary.trim() ? SCRIPT_PROVENANCE.MANUAL : null);
+      setGenerationStatus(null);
       // Sections and audio effects will trigger automatically when summary state changes
       console.log('Edited summary saved and sections re-split.');
     } catch (err) {
@@ -1109,6 +1130,22 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   };
 
 
+  const handleScriptGenerationFailure = ({ warning, status }) => {
+    setGeneratedScript(false);
+    setGenerationStatus(status || null);
+    setSummaryWarning(warning);
+    setTranslationStatus({ isTranslating: false, error: null });
+
+    const hasRetainedTrustedScript = isTrustedScriptProvenance(scriptProvenance)
+      && Boolean(editedSummary.trim());
+    if (!hasRetainedTrustedScript) {
+      setSummary('');
+      setEditedSummary('');
+      setScriptProvenance(SCRIPT_PROVENANCE.GENERATION_FAILED);
+      setCompletedStepIds((previous) => previous.filter((stepId) => stepId !== 'script'));
+    }
+  };
+
   // --- Main Summarization Handler ---
   const handleSummarize = async () => {
     const scriptContext = {
@@ -1126,6 +1163,9 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     }
 
     setLoading(true);
+    // A new attempt invalidates the current-attempt success indicator immediately,
+    // while provenance keeps a previously trusted script available for review.
+    setGeneratedScript(false);
     setSummaryWarning("");
     setGenerationStatus(null);
     setShowThemePrompt(false);
@@ -1148,6 +1188,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         const generatedSummary = response.data.summary.trim();
         setSummary(generatedSummary);
         setGeneratedScript(true);
+        setScriptProvenance(SCRIPT_PROVENANCE.GENERATED_SOURCE_COMPLETE);
         setGenerationStatus(response.data.generationStatus);
         setSummaryWarning(response.data.metadataWarning || '');
 
@@ -1165,8 +1206,10 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
       } else {
         // Handle cases where no summary or needsTheme is in the response
-        setGenerationStatus(response.data?.generationStatus || null);
-        setSummaryWarning(response.data?.error || "Optional AI summary returned an unexpected response.");
+        handleScriptGenerationFailure({
+          status: response.data?.generationStatus,
+          warning: response.data?.error || "Optional AI summary returned an unexpected response.",
+        });
         console.error("Unexpected backend response:", response.data);
         setTranslationStatus({ isTranslating: false, error: null }); // Clear translation status on unexpected response
 
@@ -1175,8 +1218,10 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     } catch (err) {
       // Handle errors from the axios request (e.g., network error, 500 status)
       console.error('Error during summarization request:', err);
-      setGenerationStatus(err.response?.data?.generationStatus || null);
-      setSummaryWarning(err.response?.data?.error || `Optional AI summary failed: ${err.message}`);
+      handleScriptGenerationFailure({
+        status: err.response?.data?.generationStatus,
+        warning: err.response?.data?.error || `Optional AI summary failed: ${err.message}`,
+      });
 
       // Check for specific backend errors related to translation failure
       if (err.response?.data?.fallbackLanguage) {
@@ -1376,8 +1421,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         break;
       }
       case "script": {
-        if (!summary.trim()) {
-          setError("Generate and review the script before confirming.");
+        if (!canConfirmScript) {
+          setError("Enter or retain a trusted manual or source-complete generated script before confirming.");
           return;
         }
         setError("");
@@ -1418,6 +1463,9 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
 
   
+  const effectiveScript = editedSummary.trim();
+  const canConfirmScript = Boolean(effectiveScript)
+    && isTrustedScriptProvenance(scriptProvenance);
   const scriptInputReadiness = getScriptInputReadiness({
     projectId,
     gameName,
@@ -1438,6 +1486,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
             completedStepIds={completedStepIds}
             onStepClick={goToStep}
             onConfirmStep={handleConfirmStep}
+            canConfirmStep={(stepId) => stepId !== 'script' || canConfirmScript}
           />
 
           {error && (<div style={{ color: "red", marginBottom: 12 }}>{error}</div>)}
@@ -1526,6 +1575,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               scriptInputReadiness={scriptInputReadiness}
               onSummarize={handleSummarize}
               hasGeneratedScript={generatedScript}
+              scriptProvenance={scriptProvenance}
               summary={summary}
               editedSummary={editedSummary}
               onEdit={handleSummaryEdit}
@@ -1574,6 +1624,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
             <button
               className="confirm-step-btn"
               onClick={() => handleConfirmStep(activeStepId)}
+              disabled={activeStepId === 'script' && !canConfirmScript}
               style={{
                 background: 'linear-gradient(90deg, #1565c0, #1976d2)',
                 color: 'white',

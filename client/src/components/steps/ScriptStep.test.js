@@ -156,3 +156,61 @@ test('shows compact source coverage status only when a generation status is avai
 
   expect(screen.getByLabelText('Generation status')).toHaveTextContent(/Source: 20[\s,]914 chars · Chunks: 4\/4 · Final script: 1[\s,]696 chars/);
 });
+
+
+test('does not show success and clears the preview affordance for discarded legacy fallback output', () => {
+  render(
+    <ScriptStep
+      loading={false}
+      projectId="abyss-project"
+      rulebookText="Rulebook text"
+      gameName="Abyss"
+      language="english"
+      components={[{ id: 'component-1', name: 'Cards' }]}
+      scriptInputReadiness={{ ready: true, message: '' }}
+      onSummarize={jest.fn()}
+      scriptProvenance="legacy_invalid_fallback"
+      summary=""
+      editedSummary=""
+      onEdit={jest.fn()}
+      onSave={jest.fn()}
+      translationStatus={{ error: null }}
+      summaryWarning="A previous incomplete fallback was discarded. Generate a source-complete script to continue."
+      aiStatus={{ ready: true, message: 'AI model is ready.' }}
+      aiStatusLoading={false}
+      onRefreshAiStatus={jest.fn()}
+    />,
+  );
+
+  expect(screen.getByText('A previous incomplete fallback was discarded. Generate a source-complete script to continue.')).toBeInTheDocument();
+  expect(screen.queryByText('Script generated successfully')).not.toBeInTheDocument();
+  expect(screen.getByText('No script yet. Generate one to see the preview here.')).toBeInTheDocument();
+});
+
+test('shows success only for a source-complete generated provenance on the current attempt', () => {
+  render(
+    <ScriptStep
+      loading={false}
+      projectId="abyss-project"
+      rulebookText="Rulebook text"
+      gameName="Abyss"
+      language="english"
+      components={[{ id: 'component-1', name: 'Cards' }]}
+      scriptInputReadiness={{ ready: true, message: '' }}
+      onSummarize={jest.fn()}
+      scriptProvenance="generated_source_complete"
+      summary="Generated script"
+      editedSummary="Generated script"
+      onEdit={jest.fn()}
+      onSave={jest.fn()}
+      translationStatus={{ error: null }}
+      summaryWarning=""
+      generationStatus={{ sourceComplete: true }}
+      aiStatus={{ ready: true, message: 'AI model is ready.' }}
+      aiStatusLoading={false}
+      onRefreshAiStatus={jest.fn()}
+    />,
+  );
+
+  expect(screen.getByText('Script generated successfully')).toBeInTheDocument();
+});

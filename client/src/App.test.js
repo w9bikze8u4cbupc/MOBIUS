@@ -31,12 +31,27 @@ jest.mock('./components/steps/MetadataInputStep', () => ({ MetadataInputStep: ()
 jest.mock('./components/steps/IngestionReviewStep', () => ({ IngestionReviewStep: () => null }));
 jest.mock('./components/steps/ImagesStep', () => ({ ImagesStep: () => null }));
 jest.mock('./components/steps/ScriptStep', () => ({
-  ScriptStep: ({ onSummarize, scriptInputReadiness, hasGeneratedScript, summary, editedSummary }) => (
+  ScriptStep: ({
+    onSummarize,
+    scriptInputReadiness,
+    scriptProvenance,
+    summary,
+    editedSummary,
+    generationStatus,
+    summaryWarning,
+  }) => (
     <div>
       <div data-testid="script-readiness">{scriptInputReadiness?.message || 'ready'}</div>
+      <div data-testid="script-provenance">{scriptProvenance || 'none'}</div>
       <div data-testid="editable-script">{editedSummary}</div>
       <button onClick={onSummarize} disabled={!scriptInputReadiness?.ready}>Generate optional AI summary</button>
-      {hasGeneratedScript && summary ? <div>Script generated successfully</div> : null}
+      {scriptProvenance === 'generated_source_complete' && generationStatus?.sourceComplete && summary
+        ? <div>Script generated successfully</div>
+        : null}
+      {scriptProvenance === 'legacy_invalid_fallback'
+        ? <div>A previous incomplete fallback was discarded. Generate a source-complete script to continue.</div>
+        : null}
+      {summaryWarning && scriptProvenance !== 'legacy_invalid_fallback' ? <div>{summaryWarning}</div> : null}
     </div>
   ),
 }));
@@ -299,4 +314,113 @@ test('does not replace an editable script when generated output lacks source com
   await waitFor(() => expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/summarize'), expect.any(Object)));
   expect(screen.getByTestId('editable-script')).toHaveTextContent(existingScript);
   expect(screen.queryByText('Script generated successfully')).not.toBeInTheDocument();
+});
+
+
+test('a failed generation with no trusted script clears success state and disables script confirmation', async () => {
+  saveProjectContext(window.localStorage, {
+    projectId: 'abyss-no-script',
+    gameName: 'Abyss',
+    language: 'english',
+    rulebookText: 'Approved Abyss rulebook text',
+    components: [{ id: 'cards', name: 'Cards' }],
+    activeStepId: 'script',
+  });
+  axios.get.mockResolvedValue({ data: { ready: true, message: 'AI model is ready.' } });
+  axios.post.mockRejectedValue({
+    response: {
+      data: {
+        error: 'Script generation stopped: rulebook section 1 produced no usable summary. No script was saved.',
+        generationStatus: { sourceChars: 20914, chunkCount: 4, completedChunks: 0, sourceComplete: false, finalScriptLength: 0 },
+      },
+    },
+  });
+
+  render(<App />);
+  const generate = await screen.findByRole('button', { name: 'Generate optional AI summary' });
+  await waitFor(() => expect(generate).toBeEnabled());
+  fireEvent.click(generate);
+
+  await waitFor(() => expect(screen.getByText(/rulebook section 1 produced no usable summary/i)).toBeInTheDocument());
+  expect(screen.queryByText('Script generated successfully')).not.toBeInTheDocument();
+  expect(screen.getByTestId('editable-script')).toHaveTextContent('');
+  expect(screen.getByTestId('script-provenance')).toHaveTextContent('generation_failed');
+  expect(screen.getByRole('button', { name: /Confirm Script & Continue/i })).toBeDisabled();
+});
+
+test('discards a narrow known legacy fallback instead of preserving it as editable script', async () => {
+  saveProjectContext(window.localStorage, {
+    version: 1,
+    projectId: 'abyss-legacy-fallback',
+    gameName: 'Abyss',
+    language: 'english',
+    rulebookText: 'Approved Abyss rulebook text',
+    components: [{ id: 'cards', name: 'Cards' }],
+    script: 'Rulebook Text section is empty. I can’t produce a complete, rules-accurate tutorial.',
+    generatedScript: true,
+    activeStepId: 'script',
+    completedStepIds: ['project', 'script'],
+  });
+  axios.get.mockResolvedValue({ data: { ready: true, message: 'AI model is ready.' } });
+
+  render(<App />);
+
+  await waitFor(() => expect(screen.getByText('A previous incomplete fallback was discarded. Generate a source-complete script to continue.')).toBeInTheDocument());
+  expect(screen.getByTestId('editable-script')).toHaveTextContent('');
+  expect(screen.getByTestId('script-provenance')).toHaveTextContent('legacy_invalid_fallback');
+  expect(screen.getByRole('button', { name: /Confirm Script & Continue/i })).toBeDisabled();
+});
+
+test('retains an operator-authored manual script after a later generation failure', async () => {
+  const manualScript = 'Operator-authored tutorial remains the approved script.';
+  saveProjectContext(window.localStorage, {
+    projectId: 'abyss-manual-retained',
+    gameName: 'Abyss',
+    language: 'english',
+    rulebookText: 'Approved Abyss rulebook text',
+    components: [{ id: 'cards', name: 'Cards' }],
+    script: manualScript,
+    generatedScript: false,
+    activeStepId: 'script',
+  });
+  axios.get.mockResolvedValue({ data: { ready: true, message: 'AI model is ready.' } });
+  axios.post.mockRejectedValue({ response: { data: { error: 'Provider returned empty content.' } } });
+
+  render(<App />);
+  const generate = await screen.findByRole('button', { name: 'Generate optional AI summary' });
+  await waitFor(() => expect(generate).toBeEnabled());
+  fireEvent.click(generate);
+
+  await waitFor(() => expect(screen.getByText('Provider returned empty content.')).toBeInTheDocument());
+  expect(screen.getByTestId('editable-script')).toHaveTextContent(manualScript);
+  expect(screen.getByTestId('script-provenance')).toHaveTextContent('manual');
+  expect(screen.getByRole('button', { name: /Confirm Script & Continue/i })).toBeEnabled();
+});
+
+test('clears stale success while retaining a previously source-complete generated script after failure', async () => {
+  const generatedScript = 'Previously source-complete generated tutorial.';
+  saveProjectContext(window.localStorage, {
+    version: 2,
+    projectId: 'abyss-generated-retained',
+    gameName: 'Abyss',
+    language: 'english',
+    rulebookText: 'Approved Abyss rulebook text',
+    components: [{ id: 'cards', name: 'Cards' }],
+    script: generatedScript,
+    scriptProvenance: 'generated_source_complete',
+    generatedScript: true,
+    activeStepId: 'script',
+  });
+  axios.get.mockResolvedValue({ data: { ready: true, message: 'AI model is ready.' } });
+  axios.post.mockRejectedValue({ response: { data: { error: 'Provider returned empty content.' } } });
+
+  render(<App />);
+  const generate = await screen.findByRole('button', { name: 'Generate optional AI summary' });
+  await waitFor(() => expect(generate).toBeEnabled());
+  fireEvent.click(generate);
+
+  await waitFor(() => expect(screen.getByText('Provider returned empty content.')).toBeInTheDocument());
+  expect(screen.queryByText('Script generated successfully')).not.toBeInTheDocument();
+  expect(screen.getByTestId('editable-script')).toHaveTextContent(generatedScript);
+  expect(screen.getByTestId('script-provenance')).toHaveTextContent('generated_source_complete');
 });

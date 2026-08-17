@@ -1,7 +1,14 @@
 import React from "react";
 import "../styles/pipeline.css";
 
-export function PipelineStepper({ steps, activeStepId, completedStepIds, onStepClick, onConfirmStep }) {
+export function PipelineStepper({
+  steps,
+  activeStepId,
+  completedStepIds,
+  onStepClick,
+  onConfirmStep,
+  canConfirmStep = () => true,
+}) {
   return (
     <div className="pipeline-stepper">
       {steps.map((step, idx) => {
@@ -29,7 +36,14 @@ export function PipelineStepper({ steps, activeStepId, completedStepIds, onStepC
               </div>
             </div>
             {isActive && (
-              <button className="pipeline-confirm-btn" onClick={() => onConfirmStep(step.id)}>
+              <button
+                className="pipeline-confirm-btn"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onConfirmStep(step.id);
+                }}
+                disabled={!canConfirmStep(step.id)}
+              >
                 CONFIRM {step.label.toUpperCase()}
               </button>
             )}

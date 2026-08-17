@@ -2255,23 +2255,96 @@ function createGenerationStatus({ coverage, chunkCount, completedChunks, finalSc
   };
 }
 
-function createScriptGenerationError(message, { stage, generationStatus } = {}) {
+function createScriptGenerationError(message, {
+  stage,
+  generationStatus,
+  classification = 'provider_empty_content',
+  nextAction = null,
+} = {}) {
   const error = new Error(message);
   error.code = 'SCRIPT_GENERATION_INCOMPLETE';
   error.statusCode = 422;
   error.stage = stage;
   error.generationStatus = generationStatus;
+  error.classification = classification;
+  error.nextAction = nextAction;
   return error;
 }
 
-function requireUsableModelText(response, stage) {
+function asSafeFiniteNumber(value) {
+  return Number.isFinite(value) ? value : null;
+}
+
+function getCompletionDiagnostic(response, { model, stage }) {
+  const choices = Array.isArray(response?.choices) ? response.choices : null;
+  const choice = choices?.[0] || null;
+  const message = choice?.message || null;
+  const content = message?.content;
+  const usage = response?.usage && typeof response.usage === 'object' ? response.usage : {};
+  const outputDetails = usage.completion_tokens_details || usage.output_tokens_details || {};
+  const reasoningTokens = asSafeFiniteNumber(
+    usage.reasoning_tokens ?? outputDetails.reasoning_tokens ?? outputDetails.reasoningTokens,
+  );
+
+  return {
+    model: model || null,
+    stage,
+    choiceCount: choices?.length ?? null,
+    finishReason: typeof choice?.finish_reason === 'string' ? choice.finish_reason : null,
+    contentType: content === null ? 'null' : (Array.isArray(content) ? 'array' : typeof content),
+    contentLength: typeof content === 'string' ? content.length : null,
+    responseId: typeof response?.id === 'string' ? response.id : null,
+    usage: {
+      promptTokens: asSafeFiniteNumber(usage.prompt_tokens),
+      completionTokens: asSafeFiniteNumber(usage.completion_tokens ?? usage.output_tokens),
+      totalTokens: asSafeFiniteNumber(usage.total_tokens),
+      reasoningTokens,
+    },
+    hasRefusal: Boolean(message?.refusal),
+    hasToolCalls: Array.isArray(message?.tool_calls) && message.tool_calls.length > 0,
+  };
+}
+
+function getCompletionFailure(diagnostic) {
+  const hasChoiceMessage = diagnostic.choiceCount !== null
+    && diagnostic.choiceCount > 0
+    && ['string', 'null', 'array'].includes(diagnostic.contentType);
+  if (!hasChoiceMessage) {
+    return { classification: 'malformed_provider_payload', nextAction: null };
+  }
+  if (diagnostic.finishReason === 'length' && diagnostic.usage.reasoningTokens > 0) {
+    return {
+      classification: 'reasoning_budget_exhausted',
+      nextAction: 'Increase the configured chunk-summary budget or reduce the chunk size before trying again.',
+    };
+  }
+  if (diagnostic.finishReason === 'length') {
+    return {
+      classification: 'output_budget_exhausted',
+      nextAction: 'Increase the configured chunk-summary output budget before trying again.',
+    };
+  }
+  return { classification: 'provider_empty_content', nextAction: null };
+}
+
+function requireUsableModelText(response, { stage, label, model }) {
+  const diagnostic = getCompletionDiagnostic(response, { model, stage });
+  console.info('summary_completion_diagnostic', JSON.stringify(diagnostic));
   const text = typeof response?.choices?.[0]?.message?.content === 'string'
     ? response.choices[0].message.content.trim()
     : '';
-  if (!text) {
-    throw createScriptGenerationError(`Script generation stopped: ${stage} produced no usable output. No script was saved.`, { stage });
-  }
-  return text;
+  if (text) return text;
+
+  const { classification, nextAction } = getCompletionFailure(diagnostic);
+  const baseMessage = `Script generation stopped: ${label} produced no usable summary. No script was saved.`;
+  const message = classification === 'output_budget_exhausted'
+    ? `Script generation stopped: ${label} exhausted its output budget before returning usable content. ${nextAction} No script was saved.`
+    : classification === 'reasoning_budget_exhausted'
+      ? `Script generation stopped: ${label} exhausted its reasoning budget before returning usable content. ${nextAction} No script was saved.`
+      : classification === 'malformed_provider_payload'
+        ? `Script generation stopped: ${label} received a malformed provider response. No script was saved.`
+        : baseMessage;
+  throw createScriptGenerationError(message, { stage, classification, nextAction });
 }
 
 function normalizeExtractedMetadata(value) {
@@ -2310,12 +2383,15 @@ async function extractOptionalMetadata(rulebookText, generationOptions) {
   } catch (error) {
     const compatibilityError = getGenerationOptionCompatibilityError(error);
     if (compatibilityError) throw compatibilityError;
-    console.info('summary_metadata_unavailable', JSON.stringify({ reason: error?.message || 'malformed response' }));
+    console.info('summary_metadata_unavailable', JSON.stringify({
+      code: error?.code || null,
+      status: error?.status || error?.response?.status || null,
+    }));
     return { metadata: {}, available: false, warning: 'Optional metadata was unavailable.' };
   }
 }
 
-async function summarizeRequiredChunk(chunk, generationOptions) {
+async function summarizeRequiredChunk(chunk, generationOptions, model) {
   const response = await getAiClient().chat.completions.create({
     model: getAiModel(),
     messages: [
@@ -2324,7 +2400,11 @@ async function summarizeRequiredChunk(chunk, generationOptions) {
     ],
     ...generationOptions,
   });
-  return requireUsableModelText(response, `rulebook section ${chunk.index}`);
+  return requireUsableModelText(response, {
+    model,
+    stage: `chunk_${chunk.index}`,
+    label: `rulebook section ${chunk.index}`,
+  });
 }
 
 function isUsableScriptComponentName(value) {
@@ -2412,11 +2492,11 @@ app.post('/summarize', async (req, res) => {
     const metadataGenerationOptions = getGenerationOptions(summaryAiConfig, {
       max_completion_tokens: 500,
       temperature: 0.5,
-    });
+    }, 'summary_metadata');
     const chunkGenerationOptions = getGenerationOptions(summaryAiConfig, {
       max_completion_tokens: 500,
       temperature: 0.7,
-    });
+    }, 'summary_chunk');
 
     const { chunks, coverage } = buildRulebookChunks(rulebookText);
     let generationStatus = createGenerationStatus({
@@ -2451,7 +2531,7 @@ app.post('/summarize', async (req, res) => {
     const chunkSummaries = [];
     for (const chunk of chunks) {
       try {
-        const summary = await summarizeRequiredChunk(chunk, chunkGenerationOptions);
+        const summary = await summarizeRequiredChunk(chunk, chunkGenerationOptions, summaryAiConfig.model);
         chunkSummaries.push({ ...chunk, summary });
         generationStatus = createGenerationStatus({
           coverage,
@@ -2464,9 +2544,17 @@ app.post('/summarize', async (req, res) => {
           ? error
           : getGenerationOptionCompatibilityError(error);
         if (compatibilityError) throw compatibilityError;
+        if (error.code === 'SCRIPT_GENERATION_INCOMPLETE') {
+          throw createScriptGenerationError(error.message, {
+            stage: `chunk_${chunk.index}`,
+            generationStatus,
+            classification: error.classification,
+            nextAction: error.nextAction,
+          });
+        }
         throw createScriptGenerationError(
           `Script generation stopped: rulebook section ${chunk.index} produced no usable summary. No script was saved.`,
-          { stage: `chunk_${chunk.index}`, generationStatus },
+          { stage: `chunk_${chunk.index}`, generationStatus, classification: 'provider_request_failed' },
         );
       }
     }
@@ -2594,7 +2682,12 @@ Rulebook Text:`
 
       finalPrompt += `\n\nConfirmed Game Name: ${gameName}\nRequested Language: ${language}\nValidated Component Inventory: ${componentsJson}\nSource Coverage: ${generationStatus.sourceCoverageRatio * 100}% across ${generationStatus.completedChunks}/${generationStatus.chunkCount} sections\n\nSource-grounded Rulebook Section Summaries:\n${sourceGroundedSummaries}`;
 
-      console.log('Final prompt (truncated):', finalPrompt.slice(0, 500));
+      console.info('summary_final_prompt_ready', JSON.stringify({
+        model: summaryAiConfig.model,
+        chunkCount: chunkSummaries.length,
+        sourceSummaryChars: sourceGroundedSummaries.length,
+        finalPromptChars: finalPrompt.length,
+      }));
       
 // Generate the summary
 console.log('Generating final English script using OpenAI...')
@@ -2607,19 +2700,25 @@ console.log('Generating final English script using OpenAI...')
         },  
         { role: 'user', content: finalPrompt },
       ],  
-      ...getGenerationOptions(getAiConfig(), {
+      ...getGenerationOptions(summaryAiConfig, {
         max_completion_tokens: 4096,
         temperature: 0.7,
-      }),
+      }, 'summary_final'),
     });  
     
     let englishSummary;
     try {
-      englishSummary = requireUsableModelText(englishSummaryResponse, 'final synthesis');
-    } catch (_error) {
-      throw createScriptGenerationError('Script generation stopped: final synthesis produced no usable script. No script was saved.', {
+      englishSummary = requireUsableModelText(englishSummaryResponse, {
+        model: summaryAiConfig.model,
+        stage: 'final_synthesis',
+        label: 'final synthesis',
+      });
+    } catch (error) {
+      throw createScriptGenerationError(error?.message || 'Script generation stopped: final synthesis produced no usable script. No script was saved.', {
         stage: 'final_synthesis',
         generationStatus,
+        classification: error?.classification,
+        nextAction: error?.nextAction,
       });
     }
     generationStatus = createGenerationStatus({
@@ -2656,18 +2755,24 @@ console.log('Generating final English script using OpenAI...')
             },  
             { role: 'user', content: translationPrompt },  
           ],  
-          ...getGenerationOptions(getAiConfig(), {
+          ...getGenerationOptions(summaryAiConfig, {
             max_completion_tokens: 4096,
             temperature: 0.3,
-          }),
+          }, 'summary_translation'),
         });  
         
         try {
-          finalOutputSummary = requireUsableModelText(translationResponse, 'French translation');
-        } catch (_error) {
-          throw createScriptGenerationError('Script generation stopped: French translation produced no usable script. No script was saved.', {
+          finalOutputSummary = requireUsableModelText(translationResponse, {
+            model: summaryAiConfig.model,
+            stage: 'translation',
+            label: 'French translation',
+          });
+        } catch (error) {
+          throw createScriptGenerationError(error?.message || 'Script generation stopped: French translation produced no usable script. No script was saved.', {
             stage: 'translation',
             generationStatus,
+            classification: error?.classification,
+            nextAction: error?.nextAction,
           });
         }
         generationStatus = createGenerationStatus({
@@ -2725,7 +2830,12 @@ console.log('Generating final English script using OpenAI...')
     const compatibilityError = error.code === 'AI_GENERATION_OPTION_UNSUPPORTED'
       ? error
       : getGenerationOptionCompatibilityError(error);
-    console.error('Summarization failed:', compatibilityError || error);
+    console.error('summarization_failed', JSON.stringify({
+      code: (compatibilityError || error)?.code || 'SUMMARY_GENERATION_FAILED',
+      stage: error?.stage || null,
+      classification: error?.classification || null,
+      status: (compatibilityError || error)?.statusCode || error?.status || error?.response?.status || 500,
+    }));
     if (compatibilityError) {
       return res.status(compatibilityError.statusCode).json({
         error: compatibilityError.message,
@@ -2737,6 +2847,8 @@ console.log('Generating final English script using OpenAI...')
         error: error.message,
         code: error.code,
         stage: error.stage,
+        classification: error.classification || null,
+        nextAction: error.nextAction || null,
         generationStatus: error.generationStatus || null,
       });
     }

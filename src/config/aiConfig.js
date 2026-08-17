@@ -27,9 +27,30 @@ export function getAiConfig(env = process.env) {
   };
 }
 
-export function getGenerationOptions(config = getAiConfig(), requestedOptions = {}) {
-  const options = { ...requestedOptions };
-  if (config.model === 'gpt-5.6-sol') {
+// Model-owned generation capabilities keep provider-specific controls out of route callers.
+// A 1,200-token chunk budget leaves room for a complete source-grounded summary of a
+// 6,000-character rulebook section; the legacy universal 500-token budget can truncate it.
+const MODEL_GENERATION_PROFILES = Object.freeze({
+  'gpt-5.6-sol': Object.freeze({
+    omitTemperature: true,
+    operations: Object.freeze({
+      summary_chunk: Object.freeze({
+        max_completion_tokens: 1200,
+        reasoning_effort: 'minimal',
+      }),
+    }),
+  }),
+});
+
+export function getModelGenerationProfile(model) {
+  return MODEL_GENERATION_PROFILES[model] || null;
+}
+
+export function getGenerationOptions(config = getAiConfig(), requestedOptions = {}, operation = null) {
+  const profile = getModelGenerationProfile(config.model);
+  const operationOptions = operation ? profile?.operations?.[operation] : null;
+  const options = { ...requestedOptions, ...(operationOptions || {}) };
+  if (profile?.omitTemperature) {
     delete options.temperature;
   }
   return options;

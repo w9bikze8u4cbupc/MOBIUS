@@ -1,10 +1,66 @@
-export const PROJECT_CONTEXT_VERSION = 1;
+export const PROJECT_CONTEXT_VERSION = 2;
+export const SCRIPT_PROVENANCE = Object.freeze({
+  MANUAL: 'manual',
+  GENERATED_SOURCE_COMPLETE: 'generated_source_complete',
+  LEGACY_INVALID_FALLBACK: 'legacy_invalid_fallback',
+  GENERATION_FAILED: 'generation_failed',
+});
+
 const PROJECT_CONTEXT_PREFIX = 'mobius-project-context:';
 const LATEST_PROJECT_CONTEXT_KEY = 'mobius-project-context:latest';
 const SUPPORTED_SCRIPT_LANGUAGES = new Set(['english', 'french']);
+const TRUSTED_SCRIPT_PROVENANCE = new Set([
+  SCRIPT_PROVENANCE.MANUAL,
+  SCRIPT_PROVENANCE.GENERATED_SOURCE_COMPLETE,
+]);
+const KNOWN_SCRIPT_PROVENANCE = new Set(Object.values(SCRIPT_PROVENANCE));
 
 function asTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+export function isTrustedScriptProvenance(provenance) {
+  return TRUSTED_SCRIPT_PROVENANCE.has(provenance);
+}
+
+export function isKnownLegacyInvalidFallback(script) {
+  const text = asTrimmedString(script);
+  return /\bRulebook Text section is empty\b/i.test(text)
+    || /\bI can(?:['’])t produce a complete,\s*rules-accurate tutorial\b/i.test(text);
+}
+
+function normalizeScriptState(context) {
+  let script = typeof context.script === 'string' ? context.script : '';
+  const suppliedProvenance = KNOWN_SCRIPT_PROVENANCE.has(context.scriptProvenance)
+    ? context.scriptProvenance
+    : null;
+  let scriptProvenance = suppliedProvenance;
+
+  // Version-1 contexts lacked provenance. Only the two precise historical fallback
+  // phrases are discarded; other non-generated text remains operator-authored work.
+  if (!scriptProvenance) {
+    if (script && isKnownLegacyInvalidFallback(script)) {
+      scriptProvenance = SCRIPT_PROVENANCE.LEGACY_INVALID_FALLBACK;
+    } else if (asTrimmedString(script)) {
+      scriptProvenance = context.generatedScript === true
+        ? SCRIPT_PROVENANCE.GENERATED_SOURCE_COMPLETE
+        : SCRIPT_PROVENANCE.MANUAL;
+    }
+  }
+
+  if (scriptProvenance === SCRIPT_PROVENANCE.LEGACY_INVALID_FALLBACK
+    || scriptProvenance === SCRIPT_PROVENANCE.GENERATION_FAILED) {
+    script = '';
+  }
+  if (!asTrimmedString(script) && isTrustedScriptProvenance(scriptProvenance)) {
+    scriptProvenance = null;
+  }
+
+  return {
+    script,
+    scriptProvenance,
+    generatedScript: scriptProvenance === SCRIPT_PROVENANCE.GENERATED_SOURCE_COMPLETE,
+  };
 }
 
 export function isUsableComponentName(value) {
@@ -62,6 +118,13 @@ export function buildScriptGenerationRequest(context) {
 }
 
 export function createPersistedProjectContext(context) {
+  const scriptState = normalizeScriptState(context);
+  const completedStepIds = Array.isArray(context.completedStepIds)
+    ? [...new Set(context.completedStepIds.filter((stepId) => typeof stepId === 'string'))]
+    : [];
+  const canConfirmScript = Boolean(asTrimmedString(scriptState.script))
+    && isTrustedScriptProvenance(scriptState.scriptProvenance);
+
   return {
     version: PROJECT_CONTEXT_VERSION,
     projectId: asTrimmedString(context.projectId),
@@ -75,16 +138,17 @@ export function createPersistedProjectContext(context) {
     componentImageLinks: context.componentImageLinks && typeof context.componentImageLinks === 'object'
       ? context.componentImageLinks
       : {},
-    script: typeof context.script === 'string' ? context.script : '',
-    generatedScript: context.generatedScript === true,
+    ...scriptState,
     activeStepId: asTrimmedString(context.activeStepId) || 'project',
-    completedStepIds: Array.isArray(context.completedStepIds) ? context.completedStepIds : [],
+    completedStepIds: canConfirmScript
+      ? completedStepIds
+      : completedStepIds.filter((stepId) => stepId !== 'script'),
   };
 }
 
 export function hydrateProjectContext(value) {
   const context = value && typeof value === 'object' ? value : null;
-  if (!context || context.version !== PROJECT_CONTEXT_VERSION || !asTrimmedString(context.projectId)) {
+  if (!context || ![1, PROJECT_CONTEXT_VERSION].includes(context.version) || !asTrimmedString(context.projectId)) {
     return null;
   }
   return createPersistedProjectContext(context);

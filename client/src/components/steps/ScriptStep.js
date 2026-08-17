@@ -1,5 +1,6 @@
 import React from "react";
 import ReactMarkdown from "react-markdown";
+import { SCRIPT_PROVENANCE } from "../../projectContext";
 
 export function ScriptStep({
   loading,
@@ -10,7 +11,7 @@ export function ScriptStep({
   components = [],
   scriptInputReadiness,
   onSummarize,
-  hasGeneratedScript,
+  scriptProvenance,
   summary,
   editedSummary,
   onEdit,
@@ -31,6 +32,10 @@ export function ScriptStep({
   const aiMessage = aiStatusLoading
     ? 'Loading local AI configuration…'
     : (aiStatus?.message || 'AI readiness has not been checked yet.');
+  const hasSourceCompleteGeneration = scriptProvenance === SCRIPT_PROVENANCE.GENERATED_SOURCE_COMPLETE
+    && generationStatus?.sourceComplete === true
+    && Boolean(summary?.trim());
+  const discardedLegacyFallback = scriptProvenance === SCRIPT_PROVENANCE.LEGACY_INVALID_FALLBACK;
 
   return (
     <div className="pipeline-section fade-in">
@@ -100,7 +105,13 @@ export function ScriptStep({
         </div>
       )}
 
-      {summaryWarning && (
+      {discardedLegacyFallback && (
+        <div className="status-badge status-badge-warning" style={{ display: 'block', padding: '10px 14px', marginBottom: 12 }}>
+          A previous incomplete fallback was discarded. Generate a source-complete script to continue.
+        </div>
+      )}
+
+      {summaryWarning && !discardedLegacyFallback && (
         <div className="status-badge status-badge-warning" style={{ display: 'block', padding: '10px 14px', marginBottom: 12 }}>
           {summaryWarning}
         </div>
@@ -118,7 +129,7 @@ export function ScriptStep({
         </div>
       )}
 
-      {hasGeneratedScript && summary && (
+      {hasSourceCompleteGeneration && (
         <div className="status-badge status-badge-success" style={{ marginBottom: 12 }}>
           Script generated successfully
         </div>

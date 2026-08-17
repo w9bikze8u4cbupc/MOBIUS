@@ -13,6 +13,7 @@ jest.mock('openai', () => ({
 import {
   getAiStatus,
   getGenerationOptions,
+  getModelGenerationProfile,
   listAccessibleModelIds,
   resetAiConfigForTests,
   setAiClientForTests,
@@ -112,4 +113,19 @@ test('models without a restricted profile retain the requested temperature', () 
     { model: 'test-model' },
     { temperature: 0.7, max_completion_tokens: 1000 },
   )).toEqual({ temperature: 0.7, max_completion_tokens: 1000 });
+});
+
+
+test('gpt-5.6-sol centralizes a minimal-reasoning 1,200-token chunk-summary profile', () => {
+  expect(getModelGenerationProfile('gpt-5.6-sol')).toMatchObject({
+    omitTemperature: true,
+    operations: {
+      summary_chunk: { max_completion_tokens: 1200, reasoning_effort: 'minimal' },
+    },
+  });
+  expect(getGenerationOptions(
+    { model: 'gpt-5.6-sol' },
+    { temperature: 0.7, max_completion_tokens: 500 },
+    'summary_chunk',
+  )).toEqual({ max_completion_tokens: 1200, reasoning_effort: 'minimal' });
 });
