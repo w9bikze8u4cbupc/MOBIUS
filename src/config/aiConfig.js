@@ -52,7 +52,7 @@ const MODEL_GENERATION_PROFILES = Object.freeze({
         max_completion_tokens: 2400,
       }),
       summary_final: Object.freeze({
-        max_completion_tokens: 3200,
+        max_completion_tokens: 6400,
       }),
     }),
   }),

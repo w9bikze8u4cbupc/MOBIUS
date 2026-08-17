@@ -128,7 +128,7 @@ test('gpt-5.6-sol centralizes compatible stage-specific summary budgets', () => 
     omitReasoningEffort: true,
     operations: {
       summary_chunk: { max_completion_tokens: 2400 },
-      summary_final: { max_completion_tokens: 3200 },
+      summary_final: { max_completion_tokens: 6400 },
     },
   });
   const chunkOptions = getGenerationOptions(
@@ -142,7 +142,7 @@ test('gpt-5.6-sol centralizes compatible stage-specific summary budgets', () => 
     'summary_final',
   );
   expect(chunkOptions).toEqual({ max_completion_tokens: 2400 });
-  expect(finalOptions).toEqual({ max_completion_tokens: 3200 });
+  expect(finalOptions).toEqual({ max_completion_tokens: 6400 });
   [chunkOptions, finalOptions].forEach((options) => {
     expect(options).not.toHaveProperty('temperature');
     expect(options).not.toHaveProperty('reasoning_effort');

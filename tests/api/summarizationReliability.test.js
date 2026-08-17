@@ -152,16 +152,54 @@ describe('gpt-5.6-sol completion diagnostics', () => {
     expect(response.status).toBe(200);
     const chunkRequest = mockCompletionCreate.mock.calls[1][0];
     const finalRequest = mockCompletionCreate.mock.calls[2][0];
+    const finalPrompt = finalRequest.messages[1].content;
     expect({ max_completion_tokens: chunkRequest.max_completion_tokens }).toEqual({
       max_completion_tokens: 2400,
     });
     expect({ max_completion_tokens: finalRequest.max_completion_tokens }).toEqual({
-      max_completion_tokens: 3200,
+      max_completion_tokens: 6400,
     });
     [chunkRequest, finalRequest].forEach((request) => {
       expect(request).not.toHaveProperty('temperature');
       expect(request).not.toHaveProperty('reasoning_effort');
     });
+    expect(finalPrompt).toContain('Validated Source-Grounded Rulebook Chunk Summaries:');
+    expect(finalPrompt).toContain('Players choose cards and resolve effects.');
+    expect(finalPrompt).not.toContain(source);
+    expect(finalPrompt).toContain('1. Introduction and presentation');
+    expect(finalPrompt).toContain('8. Outro');
+    expect(finalPrompt.length).toBeLessThan(2000);
+  });
+
+  test('a length-exhausted empty final synthesis fails closed without saving a script', async () => {
+    mockCompletionCreate
+      .mockResolvedValueOnce({ choices: [{ message: { content: '{}' } }] })
+      .mockResolvedValueOnce({ choices: [{ message: { content: 'Players choose cards and resolve effects.' } }] })
+      .mockResolvedValueOnce({
+        id: 'final-length',
+        choices: [{ finish_reason: 'length', message: { content: null } }],
+        usage: {
+          completion_tokens: 6400,
+          completion_tokens_details: { reasoning_tokens: 6400 },
+        },
+      });
+
+    const response = await fetch(`${baseUrl}/summarize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify(payloadFor(source)),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(body).toMatchObject({
+      code: 'SCRIPT_GENERATION_INCOMPLETE',
+      stage: 'final_synthesis',
+      classification: 'reasoning_budget_exhausted',
+    });
+    expect(body).not.toHaveProperty('summary');
+    expect(body).not.toHaveProperty('generated');
+    expect(mockCompletionCreate).toHaveBeenCalledTimes(3);
   });
 
   test('classifies an empty length-finished chunk as output budget exhaustion without final synthesis', async () => {

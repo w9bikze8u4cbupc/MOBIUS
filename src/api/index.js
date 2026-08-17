@@ -2569,66 +2569,23 @@ app.post('/summarize', async (req, res) => {
       targetWordCount = Math.round(baseWordCount * (1 + detailPercentage / 100));
     }
     
-    // Final Script Generation
-      const englishBasePrompt = `You are an expert boardgame educator and scriptwriter for a top YouTube channel. Your task is to write a complete, engaging, and fun script for a boardgame tutorial video, using the following rulebook text. The script will be used to create a high-quality, visually rich, and accessible video for new and casual players, but should also respect experienced gamers.
+    // Final synthesis consumes the validated source-grounded chunk summaries as its
+    // canonical rules context. The raw rulebook stays in the ingestion/chunking path.
+    const finalSynthesisInstructions = `Write the finished beginner-friendly board-game tutorial immediately.
 
-      Instructions:
+Use the validated chunk summaries below as the complete rules source. Do not expose analysis or describe your reasoning. Do not invent missing rules; when a detail is uncertain, tell viewers to consult the official rulebook.
 
-      Follow this structure and style exactly:
+Follow this pedagogical order exactly:
+1. Introduction and presentation
+2. Objective
+3. Components
+4. Numbered setup
+5. Suggested pause before play begins
+6. Turn structure and actions
+7. Scoring and endgame
+8. Outro
 
-      Engaging Introduction (10–20 seconds):
-      Warmly greet viewers.
-      State the game’s name, theme, and what makes it special.
-      Briefly outline what the video will cover.
-      Component Overview:
-      Clearly name and describe each component.
-      Suggest where to use close-ups and on-screen labels.
-      Highlight any unique or unusual pieces.
-      Setup:
-      Walk through the setup step-by-step.
-      Indicate where to use overhead shots, diagrams, or graphics.
-      Point out common setup mistakes to avoid.
-      Objective:
-      Clearly state how to win, using simple, direct language.
-      Gameplay Flow:
-      Break down the turn structure and main actions.
-      Use examples and suggest visuals for each action.
-      Emphasize the “why” behind actions, not just the “how.”
-      Key Rules & Special Cases:
-      Highlight rules that are often missed or misunderstood.
-      Suggest callouts or pop-up graphics for emphasis.
-      Example Turn:
-      Narrate a full turn or round, explaining each decision and its impact.
-      End Game & Scoring:
-      Explain how the game ends and how to tally scores.
-      Include a scoring example if possible.
-      Tips, Strategy, and Common Mistakes:
-      Offer beginner-friendly advice and tips.
-      Mention common pitfalls to avoid.
-      Variants & Expansions (if relevant):
-      Briefly mention any official variants or expansions.
-      Recap & Call to Action:
-      Summarize the core gameplay in 1–2 sentences.
-      Invite viewers to comment, like, and subscribe.
-
-      Scriptwriting Style:
-      Use conversational, enthusiastic, and friendly language.
-      Avoid jargon, or explain it simply if used.
-      Keep sentences short and direct.
-      Use analogies or storytelling to clarify complex rules.
-      Write for spoken delivery—make it sound natural and engaging.
-      Visual Planning:
-      Suggest visuals, graphics, or animations for each section (e.g., “Show a close-up of the player board here”).
-      Indicate pacing—avoid static visuals for more than 10 seconds.
-      Recommend bright, clear lighting and high-contrast backgrounds for components.
-      Final Output:
-      Write the script as it should be spoken, including all presenter lines and visual cues in brackets (e.g., [Show close-up of cards], [Overhead shot of setup]).
-      Do not include any information not found in the rulebook.
-      Make the script concise (aim for 5–15 minutes for most games, up to 20–30 for complex games).
-      Ensure the script is fun, friendly, and easy to follow.
-
-      Here is the rulebook text:
-      `;
+Write for spoken delivery in clear, friendly language. Include concise bracketed visual cues where useful. Keep the cited section offsets with the source context and ground every rule in that context.`;
 
       const componentsJson = JSON.stringify(components);
       const metadataJson = JSON.stringify(metadataForPrompt);
@@ -2636,48 +2593,16 @@ app.post('/summarize', async (req, res) => {
         `Section ${chunk.index} (source offsets ${chunk.startOffset}-${chunk.endOffset}):\n${chunk.summary}`
       )).join('\n\n');
       
-      let finalPrompt;
-      if (resummarize && previousSummary) {
-        finalPrompt = englishBasePrompt.replace(
-          'Here is the rulebook text:',
-          `Here is the rulebook text and additional context:
+    const finalPrompt = `${finalSynthesisInstructions}
 
-Components List: ${componentsJson}
+Confirmed Game Name: ${gameName}
+Requested Language: ${language}
+Validated Component Inventory: ${componentsJson}
 Game Metadata: ${metadataJson}
-Previous Summary: ${previousSummary}
+Source Coverage: ${generationStatus.sourceCoverageRatio * 100}% across ${generationStatus.completedChunks}/${generationStatus.chunkCount} sections
 
-Rulebook Text:`
-        );
-      } else {
-        finalPrompt = englishBasePrompt
-          .replace(
-            'Here is the rulebook text:',
-            `Here is the rulebook text and additional context:
-
-Components List: ${componentsJson}
-Game Metadata: ${metadataJson}
-
-Rulebook Text:`
-          )
-          .replace(
-            'Component Overview:',
-            `Component Overview:
-    Use the provided components list: ${componentsJson}
-    Provide exact quantities and clear descriptions for each component
-    Add visual cues like "[Show close-up of resource tokens]" or "[Display all cards fanned out]"
-    Mention any unique or unusual pieces that distinguish this game`
-          )
-          .replace(
-            'Setup:',
-            `Setup:
-    Reference the components list for accurate quantities: ${componentsJson}
-    Walk through setup step-by-step with detailed instructions
-    Add visual placeholders like "[Overhead shot: Initial board setup]" or "[Animation: Card placement]"
-    Highlight common setup mistakes and how to avoid them`
-          );
-      }
-
-      finalPrompt += `\n\nConfirmed Game Name: ${gameName}\nRequested Language: ${language}\nValidated Component Inventory: ${componentsJson}\nSource Coverage: ${generationStatus.sourceCoverageRatio * 100}% across ${generationStatus.completedChunks}/${generationStatus.chunkCount} sections\n\nSource-grounded Rulebook Section Summaries:\n${sourceGroundedSummaries}`;
+Validated Source-Grounded Rulebook Chunk Summaries:
+${sourceGroundedSummaries}`;
 
       console.info('summary_final_prompt_ready', JSON.stringify({
         model: summaryAiConfig.model,
