@@ -83,6 +83,7 @@ import { extractComponentInventory } from '../services/componentInventory.js';
 import { buildRulebookChunks, MAX_RULEBOOK_CHUNK_CHARS } from '../services/rulebookChunker.js';
 import {
   attachScriptPackageToStoryboard,
+  inspectScriptPackageTransport,
   parseGeneratedScriptPackage,
   resolveTutorialLengthProfile,
   sanitizeSpokenText,
@@ -2262,11 +2263,52 @@ function createGenerationStatus({ coverage, chunkCount, completedChunks, finalSc
   };
 }
 
+const INVALID_SCRIPT_PACKAGE_DIAGNOSTIC_PATH = path.join(process.cwd(), 'data', 'logs', 'last-invalid-script-package.json');
+
+function redactScriptPackagePreview(value) {
+  return String(value || '')
+    .replace(/((?:["']?)(?:api[_-]?key|authorization|password|passphrase|secret|token|credential|access[_-]?key|client[_-]?secret|rulebook(?:[_-]?(?:text|content))?|source(?:[_-]?(?:text|content))?|prompt)(?:["']?)\s*:\s*)(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^,\s}\]]+)/gi, '$1[REDACTED]')
+    .replace(/(\b(?:api[_-]?key|authorization|password|passphrase|secret|token|credential|access[_-]?key|client[_-]?secret)\s*[:=]\s*)(?:Bearer\s+)?[^\s,}"']+/gi, '$1[REDACTED]')
+    .replace(/(\bBearer\s+)[A-Za-z0-9._~+\/=\-]{8,}/gi, '$1[REDACTED_TOKEN]')
+    .replace(/(?:sk[-_]|api[-_]|ghp_|github_pat_|AKIA|ASIA)[A-Za-z0-9_-]{8,}/gi, '[REDACTED_TOKEN]')
+    .slice(0, 1000);
+}
+
+async function writeInvalidScriptPackageDiagnostic({ content, error, response, model }) {
+  if (process.env.NODE_ENV !== 'development') return;
+  const transport = inspectScriptPackageTransport(content);
+  const completion = getCompletionDiagnostic(response, { model, stage: 'final_synthesis' });
+  const diagnostic = {
+    timestamp: new Date().toISOString(),
+    model: completion.model,
+    responseId: completion.responseId,
+    finishReason: completion.finishReason,
+    responseTransport: transport.transport,
+    rawResponseChars: transport.rawResponseChars,
+    rawResponsePreview: redactScriptPackagePreview(content),
+    topLevelKeys: transport.topLevelKeys,
+    firstSectionKeys: transport.firstSectionKeys,
+    validation: {
+      code: error?.code || null,
+      reason: error?.reason || null,
+      sectionIndex: error?.sectionIndex ?? null,
+      fields: Array.isArray(error?.validationFields) ? error.validationFields : [],
+    },
+  };
+  try {
+    await fsPromises.mkdir(path.dirname(INVALID_SCRIPT_PACKAGE_DIAGNOSTIC_PATH), { recursive: true });
+    await fsPromises.writeFile(INVALID_SCRIPT_PACKAGE_DIAGNOSTIC_PATH, `${JSON.stringify(diagnostic, null, 2)}\n`, 'utf8');
+  } catch (diagnosticError) {
+    console.info('script_package_diagnostic_unavailable', JSON.stringify({ code: diagnosticError?.code || null }));
+  }
+}
+
 function createScriptGenerationError(message, {
   stage,
   generationStatus,
   classification = 'provider_empty_content',
   nextAction = null,
+  validationFields = [],
 } = {}) {
   const error = new Error(message);
   error.code = 'SCRIPT_GENERATION_INCOMPLETE';
@@ -2275,6 +2317,7 @@ function createScriptGenerationError(message, {
   error.generationStatus = generationStatus;
   error.classification = classification;
   error.nextAction = nextAction;
+  error.validationFields = validationFields;
   return error;
 }
 
@@ -2584,15 +2627,15 @@ app.post('/summarize', async (req, res) => {
       componentCount: components.length,
       structuralComplexity: chunks.length,
     });
-    const finalSynthesisInstructions = `Return ONLY a JSON script package object; do not use Markdown or code fences.
+    const finalSynthesisInstructions = `Return ONLY a JSON script package object. Do not include explanation, Markdown, or code fences outside the object.
 
 Use the validated chunk summaries below as the complete rules source. Do not invent missing rules. When a source is incomplete or contradictory, put the uncertainty in the relevant source record for operator review rather than fabricating a resolution.
 
-The JSON must be {"sections":[...]}. Each ordered section must contain:
+The JSON must be {"sections":[...]}. sections must be a non-empty ordered array. Every section must include:
 - "title": a stable pedagogical section title
 - "spokenText": narration only, ready for speech and captions. Never include brackets, citations, visual directions, Markdown source labels, or production notes.
 - "visualDirections": an array of non-spoken production-note objects. Use instruction, onScreenText, camera, highlights, arrows, and componentRefs where useful.
-- "sources": a non-empty array of {section, startOffset, endOffset, uncertainty?}. Every entry must exactly match one supplied source section and offsets.
+- "sourceIds": a non-empty array of the exact source IDs provided below, for example ["S1"]. Do not invent source IDs or offsets.
 
 Follow this pedagogical order: introduction/presentation, objective, components, numbered setup, pause before play, turn structure/actions, scoring/endgame, outro.
 
@@ -2601,7 +2644,7 @@ Tutorial length policy: ${tutorialLengthProfile.name}. Target ${tutorialLengthPr
       const componentsJson = JSON.stringify(components);
       const metadataJson = JSON.stringify(metadataForPrompt);
       const sourceGroundedSummaries = chunkSummaries.map((chunk) => (
-        `Section ${chunk.index} (source offsets ${chunk.startOffset}-${chunk.endOffset}):\n${chunk.summary}`
+        `Source S${chunk.index} (section ${chunk.index}, offsets ${chunk.startOffset}-${chunk.endOffset}):\n${chunk.summary}`
       )).join('\n\n');
       
     const finalPrompt = `${finalSynthesisInstructions}
@@ -2637,8 +2680,9 @@ console.log('Generating final English script using OpenAI...')
     });  
     
     let englishPackage;
+    let finalContent = '';
     try {
-      const finalContent = requireUsableModelText(englishSummaryResponse, {
+      finalContent = requireUsableModelText(englishSummaryResponse, {
         model: summaryAiConfig.model,
         stage: 'final_synthesis',
         label: 'final synthesis',
@@ -2648,10 +2692,19 @@ console.log('Generating final English script using OpenAI...')
       const classification = error?.code === 'SCRIPT_PACKAGE_WORD_CAP_EXCEEDED'
         ? 'spoken_word_cap_exceeded'
         : error?.code === 'SCRIPT_PACKAGE_INVALID' ? 'script_package_invalid' : error?.classification;
+      if (classification === 'script_package_invalid' || classification === 'spoken_word_cap_exceeded') {
+        await writeInvalidScriptPackageDiagnostic({
+          content: finalContent || englishSummaryResponse?.choices?.[0]?.message?.content,
+          error,
+          response: englishSummaryResponse,
+          model: summaryAiConfig.model,
+        });
+      }
       throw createScriptGenerationError(error?.message || 'Script generation stopped: final synthesis produced no usable script package. No script was saved.', {
         stage: 'final_synthesis',
         generationStatus,
         classification,
+        validationFields: Array.isArray(error?.validationFields) ? error.validationFields : [],
         nextAction: classification === 'spoken_word_cap_exceeded'
           ? 'Regenerate with the configured tutorial-length profile; do not send over-limit narration to TTS or captions.'
           : error?.nextAction,
@@ -2780,6 +2833,7 @@ console.log('Generating final English script using OpenAI...')
         code: error.code,
         stage: error.stage,
         classification: error.classification || null,
+        validationFields: Array.isArray(error.validationFields) ? error.validationFields : [],
         nextAction: error.nextAction || null,
         generationStatus: error.generationStatus || null,
       });

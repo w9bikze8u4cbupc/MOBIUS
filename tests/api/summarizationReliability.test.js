@@ -11,6 +11,8 @@ jest.mock('openai', () => ({
 jest.mock('../../src/api/imageRoutes.js', () => ({ registerImageRoutes: jest.fn() }));
 jest.mock('../../src/api/pdfUtils.js', () => ({ extractTextFromPDF: jest.fn() }));
 
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { app } from '../../src/api/index.js';
 import { buildRulebookChunks } from '../../src/services/rulebookChunker.js';
 import { resetAiConfigForTests, setAiClientForTests } from '../../src/config/aiConfig.js';
@@ -29,9 +31,11 @@ const generatedPackage = (source, spokenText = 'Complete tutorial script.') => J
     title: 'Introduction',
     spokenText,
     visualDirections: [{ instruction: 'Show the board.', componentRefs: ['cards'] }],
-    sources: [{ section: 1, startOffset: 0, endOffset: source.length }],
+    sourceIds: ['S1'],
   }],
 });
+
+const INVALID_PACKAGE_DIAGNOSTIC_PATH = path.join(process.cwd(), 'data', 'logs', 'last-invalid-script-package.json');
 
 let server;
 let baseUrl;
@@ -121,7 +125,7 @@ describe('summarization reliability', () => {
     expect(finalPrompt).toContain('Confirmed Game Name: Abyss');
     expect(finalPrompt).toContain('Requested Language: english');
     expect(finalPrompt).toContain('Validated Component Inventory:');
-    expect(finalPrompt).toContain('Section 1 (source offsets 0-');
+    expect(finalPrompt).toContain('Source S1 (section 1, offsets 0-');
     expect(finalPrompt).toContain('Players choose cards and resolve effects.');
   });
 });
@@ -334,3 +338,75 @@ describe('gpt-5.6-sol completion diagnostics', () => {
 
 
 afterAll(() => server?.close());
+
+
+test('rejects a nonempty invalid final package without saving it and writes a redacted development diagnostic', async () => {
+  const source = 'Rules: choose cards, resolve effects, and score points.';
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'development';
+  process.env.OPENAI_API_KEY = 'test-key';
+  process.env.OPENAI_MODEL = 'test-model';
+  mockRetrieve.mockReset().mockResolvedValue({ id: 'test-model' });
+  mockCompletionCreate.mockReset();
+  resetAiConfigForTests();
+  setAiClientForTests({ models: { retrieve: mockRetrieve, list: jest.fn() }, chat: { completions: { create: mockCompletionCreate } } });
+  await fs.rm(INVALID_PACKAGE_DIAGNOSTIC_PATH, { force: true });
+  const apiKey = 'sk-THIS-MUST-NOT-APPEAR-IN-DIAGNOSTICS';
+  const password = 'PASSWORD-MUST-NOT-APPEAR-IN-DIAGNOSTICS';
+  const boundaryToken = 'sk-BOUNDARY-TOKEN-MUST-NOT-APPEAR-IN-DIAGNOSTICS';
+  const rulebookExcerpt = 'RULEBOOK-MUST-NOT-APPEAR-IN-DIAGNOSTICS';
+  const paddingMarker = '__BOUNDARY_TOKEN__';
+  const invalidFinalBase = {
+    api_key: apiKey,
+    password,
+    rulebookText: rulebookExcerpt,
+    padding: paddingMarker,
+    sections: [{ title: 'Setup', spokenText: 'Place the board.', visualDirections: [], sourceIds: ['S99'] }],
+  };
+  const boundaryPaddingChars = 995 - JSON.stringify(invalidFinalBase).indexOf(paddingMarker);
+  const invalidFinal = JSON.stringify({
+    ...invalidFinalBase,
+    padding: `${'x'.repeat(boundaryPaddingChars)}${boundaryToken}`,
+  });
+  expect(invalidFinal.indexOf(boundaryToken)).toBe(995);
+  mockCompletionCreate
+    .mockResolvedValueOnce({ choices: [{ message: { content: '{}' } }] })
+    .mockResolvedValueOnce({ choices: [{ message: { content: 'Players choose cards and resolve effects.' } }] })
+    .mockResolvedValueOnce({
+      id: 'invalid-package-response',
+      choices: [{ finish_reason: 'stop', message: { content: invalidFinal } }],
+    });
+
+  try {
+    const response = await fetch(`${baseUrl}/summarize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body: JSON.stringify(payloadFor(source)),
+    });
+    const body = await response.json();
+    const diagnostic = JSON.parse(await fs.readFile(INVALID_PACKAGE_DIAGNOSTIC_PATH, 'utf8'));
+
+    expect(response.status).toBe(422);
+    expect(body).toMatchObject({
+      code: 'SCRIPT_GENERATION_INCOMPLETE', stage: 'final_synthesis', classification: 'script_package_invalid',
+      validationFields: ['sections[0].sources[0]'],
+    });
+    expect(body).not.toHaveProperty('summary');
+    expect(body).not.toHaveProperty('generated');
+    expect(mockCompletionCreate).toHaveBeenCalledTimes(3);
+    expect(diagnostic).toMatchObject({
+      model: 'test-model', responseId: 'invalid-package-response', finishReason: 'stop',
+      topLevelKeys: ['api_key', 'padding', 'password', 'rulebookText', 'sections'], firstSectionKeys: ['sourceIds', 'spokenText', 'title', 'visualDirections'],
+      validation: { code: 'SCRIPT_PACKAGE_INVALID', reason: 'unknown_source_id', fields: ['sections[0].sources[0]'] },
+    });
+    expect(diagnostic.rawResponseChars).toBe(invalidFinal.length);
+    expect(diagnostic.rawResponsePreview.length).toBeLessThanOrEqual(1000);
+    expect(JSON.stringify(diagnostic)).not.toContain(apiKey);
+    expect(JSON.stringify(diagnostic)).not.toContain(password);
+    expect(JSON.stringify(diagnostic)).not.toContain(boundaryToken);
+    expect(diagnostic.rawResponsePreview).not.toContain(boundaryToken.slice(0, 5));
+    expect(JSON.stringify(diagnostic)).not.toContain(rulebookExcerpt);
+  } finally {
+    process.env.NODE_ENV = previousNodeEnv;
+  }
+});

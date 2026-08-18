@@ -94,3 +94,6 @@ out/real-input-adhoc-cli-smoke/
 /out/
 /src/api/uploads/render-jobs/
 /directive utilisé gpt/
+
+# Local structured-package rejection diagnostics
+/data/logs/last-invalid-script-package.json
