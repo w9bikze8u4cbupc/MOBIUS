@@ -2,6 +2,7 @@ import { TextEncoder } from 'util';
 import { webcrypto } from 'crypto';
 import {
   buildDeterministicIngestionPages,
+  applyStoryboardSceneEdit,
   buildScriptGenerationRequest,
   getIngestionDocumentId,
   getScriptInputReadiness,
@@ -12,6 +13,7 @@ import {
   saveProjectContext,
   SCRIPT_PROVENANCE,
   validateMatchingIngestionManifest,
+  validateStoryboardReview,
 } from './projectContext';
 
 Object.defineProperty(globalThis, 'TextEncoder', { configurable: true, value: TextEncoder });
@@ -385,4 +387,29 @@ test('emits one safe recovery diagnostic for a legacy context and preserves its 
     finalCode: 'INGESTION_MANIFEST_PROJECT_MISMATCH',
   }));
   expect(JSON.stringify(onRecoveryDiagnostic.mock.calls)).not.toContain(context.rulebookText);
+});
+
+
+test('persists storyboard operator edits and blocks incomplete storyboard confirmation', () => {
+  const manifest = {
+    version: '1.2.0',
+    scenes: [{ id: 'scene-1', index: 0, order: 1, sectionId: 'section-01', title: 'Setup', spokenText: 'Place the board.', wordCount: 3, estimatedDurationMs: 1600, durationMs: 1600, durationSec: 1.6, transition: 'fade-in', visualDirections: [], sources: [{ section: 1, startOffset: 0, endOffset: 10 }], imageAssetIds: [], visualReviewState: 'needs_visual_review', status: 'draft', reviewNotes: '', timing: { startMs: 0, endMs: 1600 } }],
+    totalEstimatedDurationMs: 1600,
+  };
+  const edited = applyStoryboardSceneEdit(manifest, 'scene-1', { spokenText: 'Place the board between every player.', durationMs: 2200, transition: 'slide-left', imageAssetIds: ['board-image'], reviewNotes: 'Use the top-down image.' });
+  saveProjectContext(window.localStorage, { version: 4, projectId: 'storyboard-edits', gameName: 'Abyss', language: 'english', rulebookText: 'Setup', storyboardManifest: edited });
+  const hydrated = loadLatestProjectContext(window.localStorage).storyboardManifest;
+  expect(hydrated.scenes[0]).toMatchObject({ spokenText: 'Place the board between every player.', durationMs: 2200, transition: 'slide-left', imageAssetIds: ['board-image'], reviewNotes: 'Use the top-down image.' });
+  expect(validateStoryboardReview(hydrated)).toMatchObject({ valid: true });
+  expect(validateStoryboardReview({ ...hydrated, scenes: [{ ...hydrated.scenes[0], sources: [] }] })).toMatchObject({ valid: false, code: 'STORYBOARD_REVIEW_INCOMPLETE' });
+  expect(validateStoryboardReview({ ...hydrated, scenes: [{ ...hydrated.scenes[0], durationMs: 0 }] })).toMatchObject({ valid: false, code: 'STORYBOARD_REVIEW_INCOMPLETE' });
+  expect(validateStoryboardReview({ ...hydrated, scenes: [{ ...hydrated.scenes[0], visualReviewState: 'matched', imageAssetIds: [] }] }, [{ id: 'board-image' }])).toMatchObject({ valid: false, code: 'STORYBOARD_REVIEW_INCOMPLETE' });
+  expect(validateStoryboardReview({ ...hydrated, scenes: [{ ...hydrated.scenes[0], visualReviewState: 'matched', imageAssetIds: ['unknown-image'] }] }, [{ id: 'board-image' }])).toMatchObject({ valid: false, code: 'STORYBOARD_REVIEW_INCOMPLETE' });
+  expect(validateStoryboardReview({ ...hydrated, scenes: [{ ...hydrated.scenes[0], visualReviewState: 'matched', imageAssetIds: ['board-image'] }] }, [{ id: 'board-image' }])).toMatchObject({ valid: true });
+  const blocked = applyStoryboardSceneEdit(hydrated, 'scene-1', { visualReviewState: 'blocked' });
+  expect(validateStoryboardReview(blocked)).toMatchObject({ valid: false, code: 'STORYBOARD_REVIEW_INCOMPLETE' });
+  const unblocked = applyStoryboardSceneEdit(blocked, 'scene-1', { visualReviewState: 'needs_visual_review' });
+  expect(unblocked.scenes[0].status).toBe('draft');
+  expect(validateStoryboardReview(unblocked)).toMatchObject({ valid: true });
+  expect(validateStoryboardReview(applyStoryboardSceneEdit(hydrated, 'scene-1', { spokenText: '', visualReviewState: 'blocked' }))).toMatchObject({ valid: false, code: 'STORYBOARD_REVIEW_INCOMPLETE' });
 });

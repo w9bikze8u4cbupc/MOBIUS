@@ -360,3 +360,68 @@ export function loadLatestProjectContext(storage) {
     return loadProjectContext(storage, storage.getItem(LATEST_PROJECT_CONTEXT_KEY));
   } catch { return null; }
 }
+
+
+const STORYBOARD_TRANSITIONS = new Set(['fade-in', 'slide-left', 'slide-right', 'zoom-on-component', 'highlight-pulse']);
+
+function countStoryboardWords(value) {
+  return String(value || '').trim().split(/\s+/).filter(Boolean).length;
+}
+
+export function applyStoryboardSceneEdit(manifest, sceneId, patch = {}) {
+  if (!manifest || !Array.isArray(manifest.scenes)) return manifest;
+  let startMs = 0;
+  const scenes = manifest.scenes.map((scene, index) => {
+    const isEditedScene = scene.id === sceneId;
+    const updated = isEditedScene ? { ...scene, ...patch } : { ...scene };
+    const durationMs = Math.max(100, Math.round((Number(updated.durationMs) || 0) / 100) * 100);
+    const spokenText = String(updated.spokenText || '').trim();
+    const wordCount = countStoryboardWords(spokenText);
+    const visualReviewState = updated.visualReviewState || 'needs_visual_review';
+    const status = visualReviewState === 'blocked'
+      ? 'blocked'
+      : (isEditedScene && Object.prototype.hasOwnProperty.call(patch, 'visualReviewState') && updated.status === 'blocked')
+        ? 'draft'
+        : updated.status || 'draft';
+    const timing = { startMs, endMs: startMs + durationMs };
+    startMs = timing.endMs;
+    return {
+      ...updated,
+      index,
+      order: index + 1,
+      spokenText,
+      wordCount,
+      estimatedDurationMs: durationMs,
+      durationMs,
+      durationSec: durationMs / 1000,
+      timing,
+      visualReviewState,
+      status,
+      imageAssetIds: Array.isArray(updated.imageAssetIds) ? [...new Set(updated.imageAssetIds.filter((id) => typeof id === 'string' && id.trim()))] : [],
+      visualDirections: Array.isArray(updated.visualDirections) ? updated.visualDirections : [],
+      reviewNotes: typeof updated.reviewNotes === 'string' ? updated.reviewNotes : '',
+    };
+  });
+  return { ...manifest, scenes, totalEstimatedDurationMs: startMs };
+}
+
+export function validateStoryboardReview(manifest, projectImages = null) {
+  if (!manifest || !Array.isArray(manifest.scenes) || manifest.scenes.length === 0) {
+    return { valid: false, code: 'STORYBOARD_REVIEW_MISSING' };
+  }
+  const knownImageAssetIds = Array.isArray(projectImages) ? new Set(projectImages.map((image) => image?.id).filter(Boolean)) : null;
+  const failures = manifest.scenes.filter((scene) => {
+    const imageAssetIds = Array.isArray(scene.imageAssetIds) ? scene.imageAssetIds.filter(Boolean) : [];
+    const hasResolvedMatchedAsset = scene.visualReviewState !== 'matched'
+      || (imageAssetIds.length > 0 && (!knownImageAssetIds || imageAssetIds.some((id) => knownImageAssetIds.has(id))));
+    return !String(scene.spokenText || '').trim()
+      || !Array.isArray(scene.sources) || scene.sources.length === 0
+      || !Number.isFinite(scene.durationMs) || scene.durationMs < 100
+      || !STORYBOARD_TRANSITIONS.has(scene.transition)
+      || scene.status === 'blocked' || scene.visualReviewState === 'blocked'
+      || !hasResolvedMatchedAsset;
+  });
+  return failures.length
+    ? { valid: false, code: 'STORYBOARD_REVIEW_INCOMPLETE', sceneIds: failures.map((scene) => scene.id) }
+    : { valid: true, code: null };
+}

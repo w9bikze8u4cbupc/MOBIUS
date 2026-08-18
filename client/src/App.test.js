@@ -226,8 +226,9 @@ test('hydrates canonical Abyss context and sends it unchanged to the summary API
     images: [{ id: 'image-1' }],
     componentImageLinks: { 'component-1': ['image-1'] },
     script: 'Operator-edited script',
+    storyboardManifest: { version: '1.2.0', scenes: [{ id: 'old-scene', spokenText: 'Old storyboard narration.', durationMs: 2000, transition: 'fade-in', sources: [{ section: 1 }] }] },
     activeStepId: 'script',
-    completedStepIds: ['project', 'metadata', 'ingestion', 'images'],
+    completedStepIds: ['project', 'metadata', 'ingestion', 'images', 'storyboard'],
   });
   axios.get.mockResolvedValue({ data: { ready: true, message: 'AI model is ready.' } });
   axios.post.mockResolvedValue({
@@ -268,6 +269,11 @@ test('hydrates canonical Abyss context and sends it unchanged to the summary API
     );
   });
   expect(screen.getByText('Script generated successfully')).toBeInTheDocument();
+  await waitFor(() => {
+    const persisted = loadLatestProjectContext(window.localStorage);
+    expect(persisted.storyboardManifest).toBeNull();
+    expect(persisted.completedStepIds).not.toContain('storyboard');
+  });
 });
 
 
@@ -547,7 +553,7 @@ test('hydrates a matching persisted manifest and sends it with the validated scr
     expect.objectContaining({
       ingestionManifest,
       scriptPackage: context.scriptPackage,
-      options: { includeOverlayHashes: true },
+      options: { includeOverlayHashes: true, language: 'english' },
     }),
   ));
 });
@@ -628,4 +634,24 @@ test('preserves a typed recovery failure instead of collapsing it to a generic m
   expect(axios.post).toHaveBeenCalledWith(
     expect.stringContaining('/api/projects/recover-ingestion-manifest'), { projectId: context.projectId },
   );
+});
+
+
+test('uses canonical storyboard spokenText and timing for Remotion without leaking review metadata into narration', () => {
+  const scenes = buildRemotionScenes({
+    script: 'fallback narration',
+    scriptPackage: null,
+    storyboardManifest: {
+      version: '1.2.0',
+      scenes: [{ id: 'scene-section-01-1', title: 'Setup', spokenText: 'Place the board.', durationMs: 3200, visualDirections: [{ instruction: 'Show board.', onScreenText: 'Setup', componentRefs: ['board'] }], sources: [{ section: 1, startOffset: 0, endOffset: 10 }], componentRefs: ['board'], imageAssetIds: ['board-image'], reviewNotes: 'Do not narrate this.' }],
+    },
+    gameName: 'Abyss',
+    images: [{ id: 'board-image', fileKey: 'src/api/uploads/board.png' }],
+    componentImageLinks: {},
+  });
+  expect(scenes).toEqual([expect.objectContaining({
+    id: 'scene-section-01-1', narrationText: 'Place the board.', durationInFrames: 96, imageUrls: ['/uploads/board.png'],
+  })]);
+  expect(JSON.stringify(scenes[0].narrationText)).not.toContain('Do not narrate');
+  expect(JSON.stringify(scenes[0].narrationText)).not.toContain('Show board');
 });

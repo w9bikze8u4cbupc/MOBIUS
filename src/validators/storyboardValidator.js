@@ -3,7 +3,8 @@ const path = require('path');
 
 const CONTRACT_FILES = {
   '1.0.0': path.join(__dirname, '../../docs/spec/storyboard_contract.json'),
-  '1.1.0': path.join(__dirname, '../../docs/spec/storyboard_contract_v1.1.0.json')
+  '1.1.0': path.join(__dirname, '../../docs/spec/storyboard_contract_v1.1.0.json'),
+  '1.2.0': path.join(__dirname, '../../docs/spec/storyboard_contract_v1.2.0.json'),
 };
 
 function loadContract({ contractVersion, contractPath }) {
@@ -110,6 +111,33 @@ function validateSceneStructure(manifest, contract, bucket) {
       }
     }
   });
+}
+
+function validateCanonicalSceneDto(manifest, contract, bucket) {
+  if (contract.version !== '1.2.0') return;
+  const required = contract.canonicalSceneRequiredFields || [];
+  let expectedStartMs = 0;
+  (manifest.scenes || []).forEach((scene, index) => {
+    required.forEach((field) => {
+      if (scene[field] === undefined) pushError(bucket, `Canonical scene ${scene.id || index} missing ${field}`);
+    });
+    if (!Number.isInteger(scene.order) || scene.order !== index + 1) pushError(bucket, `Canonical scene ${scene.id || index} order mismatch`);
+    if (!Number.isInteger(scene.wordCount) || scene.wordCount < 1) pushError(bucket, `Canonical scene ${scene.id || index} wordCount invalid`);
+    if (!Number.isInteger(scene.estimatedDurationMs) || scene.estimatedDurationMs < 100) pushError(bucket, `Canonical scene ${scene.id || index} estimated duration invalid`);
+    if (scene.durationMs !== scene.estimatedDurationMs || scene.durationSec !== scene.durationMs / 1000) pushError(bucket, `Canonical scene ${scene.id || index} duration fields disagree`);
+    if (typeof scene.spokenText !== 'string' || !scene.spokenText.trim()) pushError(bucket, `Canonical scene ${scene.id || index} spokenText missing`);
+    if (!Array.isArray(scene.sources) || !scene.sources.length) pushError(bucket, `Canonical scene ${scene.id || index} sources missing`);
+    if (!Array.isArray(scene.visualDirections) || !Array.isArray(scene.imageAssetIds)) pushError(bucket, `Canonical scene ${scene.id || index} visual data invalid`);
+    if (!['matched', 'needs_visual_review', 'blocked'].includes(scene.visualReviewState)) pushError(bucket, `Canonical scene ${scene.id || index} visual review state invalid`);
+    if (!['draft', 'ready', 'blocked'].includes(scene.status)) pushError(bucket, `Canonical scene ${scene.id || index} status invalid`);
+    if (typeof scene.reviewNotes !== 'string') pushError(bucket, `Canonical scene ${scene.id || index} review notes invalid`);
+    if (!contract.motion.primitives.includes(scene.transition)) pushError(bucket, `Canonical scene ${scene.id || index} transition invalid`);
+    if (!scene.timing || scene.timing.startMs !== expectedStartMs || scene.timing.endMs !== expectedStartMs + scene.durationMs) {
+      pushError(bucket, `Canonical scene ${scene.id || index} timing range invalid`);
+    }
+    expectedStartMs += Number.isFinite(scene.durationMs) ? scene.durationMs : 0;
+  });
+  if (manifest.totalEstimatedDurationMs !== expectedStartMs) pushError(bucket, 'Canonical storyboard total duration mismatch');
 }
 
 function validateLayout(manifest, contract, bucket) {
@@ -233,6 +261,7 @@ function validateStoryboard(manifest, options = {}) {
 
   try {
     validateSceneStructure(manifest, contract, summary.reports.scenes);
+    validateCanonicalSceneDto(manifest, contract, summary.reports.scenes);
     validateLayout(manifest, contract, summary.reports.layout);
     validateMotion(manifest, contract, summary.reports.motion);
     validateTiming(manifest, contract, summary.reports.timing);

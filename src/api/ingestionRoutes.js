@@ -90,8 +90,10 @@ export function registerPhaseERoutes(app, deps) {
       console.error('Storyboard generation failed:', err);
       const code = err.message === 'STORYBOARD_INVALID_INGESTION'
         ? 'STORYBOARD_INVALID_INGESTION'
-        : 'STORYBOARD_UNKNOWN_ERROR';
-      return res.status(code === 'STORYBOARD_INVALID_INGESTION' ? 400 : 500).json({
+        : err.message === 'STORYBOARD_INVALID_SCRIPT_PACKAGE'
+          ? 'STORYBOARD_INVALID_SCRIPT_PACKAGE'
+          : 'STORYBOARD_UNKNOWN_ERROR';
+      return res.status(code === 'STORYBOARD_UNKNOWN_ERROR' ? 500 : 400).json({
         error: 'Failed to generate storyboard',
         code
       });

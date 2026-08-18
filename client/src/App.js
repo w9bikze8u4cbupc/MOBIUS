@@ -22,6 +22,7 @@ import { VoiceStep } from "./components/steps/VoiceStep";
 import { RenderExportStep } from "./components/steps/RenderExportStep";
 import {
   applyEditedNarration,
+  applyStoryboardSceneEdit,
   buildDeterministicIngestionPages,
   buildScriptGenerationRequest,
   createPersistedProjectContext,
@@ -37,6 +38,7 @@ import {
   saveProjectContext,
   scriptPackageToEditableNarration,
   validateMatchingIngestionManifest,
+  validateStoryboardReview,
 } from "./projectContext";
 import "./styles/pipeline.css";
 
@@ -225,16 +227,30 @@ function pathIsAbsolute(filePath) {
   return /^([a-zA-Z]:)?\//.test(filePath);
 }
 
-export function buildRemotionScenes({ script, scriptPackage, gameName, images, componentImageLinks }) {
-  const sections = Array.isArray(scriptPackage?.sections) && scriptPackage.sections.length > 0
-    ? scriptPackage.sections.map((section) => ({
-      sectionTitle: cleanRemotionText(section.title) || 'Tutorial',
-      narrationText: cleanRemotionText(section.spokenText),
-      visualDirections: Array.isArray(section.visualDirections) ? section.visualDirections : [],
-      sources: Array.isArray(section.sources) ? section.sources : [],
-      componentRefs: [...new Set((section.visualDirections || []).flatMap((direction) => direction.componentRefs || []))],
-    })).filter((section) => section.narrationText)
-    : splitRemotionSections(script, gameName);
+export function buildRemotionScenes({ script, scriptPackage, storyboardManifest, gameName, images, componentImageLinks }) {
+  const canonicalStoryboardScenes = storyboardManifest?.version === '1.2.0' && Array.isArray(storyboardManifest.scenes)
+    ? storyboardManifest.scenes.filter((scene) => String(scene.spokenText || '').trim())
+    : null;
+  const sections = canonicalStoryboardScenes
+    ? canonicalStoryboardScenes.map((scene) => ({
+      id: scene.id,
+      sectionTitle: cleanRemotionText(scene.title) || 'Tutorial',
+      narrationText: cleanRemotionText(scene.spokenText),
+      visualDirections: Array.isArray(scene.visualDirections) ? scene.visualDirections : [],
+      sources: Array.isArray(scene.sources) ? scene.sources : [],
+      componentRefs: Array.isArray(scene.componentRefs) ? scene.componentRefs : [],
+      imageAssetIds: Array.isArray(scene.imageAssetIds) ? scene.imageAssetIds : [],
+      durationInFrames: Math.max(1, Math.round((Number(scene.durationMs) || 0) / 1000 * 30)),
+    }))
+    : Array.isArray(scriptPackage?.sections) && scriptPackage.sections.length > 0
+      ? scriptPackage.sections.map((section) => ({
+        sectionTitle: cleanRemotionText(section.title) || 'Tutorial',
+        narrationText: cleanRemotionText(section.spokenText),
+        visualDirections: Array.isArray(section.visualDirections) ? section.visualDirections : [],
+        sources: Array.isArray(section.sources) ? section.sources : [],
+        componentRefs: [...new Set((section.visualDirections || []).flatMap((direction) => direction.componentRefs || []))],
+      })).filter((section) => section.narrationText)
+      : splitRemotionSections(script, gameName);
   const imagesById = new Map((images || []).map((image) => [image.id, getRemotionImagePath(image)]));
   const linkedImageIds = new Set(Object.values(componentImageLinks || {}).flat().filter(Boolean));
   const imageUrls = (linkedImageIds.size > 0 ? (images || []).filter((image) => linkedImageIds.has(image.id)) : (images || []))
@@ -243,16 +259,16 @@ export function buildRemotionScenes({ script, scriptPackage, gameName, images, c
 
   return sections.map((section, index) => {
     const wordCount = section.narrationText.split(/\s+/).filter(Boolean).length;
-    const visualImageUrls = [...new Set((section.componentRefs || [])
-      .flatMap((componentId) => componentImageLinks?.[componentId] || [])
-      .map((imageId) => imagesById.get(imageId))
-      .filter(Boolean))];
+    const visualImageUrls = [...new Set([
+      ...(section.imageAssetIds || []).map((imageId) => imagesById.get(imageId)),
+      ...(section.componentRefs || []).flatMap((componentId) => componentImageLinks?.[componentId] || []).map((imageId) => imagesById.get(imageId)),
+    ].filter(Boolean))];
     const visualOverlayText = (section.visualDirections || [])
       .map((direction) => direction.onScreenText)
       .filter(Boolean)
       .join(' · ');
     return {
-      id: `scene-${index + 1}`,
+      id: section.id || `scene-${index + 1}`,
       sectionTitle: section.sectionTitle,
       narrationText: section.narrationText,
       visualDirections: section.visualDirections || [],
@@ -262,10 +278,10 @@ export function buildRemotionScenes({ script, scriptPackage, gameName, images, c
       imageUrls: visualImageUrls.length > 0
         ? visualImageUrls
         : imageUrls.length > 0
-        ? [imageUrls[index % imageUrls.length]]
-        : [REMOTION_PLACEHOLDER_IMAGE],
+          ? [imageUrls[index % imageUrls.length]]
+          : [REMOTION_PLACEHOLDER_IMAGE],
       themeBorderColor: REMOTION_SCENE_COLORS[index % REMOTION_SCENE_COLORS.length],
-      durationInFrames: Math.max(90, Math.round((wordCount / 150) * 60 * 30)),
+      durationInFrames: section.durationInFrames || Math.max(90, Math.round((wordCount / 150) * 60 * 30)),
     };
   });
 }
@@ -999,7 +1015,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       const { data } = await axios.post(`${BACKEND_URL}/api/storyboard`, {
         ingestionManifest: manifest,
         scriptPackage: isSourceCompleteScriptPackage(scriptPackage) ? scriptPackage : null,
-        options: { includeOverlayHashes: true }
+        options: { includeOverlayHashes: true, language }
       });
       setStoryboardManifest(data.manifest);
     } catch (err) {
@@ -1008,6 +1024,10 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     } finally {
       setStoryboarding(false);
     }
+  };
+
+  const handleUpdateStoryboardScene = (sceneId, patch) => {
+    setStoryboardManifest((previous) => applyStoryboardSceneEdit(previous, sceneId, patch));
   };
 
   const handleStartRender = async () => {
@@ -1035,6 +1055,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       const scenes = buildRemotionScenes({
         script,
         scriptPackage,
+        storyboardManifest,
         gameName,
         images: projectImages,
         componentImageLinks,
@@ -1151,6 +1172,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     const nextScript = e.target.value;
     setEditedSummary(nextScript);
     setScriptPackage((previous) => applyEditedNarration(previous, nextScript));
+    setStoryboardManifest(null);
+    setCompletedStepIds((previous) => previous.filter((stepId) => stepId !== 'storyboard'));
     setScriptProvenance(nextScript.trim() ? SCRIPT_PROVENANCE.MANUAL : null);
     setGeneratedScript(false);
     setGenerationStatus(null);
@@ -1165,6 +1188,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       setGeneratedScript(false);
       setScriptProvenance(editedSummary.trim() ? SCRIPT_PROVENANCE.MANUAL : null);
       setGenerationStatus(null);
+      setStoryboardManifest(null);
+      setCompletedStepIds((previous) => previous.filter((stepId) => stepId !== 'storyboard'));
       // Sections and audio effects will trigger automatically when summary state changes
       console.log('Edited summary saved and sections re-split.');
     } catch (err) {
@@ -1294,6 +1319,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         }
         setScriptPackage(generatedPackage);
         setSummary(generatedSummary);
+        setStoryboardManifest(null);
+        setCompletedStepIds((previous) => previous.filter((stepId) => stepId !== 'storyboard'));
         setGeneratedScript(true);
         setScriptProvenance(SCRIPT_PROVENANCE.GENERATED_SOURCE_COMPLETE);
         setGenerationStatus(response.data.generationStatus);
@@ -1548,6 +1575,11 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           setError("Generate the storyboard to proceed.");
           return;
         }
+        const storyboardReview = validateStoryboardReview(storyboardManifest, projectImages);
+        if (!storyboardReview.valid) {
+          setError(storyboardReview.code);
+          return;
+        }
         setError("");
         setAndAdvance();
         break;
@@ -1600,7 +1632,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
             completedStepIds={completedStepIds}
             onStepClick={goToStep}
             onConfirmStep={handleConfirmStep}
-            canConfirmStep={(stepId) => stepId !== 'script' || canConfirmScript}
+            canConfirmStep={(stepId) => (stepId !== 'script' || canConfirmScript)
+              && (stepId !== 'storyboard' || validateStoryboardReview(storyboardManifest, projectImages).valid)}
           />
 
           {error && (<div style={{ color: "red", marginBottom: 12 }}>{error}</div>)}
@@ -1707,6 +1740,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           {activeStepId === "storyboard" && (
             <StoryboardStep
               onGenerateStoryboard={handleGenerateStoryboard}
+              onUpdateScene={handleUpdateStoryboardScene}
               storyboardManifest={storyboardManifest}
               storyboardError={storyboardError}
               storyboarding={storyboarding}
@@ -1739,7 +1773,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
             <button
               className="confirm-step-btn"
               onClick={() => handleConfirmStep(activeStepId)}
-              disabled={activeStepId === 'script' && !canConfirmScript}
+              disabled={(activeStepId === 'script' && !canConfirmScript)
+                || (activeStepId === 'storyboard' && !validateStoryboardReview(storyboardManifest, projectImages).valid)}
               style={{
                 background: 'linear-gradient(90deg, #1565c0, #1976d2)',
                 color: 'white',

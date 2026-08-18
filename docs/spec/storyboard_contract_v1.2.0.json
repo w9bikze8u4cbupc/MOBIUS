@@ -1,0 +1,21 @@
+{
+  "version": "1.2.0",
+  "frameQuantizationSec": 0.1,
+  "sceneTypes": {},
+  "linking": { "requirePrevNext": true },
+  "motion": {
+    "primitives": ["fade-in", "slide-left", "slide-right", "zoom-on-component", "highlight-pulse"],
+    "easing": ["linear"]
+  },
+  "canonicalSceneRequiredFields": [
+    "id", "order", "sectionId", "title", "spokenText", "wordCount",
+    "estimatedDurationMs", "durationMs", "durationSec", "transition",
+    "visualDirections", "sources", "imageAssetIds", "visualReviewState",
+    "status", "reviewNotes", "timing"
+  ],
+  "visualReviewPolicy": {
+    "needs_visual_review": "non-blocking when narration, provenance, timing, and transition validation pass; it must remain visible to the operator and must not be represented as a matched asset",
+    "matched": "requires at least one imageAssetId that resolves to the current project image inventory before confirmation",
+    "blocked": "blocks storyboard confirmation"
+  }
+}
