@@ -81,6 +81,13 @@ import {
 } from '../services/imagePipeline.js';
 import { extractComponentInventory } from '../services/componentInventory.js';
 import { buildRulebookChunks, MAX_RULEBOOK_CHUNK_CHARS } from '../services/rulebookChunker.js';
+import {
+  attachScriptPackageToStoryboard,
+  parseGeneratedScriptPackage,
+  resolveTutorialLengthProfile,
+  sanitizeSpokenText,
+  scriptPackageToNarrationMarkdown,
+} from '../services/scriptPackage.js';
 
 
 
@@ -207,7 +214,7 @@ app.post('/api/ingest', async (req, res) => {
 // --- Storyboard API endpoint ---
 app.post('/api/storyboard', async (req, res) => {
   try {
-    const { ingestionManifest, options = {} } = req.body;
+    const { ingestionManifest, options = {}, scriptPackage = null } = req.body;
     
     if (!ingestionManifest) {
       return res.status(400).json({ error: 'Missing ingestionManifest' });
@@ -224,7 +231,7 @@ app.post('/api/storyboard', async (req, res) => {
       });
     }
     
-    res.json({ ok: true, manifest: storyboard });
+    res.json({ ok: true, manifest: attachScriptPackageToStoryboard(storyboard, scriptPackage) });
   } catch (err) {
     console.error('Storyboard error:', err.message);
     res.status(400).json({ 
@@ -2571,21 +2578,25 @@ app.post('/summarize', async (req, res) => {
     
     // Final synthesis consumes the validated source-grounded chunk summaries as its
     // canonical rules context. The raw rulebook stays in the ingestion/chunking path.
-    const finalSynthesisInstructions = `Write the finished beginner-friendly board-game tutorial immediately.
+    const nonWhitespaceSourceChars = rulebookText.replace(/\s/g, '').length;
+    const tutorialLengthProfile = resolveTutorialLengthProfile({
+      rulebookNonWhitespaceChars: nonWhitespaceSourceChars,
+      componentCount: components.length,
+      structuralComplexity: chunks.length,
+    });
+    const finalSynthesisInstructions = `Return ONLY a JSON script package object; do not use Markdown or code fences.
 
-Use the validated chunk summaries below as the complete rules source. Do not expose analysis or describe your reasoning. Do not invent missing rules; when a detail is uncertain, tell viewers to consult the official rulebook.
+Use the validated chunk summaries below as the complete rules source. Do not invent missing rules. When a source is incomplete or contradictory, put the uncertainty in the relevant source record for operator review rather than fabricating a resolution.
 
-Follow this pedagogical order exactly:
-1. Introduction and presentation
-2. Objective
-3. Components
-4. Numbered setup
-5. Suggested pause before play begins
-6. Turn structure and actions
-7. Scoring and endgame
-8. Outro
+The JSON must be {"sections":[...]}. Each ordered section must contain:
+- "title": a stable pedagogical section title
+- "spokenText": narration only, ready for speech and captions. Never include brackets, citations, visual directions, Markdown source labels, or production notes.
+- "visualDirections": an array of non-spoken production-note objects. Use instruction, onScreenText, camera, highlights, arrows, and componentRefs where useful.
+- "sources": a non-empty array of {section, startOffset, endOffset, uncertainty?}. Every entry must exactly match one supplied source section and offsets.
 
-Write for spoken delivery in clear, friendly language. Include concise bracketed visual cues where useful. Keep the cited section offsets with the source context and ground every rule in that context.`;
+Follow this pedagogical order: introduction/presentation, objective, components, numbered setup, pause before play, turn structure/actions, scoring/endgame, outro.
+
+Tutorial length policy: ${tutorialLengthProfile.name}. Target ${tutorialLengthProfile.targetSpokenWords.min}-${tutorialLengthProfile.targetSpokenWords.max} spoken English words and never exceed ${tutorialLengthProfile.maxSpokenWords}. Prefer objective, setup, a normal turn, essential scoring/endgame, and relevant secondary rules. Put rare exceptions, exhaustive reward tables, and card-by-card detail in visualDirections or an official-rulebook reminder instead of narration.`;
 
       const componentsJson = JSON.stringify(components);
       const metadataJson = JSON.stringify(metadataForPrompt);
@@ -2625,55 +2636,54 @@ console.log('Generating final English script using OpenAI...')
       ...getGenerationOptions(summaryAiConfig, {}, 'summary_final'),
     });  
     
-    let englishSummary;
+    let englishPackage;
     try {
-      englishSummary = requireUsableModelText(englishSummaryResponse, {
+      const finalContent = requireUsableModelText(englishSummaryResponse, {
         model: summaryAiConfig.model,
         stage: 'final_synthesis',
         label: 'final synthesis',
       });
+      englishPackage = parseGeneratedScriptPackage(finalContent, { chunks: chunkSummaries, profile: tutorialLengthProfile });
     } catch (error) {
-      throw createScriptGenerationError(error?.message || 'Script generation stopped: final synthesis produced no usable script. No script was saved.', {
+      const classification = error?.code === 'SCRIPT_PACKAGE_WORD_CAP_EXCEEDED'
+        ? 'spoken_word_cap_exceeded'
+        : error?.code === 'SCRIPT_PACKAGE_INVALID' ? 'script_package_invalid' : error?.classification;
+      throw createScriptGenerationError(error?.message || 'Script generation stopped: final synthesis produced no usable script package. No script was saved.', {
         stage: 'final_synthesis',
         generationStatus,
-        classification: error?.classification,
-        nextAction: error?.nextAction,
+        classification,
+        nextAction: classification === 'spoken_word_cap_exceeded'
+          ? 'Regenerate with the configured tutorial-length profile; do not send over-limit narration to TTS or captions.'
+          : error?.nextAction,
       });
     }
+    let finalScriptPackage = englishPackage;
+    let finalOutputSummary = scriptPackageToNarrationMarkdown(finalScriptPackage);
     generationStatus = createGenerationStatus({
       coverage,
       chunkCount: chunks.length,
       completedChunks: chunkSummaries.length,
-      finalScriptLength: englishSummary.length,
+      finalScriptLength: finalOutputSummary.length,
       metadataAvailable: metadataResult.available,
     });
-    console.log('Generated English script length:', englishSummary.length);
-
-    let finalOutputSummary = englishSummary;  
+    generationStatus.tutorialLengthProfile = finalScriptPackage.lengthProfile;
+    console.log('Generated English narration length:', finalOutputSummary.length);
     
     // If French is requested, use GPT-4 to translate  
     if (language === 'french') {  
       console.log('Translation to French requested. Using GPT-4 for translation...');  
       try {  
-        const translationPrompt = `Please translate the following English board game tutorial script into French.
-
-            Maintain the same friendly, conversational, and engaging tone as the original.
-            Keep all formatting, including markdown, section headers, and any special markers such as [SHORT PAUSE] or [Show close-up of cards].
-            Ensure the translation is natural, idiomatic French that sounds appropriate for a YouTube tutorial and is easy to follow when spoken aloud.
-            Do not omit or add any content; translate everything as faithfully as possible.
-
-        Here is the script to translate:  
-        ${englishSummary}`;  
+        const translationPrompt = `Translate this script package to French. Return only the same JSON package shape. Translate title, spokenText, and visualDirections into natural French; preserve every sources entry and its offsets exactly. Keep spokenText narration-only: no brackets, citations, Markdown labels, or production notes.\n\n${JSON.stringify(englishPackage)}`;
         
         const translationResponse = await getAiClient().chat.completions.create({
           model: getAiModel(),
-          messages: [  
-            {  
-              role: 'system',  
-              content: "You are a professional English-to-French translator specializing in boardgame content and YouTube video scripts. Your translations are always natural, idiomatic, and engaging, perfectly suited for spoken delivery in a friendly, casual, and accessible style. You preserve all formatting, markdown, section headers, and special markers (such as [SHORT PAUSE] or [Show close-up of cards]) exactly as in the original. You never omit, add, or alter content—your goal is to deliver a faithful, high-quality French version that feels as lively and clear as the English script.",  
-            },  
-            { role: 'user', content: translationPrompt },  
-          ],  
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a precise English-to-French board-game tutorial translator. Preserve package structure and source provenance exactly; translate only human-facing narration and visual directions.',
+            },
+            { role: 'user', content: translationPrompt },
+          ],
           ...getGenerationOptions(summaryAiConfig, {
             max_completion_tokens: 4096,
             temperature: 0.3,
@@ -2681,16 +2691,17 @@ console.log('Generating final English script using OpenAI...')
         });  
         
         try {
-          finalOutputSummary = requireUsableModelText(translationResponse, {
+          const translatedContent = requireUsableModelText(translationResponse, {
             model: summaryAiConfig.model,
             stage: 'translation',
             label: 'French translation',
           });
+          finalScriptPackage = parseGeneratedScriptPackage(translatedContent, { chunks: chunkSummaries, profile: tutorialLengthProfile });
+          finalOutputSummary = scriptPackageToNarrationMarkdown(finalScriptPackage);
         } catch (error) {
-          throw createScriptGenerationError(error?.message || 'Script generation stopped: French translation produced no usable script. No script was saved.', {
-            stage: 'translation',
-            generationStatus,
-            classification: error?.classification,
+          throw createScriptGenerationError(error?.message || 'Script generation stopped: French translation produced no usable script package. No script was saved.', {
+            stage: 'translation', generationStatus,
+            classification: error?.code === 'SCRIPT_PACKAGE_WORD_CAP_EXCEEDED' ? 'spoken_word_cap_exceeded' : error?.classification,
             nextAction: error?.nextAction,
           });
         }
@@ -2701,7 +2712,8 @@ console.log('Generating final English script using OpenAI...')
           finalScriptLength: finalOutputSummary.length,
           metadataAvailable: metadataResult.available,
         });
-        console.log('Successfully translated summary to French.');  
+        generationStatus.tutorialLengthProfile = finalScriptPackage.lengthProfile;
+        console.log('Successfully translated script package to French.');
       } catch (translateError) {
         const compatibilityError = translateError.code === 'AI_GENERATION_OPTION_UNSUPPORTED'
           ? translateError
@@ -2739,6 +2751,7 @@ console.log('Generating final English script using OpenAI...')
       generated: true,
       projectId,
       summary: finalOutputSummary,
+      scriptPackage: finalScriptPackage,
       metadata: metadataForPrompt,
       metadataWarning: metadataResult.warning,
       components,
@@ -2994,7 +3007,8 @@ app.get('/list-page-images', (req, res) => {
 
 // TTS Endpoint
 app.post('/tts', async (req, res) => {
-  const { text, voice, language, gameName } = req.body;
+  const { voice, language, gameName } = req.body;
+  const text = sanitizeSpokenText(req.body?.text);
   if (!text) return res.status(400).json({ error: 'No text provided for TTS' });
   if (!gameName) return res.status(400).json({ error: 'No game name provided' });
   

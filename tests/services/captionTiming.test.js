@@ -127,3 +127,16 @@ describe('captionTiming', () => {
     });
   });
 });
+
+
+test('uses spokenText for captions and removes visual and source material from legacy fallback text', () => {
+  const { cues } = generateCaptionCues([{
+    id: 'script-package-scene',
+    durationSec: 4,
+    spokenText: 'Take one card. Visual: highlight row. Source: Section 2, offsets 100-200.',
+    visualDirections: [{ instruction: 'Highlight row' }],
+    sources: [{ section: 2, startOffset: 100, endOffset: 200 }],
+  }]);
+  expect(cues).toHaveLength(1);
+  expect(cues[0].text).toBe('Take one card.');
+});

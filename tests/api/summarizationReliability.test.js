@@ -24,6 +24,15 @@ const payloadFor = (rulebookText) => ({
   metadata: { publisher: 'Bombyx' },
 });
 
+const generatedPackage = (source, spokenText = 'Complete tutorial script.') => JSON.stringify({
+  sections: [{
+    title: 'Introduction',
+    spokenText,
+    visualDirections: [{ instruction: 'Show the board.', componentRefs: ['cards'] }],
+    sources: [{ section: 1, startOffset: 0, endOffset: source.length }],
+  }],
+});
+
 let server;
 let baseUrl;
 
@@ -86,7 +95,7 @@ describe('summarization reliability', () => {
     mockCompletionCreate
       .mockResolvedValueOnce({ choices: [{ message: { content: '' } }] })
       .mockResolvedValueOnce({ choices: [{ message: { content: 'Players choose cards and resolve effects.' } }] })
-      .mockResolvedValueOnce({ choices: [{ message: { content: 'Complete tutorial script.' } }] });
+      .mockResolvedValueOnce({ choices: [{ message: { content: generatedPackage(source) } }] });
 
     const response = await fetch(`${baseUrl}/summarize`, {
       method: 'POST',
@@ -98,10 +107,15 @@ describe('summarization reliability', () => {
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
       generated: true,
-      summary: 'Complete tutorial script.',
+      summary: '## Introduction\n\nComplete tutorial script.',
       metadataWarning: 'Optional metadata was unavailable.',
       sourceCompleteness: { complete: true },
-      generationStatus: { sourceChars: source.length, chunkCount: 1, completedChunks: 1, sourceComplete: true, finalScriptLength: 25 },
+      generationStatus: { sourceChars: source.length, chunkCount: 1, completedChunks: 1, sourceComplete: true, finalScriptLength: 42 },
+    });
+    expect(body.scriptPackage.sections[0]).toMatchObject({
+      spokenText: 'Complete tutorial script.',
+      visualDirections: [expect.any(Object)],
+      sources: [expect.objectContaining({ section: 1, startOffset: 0, endOffset: source.length })],
     });
     const finalPrompt = mockCompletionCreate.mock.calls[2][0].messages[1].content;
     expect(finalPrompt).toContain('Confirmed Game Name: Abyss');
@@ -141,7 +155,7 @@ describe('gpt-5.6-sol completion diagnostics', () => {
         id: 'chunk-normal',
         choices: [{ finish_reason: 'stop', message: { content: 'Players choose cards and resolve effects.' } }],
       })
-      .mockResolvedValueOnce({ choices: [{ message: { content: 'Complete tutorial script.' } }] });
+      .mockResolvedValueOnce({ choices: [{ message: { content: generatedPackage(source) } }] });
 
     const response = await fetch(`${baseUrl}/summarize`, {
       method: 'POST',
@@ -166,8 +180,8 @@ describe('gpt-5.6-sol completion diagnostics', () => {
     expect(finalPrompt).toContain('Validated Source-Grounded Rulebook Chunk Summaries:');
     expect(finalPrompt).toContain('Players choose cards and resolve effects.');
     expect(finalPrompt).not.toContain(source);
-    expect(finalPrompt).toContain('1. Introduction and presentation');
-    expect(finalPrompt).toContain('8. Outro');
+    expect(finalPrompt).toContain('Follow this pedagogical order: introduction/presentation');
+    expect(finalPrompt).toContain('Tutorial length policy: short.');
     expect(finalPrompt.length).toBeLessThan(2000);
   });
 

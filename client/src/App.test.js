@@ -10,7 +10,7 @@ jest.mock('axios', () => ({
 
 import axios from 'axios';
 import { getDocument } from 'pdfjs-dist';
-import App, { createProjectIdFromFilename, hasValidComponentInventory, extractPdfPageText } from './App';
+import App, { buildRemotionScenes, createProjectIdFromFilename, hasValidComponentInventory, extractPdfPageText } from './App';
 import { saveProjectContext } from './projectContext';
 
 jest.mock('pdfjs-dist', () => ({
@@ -37,6 +37,7 @@ jest.mock('./components/steps/ScriptStep', () => ({
     scriptProvenance,
     summary,
     editedSummary,
+    onEdit,
     generationStatus,
     summaryWarning,
   }) => (
@@ -44,6 +45,7 @@ jest.mock('./components/steps/ScriptStep', () => ({
       <div data-testid="script-readiness">{scriptInputReadiness?.message || 'ready'}</div>
       <div data-testid="script-provenance">{scriptProvenance || 'none'}</div>
       <div data-testid="editable-script">{editedSummary}</div>
+      <textarea aria-label="Narration editor" value={editedSummary} onChange={onEdit} />
       <button onClick={onSummarize} disabled={!scriptInputReadiness?.ready}>Generate optional AI summary</button>
       {scriptProvenance === 'generated_source_complete' && generationStatus?.sourceComplete && summary
         ? <div>Script generated successfully</div>
@@ -215,6 +217,7 @@ test('hydrates canonical Abyss context and sends it unchanged to the summary API
     data: {
       generated: true,
       summary: 'Generated tutorial script',
+      scriptPackage: { sections: [{ id: 'section-01', order: 1, title: 'Introduction', spokenText: 'Generated tutorial script', visualDirections: [], sources: [{ section: 1, startOffset: 0, endOffset: rulebookText.length }] }] },
       metadata,
       components,
       sourceCompleteness: { complete: true },
@@ -407,6 +410,7 @@ test('clears stale success while retaining a previously source-complete generate
     rulebookText: 'Approved Abyss rulebook text',
     components: [{ id: 'cards', name: 'Cards' }],
     script: generatedScript,
+    scriptPackage: { sections: [{ id: 'section-01', order: 1, title: 'Introduction', spokenText: generatedScript, visualDirections: [], sources: [{ section: 1, startOffset: 0, endOffset: 100 }] }] },
     scriptProvenance: 'generated_source_complete',
     generatedScript: true,
     activeStepId: 'script',
@@ -423,4 +427,60 @@ test('clears stale success while retaining a previously source-complete generate
   expect(screen.queryByText('Script generated successfully')).not.toBeInTheDocument();
   expect(screen.getByTestId('editable-script')).toHaveTextContent(generatedScript);
   expect(screen.getByTestId('script-provenance')).toHaveTextContent('generated_source_complete');
+});
+
+
+test('buildRemotionScenes carries canonical narration and non-spoken visual directions into render scenes', () => {
+  const scenes = buildRemotionScenes({
+    script: 'ignored legacy script', gameName: 'Abyss',
+    images: [{ id: 'board-image', fileKey: 'data/board.png' }, { id: 'cards-image', fileKey: 'data/cards.png' }],
+    componentImageLinks: { board: ['board-image'], cards: ['cards-image'] },
+    scriptPackage: { sections: [{
+      title: 'Setup', spokenText: 'Place the board.',
+      visualDirections: [{ instruction: 'Overhead board view', onScreenText: 'Setup board', componentRefs: ['board'] }],
+      sources: [{ section: 1, startOffset: 0, endOffset: 100 }],
+    }] },
+  });
+  expect(scenes).toHaveLength(1);
+  expect(scenes[0]).toMatchObject({
+    sectionTitle: 'Setup', narrationText: 'Place the board.',
+    visualDirections: [{ instruction: 'Overhead board view', onScreenText: 'Setup board', componentRefs: ['board'] }],
+    sources: [{ section: 1, startOffset: 0, endOffset: 100 }], componentRefs: ['board'],
+    visualOverlayText: 'Setup board', imageUrls: ['data/board.png'],
+  });
+});
+
+
+test('editing package-backed narration does not reset the textarea', async () => {
+  saveProjectContext(window.localStorage, {
+    version: 3, projectId: 'package-edit', gameName: 'Abyss', language: 'english', rulebookText: 'Rulebook text',
+    components: [{ id: 'cards', name: 'Cards' }], script: '## Setup\n\nPlace the board.', scriptProvenance: 'manual',
+    scriptPackage: { sections: [{ id: 'section-01', order: 1, title: 'Setup', spokenText: 'Place the board.', visualDirections: [{ instruction: 'Show board' }], sources: [{ section: 1, startOffset: 0, endOffset: 100 }] }] },
+    activeStepId: 'script',
+  });
+  axios.get.mockResolvedValue({ data: { ready: true, message: 'AI model is ready.' } });
+  render(<App />);
+  const editor = await screen.findByLabelText('Narration editor');
+  fireEvent.change(editor, { target: { value: '## Setup\n\nDeal two cards.' } });
+  await waitFor(() => expect(editor).toHaveValue('## Setup\n\nDeal two cards.'));
+});
+
+
+test('rejects a generated response without a source-complete canonical package', async () => {
+  saveProjectContext(window.localStorage, {
+    projectId: 'malformed-package', gameName: 'Abyss', language: 'english', rulebookText: 'Rulebook text',
+    components: [{ id: 'cards', name: 'Cards' }], activeStepId: 'script',
+  });
+  axios.get.mockResolvedValue({ data: { ready: true, message: 'AI model is ready.' } });
+  axios.post.mockResolvedValue({ data: {
+    generated: true, summary: 'Unsafe fallback narration', scriptPackage: {},
+    sourceCompleteness: { complete: true }, generationStatus: { sourceComplete: true },
+  } });
+  render(<App />);
+  const generate = await screen.findByRole('button', { name: 'Generate optional AI summary' });
+  await waitFor(() => expect(generate).toBeEnabled());
+  fireEvent.click(generate);
+  await waitFor(() => expect(screen.getByTestId('script-provenance')).toHaveTextContent('generation_failed'));
+  expect(screen.getByTestId('editable-script')).toHaveTextContent('');
+  expect(screen.getByRole('button', { name: /Confirm Script & Continue/i })).toBeDisabled();
 });

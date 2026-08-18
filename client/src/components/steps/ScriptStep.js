@@ -13,6 +13,7 @@ export function ScriptStep({
   onSummarize,
   scriptProvenance,
   summary,
+  scriptPackage,
   editedSummary,
   onEdit,
   onSave,
@@ -138,7 +139,7 @@ export function ScriptStep({
       <div className="pipeline-grid-two">
         <div>
           <h4 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            Editable Script
+            Narration (spoken text only)
             {editedSummary && <span className="status-badge status-badge-info">Editable</span>}
           </h4>
           <textarea
@@ -178,6 +179,23 @@ export function ScriptStep({
           </div>
         </div>
       </div>
+
+      {scriptPackage?.sections?.length > 0 && (
+        <div className="pipeline-card" aria-label="Visual directions and sources" style={{ marginTop: 16 }}>
+          <h4 style={{ marginTop: 0 }}>Visual directions & source provenance (non-spoken)</h4>
+          {scriptPackage.sections.map((section) => (
+            <details key={section.id || section.order} style={{ marginBottom: 8 }}>
+              <summary><strong>{section.title}</strong> — {section.visualDirections?.length || 0} visual directions, {section.sources?.length || 0} sources</summary>
+              <p><strong>Visual directions:</strong> {section.visualDirections?.length
+                ? section.visualDirections.map((direction) => direction.instruction || direction.onScreenText || 'Production direction').join(' · ')
+                : 'None provided.'}</p>
+              <p><strong>Sources:</strong> {section.sources?.length
+                ? section.sources.map((source) => `Section ${source.section}, offsets ${source.startOffset}-${source.endOffset}${source.uncertainty ? ` (${source.uncertainty})` : ''}`).join(' · ')
+                : 'No structured provenance (legacy editable script).'}</p>
+            </details>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

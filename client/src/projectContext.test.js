@@ -29,6 +29,10 @@ describe('project context persistence', () => {
       images: [{ id: 'image-1', path: '/uploads/abyss-card.png' }],
       componentImageLinks: { 'component-1': ['image-1'] },
       script: 'Operator-approved script',
+      scriptPackage: {
+        contractVersion: '1.0',
+        sections: [{ id: 'section-01', order: 1, title: 'Introduction', spokenText: 'Operator-approved script', visualDirections: [], sources: [{ section: 1, startOffset: 0, endOffset: rulebookText.length }] }],
+      },
       generatedScript: true,
       activeStepId: 'script',
       completedStepIds: ['project', 'metadata', 'ingestion', 'images'],
@@ -141,4 +145,66 @@ test('preserves legacy non-generated operator text as manual and confirmable', (
     generatedScript: false,
   });
   expect(hydrated.completedStepIds).toContain('script');
+});
+
+
+test('persists a canonical script package and preserves source and visual notes while narration is edited', async () => {
+  const { applyEditedNarration, scriptPackageToEditableNarration } = await import('./projectContext');
+  const scriptPackage = {
+    contractVersion: '1.0',
+    sections: [{
+      id: 'section-01', order: 1, title: 'Setup', spokenText: 'Place the board.',
+      visualDirections: [{ instruction: 'Show the board.' }],
+      sources: [{ section: 1, startOffset: 0, endOffset: 100 }],
+    }],
+  };
+  const edited = applyEditedNarration(scriptPackage, '## Setup\n\nDeal two cards.');
+  expect(scriptPackageToEditableNarration(edited)).toBe('## Setup\n\nDeal two cards.');
+  expect(edited.sections[0]).toMatchObject({
+    visualDirections: [{ instruction: 'Show the board.' }],
+    sources: [{ section: 1, startOffset: 0, endOffset: 100 }],
+  });
+});
+
+
+test('downgrades pre-package generated text to an editable manual draft without claiming source-complete provenance', () => {
+  saveProjectContext(window.localStorage, {
+    version: 2, projectId: 'legacy-generated', gameName: 'Abyss', language: 'english',
+    rulebookText: 'Approved rulebook text', components: [{ id: 'cards', name: 'Cards' }],
+    script: 'Legacy generated tutorial.', generatedScript: true, activeStepId: 'script', completedStepIds: ['script'],
+  });
+  expect(loadLatestProjectContext(window.localStorage)).toMatchObject({
+    script: 'Legacy generated tutorial.', scriptProvenance: SCRIPT_PROVENANCE.MANUAL, generatedScript: false,
+  });
+});
+
+
+test('turns structural narration changes into an unbound manual package instead of misapplying sources', async () => {
+  const { applyEditedNarration } = await import('./projectContext');
+  const scriptPackage = {
+    contractVersion: '1.0',
+    sections: [
+      { id: 'section-01', order: 1, title: 'Setup', spokenText: 'Place the board.', visualDirections: [{ instruction: 'Show board.' }], sources: [{ section: 1, startOffset: 0, endOffset: 100 }] },
+      { id: 'section-02', order: 2, title: 'Turn', spokenText: 'Choose a card.', visualDirections: [{ instruction: 'Show cards.' }], sources: [{ section: 2, startOffset: 101, endOffset: 200 }] },
+    ],
+  };
+  const edited = applyEditedNarration(scriptPackage, '## Turn\n\nChoose a card.\n\n## Setup\n\nPlace the board.');
+  expect(edited).toMatchObject({ legacy: true });
+  expect(edited.sections).toEqual(expect.arrayContaining([
+    expect.objectContaining({ title: 'Turn', visualDirections: [], sources: [] }),
+    expect.objectContaining({ title: 'Setup', visualDirections: [], sources: [] }),
+  ]));
+});
+
+
+test('treats narration inserted before the first heading as a structural manual edit', async () => {
+  const { applyEditedNarration } = await import('./projectContext');
+  const scriptPackage = { contractVersion: '1.0', sections: [{
+    id: 'section-01', order: 1, title: 'Setup', spokenText: 'Place the board.',
+    visualDirections: [{ instruction: 'Show board.' }], sources: [{ section: 1, startOffset: 0, endOffset: 100 }],
+  }] };
+  const edited = applyEditedNarration(scriptPackage, 'Welcome to the tutorial.\n\n## Setup\n\nPlace the board.');
+  expect(edited).toMatchObject({ legacy: true });
+  expect(edited.sections.map((section) => section.spokenText)).toContain('Welcome to the tutorial.');
+  expect(edited.sections.every((section) => section.sources.length === 0 && section.visualDirections.length === 0)).toBe(true);
 });

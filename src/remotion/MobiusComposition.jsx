@@ -62,6 +62,7 @@ export const MobiusComposition = ({
   imageUrl,
   imageUrls,
   sectionTitle,
+  visualOverlayText,
   stepNumber = 1,
   themeBorderColor = FALLBACK_BORDER_COLOR,
   audioFile,
@@ -124,6 +125,11 @@ export const MobiusComposition = ({
             <StepBadge color={themeBorderColor} stepNumber={stepNumber} />
             <div style={{ marginTop: Math.max(28, Math.round(height * 0.025)) }}>
               <SceneTitle color={themeBorderColor}>{sectionTitle}</SceneTitle>
+              {visualOverlayText ? (
+                <p style={{ color: themeBorderColor, fontSize: Math.max(28, Math.round(width * 0.022)), fontWeight: 700, margin: '18px 0 0' }}>
+                  {visualOverlayText}
+                </p>
+              ) : null}
               <NarrationText>{narrationText}</NarrationText>
             </div>
           </section>

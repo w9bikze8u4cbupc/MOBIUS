@@ -6,6 +6,7 @@ import path from 'node:path';
 import multer from 'multer';
 import { promisify } from 'node:util';
 import { generateNarration } from '../services/elevenLabsService.js';
+import { sanitizeSpokenText } from '../services/scriptPackage.js';
 
 const execFileAsync = promisify(execFile);
 // Keep this compatible with the repository's Jest CommonJS transform.
@@ -191,6 +192,7 @@ function prepareScenesForRenderer(scenes, backgroundMusic) {
       : resolveProjectImageAsset(scene.imageUrl);
     const preparedScene = {
       ...scene,
+      narrationText: sanitizeSpokenText(scene.narrationText),
       ...(imageUrls !== undefined ? { imageUrls } : {}),
       imageUrl: legacyImageUrl,
       ...(scene.audioFile ? { audioFile: resolveProjectAsset(scene.audioFile) } : {}),
@@ -220,8 +222,9 @@ async function attachGeneratedNarration(scenes, voiceId, configurationDirectory,
   for (let index = 0; index < scenes.length; index += 1) {
     const scene = scenes[index];
     const audioFile = path.join(configurationDirectory, `scene-${index + 1}.mp3`);
-    await narrationGenerator(scene.narrationText, voiceId, audioFile);
-    narratedScenes.push({ ...scene, audioFile });
+    const narrationText = sanitizeSpokenText(scene.narrationText);
+    await narrationGenerator(narrationText, voiceId, audioFile);
+    narratedScenes.push({ ...scene, narrationText, audioFile });
   }
   return narratedScenes;
 }

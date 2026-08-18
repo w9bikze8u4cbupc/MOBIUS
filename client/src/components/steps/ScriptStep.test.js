@@ -214,3 +214,20 @@ test('shows success only for a source-complete generated provenance on the curre
 
   expect(screen.getByText('Script generated successfully')).toBeInTheDocument();
 });
+
+
+test('labels narration separately from non-spoken visual directions and source provenance', () => {
+  render(
+    <ScriptStep
+      loading={false} projectId="abyss-project" rulebookText="Rulebook text" gameName="Abyss" language="english"
+      components={[{ id: 'cards', name: 'Cards' }]} scriptInputReadiness={{ ready: true, message: '' }}
+      onSummarize={jest.fn()} summary="## Setup\n\nPlace the board." editedSummary="## Setup\n\nPlace the board."
+      scriptPackage={{ sections: [{ id: 'section-01', title: 'Setup', spokenText: 'Place the board.', visualDirections: [{ instruction: 'Show the board.' }], sources: [{ section: 1, startOffset: 0, endOffset: 100 }] }] }}
+      onEdit={jest.fn()} onSave={jest.fn()} translationStatus={{ error: null }} summaryWarning=""
+      aiStatus={{ ready: true, message: 'AI model is ready.' }} aiStatusLoading={false} onRefreshAiStatus={jest.fn()}
+    />,
+  );
+  expect(screen.getByText('Narration (spoken text only)')).toBeInTheDocument();
+  expect(screen.getByLabelText('Visual directions and sources')).toHaveTextContent('Visual directions & source provenance (non-spoken)');
+  expect(screen.getByLabelText('Visual directions and sources')).toHaveTextContent('Section 1, offsets 0-100');
+});

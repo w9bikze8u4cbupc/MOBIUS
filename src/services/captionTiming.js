@@ -1,3 +1,5 @@
+import { sanitizeSpokenText } from './scriptPackage.js';
+
 /**
  * Deterministic caption cue generation from narration/script segments.
  *
@@ -60,10 +62,11 @@ export function generateCaptionCues(scenes = [], options = {}) {
     const sceneEndMs = cumulativeMs + durationMs;
 
     // Extract narration text from scene
-    const narrationText = scene.narration
+    const narrationText = sanitizeSpokenText(scene.spokenText
+      || scene.narration
+      || scene.narrationText
       || scene.scriptText
-      || (scene.overlays || []).filter((o) => o.type === 'body').map((o) => o.text).join(' ')
-      || '';
+      || (scene.overlays || []).filter((o) => o.type === 'body').map((o) => o.text).join(' '));
 
     if (!narrationText.trim()) {
       cumulativeMs = sceneEndMs;

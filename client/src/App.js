@@ -21,13 +21,17 @@ import { StoryboardStep } from "./components/steps/StoryboardStep";
 import { VoiceStep } from "./components/steps/VoiceStep";
 import { RenderExportStep } from "./components/steps/RenderExportStep";
 import {
+  applyEditedNarration,
   buildScriptGenerationRequest,
   createPersistedProjectContext,
   getScriptInputReadiness,
+  getSpokenSections,
+  isSourceCompleteScriptPackage,
   isTrustedScriptProvenance,
   loadLatestProjectContext,
   SCRIPT_PROVENANCE,
   saveProjectContext,
+  scriptPackageToEditableNarration,
 } from "./projectContext";
 import "./styles/pipeline.css";
 
@@ -244,25 +248,43 @@ function pathIsAbsolute(filePath) {
   return /^([a-zA-Z]:)?\//.test(filePath);
 }
 
-export function buildRemotionScenes({ script, gameName, images, componentImageLinks }) {
-  const sections = splitRemotionSections(script, gameName);
-  const linkedImageIds = new Set(
-    Object.values(componentImageLinks || {}).flat().filter(Boolean),
-  );
-  const selectedImages = linkedImageIds.size > 0
-    ? (images || []).filter((image) => linkedImageIds.has(image.id))
-    : (images || []);
-  const imageUrls = selectedImages
+export function buildRemotionScenes({ script, scriptPackage, gameName, images, componentImageLinks }) {
+  const sections = Array.isArray(scriptPackage?.sections) && scriptPackage.sections.length > 0
+    ? scriptPackage.sections.map((section) => ({
+      sectionTitle: cleanRemotionText(section.title) || 'Tutorial',
+      narrationText: cleanRemotionText(section.spokenText),
+      visualDirections: Array.isArray(section.visualDirections) ? section.visualDirections : [],
+      sources: Array.isArray(section.sources) ? section.sources : [],
+      componentRefs: [...new Set((section.visualDirections || []).flatMap((direction) => direction.componentRefs || []))],
+    })).filter((section) => section.narrationText)
+    : splitRemotionSections(script, gameName);
+  const imagesById = new Map((images || []).map((image) => [image.id, getRemotionImagePath(image)]));
+  const linkedImageIds = new Set(Object.values(componentImageLinks || {}).flat().filter(Boolean));
+  const imageUrls = (linkedImageIds.size > 0 ? (images || []).filter((image) => linkedImageIds.has(image.id)) : (images || []))
     .map((image) => getRemotionImagePath(image))
     .filter(Boolean);
 
   return sections.map((section, index) => {
     const wordCount = section.narrationText.split(/\s+/).filter(Boolean).length;
+    const visualImageUrls = [...new Set((section.componentRefs || [])
+      .flatMap((componentId) => componentImageLinks?.[componentId] || [])
+      .map((imageId) => imagesById.get(imageId))
+      .filter(Boolean))];
+    const visualOverlayText = (section.visualDirections || [])
+      .map((direction) => direction.onScreenText)
+      .filter(Boolean)
+      .join(' · ');
     return {
       id: `scene-${index + 1}`,
       sectionTitle: section.sectionTitle,
       narrationText: section.narrationText,
-      imageUrls: imageUrls.length > 0
+      visualDirections: section.visualDirections || [],
+      sources: section.sources || [],
+      componentRefs: section.componentRefs || [],
+      visualOverlayText,
+      imageUrls: visualImageUrls.length > 0
+        ? visualImageUrls
+        : imageUrls.length > 0
         ? [imageUrls[index % imageUrls.length]]
         : [REMOTION_PLACEHOLDER_IMAGE],
       themeBorderColor: REMOTION_SCENE_COLORS[index % REMOTION_SCENE_COLORS.length],
@@ -294,7 +316,8 @@ function App() {
   const [summary, setSummary] = useState(""); // The generated script (Markdown)
   const [generatedScript, setGeneratedScript] = useState(false);
   const [scriptProvenance, setScriptProvenance] = useState(null);
-  const [editedSummary, setEditedSummary] = useState(""); // The script in the editable textarea
+  const [scriptPackage, setScriptPackage] = useState(null);
+  const [editedSummary, setEditedSummary] = useState(""); // The script in the editable textarea
   const [sections, setSections] = useState([]); // Summary split into sections for TTS
   const [audio, setAudio] = useState({}); // Stores Blob URLs for generated audio sections
   const [audioLoading, setAudioLoading] = useState({}); // Loading state for individual audio sections
@@ -359,10 +382,9 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
   // Effect to update editedSummary when summary changes (after generation)
   useEffect(() => {
-    setEditedSummary(summary);
-    // Automatically split sections when summary is updated
+        // Automatically split sections when summary is updated
     if (summary) {
-      const newSections = splitMarkdownSections(summary);
+      const newSections = getSpokenSections(scriptPackage, summary).map((section) => section.spokenText);
       console.log('Sections created:', newSections);
       setSections(newSections);
       setAudio({}); // Clear existing audio when summary changes
@@ -370,7 +392,12 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       setSections([]);
       setAudio({});
     }
-  }, [summary]); // Rerun when summary changes
+  }, [scriptPackage, summary]); // Rerun when canonical narration changes
+
+  // Only generation or hydration replaces the editable narration; typing only updates the package.
+  useEffect(() => {
+    setEditedSummary(summary);
+  }, [summary]);
 
   useEffect(() => {
     return () => {
@@ -400,6 +427,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       setSummary(context.script);
       setGeneratedScript(context.generatedScript);
       setScriptProvenance(context.scriptProvenance);
+      setScriptPackage(context.scriptPackage);
       setEditedSummary(context.script);
       setGenerationStatus(null);
       if (context.scriptProvenance === SCRIPT_PROVENANCE.LEGACY_INVALID_FALLBACK) {
@@ -425,6 +453,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       images: projectImages,
       componentImageLinks,
       script: editedSummary || summary,
+      scriptPackage,
       generatedScript,
       scriptProvenance,
       activeStepId,
@@ -444,6 +473,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     projectImages,
     rulebookPages,
     rulebookText,
+    scriptPackage,
     scriptProvenance,
     summary,
   ]);
@@ -904,6 +934,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     try {
       const { data } = await axios.post(`${BACKEND_URL}/api/storyboard`, {
         ingestionManifest,
+        scriptPackage: canConfirmScript ? scriptPackage : null,
         options: { includeOverlayHashes: true }
       });
       setStoryboardManifest(data.manifest);
@@ -939,6 +970,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
       const scenes = buildRemotionScenes({
         script,
+        scriptPackage,
         gameName,
         images: projectImages,
         componentImageLinks,
@@ -966,7 +998,9 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         images: projectImages,
         componentImageLinks,
         script,
+        scriptPackage,
         generatedScript,
+        scriptProvenance,
         activeStepId,
         completedStepIds,
       });
@@ -1050,6 +1084,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     }
     const nextScript = e.target.value;
     setEditedSummary(nextScript);
+    setScriptPackage((previous) => applyEditedNarration(previous, nextScript));
     setScriptProvenance(nextScript.trim() ? SCRIPT_PROVENANCE.MANUAL : null);
     setGeneratedScript(false);
     setGenerationStatus(null);
@@ -1141,6 +1176,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     if (!hasRetainedTrustedScript) {
       setSummary('');
       setEditedSummary('');
+      setScriptPackage(null);
       setScriptProvenance(SCRIPT_PROVENANCE.GENERATION_FAILED);
       setCompletedStepIds((previous) => previous.filter((stepId) => stepId !== 'script'));
     }
@@ -1184,9 +1220,14 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
             const sourceComplete = response.data?.sourceCompleteness?.complete === true
         && response.data?.generationStatus?.sourceComplete === true;
-      if (response.data.generated === true && sourceComplete && typeof response.data.summary === 'string' && response.data.summary.trim()) {
-        const generatedSummary = response.data.summary.trim();
-        setSummary(generatedSummary);
+      const generatedPackage = response.data?.scriptPackage;
+      if (response.data.generated === true && sourceComplete && isSourceCompleteScriptPackage(generatedPackage)) {
+        const generatedSummary = scriptPackageToEditableNarration(generatedPackage).trim();
+        if (!generatedSummary) {
+          throw new Error('Generated response has no usable canonical narration.');
+        }
+        setScriptPackage(generatedPackage);
+        setSummary(generatedSummary);
         setGeneratedScript(true);
         setScriptProvenance(SCRIPT_PROVENANCE.GENERATED_SOURCE_COMPLETE);
         setGenerationStatus(response.data.generationStatus);
@@ -1245,6 +1286,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
     // Remove specific bracketed tags like [Page:x], [Image:x], [SHORT PAUSE] etc.
     plainText = plainText.replace(/\[.*?\]/g, "");
+    plainText = plainText.replace(/^\s*(?:source|sources|evidence|visual|opening shot|on screen)\s*:\s*.*$/gim, "");
+    plainText = plainText.replace(/(?:^|\s)(?:visual|opening shot|on screen|source|sources|evidence)\s*:\s*[^.\n]*(?:\.|$)/gim, " ");
 
     // Remove markdown links [text](url) keeping only text
     plainText = plainText.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
@@ -1577,6 +1620,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               hasGeneratedScript={generatedScript}
               scriptProvenance={scriptProvenance}
               summary={summary}
+              scriptPackage={scriptPackage}
               editedSummary={editedSummary}
               onEdit={handleSummaryEdit}
               onSave={handleSaveSummary}
