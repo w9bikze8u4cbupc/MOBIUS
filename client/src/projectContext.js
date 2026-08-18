@@ -1,9 +1,15 @@
-export const PROJECT_CONTEXT_VERSION = 3;
+export const PROJECT_CONTEXT_VERSION = 4;
 export const SCRIPT_PROVENANCE = Object.freeze({
   MANUAL: 'manual',
   GENERATED_SOURCE_COMPLETE: 'generated_source_complete',
   LEGACY_INVALID_FALLBACK: 'legacy_invalid_fallback',
   GENERATION_FAILED: 'generation_failed',
+});
+
+export const INGESTION_MANIFEST_FAILURE = Object.freeze({
+  MISSING: 'INGESTION_MANIFEST_MISSING',
+  PROJECT_MISMATCH: 'INGESTION_MANIFEST_PROJECT_MISMATCH',
+  INVALID: 'INGESTION_MANIFEST_INVALID',
 });
 
 const PROJECT_CONTEXT_PREFIX = 'mobius-project-context:';
@@ -177,6 +183,83 @@ export function buildScriptGenerationRequest(context) {
   } };
 }
 
+export function buildDeterministicIngestionPages(text) {
+  const paragraphs = String(text || '')
+    .split(/\n+/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean);
+  const pages = [];
+  for (let index = 0; index < paragraphs.length; index += 6) {
+    pages.push({
+      number: pages.length + 1,
+      blocks: paragraphs.slice(index, index + 6).map((paragraph, blockIndex) => ({
+        text: paragraph,
+        fontSize: blockIndex === 0 ? 24 : 14,
+        x: 50,
+        y: 40 + blockIndex * 30,
+        width: 500,
+        height: 20,
+      })),
+    });
+  }
+  return pages;
+}
+
+export function getIngestionDocumentId({ projectId, gameName } = {}) {
+  return (asTrimmedString(projectId) || asTrimmedString(gameName) || 'rulebook')
+    .replace(/\s+/g, '-')
+    .toLowerCase() || 'rulebook';
+}
+
+async function sha256Hex(value) {
+  const subtle = typeof window !== 'undefined' ? window.crypto?.subtle : null;
+  if (!subtle || typeof TextEncoder === 'undefined') return null;
+  const bytes = new TextEncoder().encode(value);
+  const digest = await subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function isRuntimeIngestionManifest(manifest) {
+  return Boolean(manifest && typeof manifest === 'object'
+    && typeof manifest.version === 'string'
+    && manifest.document && typeof manifest.document === 'object'
+    && ['id', 'title', 'gameId', 'source'].every((field) => asTrimmedString(manifest.document[field]))
+    && Array.isArray(manifest.outline) && manifest.outline.length > 0
+    && Array.isArray(manifest.components) && manifest.components.length === manifest.outline.length
+    && manifest.assets && Array.isArray(manifest.assets.pages) && manifest.assets.pages.length > 0
+    && Array.isArray(manifest.assets.components));
+}
+
+export async function validateMatchingIngestionManifest(manifest, context = {}) {
+  if (!manifest) return { valid: false, code: INGESTION_MANIFEST_FAILURE.MISSING };
+  if (!isRuntimeIngestionManifest(manifest)) return { valid: false, code: INGESTION_MANIFEST_FAILURE.INVALID };
+  const documentId = getIngestionDocumentId(context);
+  if (manifest.document.id !== documentId || manifest.document.gameId !== documentId) {
+    return { valid: false, code: INGESTION_MANIFEST_FAILURE.PROJECT_MISMATCH };
+  }
+  const pages = buildDeterministicIngestionPages(context.rulebookText);
+  if (!pages.length || pages.length !== manifest.assets.pages.length) {
+    return { valid: false, code: INGESTION_MANIFEST_FAILURE.INVALID };
+  }
+  const expectedHashes = await Promise.all(pages.map((page) => sha256Hex(
+    `${page.number}:${page.blocks.map((block) => String(block.text).normalize('NFKC').replace(/\s+/g, ' ').trim()).join('\n')}`,
+  )));
+  if (expectedHashes.some((hash) => !hash)
+    || manifest.assets.pages.some((page, index) => page?.page !== pages[index].number || page?.hash !== expectedHashes[index])) {
+    return { valid: false, code: INGESTION_MANIFEST_FAILURE.INVALID };
+  }
+  return { valid: true, code: null, manifest };
+}
+
+export async function resolveMatchingIngestionManifest({ manifest, storage, context } = {}) {
+  const persistedManifest = !manifest && context?.projectId
+    ? loadProjectContext(storage, context.projectId)?.ingestionManifest
+    : null;
+  const candidate = manifest || persistedManifest || null;
+  const validation = await validateMatchingIngestionManifest(candidate, context);
+  return { ...validation, manifest: validation.valid ? candidate : null };
+}
+
 export function createPersistedProjectContext(context) {
   const scriptState = normalizeScriptState(context);
   const completedStepIds = Array.isArray(context.completedStepIds) ? [...new Set(context.completedStepIds.filter((stepId) => typeof stepId === 'string'))] : [];
@@ -187,6 +270,8 @@ export function createPersistedProjectContext(context) {
     rulebookPages: Array.isArray(context.rulebookPages) ? context.rulebookPages : [], components: Array.isArray(context.components) ? context.components : [],
     metadata: context.metadata && typeof context.metadata === 'object' ? context.metadata : {}, images: Array.isArray(context.images) ? context.images : [],
     componentImageLinks: context.componentImageLinks && typeof context.componentImageLinks === 'object' ? context.componentImageLinks : {},
+    ingestionManifest: context.ingestionManifest && typeof context.ingestionManifest === 'object' && !Array.isArray(context.ingestionManifest) ? context.ingestionManifest : null,
+    storyboardManifest: context.storyboardManifest && typeof context.storyboardManifest === 'object' && !Array.isArray(context.storyboardManifest) ? context.storyboardManifest : null,
     ...scriptState, activeStepId: asTrimmedString(context.activeStepId) || 'project',
     completedStepIds: canConfirmScript ? completedStepIds : completedStepIds.filter((stepId) => stepId !== 'script'),
   };
@@ -194,7 +279,7 @@ export function createPersistedProjectContext(context) {
 
 export function hydrateProjectContext(value) {
   const context = value && typeof value === 'object' ? value : null;
-  if (!context || ![1, 2, PROJECT_CONTEXT_VERSION].includes(context.version) || !asTrimmedString(context.projectId)) return null;
+  if (!context || ![1, 2, 3, PROJECT_CONTEXT_VERSION].includes(context.version) || !asTrimmedString(context.projectId)) return null;
   return createPersistedProjectContext(context);
 }
 
@@ -206,12 +291,17 @@ export function saveProjectContext(storage, context) {
   return persisted;
 }
 
+export function loadProjectContext(storage, projectId) {
+  if (!storage || !asTrimmedString(projectId)) return null;
+  try {
+    const raw = storage.getItem(`${PROJECT_CONTEXT_PREFIX}${projectId}`);
+    return hydrateProjectContext(raw ? JSON.parse(raw) : null);
+  } catch { return null; }
+}
+
 export function loadLatestProjectContext(storage) {
   if (!storage) return null;
   try {
-    const projectId = storage.getItem(LATEST_PROJECT_CONTEXT_KEY);
-    if (!projectId) return null;
-    const raw = storage.getItem(`${PROJECT_CONTEXT_PREFIX}${projectId}`);
-    return hydrateProjectContext(raw ? JSON.parse(raw) : null);
+    return loadProjectContext(storage, storage.getItem(LATEST_PROJECT_CONTEXT_KEY));
   } catch { return null; }
 }

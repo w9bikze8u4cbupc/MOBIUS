@@ -55,17 +55,26 @@ export function registerPhaseERoutes(app, deps) {
   });
 
   app.post('/api/storyboard', (req, res) => {
-    const { ingestionManifest, options = {} } = req.body || {};
+    const { ingestionManifest, scriptPackage = null, options = {} } = req.body || {};
 
     if (!ingestionManifest) {
       return res.status(400).json({
-        error: 'ingestionManifest is required',
-        code: 'STORYBOARD_BAD_REQUEST'
+        error: 'A deterministic ingestion manifest is required',
+        code: 'INGESTION_MANIFEST_MISSING'
+      });
+    }
+
+    const ingestionValidation = validateIngestionManifest(ingestionManifest);
+    if (!ingestionValidation.valid) {
+      return res.status(400).json({
+        error: 'The deterministic ingestion manifest is invalid',
+        code: 'INGESTION_MANIFEST_INVALID',
+        details: ingestionValidation.errors,
       });
     }
 
     try {
-      const manifest = generateStoryboard(ingestionManifest, options);
+      const manifest = generateStoryboard(ingestionManifest, { ...options, scriptPackage });
       const contractVersion = manifest.version || '1.0.0';
       const { valid, errors } = validateStoryboard(manifest, { contractVersion });
       if (!valid) {

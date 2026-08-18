@@ -1,14 +1,25 @@
+import { TextEncoder } from 'util';
+import { webcrypto } from 'crypto';
 import {
+  buildDeterministicIngestionPages,
   buildScriptGenerationRequest,
+  getIngestionDocumentId,
   getScriptInputReadiness,
   loadLatestProjectContext,
   PROJECT_CONTEXT_VERSION,
+  resolveMatchingIngestionManifest,
   saveProjectContext,
   SCRIPT_PROVENANCE,
+  validateMatchingIngestionManifest,
 } from './projectContext';
+
+Object.defineProperty(globalThis, 'TextEncoder', { configurable: true, value: TextEncoder });
+Object.defineProperty(globalThis, 'crypto', { configurable: true, value: webcrypto });
 
 describe('project context persistence', () => {
   beforeEach(() => {
+Object.defineProperty(globalThis, 'TextEncoder', { configurable: true, value: TextEncoder });
+    Object.defineProperty(globalThis, 'crypto', { configurable: true, value: webcrypto });
     window.localStorage.clear();
   });
 
@@ -207,4 +218,82 @@ test('treats narration inserted before the first heading as a structural manual 
   expect(edited).toMatchObject({ legacy: true });
   expect(edited.sections.map((section) => section.spokenText)).toContain('Welcome to the tutorial.');
   expect(edited.sections.every((section) => section.sources.length === 0 && section.visualDirections.length === 0)).toBe(true);
+});
+
+
+async function sha256Hex(value) {
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function createMatchingIngestionManifest(context) {
+  const pages = buildDeterministicIngestionPages(context.rulebookText);
+  return {
+    version: '1.0.0',
+    document: {
+      id: getIngestionDocumentId(context),
+      title: context.gameName,
+      gameId: getIngestionDocumentId(context),
+      source: 'client-ui',
+    },
+    outline: [{ id: 'heading-setup', title: 'Setup', slug: 'setup', page: 1 }],
+    components: [{ id: 'comp-setup', sourceHeading: 'heading-setup' }],
+    assets: {
+      pages: await Promise.all(pages.map(async (page) => ({
+        page: page.number,
+        hash: await sha256Hex(`${page.number}:${page.blocks.map((block) => block.text.normalize('NFKC').replace(/\s+/g, ' ').trim()).join('\n')}`),
+      }))),
+      components: [{ id: 'comp-setup', hash: 'validated-component-hash' }],
+    },
+  };
+}
+
+test('keeps a matching deterministic ingestion manifest through reload and script persistence', async () => {
+  const context = {
+    projectId: 'abyss-handoff', gameName: 'Abyss', language: 'english',
+    rulebookText: 'Setup\nPlace the board.', components: [{ id: 'board', name: 'Board' }],
+    script: 'Validated tutorial narration.', scriptProvenance: SCRIPT_PROVENANCE.GENERATED_SOURCE_COMPLETE,
+    scriptPackage: { contractVersion: '1.0', sections: [{ id: 'section-01', order: 1, title: 'Setup', spokenText: 'Validated tutorial narration.', visualDirections: [{ instruction: 'Show board.' }], sources: [{ section: 1, startOffset: 0, endOffset: 24 }] }] },
+    completedStepIds: ['ingestion', 'script'],
+  };
+  const ingestionManifest = await createMatchingIngestionManifest(context);
+  saveProjectContext(window.localStorage, { ...context, ingestionManifest });
+  const afterReload = loadLatestProjectContext(window.localStorage);
+  saveProjectContext(window.localStorage, { ...afterReload, script: 'Confirmed narration remains source grounded.' });
+  const afterScriptConfirmation = loadLatestProjectContext(window.localStorage);
+
+  expect(afterScriptConfirmation.ingestionManifest).toEqual(ingestionManifest);
+  await expect(resolveMatchingIngestionManifest({
+    manifest: null,
+    storage: window.localStorage,
+    context: afterScriptConfirmation,
+  })).resolves.toMatchObject({ valid: true, code: null, manifest: ingestionManifest });
+  await expect(validateMatchingIngestionManifest(afterScriptConfirmation.ingestionManifest, afterScriptConfirmation))
+    .resolves.toMatchObject({ valid: true, code: null });
+});
+
+test('fails closed for missing, project-mismatched, rulebook-mismatched, and component-only ingestion state', async () => {
+  const context = { projectId: 'abyss-handoff', gameName: 'Abyss', rulebookText: 'Setup\nPlace the board.' };
+  const matchingManifest = await createMatchingIngestionManifest(context);
+  await expect(validateMatchingIngestionManifest(null, context)).resolves.toMatchObject({
+    valid: false, code: 'INGESTION_MANIFEST_MISSING',
+  });
+  await expect(validateMatchingIngestionManifest({ ...matchingManifest, document: { ...matchingManifest.document, id: 'other-game', gameId: 'other-game' } }, context)).resolves.toMatchObject({
+    valid: false, code: 'INGESTION_MANIFEST_PROJECT_MISMATCH',
+  });
+  await expect(validateMatchingIngestionManifest(matchingManifest, { ...context, rulebookText: 'Different rulebook text.' })).resolves.toMatchObject({
+    valid: false, code: 'INGESTION_MANIFEST_INVALID',
+  });
+  await expect(validateMatchingIngestionManifest({ components: matchingManifest.components }, context)).resolves.toMatchObject({
+    valid: false, code: 'INGESTION_MANIFEST_INVALID',
+  });
+});
+
+test('legacy project contexts without a manifest remain safely unconfirmed for ingestion', () => {
+  saveProjectContext(window.localStorage, {
+    version: 3, projectId: 'abyss-legacy-safe', gameName: 'Abyss', language: 'english',
+    rulebookText: 'Setup\nPlace the board.', components: [{ id: 'board', name: 'Board' }],
+    script: 'Legacy manual tutorial.', scriptProvenance: SCRIPT_PROVENANCE.MANUAL,
+  });
+  expect(loadLatestProjectContext(window.localStorage).ingestionManifest).toBeNull();
 });

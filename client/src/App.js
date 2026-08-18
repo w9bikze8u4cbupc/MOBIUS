@@ -22,16 +22,20 @@ import { VoiceStep } from "./components/steps/VoiceStep";
 import { RenderExportStep } from "./components/steps/RenderExportStep";
 import {
   applyEditedNarration,
+  buildDeterministicIngestionPages,
   buildScriptGenerationRequest,
   createPersistedProjectContext,
+  getIngestionDocumentId,
   getScriptInputReadiness,
   getSpokenSections,
   isSourceCompleteScriptPackage,
   isTrustedScriptProvenance,
   loadLatestProjectContext,
+  resolveMatchingIngestionManifest,
   SCRIPT_PROVENANCE,
   saveProjectContext,
   scriptPackageToEditableNarration,
+  validateMatchingIngestionManifest,
 } from "./projectContext";
 import "./styles/pipeline.css";
 
@@ -146,35 +150,7 @@ function splitMarkdownSections(markdown) {
 }
 
 function buildSyntheticPagesFromText(text) {
-  const paragraphs = text
-    .split(/\n+/)
-    .map((chunk) => chunk.trim())
-    .filter(Boolean);
-
-  if (!paragraphs.length) {
-    return [];
-  }
-
-  const chunkSize = 6;
-  const pages = [];
-  for (let i = 0; i < paragraphs.length; i += chunkSize) {
-    const slice = paragraphs.slice(i, i + chunkSize);
-    const blocks = slice.map((para, idx) => ({
-      text: para,
-      fontSize: idx === 0 ? 24 : 14,
-      x: 50,
-      y: 40 + idx * 30,
-      width: 500,
-      height: 20,
-    }));
-
-    pages.push({
-      number: pages.length + 1,
-      blocks,
-    });
-  }
-
-  return pages;
+  return buildDeterministicIngestionPages(text);
 }
 
 
@@ -428,8 +404,15 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       setGeneratedScript(context.generatedScript);
       setScriptProvenance(context.scriptProvenance);
       setScriptPackage(context.scriptPackage);
+      setIngestionManifest(context.ingestionManifest);
+      setStoryboardManifest(context.storyboardManifest);
       setEditedSummary(context.script);
       setGenerationStatus(null);
+      if (context.ingestionManifest) {
+        validateMatchingIngestionManifest(context.ingestionManifest, context).then((validation) => {
+          if (!validation.valid) setIngestionManifest(null);
+        });
+      }
       if (context.scriptProvenance === SCRIPT_PROVENANCE.LEGACY_INVALID_FALLBACK) {
         setSummaryWarning('A previous incomplete fallback was discarded. Generate a source-complete script to continue.');
       }
@@ -456,6 +439,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       scriptPackage,
       generatedScript,
       scriptProvenance,
+      ingestionManifest,
+      storyboardManifest,
       activeStepId,
       completedStepIds,
     }));
@@ -467,6 +452,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     gameComponents,
     gameName,
     generatedScript,
+    ingestionManifest,
     language,
     metadata,
     projectId,
@@ -475,6 +461,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     rulebookText,
     scriptPackage,
     scriptProvenance,
+    storyboardManifest,
     summary,
   ]);
 
@@ -576,7 +563,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       try {
         setIngesting(true);
         const syntheticPages = buildSyntheticPagesFromText(rulebookText);
-        const idSlug = (projectId || gameName || 'rulebook').replace(/\s+/g, '-').toLowerCase();
+        const idSlug = getIngestionDocumentId({ projectId, gameName });
         const { data } = await axios.post(`${BACKEND_URL}/api/ingest`, {
           documentId: idSlug || 'rulebook',
           metadata: { title: gameName || 'Untitled Rulebook', gameId: idSlug || 'rulebook', source: 'client-ui' },
@@ -923,18 +910,25 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   };
 
   const handleGenerateStoryboard = async () => {
-    if (!ingestionManifest) {
-      setStoryboardError("Run deterministic ingestion first");
+    const resolution = await resolveMatchingIngestionManifest({
+      manifest: ingestionManifest,
+      storage: typeof window !== 'undefined' ? window.localStorage : null,
+      context: { projectId, gameName, rulebookText },
+    });
+    if (!resolution.valid) {
+      setStoryboardError(resolution.code);
       return;
     }
+    const manifest = resolution.manifest;
+    if (manifest !== ingestionManifest) setIngestionManifest(manifest);
 
     setStoryboarding(true);
     setStoryboardError("");
 
     try {
       const { data } = await axios.post(`${BACKEND_URL}/api/storyboard`, {
-        ingestionManifest,
-        scriptPackage: canConfirmScript ? scriptPackage : null,
+        ingestionManifest: manifest,
+        scriptPackage: isSourceCompleteScriptPackage(scriptPackage) ? scriptPackage : null,
         options: { includeOverlayHashes: true }
       });
       setStoryboardManifest(data.manifest);
@@ -1001,6 +995,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         scriptPackage,
         generatedScript,
         scriptProvenance,
+        ingestionManifest,
+        storyboardManifest,
         activeStepId,
         completedStepIds,
       });
@@ -1441,8 +1437,13 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         break;
       }
       case "ingestion": {
-        if (!ingestionManifest) {
-          setError("Run deterministic ingestion first.");
+        const validation = await validateMatchingIngestionManifest(ingestionManifest, {
+          projectId,
+          gameName,
+          rulebookText,
+        });
+        if (!validation.valid) {
+          setError(validation.code);
           return;
         }
         if (!hasValidComponentInventory(gameComponents)) {

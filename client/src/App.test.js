@@ -11,7 +11,16 @@ jest.mock('axios', () => ({
 import axios from 'axios';
 import { getDocument } from 'pdfjs-dist';
 import App, { buildRemotionScenes, createProjectIdFromFilename, hasValidComponentInventory, extractPdfPageText } from './App';
-import { saveProjectContext } from './projectContext';
+import { TextEncoder } from 'util';
+import { webcrypto } from 'crypto';
+import {
+  buildDeterministicIngestionPages,
+  getIngestionDocumentId,
+  saveProjectContext,
+} from './projectContext';
+
+Object.defineProperty(globalThis, 'TextEncoder', { configurable: true, value: TextEncoder });
+Object.defineProperty(globalThis, 'crypto', { configurable: true, value: webcrypto });
 
 jest.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: {},
@@ -57,7 +66,14 @@ jest.mock('./components/steps/ScriptStep', () => ({
     </div>
   ),
 }));
-jest.mock('./components/steps/StoryboardStep', () => ({ StoryboardStep: () => null }));
+jest.mock('./components/steps/StoryboardStep', () => ({
+  StoryboardStep: ({ onGenerateStoryboard, storyboardError }) => (
+    <>
+      <button onClick={onGenerateStoryboard}>Generate storyboard</button>
+      {storyboardError && <div>{storyboardError}</div>}
+    </>
+  ),
+}));
 jest.mock('./components/steps/VoiceStep', () => ({ VoiceStep: () => null }));
 jest.mock('./components/steps/RenderExportStep', () => ({ RenderExportStep: () => null }));
 
@@ -483,4 +499,54 @@ test('rejects a generated response without a source-complete canonical package',
   await waitFor(() => expect(screen.getByTestId('script-provenance')).toHaveTextContent('generation_failed'));
   expect(screen.getByTestId('editable-script')).toHaveTextContent('');
   expect(screen.getByRole('button', { name: /Confirm Script & Continue/i })).toBeDisabled();
+});
+
+
+async function createStoryboardIngestionManifest(context) {
+  const pages = buildDeterministicIngestionPages(context.rulebookText);
+  const pageHashes = await Promise.all(pages.map(async (page) => {
+    const digest = await globalThis.crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(`${page.number}:${page.blocks.map((block) => block.text.normalize('NFKC').replace(/\s+/g, ' ').trim()).join('\n')}`),
+    );
+    return {
+      page: page.number,
+      hash: Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(''),
+    };
+  }));
+  return {
+    version: '1.0.0',
+    document: { id: getIngestionDocumentId(context), title: context.gameName, gameId: getIngestionDocumentId(context), source: 'client-ui' },
+    outline: [{ id: 'heading-setup', title: 'Setup', slug: 'setup', page: 1 }],
+    components: [{ id: 'comp-setup', sourceHeading: 'heading-setup' }],
+    assets: { pages: pageHashes, components: [{ id: 'comp-setup', hash: 'validated-component-hash' }] },
+  };
+}
+
+test('hydrates a matching persisted manifest and sends it with the validated script package to storyboard', async () => {
+  const context = {
+    projectId: 'abyss-storyboard-handoff', gameName: 'Abyss', language: 'english',
+    rulebookText: 'Setup\nPlace the board.', components: [{ id: 'board', name: 'Board' }],
+    script: 'Place the board.', scriptProvenance: 'generated_source_complete', generatedScript: true,
+    scriptPackage: { contractVersion: '1.0', sections: [{ id: 'section-01', order: 1, title: 'Setup', spokenText: 'Place the board.', visualDirections: [{ instruction: 'Show the board.' }], sources: [{ section: 1, startOffset: 0, endOffset: 22 }] }] },
+    activeStepId: 'storyboard', completedStepIds: ['project', 'metadata', 'ingestion', 'images', 'script'],
+  };
+  const ingestionManifest = await createStoryboardIngestionManifest(context);
+  saveProjectContext(window.localStorage, { ...context, ingestionManifest });
+  axios.post.mockImplementation((url) => {
+    if (url.endsWith('/api/storyboard')) return Promise.resolve({ data: { ok: true, manifest: { scenes: [] } } });
+    return Promise.resolve({ data: {} });
+  });
+
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Generate storyboard' }));
+
+  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
+    expect.stringContaining('/api/storyboard'),
+    expect.objectContaining({
+      ingestionManifest,
+      scriptPackage: context.scriptPackage,
+      options: { includeOverlayHashes: true },
+    }),
+  ));
 });

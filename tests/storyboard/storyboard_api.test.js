@@ -100,6 +100,38 @@ describe('/api/storyboard', () => {
 
     expect(response.status).toBe(400);
     const payload = await response.json();
-    expect(payload.code).toBe('STORYBOARD_BAD_REQUEST');
+    expect(payload.code).toBe('INGESTION_MANIFEST_MISSING');
+  });
+});
+
+
+describe('/api/storyboard validation', () => {
+  it('rejects a truthy malformed manifest before it reaches storyboard generation', async () => {
+    const started = await startServer();
+    const validManifest = runIngestionPipeline({
+      documentId: fixture.documentId,
+      metadata: fixture.metadata,
+      pages: fixture.pages,
+      bggMetadata: fixture.bgg,
+    });
+    try {
+      const response = await fetch(`${started.baseUrl}/api/storyboard`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ingestionManifest: {
+            ...validManifest,
+            outline: [{}],
+            components: [{}],
+            assets: { ...validManifest.assets, pages: [], components: [{}] },
+          },
+          options: {},
+        }),
+      });
+      expect(response.status).toBe(400);
+      expect((await response.json()).code).toBe('INGESTION_MANIFEST_INVALID');
+    } finally {
+      started.server.close();
+    }
   });
 });

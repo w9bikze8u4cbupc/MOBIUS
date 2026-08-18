@@ -107,12 +107,12 @@ describe('Analyze Document Structure workflow', () => {
     await openIngestionReview();
 
     fireEvent.click(screen.getByRole('button', { name: 'Confirm current step' }));
-    expect(await screen.findByText('Run deterministic ingestion first.')).toBeInTheDocument();
+    expect(await screen.findByText('INGESTION_MANIFEST_MISSING')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Analyze Document Structure/i }));
 
     expect(await screen.findByText('Document Structure')).toBeInTheDocument();
-    expect(screen.queryByText('Run deterministic ingestion first.')).not.toBeInTheDocument();
+    expect(screen.queryByText('INGESTION_MANIFEST_MISSING')).not.toBeInTheDocument();
     expect(screen.getByText('Analysis Complete')).toBeInTheDocument();
     expect(screen.getByText('Sections')).toBeInTheDocument();
     expect(screen.getByText('Components')).toBeInTheDocument();
