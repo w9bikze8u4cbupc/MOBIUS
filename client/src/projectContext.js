@@ -251,13 +251,33 @@ export async function validateMatchingIngestionManifest(manifest, context = {}) 
   return { valid: true, code: null, manifest };
 }
 
-export async function resolveMatchingIngestionManifest({ manifest, storage, context } = {}) {
+export async function resolveMatchingIngestionManifest({ manifest, storage, context, recover } = {}) {
   const persistedManifest = !manifest && context?.projectId
     ? loadProjectContext(storage, context.projectId)?.ingestionManifest
     : null;
   const candidate = manifest || persistedManifest || null;
-  const validation = await validateMatchingIngestionManifest(candidate, context);
-  return { ...validation, manifest: validation.valid ? candidate : null };
+  if (candidate) {
+    const validation = await validateMatchingIngestionManifest(candidate, context);
+    return { ...validation, manifest: validation.valid ? candidate : null };
+  }
+  if (!context?.projectId || typeof recover !== 'function') {
+    return { valid: false, code: INGESTION_MANIFEST_FAILURE.MISSING, manifest: null };
+  }
+
+  let recovery;
+  try {
+    recovery = await recover(context.projectId);
+  } catch {
+    return { valid: false, code: INGESTION_MANIFEST_FAILURE.INVALID, manifest: null };
+  }
+  if (!recovery?.manifest) {
+    const code = Object.values(INGESTION_MANIFEST_FAILURE).includes(recovery?.code)
+      ? recovery.code
+      : INGESTION_MANIFEST_FAILURE.INVALID;
+    return { valid: false, code, manifest: null };
+  }
+  const validation = await validateMatchingIngestionManifest(recovery.manifest, context);
+  return { ...validation, manifest: validation.valid ? recovery.manifest : null };
 }
 
 export function createPersistedProjectContext(context) {

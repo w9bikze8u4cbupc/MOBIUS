@@ -5,6 +5,7 @@ const contract = loadIngestionContract();
 function validateIngestionManifest(manifest) {
   const errors = [];
   const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
+  const isSha256 = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
 
   if (!manifest) {
     return { valid: false, errors: ['Manifest missing'] };
@@ -17,8 +18,8 @@ function validateIngestionManifest(manifest) {
   if (!manifest.document) {
     errors.push('Document metadata missing');
   } else {
-    for (const field of contract.metadata.requiredFields) {
-      if (!manifest.document[field]) {
+    for (const field of [...contract.metadata.requiredFields, 'id']) {
+      if (!isNonEmptyString(manifest.document[field])) {
         errors.push(`Missing document field ${field}`);
       }
     }
@@ -38,23 +39,46 @@ function validateIngestionManifest(manifest) {
   } else if (manifest.components.some((component) => !isNonEmptyString(component?.id)
     || !isNonEmptyString(component?.sourceHeading)
     || !isNonEmptyString(component?.type)
-    || !isNonEmptyString(component?.hash)
-    || !Number.isInteger(component?.pageStart)
-    || !Number.isInteger(component?.pageEnd))) {
+    || !isSha256(component?.hash)
+    || !Number.isInteger(component?.pageStart) || component.pageStart < 1
+    || !Number.isInteger(component?.pageEnd) || component.pageEnd < component.pageStart)) {
     errors.push('Component entries are incomplete');
   }
 
   if (!manifest.assets || !Array.isArray(manifest.assets.pages) || !manifest.assets.pages.length) {
     errors.push('Assets.pages missing');
-  } else if (manifest.assets.pages.some((page) => !Number.isInteger(page?.page) || page.page < 1 || !isNonEmptyString(page?.hash))) {
+  } else if (manifest.assets.pages.some((page) => !Number.isInteger(page?.page) || page.page < 1 || !isSha256(page?.hash))) {
     errors.push('Page assets are incomplete');
   }
 
   if (!manifest.assets || !Array.isArray(manifest.assets.components)
     || manifest.assets.components.length !== manifest.components?.length) {
     errors.push('Assets.components must align 1:1 with components');
-  } else if (manifest.assets.components.some((component) => !isNonEmptyString(component?.id) || !isNonEmptyString(component?.hash))) {
+  } else if (manifest.assets.components.some((component) => !isNonEmptyString(component?.id) || !isSha256(component?.hash))) {
     errors.push('Component assets are incomplete');
+  }
+
+  if (Array.isArray(manifest.outline) && Array.isArray(manifest.components)) {
+    const outlineIds = new Set(manifest.outline.map((entry) => entry?.id));
+    if (manifest.components.some((component) => !outlineIds.has(component?.sourceHeading))) {
+      errors.push('Components must reference an outline heading');
+    }
+  }
+
+  if (Array.isArray(manifest.assets?.pages)) {
+    const pageNumbers = manifest.assets.pages.map((page) => page?.page);
+    if (new Set(pageNumbers).size !== pageNumbers.length
+      || pageNumbers.some((page, index) => page !== index + 1)) {
+      errors.push('Page assets must be sequential and unique');
+    }
+  }
+
+  if (Array.isArray(manifest.components) && Array.isArray(manifest.assets?.components)) {
+    const componentAssets = new Map(manifest.assets.components.map((asset) => [asset?.id, asset?.hash]));
+    if (componentAssets.size !== manifest.components.length
+      || manifest.components.some((component) => componentAssets.get(component?.id) !== component?.hash)) {
+      errors.push('Component assets must match components');
+    }
   }
 
   if (manifest.ocrUsage?.length > contract.ocr.maxFallbacksPerDocument) {

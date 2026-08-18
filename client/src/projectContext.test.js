@@ -6,6 +6,7 @@ import {
   getIngestionDocumentId,
   getScriptInputReadiness,
   loadLatestProjectContext,
+  loadProjectContext,
   PROJECT_CONTEXT_VERSION,
   resolveMatchingIngestionManifest,
   saveProjectContext,
@@ -296,4 +297,49 @@ test('legacy project contexts without a manifest remain safely unconfirmed for i
     script: 'Legacy manual tutorial.', scriptProvenance: SCRIPT_PROVENANCE.MANUAL,
   });
   expect(loadLatestProjectContext(window.localStorage).ingestionManifest).toBeNull();
+});
+
+
+test('recovers only when both live and persisted browser manifests are absent', async () => {
+  const context = {
+    projectId: 'abyss-legacy-recovery', gameName: 'Abyss', language: 'english',
+    rulebookText: 'Setup\nPlace the board.', components: [{ id: 'board', name: 'Board' }],
+  };
+  const recovered = await createMatchingIngestionManifest(context);
+  const recover = jest.fn().mockResolvedValue({ ok: true, manifest: recovered });
+
+  const resolution = await resolveMatchingIngestionManifest({
+    manifest: null, storage: window.localStorage, context, recover,
+  });
+
+  expect(recover).toHaveBeenCalledWith(context.projectId);
+  expect(resolution).toMatchObject({ valid: true, code: null, manifest: recovered });
+  saveProjectContext(window.localStorage, { ...context, ingestionManifest: resolution.manifest });
+  expect(loadProjectContext(window.localStorage, context.projectId).ingestionManifest).toEqual(recovered);
+});
+
+test('does not call recovery when a current persisted manifest is valid', async () => {
+  const context = { projectId: 'abyss-current-manifest', gameName: 'Abyss', rulebookText: 'Setup\nPlace the board.' };
+  const manifest = await createMatchingIngestionManifest(context);
+  saveProjectContext(window.localStorage, { ...context, ingestionManifest: manifest });
+  const recover = jest.fn();
+
+  await expect(resolveMatchingIngestionManifest({
+    manifest: null, storage: window.localStorage, context, recover,
+  })).resolves.toMatchObject({ valid: true, manifest });
+  expect(recover).not.toHaveBeenCalled();
+});
+
+test.each([
+  ['missing durable manifest', 'INGESTION_MANIFEST_MISSING'],
+  ['foreign durable project', 'INGESTION_MANIFEST_PROJECT_MISMATCH'],
+  ['invalid durable manifest', 'INGESTION_MANIFEST_INVALID'],
+])('preserves fail-closed recovery result for %s', async (_label, code) => {
+  const context = { projectId: 'abyss-fail-closed', gameName: 'Abyss', rulebookText: 'Setup\nPlace the board.' };
+  await expect(resolveMatchingIngestionManifest({
+    manifest: null,
+    storage: window.localStorage,
+    context,
+    recover: () => Promise.resolve({ ok: false, code }),
+  })).resolves.toMatchObject({ valid: false, code, manifest: null });
 });

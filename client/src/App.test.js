@@ -16,6 +16,7 @@ import { webcrypto } from 'crypto';
 import {
   buildDeterministicIngestionPages,
   getIngestionDocumentId,
+  loadLatestProjectContext,
   saveProjectContext,
 } from './projectContext';
 
@@ -549,4 +550,56 @@ test('hydrates a matching persisted manifest and sends it with the validated scr
       options: { includeOverlayHashes: true },
     }),
   ));
+});
+
+
+test('recovers a legacy browser context by project ID, migrates it, and sends the recovered manifest to storyboard', async () => {
+  const context = {
+    projectId: 'abyss-legacy-browser-context', gameName: 'Abyss', language: 'english',
+    rulebookText: 'Setup\nPlace the board.', components: [{ id: 'board', name: 'Board' }],
+    script: 'Place the board.', scriptProvenance: 'generated_source_complete', generatedScript: true,
+    scriptPackage: { contractVersion: '1.0', sections: [{ id: 'section-01', order: 1, title: 'Setup', spokenText: 'Place the board.', visualDirections: [{ instruction: 'Show board.' }], sources: [{ section: 1, startOffset: 0, endOffset: 22 }] }] },
+    activeStepId: 'storyboard', completedStepIds: ['project', 'metadata', 'ingestion', 'images', 'script'],
+  };
+  const manifest = await createStoryboardIngestionManifest(context);
+  saveProjectContext(window.localStorage, { ...context, ingestionManifest: null });
+  axios.post.mockImplementation((url) => {
+    if (url.endsWith('/api/projects/recover-ingestion-manifest')) return Promise.resolve({ data: { ok: true, manifest } });
+    if (url.endsWith('/api/storyboard')) return Promise.resolve({ data: { ok: true, manifest: { scenes: [] } } });
+    return Promise.resolve({ data: {} });
+  });
+
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Generate storyboard' }));
+
+  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
+    expect.stringContaining('/api/projects/recover-ingestion-manifest'),
+    { projectId: context.projectId },
+  ));
+  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
+    expect.stringContaining('/api/storyboard'),
+    expect.objectContaining({ ingestionManifest: manifest, scriptPackage: context.scriptPackage }),
+  ));
+  expect(loadLatestProjectContext(window.localStorage).ingestionManifest).toEqual(manifest);
+});
+
+test('does not request recovery when the current browser context already has a valid manifest', async () => {
+  const context = {
+    projectId: 'abyss-current-browser-context', gameName: 'Abyss', language: 'english', rulebookText: 'Setup\nPlace the board.',
+    script: 'Place the board.', scriptProvenance: 'generated_source_complete', generatedScript: true,
+    scriptPackage: { contractVersion: '1.0', sections: [{ id: 'section-01', order: 1, title: 'Setup', spokenText: 'Place the board.', visualDirections: [], sources: [{ section: 1, startOffset: 0, endOffset: 22 }] }] },
+    activeStepId: 'storyboard', completedStepIds: ['script'],
+  };
+  const manifest = await createStoryboardIngestionManifest(context);
+  saveProjectContext(window.localStorage, { ...context, ingestionManifest: manifest });
+  axios.post.mockResolvedValue({ data: { ok: true, manifest: { scenes: [] } } });
+
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Generate storyboard' }));
+  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
+    expect.stringContaining('/api/storyboard'), expect.objectContaining({ ingestionManifest: manifest }),
+  ));
+  expect(axios.post).not.toHaveBeenCalledWith(
+    expect.stringContaining('/api/projects/recover-ingestion-manifest'), expect.anything(),
+  );
 });

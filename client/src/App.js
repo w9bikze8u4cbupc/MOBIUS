@@ -914,13 +914,46 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       manifest: ingestionManifest,
       storage: typeof window !== 'undefined' ? window.localStorage : null,
       context: { projectId, gameName, rulebookText },
+      recover: async (activeProjectId) => {
+        try {
+          const { data } = await axios.post(`${BACKEND_URL}/api/projects/recover-ingestion-manifest`, {
+            projectId: activeProjectId,
+          });
+          return data;
+        } catch (error) {
+          return { code: error.response?.data?.code || 'INGESTION_MANIFEST_INVALID' };
+        }
+      },
     });
     if (!resolution.valid) {
       setStoryboardError(resolution.code);
       return;
     }
     const manifest = resolution.manifest;
-    if (manifest !== ingestionManifest) setIngestionManifest(manifest);
+    if (manifest !== ingestionManifest) {
+      setIngestionManifest(manifest);
+      if (typeof window !== 'undefined') {
+        saveProjectContext(window.localStorage, createPersistedProjectContext({
+          projectId,
+          gameName,
+          language,
+          rulebookText,
+          rulebookPages,
+          components: gameComponents,
+          metadata,
+          images: projectImages,
+          componentImageLinks,
+          script: editedSummary || summary,
+          scriptPackage,
+          generatedScript,
+          scriptProvenance,
+          ingestionManifest: manifest,
+          storyboardManifest,
+          activeStepId,
+          completedStepIds,
+        }));
+      }
+    }
 
     setStoryboarding(true);
     setStoryboardError("");
