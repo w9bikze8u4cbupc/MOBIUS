@@ -64,8 +64,33 @@ function deterministicPageHash(page) {
   return crypto.createHash('sha256').update(`${page.number}:${text}`).digest('hex');
 }
 
-function recoveryFailure(code, errors = []) {
-  return { valid: false, code, errors };
+function recoveryFailure(code, errors = [], diagnostics = {}) {
+  return { valid: false, code, errors, diagnostics };
+}
+
+const DEVELOPMENT_RECOVERY_DIAGNOSTICS = process.env.NODE_ENV === 'development';
+
+function createRecoveryDiagnosticId() {
+  return crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+}
+
+function writeRecoveryDiagnostic(diagnostic) {
+  if (!DEVELOPMENT_RECOVERY_DIAGNOSTICS) return;
+  console.info('[ingestion-manifest-recovery]', JSON.stringify(diagnostic));
+}
+
+function recoveryOutcome(code) {
+  if (code === INGESTION_MANIFEST_RECOVERY.MISSING) return 'missing';
+  if (code === INGESTION_MANIFEST_RECOVERY.PROJECT_MISMATCH) return 'project_mismatch';
+  if (code === INGESTION_MANIFEST_RECOVERY.INVALID) return 'invalid';
+  return 'valid';
+}
+
+function withRecoveryDiagnostics(recovery, candidateCount, candidateOutcomes) {
+  return {
+    ...recovery,
+    diagnostics: { candidateCount, candidateOutcomes },
+  };
 }
 
 function hasUnsafeSource(value) {
@@ -166,27 +191,59 @@ function selectDurableManifest(metadata, context) {
 
 export function recoverDurableIngestionManifest(rows, requestedProjectId) {
   const projectId = normalizeRecoveryProjectId(requestedProjectId);
-  if (!projectId) return recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID, ['Project ID is not canonical']);
+  if (!projectId) {
+    return withRecoveryDiagnostics(
+      recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID, ['Project ID is not canonical']),
+      0,
+      ['project_id:invalid'],
+    );
+  }
 
   const matchingRecords = (Array.isArray(rows) ? rows : [])
     .map((row) => ({ row, metadata: parseRecoveryMetadata(row?.metadata) }))
     .filter(({ metadata }) => metadata?.projectContext?.projectId === projectId);
-  if (!matchingRecords.length) return recoveryFailure(INGESTION_MANIFEST_RECOVERY.MISSING, ['Project not found']);
+  if (!matchingRecords.length) {
+    return withRecoveryDiagnostics(
+      recoveryFailure(INGESTION_MANIFEST_RECOVERY.MISSING, ['Project not found']),
+      0,
+      ['record_lookup:missing'],
+    );
+  }
   if (matchingRecords.length !== 1) {
-    return recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID, ['Project ID is ambiguous']);
+    return withRecoveryDiagnostics(
+      recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID, ['Project ID is ambiguous']),
+      matchingRecords.length,
+      ['record_lookup:ambiguous'],
+    );
   }
 
   const { metadata } = matchingRecords[0];
   const context = metadata.projectContext;
   if (!context || typeof context !== 'object' || Array.isArray(context)
     || context.projectId !== projectId || typeof context.rulebookText !== 'string') {
-    return recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID, ['Persisted project context is invalid']);
+    return withRecoveryDiagnostics(
+      recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID, ['Persisted project context is invalid']),
+      1,
+      ['persisted_context:invalid'],
+    );
   }
   const manifest = selectDurableManifest(metadata, context);
   if (manifest === false) {
-    return recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID, ['Durable manifests disagree']);
+    return withRecoveryDiagnostics(
+      recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID, ['Durable manifests disagree']),
+      1,
+      ['manifest_candidate:conflict'],
+    );
   }
-  return validateDurableIngestionManifest({ projectId, manifest, rulebookText: context.rulebookText });
+  if (!manifest) {
+    return withRecoveryDiagnostics(
+      recoveryFailure(INGESTION_MANIFEST_RECOVERY.MISSING, ['Manifest missing']),
+      1,
+      ['manifest_candidate:missing'],
+    );
+  }
+  const recovery = validateDurableIngestionManifest({ projectId, manifest, rulebookText: context.rulebookText });
+  return withRecoveryDiagnostics(recovery, 1, [`manifest_validation:${recoveryOutcome(recovery.code)}`]);
 }
 
 export function buildRenderProjectState(row) {
@@ -239,28 +296,130 @@ export function hydrateRenderProjectState(db) {
   });
 }
 
-function sendRecoveryFailure(res, recovery) {
+function withDiagnosticId(payload, diagnosticId) {
+  return DEVELOPMENT_RECOVERY_DIAGNOSTICS ? { ...payload, diagnosticId } : payload;
+}
+
+function sendRecoveryFailure(res, recovery, diagnosticId) {
   const status = recovery.code === INGESTION_MANIFEST_RECOVERY.MISSING ? 404 : 400;
-  return res.status(status).json({ ok: false, code: recovery.code });
+  return res.status(status).json(withDiagnosticId({ ok: false, code: recovery.code }, diagnosticId));
+}
+
+function buildPersistedRecoveryMetadata(metadata, projectId, rulebookText, manifest) {
+  const existingMetadata = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {};
+  const existingContext = existingMetadata.projectContext && typeof existingMetadata.projectContext === 'object'
+    && !Array.isArray(existingMetadata.projectContext)
+    ? existingMetadata.projectContext
+    : {};
+  const existingRenderState = existingMetadata.renderState && typeof existingMetadata.renderState === 'object'
+    && !Array.isArray(existingMetadata.renderState)
+    ? existingMetadata.renderState
+    : {};
+  return {
+    ...existingMetadata,
+    projectContext: {
+      ...existingContext,
+      version: 4,
+      projectId,
+      rulebookText,
+      ingestionManifest: manifest,
+    },
+    renderState: { ...existingRenderState, ingestionManifest: manifest },
+  };
+}
+
+function persistDurableIngestionManifest(db, rows, { projectId, rulebookText, manifest }, res) {
+  const validation = validateDurableIngestionManifest({ projectId, manifest, rulebookText });
+  if (!validation.valid) return sendRecoveryFailure(res, validation);
+
+  const matchingRecords = (Array.isArray(rows) ? rows : [])
+    .map((row) => ({ row, metadata: parseRecoveryMetadata(row?.metadata) }))
+    .filter(({ metadata }) => metadata?.projectContext?.projectId === projectId);
+  if (matchingRecords.length > 1) {
+    return sendRecoveryFailure(res, recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID, ['Project ID is ambiguous']));
+  }
+
+  const existing = matchingRecords[0];
+  const persistedMetadata = buildPersistedRecoveryMetadata(existing?.metadata, projectId, rulebookText, manifest);
+  const complete = (error) => {
+    if (error) {
+      console.error('Unable to persist durable ingestion manifest', error);
+      return sendRecoveryFailure(res, recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID));
+    }
+    return res.json({ ok: true, projectId });
+  };
+
+  if (existing) {
+    return db.run('UPDATE projects SET metadata = ? WHERE id = ?', [JSON.stringify(persistedMetadata), existing.row.id], complete);
+  }
+  return db.run(
+    `INSERT INTO projects (name, metadata, components, images, script, audio, scenes)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [projectId, JSON.stringify(persistedMetadata), '[]', '[]', '', '', undefined],
+    complete,
+  );
 }
 
 export function registerProjectPersistenceRoutes(app, { db }) {
   hydrateRenderProjectState(db);
 
   app.post('/api/projects/recover-ingestion-manifest', (req, res) => {
-    const projectId = normalizeRecoveryProjectId(req.body?.projectId);
+    const diagnosticId = createRecoveryDiagnosticId();
+    const requestedProjectId = req.body?.projectId;
+    const projectId = normalizeRecoveryProjectId(requestedProjectId);
+    const baseDiagnostic = {
+      diagnosticId,
+      recoveryAttempted: true,
+      normalizedProjectId: {
+        present: typeof requestedProjectId === 'string' && requestedProjectId.trim().length > 0,
+        valid: Boolean(projectId),
+      },
+      httpRouteReached: true,
+    };
     if (!projectId) {
-      return sendRecoveryFailure(res, recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID));
+      const recovery = withRecoveryDiagnostics(
+        recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID), 0, ['project_id:invalid'],
+      );
+      writeRecoveryDiagnostic({ ...baseDiagnostic, durableRecordCandidateCount: 0, candidateOutcomes: recovery.diagnostics.candidateOutcomes, finalCode: recovery.code });
+      return sendRecoveryFailure(res, recovery, diagnosticId);
     }
     return db.all('SELECT * FROM projects', [], (error, rows = []) => {
       if (error) {
         console.error('Unable to recover durable ingestion manifest', error);
-        return sendRecoveryFailure(res, recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID));
+        const recovery = withRecoveryDiagnostics(
+          recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID), 0, ['record_lookup:error'],
+        );
+        writeRecoveryDiagnostic({ ...baseDiagnostic, durableRecordCandidateCount: 0, candidateOutcomes: recovery.diagnostics.candidateOutcomes, finalCode: recovery.code });
+        return sendRecoveryFailure(res, recovery, diagnosticId);
       }
       const recovery = recoverDurableIngestionManifest(rows, projectId);
-      if (!recovery.valid) return sendRecoveryFailure(res, recovery);
+      writeRecoveryDiagnostic({
+        ...baseDiagnostic,
+        durableRecordCandidateCount: recovery.diagnostics.candidateCount,
+        candidateOutcomes: recovery.diagnostics.candidateOutcomes,
+        finalCode: recovery.code,
+      });
+      if (!recovery.valid) return sendRecoveryFailure(res, recovery, diagnosticId);
       // Never expose durable source text, filesystem metadata, or media paths to the browser.
-      return res.json({ ok: true, manifest: browserSafeManifest(recovery.manifest) });
+      return res.json(withDiagnosticId({ ok: true, manifest: browserSafeManifest(recovery.manifest) }, diagnosticId));
+    });
+  });
+
+  app.post('/api/projects/persist-ingestion-manifest', (req, res) => {
+    const projectId = normalizeRecoveryProjectId(req.body?.projectId);
+    if (!projectId || typeof req.body?.rulebookText !== 'string') {
+      return sendRecoveryFailure(res, recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID));
+    }
+    return db.all('SELECT * FROM projects', [], (error, rows = []) => {
+      if (error) {
+        console.error('Unable to locate durable project for ingestion persistence', error);
+        return sendRecoveryFailure(res, recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID));
+      }
+      return persistDurableIngestionManifest(db, rows, {
+        projectId,
+        rulebookText: req.body.rulebookText,
+        manifest: req.body.manifest,
+      }, res);
     });
   });
 

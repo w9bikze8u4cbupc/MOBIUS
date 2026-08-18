@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import axios from "axios";
 import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import { GenesisFeedbackPanel } from "./GenesisFeedbackPanel";
@@ -29,6 +29,7 @@ import {
   getScriptInputReadiness,
   getSpokenSections,
   isSourceCompleteScriptPackage,
+  isCanonicalRecoveryProjectId,
   isTrustedScriptProvenance,
   loadLatestProjectContext,
   resolveMatchingIngestionManifest,
@@ -344,6 +345,26 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   });
   const [aiStatusLoading, setAiStatusLoading] = useState(false);
 
+  const persistCanonicalIngestionManifest = useCallback(async (manifest) => {
+    if (!isCanonicalRecoveryProjectId(projectId) || !rulebookText.trim() || !manifest) return;
+    try {
+      await axios.post(`${BACKEND_URL}/api/projects/persist-ingestion-manifest`, {
+        projectId,
+        rulebookText,
+        manifest,
+      });
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.info('[ingestion-manifest-persistence]', JSON.stringify({
+          persisted: false,
+          projectIdPresent: Boolean(projectId),
+          projectIdValid: isCanonicalRecoveryProjectId(projectId),
+          code: error.response?.data?.code || 'INGESTION_MANIFEST_INVALID',
+        }));
+      }
+    }
+  }, [projectId, rulebookText]);
+
 
   // --- Effects ---
   // Effect to set default voice based on language
@@ -571,6 +592,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           bggMetadata: {}
         });
         setIngestionManifest(data.manifest);
+        void persistCanonicalIngestionManifest(data.manifest);
       } catch (err) {
         console.error('Auto ingestion failed:', err);
       } finally {
@@ -580,7 +602,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     
     const timer = setTimeout(runAutoExtraction, 300);
     return () => clearTimeout(timer);
-  }, [activeStepId, rulebookText, rulebookPages, ingesting, extractingComponents, gameComponents.length, gameName, projectId]);
+  }, [activeStepId, rulebookText, rulebookPages, ingesting, extractingComponents, gameComponents.length, gameName, projectId, persistCanonicalIngestionManifest]);
 
   // Reset auto-trigger when PDF changes
   useEffect(() => {
@@ -859,6 +881,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     try {
       const { data } = await axios.post(`${BACKEND_URL}/api/ingest`, payload);
       setIngestionManifest(data.manifest);
+      void persistCanonicalIngestionManifest(data.manifest);
     } catch (err) {
       setIngestionManifest(null);
       const apiError = err.response?.data?.code || err.response?.data?.error || err.message || 'Unknown error';
@@ -916,12 +939,26 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       context: { projectId, gameName, rulebookText },
       recover: async (activeProjectId) => {
         try {
-          const { data } = await axios.post(`${BACKEND_URL}/api/projects/recover-ingestion-manifest`, {
+          const response = await axios.post(`${BACKEND_URL}/api/projects/recover-ingestion-manifest`, {
             projectId: activeProjectId,
           });
-          return data;
+          return {
+            ...response.data,
+            httpRouteReached: true,
+            responseStatus: Number.isInteger(response.status) ? response.status : 200,
+          };
         } catch (error) {
-          return { code: error.response?.data?.code || 'INGESTION_MANIFEST_INVALID' };
+          return {
+            code: error.response?.data?.code || 'INGESTION_MANIFEST_INVALID',
+            diagnosticId: error.response?.data?.diagnosticId,
+            httpRouteReached: Boolean(error.response),
+            responseStatus: Number.isInteger(error.response?.status) ? error.response.status : null,
+          };
+        }
+      },
+      onRecoveryDiagnostic: (diagnostic) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.info('[ingestion-manifest-recovery-client]', JSON.stringify(diagnostic));
         }
       },
     });

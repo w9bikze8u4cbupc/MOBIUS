@@ -343,3 +343,46 @@ test.each([
     recover: () => Promise.resolve({ ok: false, code }),
   })).resolves.toMatchObject({ valid: false, code, manifest: null });
 });
+
+
+test('never calls recovery for a malformed active project ID and reports a safe typed diagnostic', async () => {
+  const recover = jest.fn();
+  const onRecoveryDiagnostic = jest.fn();
+  await expect(resolveMatchingIngestionManifest({
+    manifest: null,
+    storage: window.localStorage,
+    context: { projectId: '../../abyss', gameName: 'Abyss', rulebookText: 'Setup\nPlace the board.' },
+    recover,
+    onRecoveryDiagnostic,
+  })).resolves.toMatchObject({ valid: false, code: 'INGESTION_MANIFEST_INVALID' });
+  expect(recover).not.toHaveBeenCalled();
+  expect(onRecoveryDiagnostic).toHaveBeenCalledWith(expect.objectContaining({
+    recoveryAttempted: false,
+    projectIdPresent: true,
+    projectIdValid: false,
+    finalCode: 'INGESTION_MANIFEST_INVALID',
+  }));
+});
+
+test('emits one safe recovery diagnostic for a legacy context and preserves its typed code', async () => {
+  const context = { projectId: 'abyss-diagnostic-context', gameName: 'Abyss', rulebookText: 'Setup\nPlace the board.' };
+  const recover = jest.fn().mockResolvedValue({
+    code: 'INGESTION_MANIFEST_PROJECT_MISMATCH',
+    httpRouteReached: true,
+    responseStatus: 400,
+    diagnosticId: 'safe12345678',
+  });
+  const onRecoveryDiagnostic = jest.fn();
+  await expect(resolveMatchingIngestionManifest({
+    manifest: null, storage: window.localStorage, context, recover, onRecoveryDiagnostic,
+  })).resolves.toMatchObject({ valid: false, code: 'INGESTION_MANIFEST_PROJECT_MISMATCH' });
+  expect(recover).toHaveBeenCalledTimes(1);
+  expect(onRecoveryDiagnostic).toHaveBeenCalledWith(expect.objectContaining({
+    recoveryAttempted: true,
+    httpRouteReached: true,
+    responseStatus: 400,
+    diagnosticId: 'safe12345678',
+    finalCode: 'INGESTION_MANIFEST_PROJECT_MISMATCH',
+  }));
+  expect(JSON.stringify(onRecoveryDiagnostic.mock.calls)).not.toContain(context.rulebookText);
+});

@@ -20,9 +20,15 @@ const TRUSTED_SCRIPT_PROVENANCE = new Set([
   SCRIPT_PROVENANCE.GENERATED_SOURCE_COMPLETE,
 ]);
 const KNOWN_SCRIPT_PROVENANCE = new Set(Object.values(SCRIPT_PROVENANCE));
+const CANONICAL_RECOVERY_PROJECT_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function asTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+export function isCanonicalRecoveryProjectId(value) {
+  const projectId = asTrimmedString(value);
+  return projectId.length <= 128 && CANONICAL_RECOVERY_PROJECT_ID.test(projectId);
 }
 
 export function isTrustedScriptProvenance(provenance) {
@@ -251,32 +257,61 @@ export async function validateMatchingIngestionManifest(manifest, context = {}) 
   return { valid: true, code: null, manifest };
 }
 
-export async function resolveMatchingIngestionManifest({ manifest, storage, context, recover } = {}) {
-  const persistedManifest = !manifest && context?.projectId
-    ? loadProjectContext(storage, context.projectId)?.ingestionManifest
+export async function resolveMatchingIngestionManifest({
+  manifest, storage, context, recover, onRecoveryDiagnostic,
+} = {}) {
+  const projectId = asTrimmedString(context?.projectId);
+  const projectIdValid = isCanonicalRecoveryProjectId(projectId);
+  const report = (details) => {
+    if (typeof onRecoveryDiagnostic === 'function') onRecoveryDiagnostic({
+      projectIdPresent: Boolean(projectId), projectIdValid, ...details,
+    });
+  };
+  const persistedManifest = !manifest && projectId
+    ? loadProjectContext(storage, projectId)?.ingestionManifest
     : null;
   const candidate = manifest || persistedManifest || null;
   if (candidate) {
     const validation = await validateMatchingIngestionManifest(candidate, context);
+    report({ recoveryAttempted: false, httpRouteReached: false, finalCode: validation.code });
     return { ...validation, manifest: validation.valid ? candidate : null };
   }
-  if (!context?.projectId || typeof recover !== 'function') {
-    return { valid: false, code: INGESTION_MANIFEST_FAILURE.MISSING, manifest: null };
+  if (!projectIdValid || typeof recover !== 'function') {
+    const code = projectIdValid
+      ? INGESTION_MANIFEST_FAILURE.MISSING
+      : INGESTION_MANIFEST_FAILURE.INVALID;
+    report({ recoveryAttempted: false, httpRouteReached: false, finalCode: code });
+    return { valid: false, code, manifest: null };
   }
 
   let recovery;
   try {
-    recovery = await recover(context.projectId);
+    recovery = await recover(projectId);
   } catch {
+    report({ recoveryAttempted: true, httpRouteReached: false, responseStatus: null, finalCode: INGESTION_MANIFEST_FAILURE.INVALID });
     return { valid: false, code: INGESTION_MANIFEST_FAILURE.INVALID, manifest: null };
   }
   if (!recovery?.manifest) {
     const code = Object.values(INGESTION_MANIFEST_FAILURE).includes(recovery?.code)
       ? recovery.code
       : INGESTION_MANIFEST_FAILURE.INVALID;
+    report({
+      recoveryAttempted: true,
+      httpRouteReached: recovery?.httpRouteReached === true,
+      responseStatus: Number.isInteger(recovery?.responseStatus) ? recovery.responseStatus : null,
+      diagnosticId: typeof recovery?.diagnosticId === 'string' ? recovery.diagnosticId : null,
+      finalCode: code,
+    });
     return { valid: false, code, manifest: null };
   }
   const validation = await validateMatchingIngestionManifest(recovery.manifest, context);
+  report({
+    recoveryAttempted: true,
+    httpRouteReached: recovery?.httpRouteReached === true,
+    responseStatus: Number.isInteger(recovery?.responseStatus) ? recovery.responseStatus : null,
+    diagnosticId: typeof recovery?.diagnosticId === 'string' ? recovery.diagnosticId : null,
+    finalCode: validation.code,
+  });
   return { ...validation, manifest: validation.valid ? recovery.manifest : null };
 }
 

@@ -128,3 +128,95 @@ describe('durable ingestion-manifest recovery', () => {
     });
   });
 });
+
+
+function createInMemoryProjectDb(rows = []) {
+  let nextId = rows.length + 1;
+  return {
+    all: (_sql, _params, callback) => callback(null, rows),
+    get: jest.fn(),
+    run: (sql, params, callback) => {
+      if (/^UPDATE/i.test(sql.trim())) {
+        const row = rows.find((candidate) => candidate.id === params[1]);
+        if (row) row.metadata = params[0];
+        callback.call({ changes: row ? 1 : 0 }, null);
+        return;
+      }
+      rows.push({
+        id: nextId++, name: params[0], metadata: params[1], components: params[2], images: params[3],
+        script: params[4], audio: params[5], scenes: params[6],
+      });
+      callback.call({ lastID: nextId - 1, changes: 1 }, null);
+    },
+  };
+}
+
+function invokePersistence(rows, body) {
+  const routes = new Map();
+  registerProjectPersistenceRoutes({
+    post: (route, handler) => routes.set(route, handler),
+    get: () => {},
+  }, { db: createInMemoryProjectDb(rows) });
+  const result = { statusCode: 200, payload: null };
+  const res = {
+    status(code) { result.statusCode = code; return this; },
+    json(payload) { result.payload = payload; return this; },
+  };
+  routes.get('/api/projects/persist-ingestion-manifest')({ body }, res);
+  return result;
+}
+
+describe('canonical ingestion persistence for recovery', () => {
+  test('persists a validated logical project record and recovers it without inspecting artifacts', () => {
+    const rows = [];
+    const persisted = invokePersistence(rows, { projectId, rulebookText, manifest: makeManifest() });
+    expect(persisted).toEqual(expect.objectContaining({ statusCode: 200, payload: { ok: true, projectId } }));
+    expect(rows).toHaveLength(1);
+    expect(invokeRecovery(rows, { projectId })).toMatchObject({
+      statusCode: 200,
+      payload: { ok: true, manifest: { document: { id: projectId, gameId: projectId } } },
+    });
+  });
+
+  test('keeps diagnostics redacted while identifying an empty durable store', () => {
+    const recovery = recoverDurableIngestionManifest([], projectId);
+    expect(recovery).toMatchObject({
+      valid: false,
+      code: INGESTION_MANIFEST_RECOVERY.MISSING,
+      diagnostics: { candidateCount: 0, candidateOutcomes: ['record_lookup:missing'] },
+    });
+    expect(JSON.stringify(recovery.diagnostics)).not.toContain(rulebookText);
+    expect(JSON.stringify(recovery.diagnostics)).not.toMatch(/private|token|password|file:/i);
+  });
+});
+
+
+test('reports distinct redacted diagnostics for ambiguity, invalid context, and conflicting candidates', () => {
+  const duplicate = makeRow();
+  duplicate.id = 2;
+  expect(recoverDurableIngestionManifest([makeRow(), duplicate], projectId)).toMatchObject({
+    valid: false,
+    code: INGESTION_MANIFEST_RECOVERY.INVALID,
+    diagnostics: { candidateCount: 2, candidateOutcomes: ['record_lookup:ambiguous'] },
+  });
+
+  const invalidContext = makeRow();
+  const invalidContextMetadata = JSON.parse(invalidContext.metadata);
+  invalidContextMetadata.projectContext.rulebookText = null;
+  invalidContext.metadata = JSON.stringify(invalidContextMetadata);
+  expect(recoverDurableIngestionManifest([invalidContext], projectId)).toMatchObject({
+    valid: false,
+    code: INGESTION_MANIFEST_RECOVERY.INVALID,
+    diagnostics: { candidateOutcomes: ['persisted_context:invalid'] },
+  });
+
+  const conflict = makeRow();
+  const conflictMetadata = JSON.parse(conflict.metadata);
+  conflictMetadata.projectContext.ingestionManifest = { ...makeManifest(), version: 'different' };
+  conflict.metadata = JSON.stringify(conflictMetadata);
+  expect(recoverDurableIngestionManifest([conflict], projectId)).toMatchObject({
+    valid: false,
+    code: INGESTION_MANIFEST_RECOVERY.INVALID,
+    diagnostics: { candidateOutcomes: ['manifest_candidate:conflict'] },
+  });
+});

@@ -603,3 +603,29 @@ test('does not request recovery when the current browser context already has a v
     expect.stringContaining('/api/projects/recover-ingestion-manifest'), expect.anything(),
   );
 });
+
+
+test('preserves a typed recovery failure instead of collapsing it to a generic missing result', async () => {
+  const context = {
+    projectId: 'abyss-recovery-error', gameName: 'Abyss', language: 'english', rulebookText: 'Setup\nPlace the board.',
+    script: 'Place the board.', scriptProvenance: 'generated_source_complete', generatedScript: true,
+    scriptPackage: { contractVersion: '1.0', sections: [{ id: 'section-01', order: 1, title: 'Setup', spokenText: 'Place the board.', visualDirections: [], sources: [{ section: 1, startOffset: 0, endOffset: 22 }] }] },
+    activeStepId: 'storyboard', completedStepIds: ['script'],
+  };
+  saveProjectContext(window.localStorage, context);
+  axios.post.mockImplementation((url) => {
+    if (url.endsWith('/api/projects/recover-ingestion-manifest')) {
+      return Promise.reject({ response: { status: 400, data: { code: 'INGESTION_MANIFEST_PROJECT_MISMATCH', diagnosticId: 'safe12345678' } } });
+    }
+    return Promise.resolve({ data: {} });
+  });
+
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Generate storyboard' }));
+
+  await waitFor(() => expect(screen.getByText('INGESTION_MANIFEST_PROJECT_MISMATCH')).toBeInTheDocument());
+  expect(axios.post).toHaveBeenCalledTimes(1);
+  expect(axios.post).toHaveBeenCalledWith(
+    expect.stringContaining('/api/projects/recover-ingestion-manifest'), { projectId: context.projectId },
+  );
+});
