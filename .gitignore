@@ -99,6 +99,7 @@ out/real-input-adhoc-cli-smoke/
 /data/logs/last-invalid-script-package.json
 
 # Local-only contextual evidence payloads (the descriptor manifest is also local project data)
+/data/contextual-evidence-adoption-links.json
 /data/*/contextual-evidence/source/
 /data/*/contextual-evidence/pages/
 /data/*/contextual-evidence/crop-cache/

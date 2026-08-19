@@ -50,6 +50,12 @@ const contextualEvidence = {
   resolveAssetFile: jest.fn(),
   registerCrop: jest.fn(),
 };
+const contextualAdoption = {
+  discover: jest.fn(),
+  previewLocalUpload: jest.fn(),
+  adoptLocalPreview: jest.fn(),
+  adoptLegacy: jest.fn(),
+};
 
 describe('images api routes', () => {
   const fixtureDirectory = path.join(process.cwd(), 'data', '.image-route-test-fixtures');
@@ -69,8 +75,9 @@ describe('images api routes', () => {
     app.use(express.json());
     registerImageRoutes(app, {
       extractorApiKey: 'key',
-      upload: { single: () => (req, _res, next) => { req.file = { path: sourcePath }; next(); } },
+      upload: { single: () => (req, _res, next) => { req.file = { path: sourcePath, originalname: 'Fixture.pdf' }; next(); } },
       contextualEvidence,
+      contextualAdoption,
     });
     server = app.listen(0, () => {
       const { port } = server.address();
@@ -90,6 +97,7 @@ describe('images api routes', () => {
     resetImageStore();
     jest.resetAllMocks();
     contextualEvidence.inventory.mockImplementation(async () => { throw { code: 'CONTEXTUAL_EVIDENCE_UNAVAILABLE' }; });
+    contextualAdoption.discover.mockResolvedValue({ projectId: 'demo', status: 'none', code: 'CONTEXTUAL_ADOPTION_NO_CANDIDATE', candidates: [], eligibleCandidate: null });
   });
 
   it('returns component-link provenance from ordinary image mutations', async () => {
@@ -321,7 +329,7 @@ it('persists contextual evidence immediately after an accepted PDF upload', asyn
   const response = await fetch(`${baseUrl}/api/projects/demo/images/extract-pdf`, { method: 'POST' });
 
   expect(response.status).toBe(200);
-  expect(contextualEvidence.persistUpload).toHaveBeenCalledWith('demo', sourcePath, { filename: undefined });
+  expect(contextualEvidence.persistUpload).toHaveBeenCalledWith('demo', sourcePath, { filename: 'Fixture.pdf' });
 });
 
 it('merges contextual metadata into project inventory and serves only a resolved contextual asset variant', async () => {
@@ -345,6 +353,41 @@ it('merges contextual metadata into project inventory and serves only a resolved
   const invalid = await fetch(`${baseUrl}/api/projects/demo/contextual-assets/${pageId}/file?variant=raw`);
   expect(invalid.status).toBe(400);
   await expect(invalid.json()).resolves.toMatchObject({ code: 'CONTEXTUAL_ASSET_VARIANT_INVALID' });
+});
+
+it('exposes only scoped adoption contracts and does not invoke legacy extraction or native inventory mutation', async () => {
+  const candidate = {
+    id: 'candidate-a', filename: 'Demo Rulebook.pdf', bytes: 42, sha256: 'a'.repeat(64), sha256Prefix: 'aaaaaaaaaaaa', pageCount: 1,
+    source: 'verified_legacy_upload', matchingEvidence: { originalFilename: 'Demo Rulebook.pdf', projectName: 'Demo', sourceRecordId: 'source-a', linkage: 'project-owned-upload-record' }, eligible: true,
+  };
+  contextualAdoption.discover.mockResolvedValue({ projectId: 'demo', status: 'ready', candidates: [candidate], eligibleCandidate: candidate });
+  contextualAdoption.previewLocalUpload.mockResolvedValue({ ...candidate, id: 'local-a', source: 'local_upload_preview' });
+  contextualAdoption.adoptLegacy.mockResolvedValue({ idempotent: false, inventory: { available: true, source: { sha256: candidate.sha256 }, renderProfile: { id: 'pdf-to-img-review-144dpi-png-v1' } } });
+  contextualAdoption.adoptLocalPreview.mockResolvedValue({ idempotent: true, inventory: { available: true, source: { sha256: candidate.sha256 }, renderProfile: { id: 'pdf-to-img-review-144dpi-png-v1' } } });
+
+  const discovery = await fetch(`${baseUrl}/api/projects/demo/contextual-evidence/adoption/candidates`);
+  expect(discovery.status).toBe(200);
+  expect(await discovery.json()).toMatchObject({ status: 'ready', eligibleCandidate: { id: 'candidate-a' } });
+
+  const preview = await fetch(`${baseUrl}/api/projects/demo/contextual-evidence/adoption/local-preview`, { method: 'POST' });
+  expect(preview.status).toBe(201);
+  expect(contextualAdoption.previewLocalUpload).toHaveBeenCalledWith('demo', { path: sourcePath, originalname: 'Fixture.pdf' });
+
+  const legacy = await fetch(`${baseUrl}/api/projects/demo/contextual-evidence/adoption/legacy`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ candidateId: 'candidate-a', confirmation: { projectId: 'demo', filename: 'Demo Rulebook.pdf' } }),
+  });
+  expect(legacy.status).toBe(201);
+  expect(contextualAdoption.adoptLegacy).toHaveBeenCalledWith('demo', 'candidate-a', { projectId: 'demo', filename: 'Demo Rulebook.pdf' });
+
+  const local = await fetch(`${baseUrl}/api/projects/demo/contextual-evidence/adoption/local`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ candidateId: 'local-a', confirmation: { projectId: 'demo', filename: 'Demo Rulebook.pdf' } }),
+  });
+  expect(local.status).toBe(200);
+  expect(contextualAdoption.adoptLocalPreview).toHaveBeenCalledWith('demo', 'local-a', { projectId: 'demo', filename: 'Demo Rulebook.pdf' });
+  expect(contextualEvidence.persistUpload).not.toHaveBeenCalled();
+  expect((await (await fetch(`${baseUrl}/api/projects/demo/images`)).json()).images).toEqual([]);
 });
 
 });

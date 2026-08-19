@@ -49,6 +49,14 @@ function safeFilename(value) {
   return filename ? filename.slice(0, 200) : 'rulebook.pdf';
 }
 
+function safeProvenance(value) {
+  const kind = value?.kind === 'verified_legacy_upload' || value?.kind === 'operator_selected_local_upload'
+    ? value.kind : 'direct_project_upload';
+  const sourceRecordId = typeof value?.sourceRecordId === 'string' && SAFE_ID_PATTERN.test(value.sourceRecordId)
+    ? value.sourceRecordId : null;
+  return { kind, ...(sourceRecordId ? { sourceRecordId } : {}) };
+}
+
 function isWithin(root, candidate) {
   const relative = path.relative(root, candidate);
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
@@ -176,6 +184,7 @@ export function toContextualEvidenceInventory(projectId, manifest) {
     },
     renderProfile: clone(manifest.renderProfile),
     validation: clone(manifest.validation),
+    provenance: clone(manifest.created?.provenance || { kind: 'direct_project_upload' }),
     pages,
     assets: [
       ...pages.map(({ crops, ...page }) => page),
@@ -321,7 +330,7 @@ export function createContextualEvidenceService({
     }
   }
 
-  async function persistUpload(projectId, uploadPath, { filename } = {}) {
+  async function persistUpload(projectId, uploadPath, { filename, provenance } = {}) {
     requireProjectId(projectId);
     if (typeof uploadPath !== 'string' || !uploadPath) {
       throw new ContextualEvidenceError('CONTEXTUAL_EVIDENCE_UNAVAILABLE', 'Contextual evidence could not be prepared.', 422);
@@ -377,7 +386,11 @@ export function createContextualEvidenceService({
         },
         renderProfile: clone(profile),
         pages,
-        created: { origin: 'deterministic_local_ingestion', completedAt: new Date().toISOString() },
+        created: {
+          origin: 'deterministic_local_ingestion',
+          completedAt: new Date().toISOString(),
+          provenance: safeProvenance(provenance),
+        },
         validation: {
           completed: true,
           sourceSha256,

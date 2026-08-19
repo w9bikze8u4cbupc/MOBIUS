@@ -68,3 +68,71 @@ test('shows the explicit legacy unavailable state without page selection', async
   await waitFor(() => expect(screen.getByText(/Legacy project: contextual rulebook evidence is unavailable/)).toBeInTheDocument());
   expect(screen.queryByRole('button', { name: 'Select page' })).not.toBeInTheDocument();
 });
+
+test('shows one verified legacy candidate but does not adopt it until the named confirmation is checked', async () => {
+  const candidate = {
+    id: 'candidate-1', filename: 'Legacy Rulebook.pdf', bytes: 123, sha256: documentSha256, sha256Prefix: documentSha256.slice(0, 12), pageCount: 1,
+    source: 'verified_legacy_upload', matchingEvidence: { originalFilename: 'Legacy Rulebook.pdf', projectName: 'Legacy Game', sourceRecordId: 'source-1', linkage: 'project-owned-upload-record' }, eligible: true,
+  };
+  global.fetch
+    .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ contextualEvidence: { available: false, code: 'CONTEXTUAL_EVIDENCE_UNAVAILABLE' } }) }))
+    .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ projectId: 'legacy', status: 'ready', candidates: [candidate], eligibleCandidate: candidate }) }))
+    .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ contextualEvidence: inventory, adoption: { status: 'adopted' } }) }))
+    .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ contextualEvidence: inventory }) }));
+  render(<ContextualEvidenceBrowser isOpen onClose={jest.fn()} onSelect={jest.fn()} projectId="legacy" sceneId="scene" plan={{ primaryIntent: 'rulebook_reference' }} />);
+
+  expect(await screen.findByText('Legacy Rulebook.pdf')).toBeInTheDocument();
+  expect(screen.getByText(/SHA-256: aaaaaaaaaaaa/)).toBeInTheDocument();
+  const confirm = screen.getByLabelText('Confirm adoption of Legacy Rulebook.pdf for legacy');
+  const adopt = screen.getByRole('button', { name: 'Adopt verified legacy source' });
+  expect(adopt).toBeDisabled();
+  expect(global.fetch).toHaveBeenCalledTimes(2);
+  fireEvent.click(confirm);
+  fireEvent.click(adopt);
+  await screen.findByText('page 1');
+  expect(global.fetch.mock.calls[2][0]).toContain('/api/projects/legacy/contextual-evidence/adoption/legacy');
+  expect(JSON.parse(global.fetch.mock.calls[2][1].body)).toEqual({ candidateId: 'candidate-1', confirmation: { projectId: 'legacy', filename: 'Legacy Rulebook.pdf' } });
+  expect(screen.getByText(/Contextual source adopted successfully/)).toBeInTheDocument();
+});
+
+test('verifies a selected local PDF before its separate confirmation request', async () => {
+  const candidate = { id: 'local-1', filename: 'Local Rulebook.pdf', bytes: 99, sha256: documentSha256, sha256Prefix: documentSha256.slice(0, 12), pageCount: 1, source: 'local_upload_preview' };
+  global.fetch
+    .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ contextualEvidence: { available: false, code: 'CONTEXTUAL_EVIDENCE_UNAVAILABLE' } }) }))
+    .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ projectId: 'legacy', status: 'none', candidates: [], eligibleCandidate: null }) }))
+    .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve(candidate) }))
+    .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ contextualEvidence: inventory, adoption: { status: 'adopted' } }) }))
+    .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ contextualEvidence: inventory }) }));
+  render(<ContextualEvidenceBrowser isOpen onClose={jest.fn()} onSelect={jest.fn()} projectId="legacy" sceneId="scene" plan={{ primaryIntent: 'rulebook_reference' }} />);
+  await screen.findByText(/No linked legacy source is eligible/);
+  const file = new File(['%PDF-1.7'], 'Local Rulebook.pdf', { type: 'application/pdf' });
+  fireEvent.change(screen.getByLabelText('Choose local PDF for legacy'), { target: { files: [file] } });
+  expect(await screen.findByText('Local Rulebook.pdf')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Adopt selected local PDF' })).toBeDisabled();
+  fireEvent.click(screen.getByLabelText('Confirm adoption of Local Rulebook.pdf for legacy'));
+  fireEvent.click(screen.getByRole('button', { name: 'Adopt selected local PDF' }));
+  await screen.findByText('page 1');
+  expect(global.fetch.mock.calls[2][0]).toContain('/adoption/local-preview');
+  expect(global.fetch.mock.calls[3][0]).toContain('/adoption/local');
+});
+
+
+test('does not render a stale project inventory after the browser switches projects', async () => {
+  let resolveFirst;
+  const firstResponse = new Promise((resolve) => { resolveFirst = resolve; });
+  const secondInventory = {
+    ...inventory,
+    projectId: 'new-project',
+    pages: [{ ...inventory.pages[0], id: 'page-new', pageNumber: 2, index: 2, documentSha256: 'c'.repeat(64), sha256: 'd'.repeat(64) }],
+  };
+  global.fetch
+    .mockImplementationOnce(() => firstResponse)
+    .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ contextualEvidence: secondInventory }) }));
+  const { rerender } = render(<ContextualEvidenceBrowser isOpen onClose={jest.fn()} onSelect={jest.fn()} projectId="old-project" sceneId="scene" plan={{ primaryIntent: 'rulebook_reference' }} />);
+  rerender(<ContextualEvidenceBrowser isOpen onClose={jest.fn()} onSelect={jest.fn()} projectId="new-project" sceneId="scene" plan={{ primaryIntent: 'rulebook_reference' }} />);
+  expect(await screen.findByText('page 2')).toBeInTheDocument();
+
+  resolveFirst({ ok: true, json: () => Promise.resolve({ contextualEvidence: inventory }) });
+  await waitFor(() => expect(screen.getByText('page 2')).toBeInTheDocument());
+  expect(screen.queryByText('page 1')).not.toBeInTheDocument();
+});

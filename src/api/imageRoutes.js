@@ -30,6 +30,7 @@ import {
   ContextualEvidenceError,
   contextualEvidenceService,
 } from '../services/contextualEvidenceService.js';
+import { createContextualEvidenceAdoptionService } from '../services/contextualEvidenceAdoptionService.js';
 import {
   extractComponentsFromAllPages,
   isJobInProgress,
@@ -178,12 +179,57 @@ function sendContextualEvidenceFile(res, file) {
   return res.sendFile(file.path);
 }
 
-export function registerImageRoutes(app, { upload, extractorApiKey, openai, contextualEvidence = contextualEvidenceService } = {}) {
+export function registerImageRoutes(app, {
+  upload,
+  extractorApiKey,
+  openai,
+  contextualEvidence = contextualEvidenceService,
+  contextualAdoption = null,
+} = {}) {
   const uploadMiddleware = upload || { single: () => (_req, _res, next) => next() };
+  const adoption = contextualAdoption || createContextualEvidenceAdoptionService({ contextualEvidence });
 
   app.get('/api/projects/:projectId/contextual-evidence', async (req, res) => {
     try {
       return res.json(await contextualEvidence.inventory(req.params.projectId));
+    } catch (error) {
+      return contextualEvidenceErrorResponse(res, error);
+    }
+  });
+
+  // Discovery trusts only explicit, project-owned upload-link records. It never scans
+  // arbitrary shared uploads and deliberately returns no candidate when linkage is absent.
+  app.get('/api/projects/:projectId/contextual-evidence/adoption/candidates', async (req, res) => {
+    try {
+      return res.json(await adoption.discover(req.params.projectId));
+    } catch (error) {
+      return contextualEvidenceErrorResponse(res, error);
+    }
+  });
+
+  // Selecting a local PDF only creates a verified, short-lived preview. Canonical
+  // evidence is not written until the separate named-project confirmation request.
+  app.post('/api/projects/:projectId/contextual-evidence/adoption/local-preview', uploadMiddleware.single('file'), async (req, res) => {
+    try {
+      return res.status(201).json(await adoption.previewLocalUpload(req.params.projectId, req.file));
+    } catch (error) {
+      return contextualEvidenceErrorResponse(res, error);
+    }
+  });
+
+  app.post('/api/projects/:projectId/contextual-evidence/adoption/local', async (req, res) => {
+    try {
+      const result = await adoption.adoptLocalPreview(req.params.projectId, req.body?.candidateId, req.body?.confirmation);
+      return res.status(result.idempotent ? 200 : 201).json({ contextualEvidence: result.inventory, adoption: { status: result.idempotent ? 'already_adopted' : 'adopted', source: 'local_upload_preview' } });
+    } catch (error) {
+      return contextualEvidenceErrorResponse(res, error);
+    }
+  });
+
+  app.post('/api/projects/:projectId/contextual-evidence/adoption/legacy', async (req, res) => {
+    try {
+      const result = await adoption.adoptLegacy(req.params.projectId, req.body?.candidateId, req.body?.confirmation);
+      return res.status(result.idempotent ? 200 : 201).json({ contextualEvidence: result.inventory, adoption: { status: result.idempotent ? 'already_adopted' : 'adopted', source: 'verified_legacy_upload' } });
     } catch (error) {
       return contextualEvidenceErrorResponse(res, error);
     }
