@@ -46,9 +46,48 @@ import { hybridMatch } from '../services/hybridMatcher.js';
 import { isEligibleComponentForMatching } from '../services/componentInventory.js';
 
 const PROJECT_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const ASSET_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const IMAGE_CONTENT_TYPES = Object.freeze({
+  '.avif': 'image/avif',
+  '.gif': 'image/gif',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+});
 
 function isValidProjectId(projectId) {
   return typeof projectId === 'string' && projectId.length <= 128 && PROJECT_ID_PATTERN.test(projectId);
+}
+
+function isValidAssetId(assetId) {
+  return typeof assetId === 'string' && assetId.length <= 256 && ASSET_ID_PATTERN.test(assetId);
+}
+
+function isPathWithin(root, candidate) {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+function localImageFile(fileKey) {
+  if (typeof fileKey !== 'string' || !fileKey) return { state: 'missing' };
+  const resolvedPath = path.resolve(fileKey);
+  const allowedDirs = [
+    path.resolve(process.cwd(), 'data'),
+    path.resolve(process.cwd(), 'src/api/uploads'),
+  ];
+  if (!allowedDirs.some((directory) => isPathWithin(directory, resolvedPath))) return { state: 'forbidden' };
+  if (!fs.existsSync(resolvedPath)) return { state: 'missing' };
+  return { state: 'available', path: resolvedPath, contentType: IMAGE_CONTENT_TYPES[path.extname(resolvedPath).toLowerCase()] || null };
+}
+
+function previewKindForImage(image) {
+  const source = localImageFile(image?.fileKey);
+  if (source.state === 'available' && source.contentType) {
+    const thumbnail = localImageFile(image?.thumbnailKey);
+    return thumbnail.state === 'available' && thumbnail.contentType ? 'thumbnail' : 'source';
+  }
+  return typeof image?.originalUrl === 'string' && image.originalUrl.length > 0 ? 'unavailable' : null;
 }
 
 function safeImageForReview(projectId, image) {
@@ -75,14 +114,16 @@ function safeImageForReview(projectId, image) {
       isDuplicate: curation.isDuplicate === true,
       lowInformation: curation.lowInformation === true,
     },
+    previewKind: previewKindForImage(image),
     localUrl: assetPath,
     thumbnailUrl: `${assetPath}?variant=thumbnail`,
   };
 }
 
 function isReviewImageAvailable(image) {
-  if (typeof image?.fileKey === 'string' && image.fileKey) return fs.existsSync(image.fileKey);
-  return typeof image?.originalUrl === 'string' && image.originalUrl.length > 0;
+  const source = localImageFile(image?.fileKey);
+  return (source.state === 'available' && Boolean(source.contentType))
+    || (typeof image?.originalUrl === 'string' && image.originalUrl.length > 0);
 }
 
 function safeComponentImageLinkDetails(details) {
@@ -107,48 +148,49 @@ function safeImageListResponse(projectId, state) {
 export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {}) {
   const uploadMiddleware = upload || { single: () => (_req, _res, next) => next() };
 
-  // Serve image files from data directory
+  // Serve only a canonical, project-owned stored asset. Client paths are never accepted.
   app.get('/api/projects/:projectId/images/:imageId/file', (req, res) => {
     const { projectId, imageId } = req.params;
+    if (!isValidProjectId(projectId)) {
+      return res.status(400).json({ code: 'PROJECT_ID_INVALID', error: 'Project ID is invalid.' });
+    }
+    if (!isValidAssetId(imageId)) {
+      return res.status(400).json({ code: 'IMAGE_ASSET_INVALID', error: 'Image asset ID is invalid.' });
+    }
+
     const state = listImages(projectId);
-    const image = (state.images || []).find(img => img.id === imageId);
-    
+    const image = (state.images || []).find((candidate) => candidate.id === imageId);
     if (!image) {
-      return res.status(404).json({ error: 'Image not found' });
+      return res.status(404).json({ code: 'IMAGE_NOT_FOUND', error: 'Image asset was not found in this project.' });
     }
-    
-    // Serve either the 3x full-resolution asset or its generated thumbnail.
-    const filePath = req.query.variant === 'thumbnail' && image.thumbnailKey
-      ? image.thumbnailKey
-      : image.fileKey;
-    
-    if (!filePath) {
-      // For BGG images, redirect to original URL
-      if (image.originalUrl) {
-        return res.redirect(image.originalUrl);
-      }
-      return res.status(404).json({ error: 'No file path for image' });
+
+    const source = localImageFile(image.fileKey);
+    if (source.state === 'forbidden') {
+      return res.status(403).json({ code: 'IMAGE_FILE_FORBIDDEN', error: 'Image asset cannot be served.' });
     }
-    
-    // Security: Ensure path is within allowed directories
-    const allowedDirs = [
-      path.resolve(process.cwd(), 'data'),
-      path.resolve(process.cwd(), 'src/api/uploads'),
-    ];
-    const resolvedPath = path.resolve(filePath);
-    const isAllowed = allowedDirs.some(dir => resolvedPath.startsWith(dir));
-    
-    if (!isAllowed) {
-      console.error('Attempted access to disallowed path:', resolvedPath);
-      return res.status(403).json({ error: 'Access denied' });
+    if (source.state !== 'available') {
+      return res.status(404).json({ code: 'IMAGE_FILE_UNAVAILABLE', error: 'Image asset file is unavailable.' });
     }
-    
-    if (!fs.existsSync(resolvedPath)) {
-      return res.status(404).json({ error: 'File not found' });
+
+    const thumbnail = localImageFile(image.thumbnailKey);
+    const file = req.query.variant === 'thumbnail' && thumbnail.state === 'available' && thumbnail.contentType ? thumbnail : source;
+    if (!file.contentType) {
+      return res.status(415).json({ code: 'IMAGE_TYPE_UNSUPPORTED', error: 'Image asset type is unsupported.' });
     }
-    
-    // Serve the file
-    res.sendFile(resolvedPath);
+
+    res.set({
+      'Cache-Control': 'private, max-age=300, must-revalidate, no-transform',
+      'Content-Type': file.contentType,
+      'X-Content-Type-Options': 'nosniff',
+    });
+    return res.sendFile(file.path);
+  });
+
+  app.use((error, req, res, next) => {
+    if (error instanceof URIError && String(req.originalUrl || req.url || '').startsWith('/api/projects/')) {
+      return res.status(400).json({ code: 'IMAGE_ASSET_INVALID', error: 'Image asset ID is invalid.' });
+    }
+    return next(error);
   });
 
   app.get('/api/projects/:projectId/images', (req, res) => {

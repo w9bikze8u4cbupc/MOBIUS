@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { preserveVisualDirectionMetadata, StoryboardStep } from './StoryboardStep';
+import { assetThumbnailUrl, preserveVisualDirectionMetadata, StoryboardStep } from './StoryboardStep';
 
 const assets = [{ id: 'board-image', name: 'Approved board image', classification: 'board', page: 2, quality: { score: 0.9 } }];
 const manifest = {
@@ -96,4 +96,15 @@ test('limits selected roles to the intent and removes only current-project selec
   expect(onUpdateScene).toHaveBeenLastCalledWith('scene-section-01-1', expect.objectContaining({ visualPlan: expect.objectContaining({ assetAssignments: [expect.objectContaining({ assetId: 'foreign-image' }), expect.objectContaining({ assetId: 'board-image', role: 'supporting' })] }) }));
   fireEvent.click(screen.getByRole('button', { name: 'Remove board-image from scene-section-01-1' }));
   expect(onUpdateScene).toHaveBeenLastCalledWith('scene-section-01-1', expect.objectContaining({ imageAssetIds: [], visualPlan: expect.objectContaining({ selectedAssetIds: [] }) }));
+});
+
+test('builds only a canonical encoded project-asset thumbnail URL', () => {
+  const url = assetThumbnailUrl('abyss-project', 'board image/1');
+  const parsed = new URL(url, 'http://client.test');
+  expect(parsed.pathname).toBe('/api/projects/abyss-project/images/board%20image%2F1/file');
+  expect(parsed.search).toBe('?variant=thumbnail');
+  expect(url).not.toContain('//api/');
+  expect(url).not.toContain('C:');
+  expect(url).not.toContain('data/');
+  expect(assetThumbnailUrl('', 'board-image')).toBeNull();
 });

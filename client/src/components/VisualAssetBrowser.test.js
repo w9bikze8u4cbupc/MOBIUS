@@ -20,7 +20,7 @@ const boardPlan = {
   ],
 };
 
-test('renders a metadata-only current-project grid with safe thumbnail fallback and accessible selection', () => {
+test('renders loaded, loading, and explicit failed thumbnail states without changing selection behavior', () => {
   const onSelect = jest.fn();
   render(<VisualAssetBrowser
     isOpen
@@ -28,18 +28,45 @@ test('renders a metadata-only current-project grid with safe thumbnail fallback 
     onSelect={onSelect}
     sceneId="scene-board"
     plan={boardPlan}
-    images={assets}
+    images={[assets[0]]}
     thumbnailUrlForAsset={(asset) => `/api/projects/current/images/${asset.id}/file?variant=thumbnail`}
   />);
 
+  const preview = screen.getByAltText('Game Board Overview thumbnail');
+  expect(preview).toHaveAttribute('src', '/api/projects/current/images/board-approved/file?variant=thumbnail');
+  expect(preview).toHaveStyle({ objectFit: 'contain' });
+  expect(screen.getByText('Loading preview…')).toBeInTheDocument();
+  fireEvent.load(preview);
+  expect(screen.queryByText('Loading preview…')).not.toBeInTheDocument();
+
+  fireEvent.error(preview);
+  expect(screen.getByText('Preview unavailable')).toBeInTheDocument();
+  expect(screen.queryByAltText('Game Board Overview thumbnail')).not.toBeInTheDocument();
+  expect(screen.getByText('board · page 4 · quality 0.4')).toBeInTheDocument();
+  expect(screen.getByText('1 preview unavailable.')).toBeInTheDocument();
   const select = screen.getByRole('button', { name: 'Select Game Board Overview for scene-board as primary' });
-  expect(select.tagName).toBe('BUTTON');
-  expect(screen.getByAltText('Game Board Overview thumbnail')).toHaveAttribute('src', '/api/projects/current/images/board-approved/file?variant=thumbnail');
-  fireEvent.error(screen.getByAltText('Game Board Overview thumbnail'));
-  expect(screen.getByText('Thumbnail unavailable')).toBeInTheDocument();
   fireEvent.keyDown(select, { key: 'Enter' });
   expect(onSelect).toHaveBeenCalledWith(assets[0], { role: 'primary', componentId: 'game-board' });
+  expect(onSelect.mock.calls[0][1]).not.toHaveProperty('operatorOverride');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Retry unavailable previews' }));
+  expect(screen.getByAltText('Game Board Overview thumbnail')).toBeInTheDocument();
+  expect(screen.queryByText('Preview unavailable')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Close asset browser for scene-board' })).toBeInTheDocument();
+});
+
+test('labels a source-image fallback distinctly from a stored thumbnail', () => {
+  render(<VisualAssetBrowser
+    isOpen
+    onClose={jest.fn()}
+    onSelect={jest.fn()}
+    sceneId="scene-source-fallback"
+    plan={boardPlan}
+    images={[{ ...assets[0], previewKind: 'source' }]}
+    thumbnailUrlForAsset={() => '/api/projects/current/images/board-approved/file?variant=thumbnail'}
+  />);
+  fireEvent.load(screen.getByAltText('Game Board Overview thumbnail'));
+  expect(screen.getByText('Source image preview — no stored thumbnail was available.')).toBeInTheDocument();
 });
 
 test('filters by type, page, provenance and compatibility while sorting deterministically', () => {
@@ -92,4 +119,21 @@ test('reads nested production metadata for source-page filtering, display, and o
   const legacyPageAsset = { id: 'legacy-page', name: 'Legacy board crop', page: 9, type: 'board', quality: { score: 0.6 } };
   expect(filterAndSortVisualAssets([legacyPageAsset, nestedPageAsset], boardPlan, { page: '7', compatibleOnly: false }).map((asset) => asset.id)).toEqual(['nested-page']);
   expect(filterAndSortVisualAssets([legacyPageAsset, nestedPageAsset], boardPlan, { type: 'board', compatibleOnly: false }).map((asset) => asset.id)).toEqual(['nested-page', 'legacy-page']);
+});
+
+test('shows an explicit unavailable state without requesting a remote-only preview URL', () => {
+  const thumbnailUrlForAsset = jest.fn(() => 'https://unscoped.example/image.png');
+  render(<VisualAssetBrowser
+    isOpen
+    onClose={jest.fn()}
+    onSelect={jest.fn()}
+    sceneId="scene-unavailable"
+    plan={boardPlan}
+    images={[{ ...assets[0], previewKind: 'unavailable' }]}
+    thumbnailUrlForAsset={thumbnailUrlForAsset}
+  />);
+  expect(thumbnailUrlForAsset).not.toHaveBeenCalled();
+  expect(screen.queryByAltText('Game Board Overview thumbnail')).not.toBeInTheDocument();
+  expect(screen.getByText('Preview unavailable')).toBeInTheDocument();
+  expect(screen.getByText('board · page 4 · quality 0.4')).toBeInTheDocument();
 });

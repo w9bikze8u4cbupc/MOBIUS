@@ -55,6 +55,7 @@ function express() {
           const next = () => {
             if (idx < middlewares.length) {
               const mw = middlewares[idx++];
+              if (mw.length === 4) return next();
               return mw(req, res, next);
             }
             return null;
@@ -70,6 +71,15 @@ function express() {
           const { params } = matchRoute(route.path, parsed.pathname, route.method, req.method);
           req.params = params;
           req.query = parsed.query;
+          res.set = (headers) => {
+            Object.entries(headers || {}).forEach(([name, value]) => res.setHeader(name, value));
+            return res;
+          };
+          res.sendFile = (filePath) => {
+            const fs = require('fs');
+            fs.createReadStream(filePath).pipe(res);
+            return res;
+          };
           res.status = (code) => {
             res.statusCode = code;
             return res;

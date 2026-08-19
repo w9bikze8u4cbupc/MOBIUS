@@ -41,10 +41,10 @@ export function preserveVisualDirectionMetadata(existingDirections = [], value =
   }));
 }
 
-function assetThumbnailUrl(projectId, assetId) {
-  return projectId && assetId
-    ? `${BACKEND_URL}/api/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(assetId)}/file?variant=thumbnail`
-    : null;
+export function assetThumbnailUrl(projectId, assetId) {
+  if (!projectId || !assetId) return null;
+  const apiOrigin = BACKEND_URL.replace(/\/+$/, '');
+  return `${apiOrigin}/api/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(assetId)}/file?variant=thumbnail`;
 }
 
 function VisualAsset({ projectId, asset, assetId }) {

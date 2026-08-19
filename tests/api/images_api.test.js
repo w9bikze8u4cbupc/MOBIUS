@@ -37,17 +37,27 @@ jest.mock('../../src/services/componentCropper.js', () => ({
   getJobStatus: jest.fn(),
 }));
 
+import fs from 'fs';
+import path from 'path';
 import axios from 'axios';
 import express from 'express';
 import { registerImageRoutes } from '../../src/api/imageRoutes.js';
 import { appendImages, linkImagesToComponent, resetImageStore } from '../../src/services/imageStore.js';
 
 describe('images api routes', () => {
+  const fixtureDirectory = path.join(process.cwd(), 'data', '.image-route-test-fixtures');
+  const sourceBytes = Buffer.from('89504e470d0a1a0a736f75726365', 'hex');
+  const thumbnailBytes = Buffer.from('89504e470d0a1a0a7468756d626e61696c', 'hex');
+  const sourcePath = path.join(fixtureDirectory, 'source.png');
+  const thumbnailPath = path.join(fixtureDirectory, 'thumbnail.png');
   let server;
   let baseUrl;
   let app;
 
   beforeAll((done) => {
+    fs.mkdirSync(fixtureDirectory, { recursive: true });
+    fs.writeFileSync(sourcePath, sourceBytes);
+    fs.writeFileSync(thumbnailPath, thumbnailBytes);
     app = express();
     app.use(express.json());
     registerImageRoutes(app, { extractorApiKey: 'key', upload: { single: () => (req, _res, next) => next() } });
@@ -62,6 +72,7 @@ describe('images api routes', () => {
     if (server) {
       server.close();
     }
+    fs.rmSync(fixtureDirectory, { recursive: true, force: true });
   });
 
   beforeEach(() => {
@@ -116,6 +127,7 @@ describe('images api routes', () => {
     const listRes = await fetch(`${baseUrl}/api/projects/demo/images`);
     const listPayload = await listRes.json();
     expect(listPayload.images.length).toBe(2);
+    expect(listPayload.images.every((image) => image.previewKind === 'unavailable')).toBe(true);
   });
 
   it('updates crops and tags', async () => {
@@ -205,7 +217,7 @@ describe('images api routes', () => {
   it('hydrates safe project-scoped review assets and retains component-link provenance', async () => {
   appendImages('abyss-mstkmf2r-4mlb', [{
     id: 'heph-monster', name: 'Monster token', label: 'Curated monster token', source: 'bgg', type: 'token',
-    originalUrl: 'https://untrusted.example/monster.png',
+    originalUrl: 'https://untrusted.example/monster.png', fileKey: sourcePath,
     width: 600, height: 800, tags: ['monster'], metadata: { page: 4, classification: 'token', curation: { candidate: true, score: 0.98 } },
     quality: { score: 0.98, notes: 'private note' },
   }, {
@@ -218,7 +230,7 @@ describe('images api routes', () => {
   expect(response.status).toBe(200);
   expect(payload.images).toHaveLength(1);
   expect(payload.images[0]).toMatchObject({
-    id: 'heph-monster', name: 'Monster token', source: 'bgg', page: 4, classification: 'token',
+    id: 'heph-monster', name: 'Monster token', source: 'bgg', page: 4, classification: 'token', previewKind: 'source',
     localUrl: '/api/projects/abyss-mstkmf2r-4mlb/images/heph-monster/file',
     thumbnailUrl: '/api/projects/abyss-mstkmf2r-4mlb/images/heph-monster/file?variant=thumbnail',
   });
@@ -241,6 +253,54 @@ it('rejects invalid project IDs and assets from another project deterministicall
   });
   expect(foreignLink.status).toBe(400);
   await expect(foreignLink.json()).resolves.toMatchObject({ code: 'IMAGE_ASSET_INVALID' });
+});
+
+it('serves a canonical current-project thumbnail with its exact image type and thumbnail bytes', async () => {
+  appendImages('thumbnail-project', [{
+    id: 'board_preview-1', source: 'rulebook', fileKey: sourcePath, thumbnailKey: thumbnailPath,
+  }]);
+
+  const inventory = await (await fetch(`${baseUrl}/api/projects/thumbnail-project/images`)).json();
+  expect(inventory.images).toEqual([expect.objectContaining({
+    id: 'board_preview-1', previewKind: 'thumbnail',
+    thumbnailUrl: '/api/projects/thumbnail-project/images/board_preview-1/file?variant=thumbnail',
+  })]);
+  expect(JSON.stringify(inventory)).not.toContain(sourcePath);
+
+  const thumbnailResponse = await fetch(`${baseUrl}/api/projects/thumbnail-project/images/board_preview-1/file?variant=thumbnail`);
+  expect(thumbnailResponse.status).toBe(200);
+  expect(thumbnailResponse.headers.get('content-type')).toBe('image/png');
+  expect(thumbnailResponse.headers.get('cache-control')).toBe('private, max-age=300, must-revalidate, no-transform');
+  await expect(thumbnailResponse.arrayBuffer()).resolves.toEqual(thumbnailBytes.buffer.slice(thumbnailBytes.byteOffset, thumbnailBytes.byteOffset + thumbnailBytes.byteLength));
+
+  const sourceResponse = await fetch(`${baseUrl}/api/projects/thumbnail-project/images/board_preview-1/file`);
+  expect(sourceResponse.status).toBe(200);
+  await expect(sourceResponse.arrayBuffer()).resolves.toEqual(sourceBytes.buffer.slice(sourceBytes.byteOffset, sourceBytes.byteOffset + sourceBytes.byteLength));
+});
+
+it('rejects malformed, foreign, unknown, and traversal thumbnail requests without exposing paths', async () => {
+  appendImages('owned-project', [{ id: 'owned-image', source: 'rulebook', fileKey: sourcePath }]);
+  appendImages('forbidden-project', [{ id: 'forbidden-image', source: 'rulebook', fileKey: 'C:/outside-project/image.png' }]);
+
+  const foreign = await fetch(`${baseUrl}/api/projects/foreign-project/images/owned-image/file?variant=thumbnail`);
+  expect(foreign.status).toBe(404);
+  await expect(foreign.json()).resolves.toEqual(expect.objectContaining({ code: 'IMAGE_NOT_FOUND' }));
+
+  const unknown = await fetch(`${baseUrl}/api/projects/owned-project/images/unknown-image/file?variant=thumbnail`);
+  expect(unknown.status).toBe(404);
+  await expect(unknown.json()).resolves.toEqual(expect.objectContaining({ code: 'IMAGE_NOT_FOUND' }));
+
+  for (const unsafeId of ['..%2Fowned-image', '%ZZ']) {
+    const malformed = await fetch(`${baseUrl}/api/projects/owned-project/images/${unsafeId}/file?variant=thumbnail`);
+    expect(malformed.status).toBe(400);
+    await expect(malformed.json()).resolves.toEqual(expect.objectContaining({ code: 'IMAGE_ASSET_INVALID' }));
+  }
+
+  const forbidden = await fetch(`${baseUrl}/api/projects/forbidden-project/images/forbidden-image/file?variant=thumbnail`);
+  expect(forbidden.status).toBe(403);
+  const forbiddenPayload = await forbidden.json();
+  expect(forbiddenPayload).toEqual(expect.objectContaining({ code: 'IMAGE_FILE_FORBIDDEN' }));
+  expect(JSON.stringify(forbiddenPayload)).not.toContain('C:');
 });
 
 });

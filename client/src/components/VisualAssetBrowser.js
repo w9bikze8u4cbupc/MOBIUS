@@ -122,6 +122,10 @@ export function filterAndSortVisualAssets(images = [], plan = {}, filters = {}) 
   });
 }
 
+function previewMetadataLabel(asset) {
+  return `${assetClassification(asset)} · page ${assetSourcePage(asset) ?? 'unknown'} · quality ${qualityScore(asset) ?? 'unscored'}`;
+}
+
 function provenanceLabel(compatibility) {
   if (compatibility.approved) return 'approved component link';
   if (compatibility.linked) return 'linked component asset';
@@ -147,8 +151,9 @@ export function VisualAssetBrowser({
   const [filters, setFilters] = useState({ search: '', type: 'all', page: '', linkStatus: 'all', compatibleOnly: true, qualityThreshold: '' });
   const [role, setRole] = useState(defaultRoleForIntent(plan.primaryIntent));
   const [pageIndex, setPageIndex] = useState(0);
-  const [failedThumbnails, setFailedThumbnails] = useState({});
+  const [thumbnailStates, setThumbnailStates] = useState({});
   const assets = useMemo(() => filterAndSortVisualAssets(images, plan, filters), [images, plan, filters]);
+  const failedPreviewCount = assets.filter((asset) => thumbnailStates[asset.id] === 'failed').length;
   const pageCount = Math.max(1, Math.ceil(assets.length / PAGE_SIZE));
   const visibleAssets = assets.slice(pageIndex * PAGE_SIZE, (pageIndex + 1) * PAGE_SIZE);
   const roleOptions = validRolesForIntent(plan.primaryIntent);
@@ -157,7 +162,8 @@ export function VisualAssetBrowser({
     setRole(defaultRoleForIntent(plan.primaryIntent));
     setFilters((previous) => ({ ...previous, compatibleOnly: true }));
     setPageIndex(0);
-  }, [plan.primaryIntent, sceneId, isOpen]);
+    setThumbnailStates({});
+  }, [plan.primaryIntent, sceneId, isOpen, images]);
 
   useEffect(() => { if (pageIndex >= pageCount) setPageIndex(Math.max(0, pageCount - 1)); }, [pageCount, pageIndex]);
 
@@ -185,16 +191,22 @@ export function VisualAssetBrowser({
         <label><input aria-label={`Only compatible assets for ${sceneId}`} type="checkbox" checked={filters.compatibleOnly} onChange={(event) => updateFilter('compatibleOnly', event.target.checked)} /> Only compatible with this scene</label>
         <label>Role <select aria-label={`Selected asset role for ${sceneId}`} value={role} onChange={(event) => setRole(event.target.value)}>{roleOptions.map((option) => <option key={option} value={option}>{option.replace('_', ' ')}</option>)}</select></label>
       </div>
-      <p aria-live="polite">{assets.length} current-project assets · sorted by compatibility, approval/link provenance, quality, then source page. Selection does not create an override.</p>
+      <p aria-live="polite">{assets.length} current-project assets · sorted by compatibility, approval/link provenance, quality, then source page. Selection does not create an override. {failedPreviewCount > 0 && <><strong>{failedPreviewCount} preview{failedPreviewCount === 1 ? '' : 's'} unavailable.</strong> <button type="button" onClick={() => setThumbnailStates({})}>Retry unavailable previews</button></>}</p>
       {assets.length === 0 ? <p role="status">No current-project assets match these filters. Clear the compatibility filter to review all available metadata.</p> : <>
-        <div role="list" aria-label={`Visual assets for ${sceneId}`} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+        <div role="list" aria-label={`Visual assets for ${sceneId}`} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
           {visibleAssets.map((asset) => {
             const compatibility = assetCompatibility(asset, plan);
-            const src = typeof thumbnailUrlForAsset === 'function' ? thumbnailUrlForAsset(asset) : null;
-            const failed = failedThumbnails[asset.id] === true;
+            const src = asset.previewKind === 'unavailable' || typeof thumbnailUrlForAsset !== 'function' ? null : thumbnailUrlForAsset(asset);
+            const thumbnailState = thumbnailStates[asset.id] || 'loading';
+            const previewFailed = !src || thumbnailState === 'failed';
             const selectAsset = () => onSelect(asset, { role, componentId: selectedComponentId(asset, plan) });
             return <article role="listitem" key={asset.id} style={{ border: '1px solid #d0d7de', borderRadius: 6, padding: 8 }}>
-              {src && !failed ? <img src={src} alt={`${assetDisplayName(asset)} thumbnail`} onError={() => setFailedThumbnails((previous) => ({ ...previous, [asset.id]: true }))} style={{ width: '100%', height: 110, objectFit: 'cover', background: '#e5e7eb' }} /> : <div role="status" style={{ height: 110, display: 'grid', placeItems: 'center', background: '#e5e7eb' }}>Thumbnail unavailable</div>}
+              <div style={{ minHeight: 176, display: 'grid', placeItems: 'center', position: 'relative', background: '#111827', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+                {!previewFailed && <img src={src} alt={`${assetDisplayName(asset)} thumbnail`} onLoad={() => setThumbnailStates((previous) => ({ ...previous, [asset.id]: 'loaded' }))} onError={() => setThumbnailStates((previous) => ({ ...previous, [asset.id]: 'failed' }))} style={{ display: 'block', width: '100%', height: 176, objectFit: 'contain', background: '#111827' }} />}
+                {thumbnailState === 'loading' && !previewFailed && <span role="status" style={{ position: 'absolute', padding: 6, background: '#111827', color: '#fff', borderRadius: 4 }}>Loading preview…</span>}
+                {previewFailed && <div role="status" aria-live="polite" style={{ minHeight: 176, width: '100%', display: 'grid', placeItems: 'center', alignContent: 'center', gap: 4, background: '#7f1d1d', color: '#fff', textAlign: 'center', padding: 10, boxSizing: 'border-box' }}><strong>Preview unavailable</strong><span>{previewMetadataLabel(asset)}</span></div>}
+              </div>
+              {asset.previewKind === 'source' && !previewFailed && <p role="status" style={{ color: '#854d0e', margin: '0 0 6px' }}>Source image preview — no stored thumbnail was available.</p>}
               <strong>{assetDisplayName(asset)}</strong>
               <div>{assetClassification(asset)} · {asset.type || asset.classification || 'unclassified'}</div>
               <div>page {assetSourcePage(asset) ?? 'unknown'} · {asset.width && asset.height ? `${asset.width}×${asset.height}` : 'dimensions unavailable'}</div>
