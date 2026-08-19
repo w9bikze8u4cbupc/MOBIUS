@@ -104,3 +104,7 @@ out/real-input-adhoc-cli-smoke/
 /data/*/contextual-evidence/pages/
 /data/*/contextual-evidence/crop-cache/
 /data/*/contextual-evidence/manifest.json
+
+# Canonical local project source PDFs and descriptors
+/data/*/source/
+/data/.source-upload-tmp/

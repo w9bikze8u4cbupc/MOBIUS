@@ -13,6 +13,7 @@ export function ProjectSetupStep({
   detailPercentage,
   setDetailPercentage,
   file,
+  sourcePdf = null,
   rulebookText,
   onFileChange,
   onDrop,
@@ -107,6 +108,11 @@ export function ProjectSetupStep({
             </div>
             <div className="pipeline-muted">
               {rulebookText ? `${rulebookText.length.toLocaleString()} characters extracted` : 'Processing...'}
+            </div>
+            <div role="status" style={{ marginTop: 10, fontSize: 13, color: sourcePdf?.sourceId ? '#2e7d32' : '#8a4b00' }}>
+              {sourcePdf?.sourceId
+                ? `Source PDF stored durably (${sourcePdf.pageCount} page${sourcePdf.pageCount === 1 ? '' : 's'}); contextual rendering is pending.`
+                : 'Waiting for durable source-PDF confirmation...'}
             </div>
             <div style={{ marginTop: 12, fontSize: 13, color: '#666' }}>
               Click to upload a different PDF

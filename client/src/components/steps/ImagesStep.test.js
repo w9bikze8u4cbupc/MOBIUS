@@ -44,10 +44,10 @@ test('shows explicit readiness errors and disables both image actions when proje
   expect(axios.post).not.toHaveBeenCalled();
 });
 
-test('shows an explicit original-PDF error when the upload is unavailable', () => {
+test('marks a project without a stored source as requiring explicit legacy adoption', () => {
   render(<ImagesStep projectId="abyss-upload-abc123" />);
 
-  expect(screen.getByText(/original rulebook PDF is not available/i)).toBeInTheDocument();
+  expect(screen.getAllByText(/Legacy project requires explicit adoption/i)).toHaveLength(2);
   expect(screen.getByRole('button', { name: /Auto-Gather All Images/i })).toBeDisabled();
   expect(screen.getByRole('button', { name: /Extract with HEPHAESTUS/i })).toBeDisabled();
 });
@@ -334,4 +334,43 @@ test('does not submit non-physical evidence to automatic matching', async () => 
   expect(autoMatchCall[1].components).toEqual([
     expect.objectContaining({ id: 'game-board', name: 'game board' }),
   ]);
+});
+
+
+test('restores a durable source after reload and enables extraction without a browser File', () => {
+  render(
+    <ImagesStep
+      projectId="abyss-upload-abc123"
+      sourcePdf={{
+        sourceId: 'source-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        documentId: 'abyss-upload-abc123',
+        documentFingerprint: 'document-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        filename: 'Abyss.pdf', sha256: 'c'.repeat(64), bytes: 42, pageCount: 1,
+        provenance: 'direct_project_upload', status: 'available',
+      }}
+    />,
+  );
+
+  expect(screen.getByText('Source PDF available.')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Auto-Gather All Images/i })).toBeEnabled();
+  expect(screen.getByRole('button', { name: /Extract with HEPHAESTUS/i })).toBeEnabled();
+});
+
+
+test('exposes direct contextual rendering for a newly stored source without historical adoption', async () => {
+  const sourcePdf = {
+    sourceId: 'source-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', documentId: 'abyss-upload-abc123',
+    documentFingerprint: 'document-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', filename: 'Abyss.pdf',
+    sha256: 'c'.repeat(64), bytes: 42, pageCount: 1, provenance: 'direct_project_upload', status: 'pending_contextual_render',
+  };
+  const onSourcePdfUpdated = jest.fn();
+  axios.post.mockResolvedValue({ data: { contextualEvidence: { available: true } } });
+  render(<ImagesStep projectId="abyss-upload-abc123" sourcePdf={sourcePdf} onSourcePdfUpdated={onSourcePdfUpdated} />);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Render contextual evidence' }));
+  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
+    expect.stringContaining('/api/projects/abyss-upload-abc123/contextual-evidence/render'),
+  ));
+  expect(onSourcePdfUpdated).toHaveBeenCalledWith({ ...sourcePdf, status: 'available' });
+  expect(await screen.findByText('Contextual rulebook evidence is available.')).toBeInTheDocument();
 });

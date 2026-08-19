@@ -34,6 +34,7 @@ import {
   isCanonicalRecoveryProjectId,
   isTrustedScriptProvenance,
   loadLatestProjectContext,
+  normalizeProjectSourceRecord,
   resolveMatchingIngestionManifest,
   SCRIPT_PROVENANCE,
   saveProjectContext,
@@ -298,6 +299,7 @@ function App() {
   const [voice, setVoice] = useState(""); // Stores ElevenLabs voice ID
   const [gameName, setGameName] = useState("");
   const [projectId, setProjectId] = useState("");
+  const [sourcePdf, setSourcePdf] = useState(null);
   const [bggUrl, setBggUrl] = useState("");
   const [metadata, setMetadata] = useState({
     publisher: "",
@@ -375,6 +377,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         projectId,
         rulebookText,
         manifest,
+        sourcePdf,
       });
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
@@ -386,7 +389,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         }));
       }
     }
-  }, [projectId, rulebookText]);
+  }, [projectId, rulebookText, sourcePdf]);
 
 
   // --- Effects ---
@@ -437,6 +440,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     if (context) {
       restoredProjectIdRef.current = context.projectId;
       setProjectId(context.projectId);
+      setSourcePdf(normalizeProjectSourceRecord(context.sourcePdf, context.projectId));
       setGameName(context.gameName);
       setLanguage(context.language);
       setRulebookText(context.rulebookText);
@@ -496,6 +500,18 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         setProjectImages(images);
         setComponentImageLinks(componentImages);
         setComponentImageLinkDetails(componentImageLinkDetails);
+        setSourcePdf((previous) => {
+          const verified = normalizeProjectSourceRecord(data?.sourcePdf, projectId);
+          if (verified) {
+            return previous?.documentFingerprint && previous.documentFingerprint !== verified.documentFingerprint
+              ? { ...previous, status: 'tampered' }
+              : verified;
+          }
+          if (data?.sourcePdf?.status === 'tampered' || data?.sourcePdf?.status === 'missing') {
+            return previous ? { ...previous, status: data.sourcePdf.status } : { status: 'legacy_adoption_required' };
+          }
+          return previous || { status: 'legacy_adoption_required' };
+        });
         setStoryboardManifest((previous) => {
           const reconciled = reconcileStoryboardVisualPlans(previous, {
             images,
@@ -550,6 +566,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       rulebookText,
       rulebookPages,
       components: gameComponents,
+      sourcePdf,
       metadata,
       images: projectImages,
       componentImageLinks,
@@ -586,6 +603,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     scriptProvenance,
     storyboardManifest,
     summary,
+    sourcePdf,
   ]);
 
   useEffect(() => {
@@ -595,6 +613,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     }
     if (previousProjectIdRef.current !== projectId) {
       previousProjectIdRef.current = projectId;
+      setSourcePdf(null);
       setProjectImages([]);
       setComponentImageLinks({});
       setComponentImageLinkDetails({});
@@ -857,6 +876,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setFile(file);
     setGameName("");
     setProjectId("");
+    setSourcePdf(null);
     setBggUrl("");
     setMetadataWarning("");
     setBggLookupLoading(false);
@@ -888,19 +908,35 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
 
     try {
-      if (file.type === "application/pdf") {
-        setProjectId(createProjectIdFromFilename(file.name));
-        setGameName(createDisplayNameFromFilename(file.name));
-        setLoading(true);
-        const extracted = await extractTextFromPDF(file);
-        setRulebookText(extracted.text);
-        setRulebookPages(extracted.pages);
-        setLoading(false);
-      } else {
+      if (file.type !== "application/pdf") {
         setError("Please upload a PDF file");
+        setFile(null);
+        return;
       }
+      const canonicalProjectId = createProjectIdFromFilename(file.name);
+      setProjectId(canonicalProjectId);
+      setGameName(createDisplayNameFromFilename(file.name));
+      setSourcePdf(null);
+      setLoading(true);
+
+      const formData = new FormData();
+      formData.append('file', file);
+      const sourceResponse = await axios.post(
+        `${BACKEND_URL}/api/projects/${encodeURIComponent(canonicalProjectId)}/source-pdf`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      const persistedSource = normalizeProjectSourceRecord(sourceResponse.data?.sourcePdf, canonicalProjectId);
+      if (!persistedSource) throw new Error('The server did not confirm a valid durable source PDF.');
+      setSourcePdf(persistedSource);
+
+      const extracted = await extractTextFromPDF(file);
+      setRulebookText(extracted.text);
+      setRulebookPages(extracted.pages);
+      setLoading(false);
     } catch (err) {
-      setError(err.message);
+      setSourcePdf(null);
+      setError(err.response?.data?.error || err.message || 'The source PDF could not be stored safely.');
       setLoading(false);
     }
   };
@@ -1797,6 +1833,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               detailPercentage={detailPercentage}
               setDetailPercentage={setDetailPercentage}
               file={file}
+              sourcePdf={sourcePdf}
               rulebookText={rulebookText}
               onFileChange={handleFileChange}
               onDrop={handleDrop}
@@ -1862,6 +1899,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               gameName={gameName}
               bggUrl={bggUrl}
               pdfFile={file}
+              sourcePdf={sourcePdf}
+              onSourcePdfUpdated={setSourcePdf}
             />
           )}
 

@@ -90,10 +90,29 @@ jest.mock('./components/steps/VoiceStep', () => ({
 }));
 jest.mock('./components/steps/RenderExportStep', () => ({ RenderExportStep: () => null }));
 
+function durableSourceResponse(url) {
+  const match = /\/api\/projects\/([^/]+)\/source-pdf$/.exec(String(url));
+  if (!match) return null;
+  const projectId = decodeURIComponent(match[1]);
+  return {
+    data: {
+      sourcePdf: {
+        sourceId: 'source-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        documentId: projectId,
+        documentFingerprint: 'document-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        filename: 'Abyss.pdf',
+        sha256: 'c'.repeat(64), bytes: 42, pageCount: 1,
+        provenance: 'direct_project_upload', status: 'pending_contextual_render',
+      },
+    },
+  };
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   jest.clearAllMocks();
   axios.get.mockResolvedValue({ data: { images: [], componentImages: {}, componentImageLinkDetails: {} } });
+  axios.post.mockImplementation((url) => Promise.resolve(durableSourceResponse(url) || { data: {} }));
 });
 
 test('retains approved component-link provenance when an image mutation omits it', async () => {
@@ -144,8 +163,6 @@ test('PDF upload creates a project ID without calling game-name extraction', asy
       }),
     }),
   });
-  axios.post.mockRejectedValueOnce(new Error('game-name service unavailable'));
-
   const { container } = render(<App />);
   const pdfFile = new File(['pdf contents'], 'Abyss.pdf', { type: 'application/pdf' });
   Object.defineProperty(pdfFile, 'arrayBuffer', { value: () => Promise.resolve(new ArrayBuffer(0)) });
@@ -178,7 +195,9 @@ test('PDF upload keeps the filename-derived game name and project ID without aut
   });
 
   expect(screen.getByPlaceholderText('Auto-generated from uploaded PDF filename').value).toMatch(/^abyss-/);
-  expect(axios.post).not.toHaveBeenCalled();
+  expect(axios.post).toHaveBeenCalledWith(
+    expect.stringContaining('/source-pdf'), expect.any(FormData), expect.objectContaining({ headers: { 'Content-Type': 'multipart/form-data' } }),
+  );
   expect(axios.get).not.toHaveBeenCalled();
 });
 
@@ -192,7 +211,9 @@ test('optional AI metadata is requested only after the operator clicks its expli
     }),
   });
   axios.get.mockResolvedValue({ data: { ready: true, message: 'AI model is ready.' } });
-  axios.post.mockResolvedValue({ data: { gameName: 'Abyss' } });
+  axios.post.mockImplementation((url) => Promise.resolve(
+    durableSourceResponse(url) || { data: { gameName: 'Abyss' } },
+  ));
 
   const { container } = render(<App />);
   const pdfFile = new File(['pdf contents'], 'ABYSS.pdf', { type: 'application/pdf' });
@@ -200,7 +221,7 @@ test('optional AI metadata is requested only after the operator clicks its expli
   fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [pdfFile] } });
 
   await waitFor(() => expect(screen.getByPlaceholderText('Extracted from PDF')).toHaveValue('Abyss'));
-  expect(axios.post).not.toHaveBeenCalled();
+  expect(axios.post).toHaveBeenCalledWith(expect.stringContaining('/source-pdf'), expect.any(FormData), expect.any(Object));
 
   fireEvent.click(screen.getByRole('button', { name: /Extract optional AI metadata/i }));
 
@@ -248,7 +269,9 @@ test('optional AI metadata preflight failure prevents its rulebook POST', async 
   fireEvent.click(screen.getByRole('button', { name: /Extract optional AI metadata/i }));
 
   await waitFor(() => expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('/api/ai/status?check=1')));
-  expect(axios.post).not.toHaveBeenCalled();
+  expect(axios.post.mock.calls).toEqual([
+    expect.arrayContaining([expect.stringContaining('/source-pdf')]),
+  ]);
   await waitFor(() => {
     expect(screen.getByText(/OPENAI_MODEL is not accessible/i)).toBeInTheDocument();
   });

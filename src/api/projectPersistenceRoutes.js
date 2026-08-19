@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { setProjectState } from './renderJobConfig.js';
+import { projectSourceService } from '../services/projectSourceService.js';
 
 const ingestionRequire = createRequire(path.join(process.cwd(), 'src', 'api', 'projectPersistenceRoutes.js'));
 const { validateIngestionManifest } = ingestionRequire('../validators/ingestionValidator');
@@ -40,6 +41,42 @@ function isCanonicalProjectId(value) {
 export function normalizeRecoveryProjectId(value) {
   const projectId = typeof value === 'string' ? value.trim() : '';
   return isCanonicalProjectId(projectId) ? projectId : null;
+}
+
+export function validateDurableProjectSource(sourcePdf, projectId) {
+  if (sourcePdf === undefined || sourcePdf === null) return { valid: true, sourcePdf: null };
+  const source = sourcePdf && typeof sourcePdf === 'object' && !Array.isArray(sourcePdf) ? sourcePdf : null;
+  if (!source || source.documentId !== projectId || !/^source-[a-f0-9]{32}$/.test(source.sourceId || '')
+    || !/^document-[a-f0-9]{32}$/.test(source.documentFingerprint || '') || !/^[a-f0-9]{64}$/.test(source.sha256 || '')
+    || typeof source.filename !== 'string' || !source.filename || source.filename.length > 200 || /[\\/\r\n\u0000-\u001f]/.test(source.filename)
+    || !Number.isInteger(source.bytes) || source.bytes < 1 || !Number.isInteger(source.pageCount) || source.pageCount < 1
+    || source.provenance !== 'direct_project_upload') {
+    return { valid: false, sourcePdf: null };
+  }
+  return { valid: true, sourcePdf: {
+    sourceId: source.sourceId, documentId: source.documentId, documentFingerprint: source.documentFingerprint,
+    filename: source.filename, sha256: source.sha256, bytes: source.bytes, pageCount: source.pageCount,
+    provenance: source.provenance, status: source.status === 'available' ? 'available' : 'pending_contextual_render',
+  } };
+}
+
+function sameDurableProjectSource(left, right) {
+  return ['sourceId', 'documentId', 'documentFingerprint', 'filename', 'sha256', 'bytes', 'pageCount', 'provenance']
+    .every((field) => left?.[field] === right?.[field]);
+}
+
+async function resolvePersistedProjectSource(sourcePdf, projectId, projectSource) {
+  const requested = validateDurableProjectSource(sourcePdf, projectId);
+  if (!requested.valid || !requested.sourcePdf) return requested;
+  try {
+    const persisted = validateDurableProjectSource(await projectSource.readDescriptor(projectId), projectId);
+    if (!persisted.valid || !persisted.sourcePdf || !sameDurableProjectSource(requested.sourcePdf, persisted.sourcePdf)) {
+      return { valid: false, sourcePdf: null };
+    }
+    return persisted;
+  } catch {
+    return { valid: false, sourcePdf: null };
+  }
 }
 
 function deterministicPagesFromText(rulebookText) {
@@ -305,7 +342,7 @@ function sendRecoveryFailure(res, recovery, diagnosticId) {
   return res.status(status).json(withDiagnosticId({ ok: false, code: recovery.code }, diagnosticId));
 }
 
-function buildPersistedRecoveryMetadata(metadata, projectId, rulebookText, manifest) {
+function buildPersistedRecoveryMetadata(metadata, projectId, rulebookText, manifest, sourcePdf = null) {
   const existingMetadata = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {};
   const existingContext = existingMetadata.projectContext && typeof existingMetadata.projectContext === 'object'
     && !Array.isArray(existingMetadata.projectContext)
@@ -322,15 +359,17 @@ function buildPersistedRecoveryMetadata(metadata, projectId, rulebookText, manif
       version: 4,
       projectId,
       rulebookText,
+      ...(sourcePdf ? { sourcePdf } : {}),
       ingestionManifest: manifest,
     },
     renderState: { ...existingRenderState, ingestionManifest: manifest },
   };
 }
 
-function persistDurableIngestionManifest(db, rows, { projectId, rulebookText, manifest }, res) {
+function persistDurableIngestionManifest(db, rows, { projectId, rulebookText, manifest, sourcePdf }, res) {
   const validation = validateDurableIngestionManifest({ projectId, manifest, rulebookText });
-  if (!validation.valid) return sendRecoveryFailure(res, validation);
+  const sourceValidation = validateDurableProjectSource(sourcePdf, projectId);
+  if (!validation.valid || !sourceValidation.valid) return sendRecoveryFailure(res, recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID));
 
   const matchingRecords = (Array.isArray(rows) ? rows : [])
     .map((row) => ({ row, metadata: parseRecoveryMetadata(row?.metadata) }))
@@ -340,7 +379,7 @@ function persistDurableIngestionManifest(db, rows, { projectId, rulebookText, ma
   }
 
   const existing = matchingRecords[0];
-  const persistedMetadata = buildPersistedRecoveryMetadata(existing?.metadata, projectId, rulebookText, manifest);
+  const persistedMetadata = buildPersistedRecoveryMetadata(existing?.metadata, projectId, rulebookText, manifest, sourceValidation.sourcePdf);
   const complete = (error) => {
     if (error) {
       console.error('Unable to persist durable ingestion manifest', error);
@@ -360,7 +399,7 @@ function persistDurableIngestionManifest(db, rows, { projectId, rulebookText, ma
   );
 }
 
-export function registerProjectPersistenceRoutes(app, { db }) {
+export function registerProjectPersistenceRoutes(app, { db, projectSource = projectSourceService }) {
   hydrateRenderProjectState(db);
 
   app.post('/api/projects/recover-ingestion-manifest', (req, res) => {
@@ -405,9 +444,13 @@ export function registerProjectPersistenceRoutes(app, { db }) {
     });
   });
 
-  app.post('/api/projects/persist-ingestion-manifest', (req, res) => {
+  app.post('/api/projects/persist-ingestion-manifest', async (req, res) => {
     const projectId = normalizeRecoveryProjectId(req.body?.projectId);
     if (!projectId || typeof req.body?.rulebookText !== 'string') {
+      return sendRecoveryFailure(res, recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID));
+    }
+    const sourceValidation = await resolvePersistedProjectSource(req.body.sourcePdf, projectId, projectSource);
+    if (!sourceValidation.valid) {
       return sendRecoveryFailure(res, recoveryFailure(INGESTION_MANIFEST_RECOVERY.INVALID));
     }
     return db.all('SELECT * FROM projects', [], (error, rows = []) => {
@@ -419,6 +462,7 @@ export function registerProjectPersistenceRoutes(app, { db }) {
         projectId,
         rulebookText: req.body.rulebookText,
         manifest: req.body.manifest,
+        sourcePdf: sourceValidation.sourcePdf,
       }, res);
     });
   });

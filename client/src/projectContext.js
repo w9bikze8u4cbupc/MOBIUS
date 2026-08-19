@@ -1,6 +1,13 @@
 import { contextualEvidenceAssignmentIsAllowed, validateStoryboardVisualPlans } from './storyboardVisualPlan';
 
-export const PROJECT_CONTEXT_VERSION = 6;
+export const PROJECT_CONTEXT_VERSION = 7;
+export const PROJECT_SOURCE_STATUS = Object.freeze({
+  AVAILABLE: 'available',
+  PENDING_CONTEXTUAL_RENDER: 'pending_contextual_render',
+  MISSING: 'missing',
+  TAMPERED: 'tampered',
+  LEGACY_ADOPTION_REQUIRED: 'legacy_adoption_required',
+});
 export const SCRIPT_PROVENANCE = Object.freeze({
   MANUAL: 'manual',
   GENERATED_SOURCE_COMPLETE: 'generated_source_complete',
@@ -90,6 +97,28 @@ function normalizeImageReviewStatus(value) {
 export function isCanonicalRecoveryProjectId(value) {
   const projectId = asTrimmedString(value);
   return projectId.length <= 128 && CANONICAL_RECOVERY_PROJECT_ID.test(projectId);
+}
+
+export function normalizeProjectSourceRecord(value, projectId) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const expectedProjectId = asTrimmedString(projectId);
+  const sourceId = asTrimmedString(value.sourceId);
+  const documentId = asTrimmedString(value.documentId);
+  const documentFingerprint = asTrimmedString(value.documentFingerprint);
+  const filename = asTrimmedString(value.filename);
+  const sha256 = asTrimmedString(value.sha256);
+  const status = asTrimmedString(value.status) || PROJECT_SOURCE_STATUS.PENDING_CONTEXTUAL_RENDER;
+  const filenameHasUnsafeCharacters = Array.from(filename).some((character) => character.charCodeAt(0) < 32 || character === '\\' || character === '/');
+  if (!isCanonicalRecoveryProjectId(expectedProjectId) || documentId !== expectedProjectId
+    || !/^source-[a-f0-9]{32}$/.test(sourceId) || !/^document-[a-f0-9]{32}$/.test(documentFingerprint)
+    || !/^[a-f0-9]{64}$/.test(sha256) || !filename || filename.length > 200 || filenameHasUnsafeCharacters
+    || !Number.isInteger(value.bytes) || value.bytes < 1 || !Number.isInteger(value.pageCount) || value.pageCount < 1
+    || value.provenance !== 'direct_project_upload'
+    || !Object.values(PROJECT_SOURCE_STATUS).includes(status)) return null;
+  return {
+    sourceId, documentId, documentFingerprint, filename, sha256,
+    bytes: value.bytes, pageCount: value.pageCount, provenance: value.provenance, status,
+  };
 }
 
 export function isTrustedScriptProvenance(provenance) {
@@ -384,6 +413,7 @@ export function createPersistedProjectContext(context) {
     version: PROJECT_CONTEXT_VERSION, projectId: asTrimmedString(context.projectId), gameName: asTrimmedString(context.gameName),
     language: asTrimmedString(context.language).toLowerCase(), rulebookText: typeof context.rulebookText === 'string' ? context.rulebookText : '',
     rulebookPages: Array.isArray(context.rulebookPages) ? context.rulebookPages : [], components: Array.isArray(context.components) ? context.components : [],
+    sourcePdf: normalizeProjectSourceRecord(context.sourcePdf, context.projectId),
     metadata: context.metadata && typeof context.metadata === 'object' ? context.metadata : {}, images: Array.isArray(context.images) ? context.images : [],
     componentImageLinks: context.componentImageLinks && typeof context.componentImageLinks === 'object' ? context.componentImageLinks : {},
     componentImageLinkDetails: context.componentImageLinkDetails && typeof context.componentImageLinkDetails === 'object' ? context.componentImageLinkDetails : {},
@@ -398,7 +428,7 @@ export function createPersistedProjectContext(context) {
 
 export function hydrateProjectContext(value) {
   const context = value && typeof value === 'object' ? value : null;
-  if (!context || ![1, 2, 3, 4, 5, PROJECT_CONTEXT_VERSION].includes(context.version) || !asTrimmedString(context.projectId)) return null;
+  if (!context || ![1, 2, 3, 4, 5, 6, PROJECT_CONTEXT_VERSION].includes(context.version) || !asTrimmedString(context.projectId)) return null;
   return createPersistedProjectContext(context);
 }
 

@@ -1932,7 +1932,23 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-registerImageRoutes(app, { upload, extractorApiKey: IMAGE_EXTRACTOR_API_KEY, openai });
+// Source PDFs use a private one-shot buffer. They are immediately copied into the
+// project-owned canonical source store and removed by the source route; unlike the
+// legacy shared upload directory, this path is never mounted as a static endpoint.
+const sourceUploadStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const temporarySourceDir = path.join(process.cwd(), 'data', '.source-upload-tmp');
+    fs.mkdirSync(temporarySourceDir, { recursive: true });
+    cb(null, temporarySourceDir);
+  },
+  filename: (_req, file, cb) => {
+    const safeName = String(file.originalname || 'rulebook.pdf').replace(/[^a-zA-Z0-9.]/g, '_');
+    cb(null, `${Date.now()}_${safeName}`);
+  },
+});
+const sourceUpload = multer({ storage: sourceUploadStorage });
+
+registerImageRoutes(app, { upload, sourceUpload, extractorApiKey: IMAGE_EXTRACTOR_API_KEY, openai });
 
 // Helper function to identify components using AI  
 async function identifyComponents(text) {

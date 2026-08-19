@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { DEFAULT_RENDER_PROFILE } from './contextualEvidenceService.js';
+import { DEFAULT_RENDER_PROFILE, withContextualEvidenceLock } from './contextualEvidenceService.js';
 
 const PROJECT_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
@@ -124,7 +124,6 @@ export function createContextualEvidenceAdoptionService({
   }
   const localPreviews = new Map();
   const localPreviewTimers = new Map();
-  const adoptionLocks = new Map();
   const absoluteUploadRoot = path.resolve(uploadRoot);
 
   async function discardLocalPreview(id) {
@@ -148,21 +147,6 @@ export function createContextualEvidenceAdoptionService({
     const timer = setTimeout(() => { discardLocalPreview(id).catch(() => {}); }, previewTtlMs);
     timer.unref?.();
     localPreviewTimers.set(id, timer);
-  }
-
-  async function withProjectAdoptionLock(projectId, task) {
-    const previous = adoptionLocks.get(projectId) || Promise.resolve();
-    let release;
-    const gate = new Promise((resolve) => { release = resolve; });
-    const current = previous.then(() => gate);
-    adoptionLocks.set(projectId, current);
-    await previous;
-    try {
-      return await task();
-    } finally {
-      release();
-      if (adoptionLocks.get(projectId) === current) adoptionLocks.delete(projectId);
-    }
   }
 
   async function verifyPdf(filePath, filename) {
@@ -288,7 +272,7 @@ export function createContextualEvidenceAdoptionService({
   }
 
   async function adoptVerified(projectId, candidate) {
-    return withProjectAdoptionLock(projectId, async () => {
+    return withContextualEvidenceLock(projectId, async () => {
       const current = await existingInventory(projectId, candidate.sha256);
       if (current) return { inventory: current.inventory, idempotent: true };
       try {

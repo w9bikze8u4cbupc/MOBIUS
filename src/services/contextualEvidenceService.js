@@ -16,6 +16,23 @@ export const DEFAULT_RENDER_PROFILE = Object.freeze({
 });
 export const MINIMUM_CROP_PIXELS = 32;
 
+const contextualEvidenceLocks = new Map();
+
+export async function withContextualEvidenceLock(projectId, task) {
+  const previous = contextualEvidenceLocks.get(projectId) || Promise.resolve();
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const current = previous.then(() => gate);
+  contextualEvidenceLocks.set(projectId, current);
+  await previous;
+  try {
+    return await task();
+  } finally {
+    release();
+    if (contextualEvidenceLocks.get(projectId) === current) contextualEvidenceLocks.delete(projectId);
+  }
+}
+
 export class ContextualEvidenceError extends Error {
   constructor(code, message, status = 400, cause = null, diagnostic = null) {
     super(message);
@@ -93,6 +110,13 @@ function safeProvenance(value) {
   const sourceRecordId = typeof value?.sourceRecordId === 'string' && SAFE_ID_PATTERN.test(value.sourceRecordId)
     ? value.sourceRecordId : null;
   return { kind, ...(sourceRecordId ? { sourceRecordId } : {}) };
+}
+
+function isSafeManifestProvenance(value) {
+  if (value === undefined || value === null) return true;
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value)
+    && ['direct_project_upload', 'verified_legacy_upload', 'operator_selected_local_upload'].includes(value.kind)
+    && (value.sourceRecordId === undefined || (typeof value.sourceRecordId === 'string' && SAFE_ID_PATTERN.test(value.sourceRecordId))));
 }
 
 function isWithin(root, candidate) {
@@ -265,6 +289,7 @@ export function createContextualEvidenceService({
       || !Number.isInteger(manifest.source.bytes) || manifest.source.bytes < 1
       || !Number.isInteger(manifest.source.pageCount) || manifest.source.pageCount < 1
       || !manifest.renderProfile || manifest.renderProfile.id !== profile.id
+      || !isSafeManifestProvenance(manifest.created?.provenance)
       || manifest.renderProfile.renderer !== profile.renderer || manifest.renderProfile.format !== 'png'
       || manifest.renderProfile.dpi !== profile.dpi || !Array.isArray(manifest.pages)
       || manifest.pages.length !== manifest.source.pageCount || !manifest.validation || manifest.validation.completed !== true) invalid();

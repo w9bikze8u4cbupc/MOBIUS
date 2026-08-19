@@ -521,3 +521,17 @@ test('accepts policy-valid contextual rulebook evidence without treating it as a
   };
   expect(validateStoryboardReview(contextualStoryboard, [])).toMatchObject({ valid: true });
 });
+
+
+test('persists only a browser-safe durable source descriptor through reload', () => {
+  const sourcePdf = {
+    sourceId: 'source-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', documentId: 'source-reload-project',
+    documentFingerprint: 'document-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', filename: 'Abyss.pdf',
+    sha256: 'c'.repeat(64), bytes: 42, pageCount: 1, provenance: 'direct_project_upload', status: 'pending_contextual_render',
+  };
+  saveProjectContext(window.localStorage, { projectId: 'source-reload-project', gameName: 'Abyss', sourcePdf });
+  expect(loadLatestProjectContext(window.localStorage).sourcePdf).toEqual(sourcePdf);
+
+  saveProjectContext(window.localStorage, { projectId: 'source-reload-project', gameName: 'Abyss', sourcePdf: { ...sourcePdf, filename: '../private.pdf' } });
+  expect(loadLatestProjectContext(window.localStorage).sourcePdf).toBeNull();
+});

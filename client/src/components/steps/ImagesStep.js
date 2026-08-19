@@ -4,6 +4,9 @@ import axios from "axios";
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL !== undefined 
   ? process.env.REACT_APP_BACKEND_URL 
   : '';
+const EMPTY_COMPONENTS = [];
+const EMPTY_IMAGES = [];
+const EMPTY_COMPONENT_IMAGES = {};
 
 const getImageUrl = (projectId, image) => {
   if (!image) return null;
@@ -76,15 +79,17 @@ const getSourceColor = (source) => {
 
 export function ImagesStep({ 
   projectId, 
-  components = [], 
-  images = [], 
-  componentImages = {}, 
+  components = EMPTY_COMPONENTS,
+  images = EMPTY_IMAGES,
+  componentImages = EMPTY_COMPONENT_IMAGES,
   imageReviewSummary = null,
   imageReviewStatus = null,
   onImagesUpdated,
+  onSourcePdfUpdated,
   gameName = '',
   bggUrl = '',
-  pdfFile = null
+  pdfFile = null,
+  sourcePdf = null
 }) {
   const [loading, setLoading] = useState(false);
   const [autoGatherStatus, setAutoGatherStatus] = useState(null);
@@ -107,12 +112,23 @@ export function ImagesStep({
   const [previewImageId, setPreviewImageId] = useState(null);
   const [previewComponentId, setPreviewComponentId] = useState(null);
   const [showAllCandidates, setShowAllCandidates] = useState({});
+  const [contextualRenderStatus, setContextualRenderStatus] = useState(null);
 
   const normalizedProjectId = String(projectId || '').trim();
-  const imageActionsReady = Boolean(normalizedProjectId && pdfFile);
+  const sourceStatus = sourcePdf?.status || (pdfFile ? 'pending_contextual_render' : 'legacy_adoption_required');
+  const sourceIsUsable = Boolean(pdfFile) || (Boolean(sourcePdf?.sourceId)
+    && ['available', 'pending_contextual_render'].includes(sourceStatus));
+  const imageActionsReady = Boolean(normalizedProjectId && sourceIsUsable);
+  const sourceReadinessMessage = sourceStatus === 'available'
+    ? 'Source PDF available.'
+    : sourceStatus === 'pending_contextual_render'
+      ? 'Source PDF pending contextual render.'
+      : sourceStatus === 'tampered' || sourceStatus === 'missing'
+        ? 'Source PDF missing/tampered; contextual evidence is blocked.'
+        : 'Legacy project requires explicit adoption.';
   const readinessMessages = [
     !normalizedProjectId && 'Project identifier is missing. Return to Project Setup and enter or generate a Project ID.',
-    !pdfFile && 'The original rulebook PDF is not available. Return to Project Setup and upload it again.',
+    !sourceIsUsable && sourceReadinessMessage,
   ].filter(Boolean);
 
   useEffect(() => {
@@ -162,14 +178,27 @@ export function ImagesStep({
     onImagesUpdated?.(payload);
   };
 
+  const handleRenderContextualEvidence = async () => {
+    if (!normalizedProjectId || !sourcePdf?.sourceId || sourceStatus !== 'pending_contextual_render') return;
+    setContextualRenderStatus({ status: 'rendering', message: 'Rendering verified contextual rulebook pages...' });
+    try {
+      const { data } = await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/contextual-evidence/render`);
+      if (!data?.contextualEvidence?.available) throw new Error('Contextual evidence was not confirmed.');
+      onSourcePdfUpdated?.({ ...sourcePdf, status: 'available' });
+      setContextualRenderStatus({ status: 'complete', message: 'Contextual rulebook evidence is available.' });
+    } catch (error) {
+      setContextualRenderStatus({ status: 'error', message: error.response?.data?.error || 'Contextual rulebook rendering could not complete.' });
+    }
+  };
+
   // Canonical local image gathering: HEPHAESTUS uses the PyMuPDF path and never falls back to legacy rendering.
   const handleAutoGather = async () => {
     if (!normalizedProjectId) {
       setReadinessError('Project identifier is missing. Return to Project Setup and enter or generate a Project ID.');
       return;
     }
-    if (!pdfFile) {
-      setReadinessError('The original rulebook PDF is not available. Return to Project Setup and upload it again.');
+    if (!sourceIsUsable) {
+      setReadinessError(sourceReadinessMessage);
       return;
     }
 
@@ -178,7 +207,7 @@ export function ImagesStep({
     setAutoGatherStatus({ status: 'gathering', message: 'Running local HEPHAESTUS extraction...' });
     try {
       const formData = new FormData();
-      formData.append('file', pdfFile);
+      if (pdfFile) formData.append('file', pdfFile);
       formData.append('minWidth', '1');
       formData.append('minHeight', '1');
       const { data } = await axios.post(
@@ -457,8 +486,8 @@ export function ImagesStep({
       setReadinessError('Project identifier is missing. Return to Project Setup and enter or generate a Project ID.');
       return;
     }
-    if (!pdfFile) {
-      setReadinessError('The original rulebook PDF is not available. Return to Project Setup and upload it again.');
+    if (!sourceIsUsable) {
+      setReadinessError(sourceReadinessMessage);
       return;
     }
     setReadinessError("");
@@ -467,7 +496,7 @@ export function ImagesStep({
     
     try {
       const formData = new FormData();
-      formData.append('file', pdfFile);
+      if (pdfFile) formData.append('file', pdfFile);
       formData.append('minWidth', '1');
       formData.append('minHeight', '1');
       
@@ -631,7 +660,8 @@ export function ImagesStep({
       >
         <div><strong>Image extraction readiness</strong></div>
         <div>Project ID: {normalizedProjectId || 'Missing'}</div>
-        <div>Original PDF: {pdfFile ? 'Available' : 'Missing'}</div>
+        <div><strong>{sourceReadinessMessage}</strong></div>
+        {sourcePdf?.filename && <div>Stored source: {sourcePdf.filename} ({sourcePdf.pageCount} page{sourcePdf.pageCount === 1 ? '' : 's'})</div>}
         {!imageActionsReady && (
           <div role="alert" style={{ marginTop: 6, color: '#a44a00' }}>
             {readinessError || readinessMessages.join(' ')}
@@ -639,6 +669,18 @@ export function ImagesStep({
         )}
         {readinessError && imageActionsReady && (
           <div role="alert" style={{ marginTop: 6, color: '#b71c1c' }}>{readinessError}</div>
+        )}
+        {sourceStatus === 'pending_contextual_render' && sourcePdf?.sourceId && (
+          <div style={{ marginTop: 10 }}>
+            <button type="button" onClick={handleRenderContextualEvidence} disabled={contextualRenderStatus?.status === 'rendering'}>
+              {contextualRenderStatus?.status === 'rendering' ? 'Rendering contextual evidence...' : 'Render contextual evidence'}
+            </button>
+            {contextualRenderStatus && (
+              <div role={contextualRenderStatus.status === 'error' ? 'alert' : 'status'} style={{ marginTop: 6, color: contextualRenderStatus.status === 'error' ? '#b71c1c' : '#2e7d32' }}>
+                {contextualRenderStatus.message}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -686,7 +728,7 @@ export function ImagesStep({
         
         {!imageActionsReady && (
           <p style={{ margin: '10px 0 0', color: '#7a4b00', fontSize: 13 }}>
-            Auto-Gather is unavailable until both a Project ID and the original PDF are available.
+            Auto-Gather is unavailable until both a Project ID and a verified stored source PDF are available.
           </p>
         )}
         {autoGatherStatus && (
@@ -845,7 +887,7 @@ export function ImagesStep({
           </p>
           {!imageActionsReady && (
             <p style={{ margin: '-8px 0 16px', color: '#7a1c1c', fontSize: 13 }}>
-              HEPHAESTUS is unavailable until both a Project ID and the original PDF are available.
+              HEPHAESTUS is unavailable until both a Project ID and a verified stored source PDF are available.
             </p>
           )}
           

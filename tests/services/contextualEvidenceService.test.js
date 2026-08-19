@@ -8,6 +8,7 @@ import {
   DEFAULT_RENDER_PROFILE,
   ContextualEvidenceError,
   createContextualEvidenceService,
+  withContextualEvidenceLock,
 } from '../../src/services/contextualEvidenceService.js';
 
 const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
@@ -183,5 +184,25 @@ describe('contextual evidence service', () => {
     expect(stagingDirectories('mismatch-failure')).toEqual([]);
     expect(stagingDirectories('validation-failure')).toEqual([]);
     consoleSpy.mockRestore();
+  });
+
+  it('serializes direct rendering and adoption work for the same project', async () => {
+    const events = [];
+    let releaseFirst;
+    const release = new Promise((resolve) => { releaseFirst = resolve; });
+    const first = withContextualEvidenceLock('lock-project', async () => {
+      events.push('direct-started');
+      await release;
+      events.push('direct-finished');
+    });
+    await Promise.resolve();
+    const second = withContextualEvidenceLock('lock-project', async () => {
+      events.push('adoption-started');
+    });
+
+    expect(events).toEqual(['direct-started']);
+    releaseFirst();
+    await Promise.all([first, second]);
+    expect(events).toEqual(['direct-started', 'direct-finished', 'adoption-started']);
   });
 });

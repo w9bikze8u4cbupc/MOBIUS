@@ -29,7 +29,13 @@ import {
 import {
   ContextualEvidenceError,
   contextualEvidenceService,
+  withContextualEvidenceLock,
 } from '../services/contextualEvidenceService.js';
+import {
+  ProjectSourceError,
+  PROJECT_SOURCE_STATUS,
+  projectSourceService,
+} from '../services/projectSourceService.js';
 import { createContextualEvidenceAdoptionService } from '../services/contextualEvidenceAdoptionService.js';
 import {
   extractComponentsFromAllPages,
@@ -141,25 +147,49 @@ function safeComponentImageLinkDetails(details) {
   ]));
 }
 
-async function safeImageListResponse(projectId, state, contextualEvidence) {
+async function safeImageListResponse(projectId, state, contextualEvidence, projectSource) {
   let contextualInventory = null;
   try {
     contextualInventory = await contextualEvidence.inventory(projectId);
   } catch (error) {
     if (error?.code !== 'CONTEXTUAL_EVIDENCE_UNAVAILABLE') throw error;
   }
+  let sourcePdf;
+  try {
+    sourcePdf = await projectSource.inspect(projectId, {
+      contextualAvailable: Boolean(contextualInventory?.available),
+    });
+  } catch (error) {
+    if (!(error instanceof ProjectSourceError) && !['SOURCE_PDF_MISSING', 'SOURCE_PDF_TAMPERED'].includes(error?.code)) throw error;
+    sourcePdf = {
+      status: error.code === 'SOURCE_PDF_TAMPERED' ? PROJECT_SOURCE_STATUS.TAMPERED : PROJECT_SOURCE_STATUS.MISSING,
+      code: error.code,
+    };
+  }
   return {
     images: (state.images || []).filter((image) => typeof image?.id === 'string' && image.id && isReviewImageAvailable(image)).map((image) => safeImageForReview(projectId, image)),
     componentImages: state.componentImages || {},
     componentImageLinkDetails: safeComponentImageLinkDetails(state.componentImageLinkDetails),
+    sourcePdf,
     contextualEvidence: contextualInventory || {
       available: false,
-      code: 'CONTEXTUAL_EVIDENCE_UNAVAILABLE',
-      message: 'A verified source PDF must be explicitly adopted before contextual rulebook evidence is available.',
+      code: sourcePdf.status === PROJECT_SOURCE_STATUS.PENDING_CONTEXTUAL_RENDER
+        ? 'CONTEXTUAL_EVIDENCE_PENDING' : 'CONTEXTUAL_EVIDENCE_UNAVAILABLE',
+      message: sourcePdf.status === PROJECT_SOURCE_STATUS.PENDING_CONTEXTUAL_RENDER
+        ? 'The verified source PDF is stored; contextual page rendering is pending.'
+        : 'A verified source PDF must be explicitly adopted before contextual rulebook evidence is available.',
     },
     // Contextual assets are intentionally excluded from component matching but remain in the project inventory.
     contextualAssets: contextualInventory?.assets || [],
   };
+}
+
+function projectSourceErrorResponse(res, error) {
+  if (error instanceof ProjectSourceError || (typeof error?.code === 'string' && error.code.startsWith('SOURCE_PDF_'))) {
+    return res.status(error.status || 422).json({ code: error.code, error: error.message || 'The source PDF is unavailable.' });
+  }
+  console.error('[ProjectSource]', error);
+  return res.status(500).json({ code: 'SOURCE_PDF_COPY_FAILED', error: 'The source PDF could not be stored safely.' });
 }
 
 function contextualEvidenceErrorResponse(res, error) {
@@ -185,13 +215,87 @@ function sendContextualEvidenceFile(res, file) {
 
 export function registerImageRoutes(app, {
   upload,
+  sourceUpload = null,
   extractorApiKey,
   openai,
   contextualEvidence = contextualEvidenceService,
+  projectSource = projectSourceService,
   contextualAdoption = null,
 } = {}) {
   const uploadMiddleware = upload || { single: () => (_req, _res, next) => next() };
+  const sourceUploadMiddleware = sourceUpload || uploadMiddleware;
   const adoption = contextualAdoption || createContextualEvidenceAdoptionService({ contextualEvidence });
+
+  app.post('/api/projects/:projectId/source-pdf', sourceUploadMiddleware.single('file'), async (req, res) => {
+    const { projectId } = req.params;
+    if (!isValidProjectId(projectId)) {
+      return res.status(400).json({ code: 'PROJECT_ID_INVALID', error: 'Project ID is invalid.' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ code: 'SOURCE_PDF_INVALID', error: 'A PDF file is required.' });
+    }
+    const temporaryUploadPath = req.file.path;
+    try {
+      const result = await projectSource.persistUpload(projectId, temporaryUploadPath, { filename: req.file.originalname });
+      return res.status(result.idempotent ? 200 : 201).json({ sourcePdf: result.descriptor, idempotent: result.idempotent });
+    } catch (error) {
+      return projectSourceErrorResponse(res, error);
+    } finally {
+      // Source uploads use a dedicated non-public multer store in production. The
+      // browser never receives its path, and the transient original never survives
+      // canonical persistence, conflict, or validation failure.
+      if (sourceUpload) await fs.promises.rm(temporaryUploadPath, { force: true }).catch(() => {});
+    }
+  });
+
+  app.get('/api/projects/:projectId/source-pdf', async (req, res) => {
+    const { projectId } = req.params;
+    if (!isValidProjectId(projectId)) {
+      return res.status(400).json({ code: 'PROJECT_ID_INVALID', error: 'Project ID is invalid.' });
+    }
+    try {
+      return res.json({ sourcePdf: await projectSource.inspect(projectId) });
+    } catch (error) {
+      return projectSourceErrorResponse(res, error);
+    }
+  });
+
+  // New projects can materialize contextual evidence from their already verified,
+  // project-owned source without entering the historical adoption workflow.
+  app.post('/api/projects/:projectId/contextual-evidence/render', async (req, res) => {
+    const { projectId } = req.params;
+    try {
+      const descriptor = await projectSource.readDescriptor(projectId);
+      return await withContextualEvidenceLock(projectId, async () => {
+        let existingInventory = null;
+        try {
+          existingInventory = await contextualEvidence.inventory(projectId);
+        } catch (error) {
+          if (error?.code !== 'CONTEXTUAL_EVIDENCE_UNAVAILABLE') throw error;
+        }
+        if (existingInventory) {
+          const isMatchingDirectSource = existingInventory?.source?.sha256 === descriptor.sha256
+            && existingInventory?.provenance?.kind === 'direct_project_upload'
+            && existingInventory?.provenance?.sourceRecordId === descriptor.sourceId;
+          if (isMatchingDirectSource) {
+            return res.json({ contextualEvidence: existingInventory, idempotent: true });
+          }
+          return res.status(409).json({
+            code: 'CONTEXTUAL_EVIDENCE_CONFLICT',
+            error: 'Existing contextual evidence belongs to another verified source and cannot be replaced.',
+          });
+        }
+        const inventory = await contextualEvidence.persistUpload(projectId, await projectSource.resolveFile(projectId), {
+          filename: descriptor.filename,
+          provenance: { kind: 'direct_project_upload', sourceRecordId: descriptor.sourceId },
+        });
+        return res.status(201).json({ contextualEvidence: inventory, idempotent: false });
+      });
+    } catch (error) {
+      if (error instanceof ProjectSourceError || String(error?.code || '').startsWith('SOURCE_PDF_')) return projectSourceErrorResponse(res, error);
+      return contextualEvidenceErrorResponse(res, error);
+    }
+  });
 
   app.get('/api/projects/:projectId/contextual-evidence', async (req, res) => {
     try {
@@ -314,7 +418,7 @@ export function registerImageRoutes(app, {
     }
     try {
       const state = listImages(projectId);
-      return res.json(await safeImageListResponse(projectId, state, contextualEvidence));
+      return res.json(await safeImageListResponse(projectId, state, contextualEvidence, projectSource));
     } catch (error) {
       return contextualEvidenceErrorResponse(res, error);
     }
@@ -609,13 +713,20 @@ export function registerImageRoutes(app, {
   });
 
   // HEPHAESTUS: extract every native raster image with 3x Lanczos output.
-  app.post('/api/projects/:projectId/images/extract-hephaestus', uploadMiddleware.single('file'), async (req, res) => {
+  app.post('/api/projects/:projectId/images/extract-hephaestus', sourceUploadMiddleware.single('file'), async (req, res) => {
     const { projectId } = req.params;
+    const temporaryUploadPath = req.file?.path;
 
     try {
-      if (!req.file) {
-        return res.status(400).json({ error: 'PDF file is required' });
+      if (!isValidProjectId(projectId)) {
+        return res.status(400).json({ code: 'PROJECT_ID_INVALID', error: 'Project ID is invalid.' });
       }
+      // A browser file is optional for a newly created project after reload. When it
+      // is present, first establish the same immutable project-owned source contract.
+      if (req.file) {
+        await projectSource.persistUpload(projectId, req.file.path, { filename: req.file.originalname });
+      }
+      const canonicalPdfPath = await projectSource.resolveFile(projectId);
 
       const available = await isHephaestusAvailable();
       if (!available) {
@@ -623,7 +734,7 @@ export function registerImageRoutes(app, {
       }
 
       const outputDir = path.join(process.cwd(), 'data', projectId, 'hephaestus');
-      const result = await extractWithHephaestus(req.file.path, outputDir, {
+      const result = await extractWithHephaestus(canonicalPdfPath, outputDir, {
         minWidth: 1,
         minHeight: 1,
       });
@@ -640,7 +751,6 @@ export function registerImageRoutes(app, {
           mode: 'hephaestus',
           message: 'No native raster images were found in this PDF.',
           stats: result.stats || {},
-          manifestPath: result.manifest_path,
           imagesCount: 0,
           images: state.images,
           componentImages: state.componentImages,
@@ -693,7 +803,6 @@ export function registerImageRoutes(app, {
         mode: 'hephaestus',
         message: `Extracted ${images.length} raw native images; ${curatedResult.stats.curatedCount} curated candidates are ready for review`,
         stats: { ...(result.stats || {}), ...curatedResult.stats },
-        manifestPath: result.manifest_path,
         imagesCount: images.length,
         curatedCount: curatedResult.stats.curatedCount,
         images: updatedState.images,
@@ -701,11 +810,18 @@ export function registerImageRoutes(app, {
         componentImageLinkDetails: updatedState.componentImageLinkDetails,
       });
     } catch (err) {
+      if (err instanceof ProjectSourceError || String(err?.code || '').startsWith('SOURCE_PDF_')) {
+        return projectSourceErrorResponse(res, err);
+      }
       console.error('[HEPHAESTUS]', JSON.stringify({
         event: 'extraction-failed',
         message: err?.message || 'unknown error',
       }));
       return res.status(500).json({ error: 'HEPHAESTUS extraction failed. Check the server diagnostic and retry.' });
+    } finally {
+      // Browser-provided source PDFs are accepted only through the private source
+      // upload middleware and are removed after canonical persistence or any error.
+      if (sourceUpload && temporaryUploadPath) await fs.promises.rm(temporaryUploadPath, { force: true }).catch(() => {});
     }
   });
 
@@ -783,7 +899,7 @@ export function registerImageRoutes(app, {
     );
     const refreshed = listImages(projectId);
     try {
-      return res.json({ ...await safeImageListResponse(projectId, refreshed, contextualEvidence), componentImages: links });
+      return res.json({ ...await safeImageListResponse(projectId, refreshed, contextualEvidence, projectSource), componentImages: links });
     } catch (error) {
       return contextualEvidenceErrorResponse(res, error);
     }

@@ -151,25 +151,36 @@ function createInMemoryProjectDb(rows = []) {
   };
 }
 
-function invokePersistence(rows, body) {
+function directSourceDescriptor(overrides = {}) {
+  return {
+    sourceId: 'source-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', documentId: projectId,
+    documentFingerprint: 'document-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', filename: 'Abyss.pdf',
+    sha256: 'c'.repeat(64), bytes: 42, pageCount: 1, provenance: 'direct_project_upload', status: 'pending_contextual_render',
+    ...overrides,
+  };
+}
+
+async function invokePersistence(rows, body, projectSource = { readDescriptor: jest.fn() }) {
   const routes = new Map();
   registerProjectPersistenceRoutes({
     post: (route, handler) => routes.set(route, handler),
     get: () => {},
-  }, { db: createInMemoryProjectDb(rows) });
+  }, { db: createInMemoryProjectDb(rows), projectSource });
   const result = { statusCode: 200, payload: null };
   const res = {
     status(code) { result.statusCode = code; return this; },
     json(payload) { result.payload = payload; return this; },
   };
-  routes.get('/api/projects/persist-ingestion-manifest')({ body }, res);
+  await routes.get('/api/projects/persist-ingestion-manifest')({ body }, res);
   return result;
 }
 
 describe('canonical ingestion persistence for recovery', () => {
-  test('persists a validated logical project record and recovers it without inspecting artifacts', () => {
+  test('persists a validated logical project record and recovers it without inspecting artifacts', async () => {
     const rows = [];
-    const persisted = invokePersistence(rows, { projectId, rulebookText, manifest: makeManifest() });
+    const sourceService = { readDescriptor: jest.fn() };
+    const persisted = await invokePersistence(rows, { projectId, rulebookText, manifest: makeManifest() }, sourceService);
+    expect(sourceService.readDescriptor).not.toHaveBeenCalled();
     expect(persisted).toEqual(expect.objectContaining({ statusCode: 200, payload: { ok: true, projectId } }));
     expect(rows).toHaveLength(1);
     expect(invokeRecovery(rows, { projectId })).toMatchObject({
@@ -219,4 +230,34 @@ test('reports distinct redacted diagnostics for ambiguity, invalid context, and 
     code: INGESTION_MANIFEST_RECOVERY.INVALID,
     diagnostics: { candidateOutcomes: ['manifest_candidate:conflict'] },
   });
+});
+
+
+test('persists only a server-verified direct-upload source descriptor with the canonical ingestion record', async () => {
+  const rows = [];
+  const sourcePdf = directSourceDescriptor();
+  const projectSource = { readDescriptor: jest.fn().mockResolvedValue({ ...sourcePdf }) };
+  const persisted = await invokePersistence(rows, { projectId, rulebookText, manifest: makeManifest(), sourcePdf }, projectSource);
+  expect(persisted).toMatchObject({ statusCode: 200, payload: { ok: true, projectId } });
+  expect(projectSource.readDescriptor).toHaveBeenCalledWith(projectId);
+  expect(JSON.parse(rows[0].metadata).projectContext.sourcePdf).toEqual(sourcePdf);
+  expect(JSON.stringify(persisted.payload)).not.toContain('Abyss.pdf');
+});
+
+test('rejects a browser-safe descriptor that does not match the verified project-owned source', async () => {
+  const rows = [];
+  const sourcePdf = directSourceDescriptor();
+  const projectSource = { readDescriptor: jest.fn().mockResolvedValue(directSourceDescriptor({ sha256: 'd'.repeat(64) })) };
+  const persisted = await invokePersistence(rows, { projectId, rulebookText, manifest: makeManifest(), sourcePdf }, projectSource);
+  expect(persisted).toMatchObject({ statusCode: 400, payload: { ok: false, code: INGESTION_MANIFEST_RECOVERY.INVALID } });
+  expect(rows).toEqual([]);
+});
+
+test('preserves the legacy no-source persistence path without reading canonical source storage', async () => {
+  const rows = [];
+  const projectSource = { readDescriptor: jest.fn() };
+  const persisted = await invokePersistence(rows, { projectId, rulebookText, manifest: makeManifest(), sourcePdf: null }, projectSource);
+  expect(persisted).toMatchObject({ statusCode: 200, payload: { ok: true, projectId } });
+  expect(projectSource.readDescriptor).not.toHaveBeenCalled();
+  expect(JSON.parse(rows[0].metadata).projectContext.sourcePdf).toBeUndefined();
 });

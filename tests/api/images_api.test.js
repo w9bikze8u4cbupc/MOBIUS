@@ -50,6 +50,12 @@ const contextualEvidence = {
   resolveAssetFile: jest.fn(),
   registerCrop: jest.fn(),
 };
+const projectSource = {
+  persistUpload: jest.fn(),
+  inspect: jest.fn(),
+  readDescriptor: jest.fn(),
+  resolveFile: jest.fn(),
+};
 const contextualAdoption = {
   discover: jest.fn(),
   previewLocalUpload: jest.fn(),
@@ -62,6 +68,7 @@ describe('images api routes', () => {
   const sourceBytes = Buffer.from('89504e470d0a1a0a736f75726365', 'hex');
   const thumbnailBytes = Buffer.from('89504e470d0a1a0a7468756d626e61696c', 'hex');
   const sourcePath = path.join(fixtureDirectory, 'source.png');
+  const privateSourceUploadPath = path.join(fixtureDirectory, 'private-source-upload.pdf');
   const thumbnailPath = path.join(fixtureDirectory, 'thumbnail.png');
   let server;
   let baseUrl;
@@ -76,7 +83,9 @@ describe('images api routes', () => {
     registerImageRoutes(app, {
       extractorApiKey: 'key',
       upload: { single: () => (req, _res, next) => { req.file = { path: sourcePath, originalname: 'Fixture.pdf' }; next(); } },
+      sourceUpload: { single: () => (req, _res, next) => { req.file = { path: privateSourceUploadPath, originalname: 'Fixture.pdf' }; next(); } },
       contextualEvidence,
+      projectSource,
       contextualAdoption,
     });
     server = app.listen(0, () => {
@@ -94,9 +103,11 @@ describe('images api routes', () => {
   });
 
   beforeEach(() => {
+    fs.writeFileSync(privateSourceUploadPath, sourceBytes);
     resetImageStore();
     jest.resetAllMocks();
     contextualEvidence.inventory.mockImplementation(async () => { throw { code: 'CONTEXTUAL_EVIDENCE_UNAVAILABLE' }; });
+    projectSource.inspect.mockRejectedValue({ code: 'SOURCE_PDF_MISSING', status: 404, message: 'No stored source PDF is available for this project.' });
     contextualAdoption.discover.mockResolvedValue({ projectId: 'demo', status: 'none', code: 'CONTEXTUAL_ADOPTION_NO_CANDIDATE', candidates: [], eligibleCandidate: null });
   });
 
@@ -416,6 +427,97 @@ it('exposes only the public code, message, and correlation reference for a conte
   });
   expect(JSON.stringify(payload)).not.toContain('CONTEXTUAL_RENDER_IN_PROCESS_FAILURE');
   expect(JSON.stringify(payload)).not.toContain(privateSentinel);
+});
+
+
+
+test('publishes only a path-free durable source descriptor after a direct project upload', async () => {
+  projectSource.persistUpload.mockResolvedValue({
+    idempotent: false,
+    descriptor: {
+      sourceId: 'source-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', documentId: 'demo',
+      documentFingerprint: 'document-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', filename: 'Fixture.pdf',
+      sha256: 'c'.repeat(64), bytes: 42, pageCount: 1, provenance: 'direct_project_upload', status: 'pending_contextual_render',
+    },
+  });
+  const response = await fetch(`${baseUrl}/api/projects/demo/source-pdf`, { method: 'POST' });
+  const payload = await response.json();
+
+  expect(response.status).toBe(201);
+  expect(projectSource.persistUpload).toHaveBeenCalledWith('demo', privateSourceUploadPath, { filename: 'Fixture.pdf' });
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  expect(fs.existsSync(privateSourceUploadPath)).toBe(false);
+  expect(payload).toMatchObject({ sourcePdf: { sourceId: 'source-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', documentId: 'demo' } });
+  expect(JSON.stringify(payload)).not.toContain(sourcePath);
+  expect(JSON.stringify(payload)).not.toContain('89504e');
+});
+
+test('renders contextual evidence from the persisted new-project source without historical adoption', async () => {
+  const descriptor = {
+    sourceId: 'source-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', documentId: 'demo',
+    documentFingerprint: 'document-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', filename: 'Fixture.pdf',
+    sha256: 'c'.repeat(64), bytes: 42, pageCount: 1, provenance: 'direct_project_upload',
+  };
+  projectSource.readDescriptor.mockResolvedValue(descriptor);
+  projectSource.resolveFile.mockResolvedValue(sourcePath);
+  contextualEvidence.persistUpload.mockResolvedValue({ available: true, projectId: 'demo', source: { sha256: descriptor.sha256 } });
+
+  const response = await fetch(`${baseUrl}/api/projects/demo/contextual-evidence/render`, { method: 'POST' });
+  const payload = await response.json();
+
+  expect(response.status).toBe(201);
+  expect(contextualEvidence.persistUpload).toHaveBeenCalledWith('demo', sourcePath, {
+    filename: 'Fixture.pdf', provenance: { kind: 'direct_project_upload', sourceRecordId: descriptor.sourceId },
+  });
+  expect(contextualAdoption.adoptLegacy).not.toHaveBeenCalled();
+  expect(payload).toMatchObject({ contextualEvidence: { available: true, projectId: 'demo' }, idempotent: false });
+  expect(JSON.stringify(payload)).not.toContain(sourcePath);
+});
+
+test('returns matching direct contextual evidence idempotently without replacing it', async () => {
+  const descriptor = {
+    sourceId: 'source-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', documentId: 'demo',
+    documentFingerprint: 'document-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', filename: 'Fixture.pdf',
+    sha256: 'c'.repeat(64), bytes: 42, pageCount: 1, provenance: 'direct_project_upload',
+  };
+  const existingInventory = {
+    available: true, projectId: 'demo', source: { sha256: descriptor.sha256 },
+    provenance: { kind: 'direct_project_upload', sourceRecordId: descriptor.sourceId },
+  };
+  projectSource.readDescriptor.mockResolvedValue(descriptor);
+  contextualEvidence.inventory.mockResolvedValue(existingInventory);
+
+  const response = await fetch(`${baseUrl}/api/projects/demo/contextual-evidence/render`, { method: 'POST' });
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toEqual({ contextualEvidence: existingInventory, idempotent: true });
+  expect(contextualEvidence.persistUpload).not.toHaveBeenCalled();
+});
+
+test('refuses to replace historical contextual evidence with a direct project source', async () => {
+  const descriptor = {
+    sourceId: 'source-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', documentId: 'demo',
+    documentFingerprint: 'document-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', filename: 'Fixture.pdf',
+    sha256: 'c'.repeat(64), bytes: 42, pageCount: 1, provenance: 'direct_project_upload',
+  };
+  projectSource.readDescriptor.mockResolvedValue(descriptor);
+  contextualEvidence.inventory.mockResolvedValue({
+    available: true, projectId: 'demo', source: { sha256: descriptor.sha256 },
+    provenance: { kind: 'verified_legacy_upload', sourceRecordId: 'source-legacy' },
+  });
+
+  const response = await fetch(`${baseUrl}/api/projects/demo/contextual-evidence/render`, { method: 'POST' });
+  expect(response.status).toBe(409);
+  await expect(response.json()).resolves.toMatchObject({ code: 'CONTEXTUAL_EVIDENCE_CONFLICT' });
+  expect(contextualEvidence.persistUpload).not.toHaveBeenCalled();
+});
+
+test('cleans a private HEPHAESTUS upload even when the project identifier is invalid', async () => {
+  expect(fs.existsSync(privateSourceUploadPath)).toBe(true);
+  const response = await fetch(`${baseUrl}/api/projects/INVALID!/images/extract-hephaestus`, { method: 'POST' });
+  expect(response.status).toBe(400);
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  expect(fs.existsSync(privateSourceUploadPath)).toBe(false);
+  expect(projectSource.persistUpload).not.toHaveBeenCalled();
 });
 
 });
