@@ -431,7 +431,6 @@ export {
   prepareImagesForRenderer,
   SUPPORTED_IMAGE_EXTENSIONS,
   fetchBggImages,
-  renderPdfPages,
   extractRulebookImages,
   ingestManualImage,
   runImageEnhancement,
