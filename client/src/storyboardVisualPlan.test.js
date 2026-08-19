@@ -247,3 +247,22 @@ test('over-reused non-brand evidence blocks release while brand evidence is exem
   const brandScene = (id) => requiredScene({ id, title: 'Game title outro', visualDirections: [], visualPlan: { selectedAssetIds: ['monster-image'], selectionMethod: 'brand_asset', overviewSelectionConfirmed: true, assetAssignments: [{ assetId: 'monster-image', role: 'brand' }] } });
   expect(validateStoryboardVisualPlans({ version: '1.2.0', scenes: [brandScene('brand-one'), brandScene('brand-two'), brandScene('brand-three')] }, coverageContext)).toMatchObject({ valid: true });
 });
+
+
+test('browser-style selection is inventory-bound and does not bypass tableau or reuse release gates', () => {
+  const selectedButUnconfirmed = requiredScene({
+    title: 'Completed tableau',
+    visualDirections: [{ instruction: 'End with a completed player tableau.', componentRefs: [] }],
+    visualPlan: {
+      selectedAssetIds: ['monster-image'], selectionMethod: 'operator_selected',
+      assetAssignments: [{ assetId: 'monster-image', role: 'overview', componentId: null }],
+    },
+  });
+  expect(resolveSceneVisualPlan(selectedButUnconfirmed, coverageContext)).toMatchObject({
+    selectedAssetIds: ['monster-image'], coverageStatus: 'partial', operatorOverride: null,
+  });
+  expect(validateStoryboardVisualPlans({ version: '1.2.0', scenes: [selectedButUnconfirmed] }, coverageContext)).toMatchObject({ valid: false, code: 'VISUAL_PLAN_INCOMPLETE' });
+
+  const foreignSelection = requiredScene({ visualPlan: { selectedAssetIds: ['foreign-image'], selectionMethod: 'operator_selected', assetAssignments: [{ assetId: 'foreign-image', role: 'primary', componentId: 'monster-tokens' }] } });
+  expect(resolveSceneVisualPlan(foreignSelection, coverageContext)).toMatchObject({ selectedAssetIds: [], coverageStatus: 'unresolved' });
+});

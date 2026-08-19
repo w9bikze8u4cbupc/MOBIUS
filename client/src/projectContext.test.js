@@ -456,3 +456,31 @@ test('persists visual requirement coverage and documented overrides through edit
   expect(restored.visualPlan.assetAssignments).toEqual([{ assetId: 'end-card', role: 'overview', componentId: null }]);
   expect(restored.reviewNotes).toBe('Reviewed final tableau coverage.');
 });
+
+
+test('persists browser-selected visual roles, evidence, and review notes through reload', () => {
+  const context = {
+    projectId: 'abyss-visual-browser', gameName: 'Abyss', language: 'english', rulebookText: 'Approved rulebook text',
+    components: [{ id: 'game-board', name: 'Game Board' }], images: [{ id: 'board-image', name: 'Game Board Overview', classification: 'board', page: 2 }],
+    storyboardManifest: {
+      version: '1.2.0', scenes: [{
+        id: 'scene-board', title: 'Board setup', spokenText: 'Place the board.', durationMs: 1000, transition: 'fade-in', sources: [{ section: 1, startOffset: 0, endOffset: 10 }],
+        imageAssetIds: ['board-image'], reviewNotes: 'Verified board layout on page 2.', visualReviewState: 'matched',
+        visualPlan: {
+          primaryIntent: 'board_setup', primaryComponentRefs: ['game-board'], supportingComponentRefs: [], selectedAssetIds: ['board-image'],
+          assetAssignments: [{ assetId: 'board-image', role: 'primary', componentId: 'game-board' }], coverageStatus: 'resolved',
+          coverageReason: 'Resolved by primary component evidence.', coverageEvidence: [{ requirement: 'primary_component', componentId: 'game-board', assetIds: ['board-image'], satisfied: true }],
+        },
+      }],
+    },
+  };
+  saveProjectContext(window.localStorage, context);
+  const hydrated = loadLatestProjectContext(window.localStorage);
+  expect(hydrated.storyboardManifest.scenes[0]).toMatchObject({
+    imageAssetIds: ['board-image'], reviewNotes: 'Verified board layout on page 2.',
+    visualPlan: expect.objectContaining({
+      selectedAssetIds: ['board-image'], assetAssignments: [{ assetId: 'board-image', role: 'primary', componentId: 'game-board' }],
+      coverageEvidence: [{ requirement: 'primary_component', componentId: 'game-board', assetIds: ['board-image'], satisfied: true }],
+    }),
+  });
+});
