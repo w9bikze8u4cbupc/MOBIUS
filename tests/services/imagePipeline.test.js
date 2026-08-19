@@ -19,7 +19,7 @@ jest.mock(
 jest.mock('pdf-to-img', () => ({ pdf: async function* pdf() {} }), { virtual: true });
 
 import axios from 'axios';
-import { fetchBggImages, normalizeImageAsset } from '../../src/services/imagePipeline.js';
+import { createPdfPageRenderer, ContextualPdfRenderError, ensurePdfJsNodeCompatibility, fetchBggImages, normalizeImageAsset } from '../../src/services/imagePipeline.js';
 
 describe('imagePipeline', () => {
   beforeEach(() => {
@@ -46,3 +46,49 @@ describe('imagePipeline', () => {
   });
 });
 
+
+
+describe('contextual PDF renderer', () => {
+  it('installs the Node 20.16 builtin-module compatibility only when missing', () => {
+    const runtime = {};
+    const requireBuiltin = jest.fn(() => ({ createRequire: jest.fn() }));
+    expect(ensurePdfJsNodeCompatibility({ processRef: runtime, requireBuiltin })).toBe(true);
+    expect(typeof runtime.getBuiltinModule).toBe('function');
+    expect(runtime.getBuiltinModule('module')).toEqual({ createRequire: expect.any(Function) });
+    expect(runtime.getBuiltinModule('not-a-builtin')).toBeUndefined();
+    expect(ensurePdfJsNodeCompatibility({ processRef: runtime, requireBuiltin })).toBe(false);
+  });
+
+  it('uses an absolute path and profile-derived scale with argument-object invocation', async () => {
+    const pdf = jest.fn(async () => ({ length: 12, [Symbol.asyncIterator]: async function* pages() {} }));
+    const render = createPdfPageRenderer({
+      loadPdf: async () => pdf,
+      processRef: { getBuiltinModule: jest.fn() },
+      resolvePath: (value) => `ABSOLUTE:${value}`,
+    });
+    const result = await render('C:\\upload dir\\ABYSS.pdf', { dpi: 144 });
+
+    expect(pdf).toHaveBeenCalledWith('ABSOLUTE:C:\\upload dir\\ABYSS.pdf', { scale: 2 });
+    expect(result.pageCount).toBe(12);
+  });
+
+  it.each([
+    [{ code: 'ERR_MODULE_NOT_FOUND' }, 'CONTEXTUAL_RENDER_MODULE_NOT_FOUND'],
+    [{ code: 'ENOENT' }, 'CONTEXTUAL_RENDER_SOURCE_UNREADABLE'],
+    [new Error('process.getBuiltinModule is not a function'), 'CONTEXTUAL_RENDER_NODE_RUNTIME_UNSUPPORTED'],
+    [new Error('renderer crashed'), 'CONTEXTUAL_RENDER_IN_PROCESS_FAILURE'],
+  ])('maps renderer boundary failures to sanitized subcodes', async (cause, subcode) => {
+    const render = createPdfPageRenderer({
+      loadPdf: async () => { throw cause; },
+      processRef: { getBuiltinModule: jest.fn() },
+    });
+    await expect(render('fixture.pdf')).rejects.toEqual(expect.objectContaining({
+      name: 'ContextualPdfRenderError', subcode,
+    }));
+  });
+
+  it('reports an immutable runtime as a typed compatibility failure', () => {
+    expect(() => ensurePdfJsNodeCompatibility({ processRef: Object.freeze({}), requireBuiltin: jest.fn() }))
+      .toThrow(ContextualPdfRenderError);
+  });
+});

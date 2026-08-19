@@ -1,3 +1,4 @@
+import { builtinModules, createRequire } from 'node:module';
 import axios from 'axios';
 import * as path from 'path';
 import fs from 'fs';
@@ -207,12 +208,88 @@ async function fetchBggImages(projectId, bggIdOrUrl) {
   return candidates.map((c) => normalizeImageAsset({ ...c }));
 }
 
-export async function renderPdfPages(pdfFileKeyOrPath) {
-  if (!pdfFileKeyOrPath) {
-    throw new Error('pdfFileKeyOrPath is required');
+// The virtual filename is anchored to the runtime filesystem root, so built-in
+// resolution is synchronous, absolute, and independent of the process working directory.
+const moduleRequire = createRequire(path.join(path.parse(process.execPath).root, 'contextual-pdf-renderer-shim.js'));
+const BUILTIN_MODULES = new Set(builtinModules.map((name) => name.replace(/^node:/, '')));
+
+export class ContextualPdfRenderError extends Error {
+  constructor(subcode, message, cause = null) {
+    super(message);
+    this.name = 'ContextualPdfRenderError';
+    this.subcode = subcode;
+    this.cause = cause || undefined;
   }
-  return pdfToImg.pdf(pdfFileKeyOrPath);
 }
+
+export function classifyContextualPdfRenderError(error) {
+  if (error?.subcode) return error.subcode;
+  const message = String(error?.message || '');
+  if (error?.code === 'ERR_MODULE_NOT_FOUND' || error?.code === 'MODULE_NOT_FOUND') return 'CONTEXTUAL_RENDER_MODULE_NOT_FOUND';
+  if (error?.code === 'ENOENT') return 'CONTEXTUAL_RENDER_SOURCE_UNREADABLE';
+  if (/process\.getBuiltinModule|DOMMatrix|ImageData|Path2D/i.test(message)) return 'CONTEXTUAL_RENDER_NODE_RUNTIME_UNSUPPORTED';
+  return 'CONTEXTUAL_RENDER_IN_PROCESS_FAILURE';
+}
+
+/** Installs the Node 20.16 API expected by PDF.js when running on Node 20.12–20.15. */
+export function ensurePdfJsNodeCompatibility({ processRef = process, requireBuiltin = moduleRequire } = {}) {
+  if (typeof processRef.getBuiltinModule === 'function') return false;
+  const getBuiltinModule = (name) => {
+    const normalized = String(name || '').replace(/^node:/, '');
+    if (!BUILTIN_MODULES.has(normalized)) return undefined;
+    try {
+      return requireBuiltin(`node:${normalized}`);
+    } catch {
+      return undefined;
+    }
+  };
+  try {
+    Object.defineProperty(processRef, 'getBuiltinModule', {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value: getBuiltinModule,
+    });
+  } catch (error) {
+    throw new ContextualPdfRenderError('CONTEXTUAL_RENDER_NODE_RUNTIME_UNSUPPORTED', 'PDF.js runtime compatibility could not be initialized.', error);
+  }
+  return true;
+}
+
+function rendererInput(input, resolvePath) {
+  if (typeof input !== 'string' || input.startsWith('data:application/pdf;base64,')) return input;
+  return resolvePath(input);
+}
+
+export function createPdfPageRenderer({
+  loadPdf = async () => pdfToImg.pdf,
+  processRef = process,
+  requireBuiltin = moduleRequire,
+  resolvePath = path.resolve,
+} = {}) {
+  return async function renderPdfPages(pdfFileKeyOrPath, renderProfile = {}) {
+    if (!pdfFileKeyOrPath) {
+      throw new ContextualPdfRenderError('CONTEXTUAL_RENDER_SOURCE_UNREADABLE', 'A source PDF is required.');
+    }
+    try {
+      ensurePdfJsNodeCompatibility({ processRef, requireBuiltin });
+      const pdf = await loadPdf();
+      const dpi = Number(renderProfile?.dpi);
+      const result = await pdf(rendererInput(pdfFileKeyOrPath, resolvePath), {
+        scale: Number.isFinite(dpi) && dpi > 0 ? dpi / 72 : 1,
+      });
+      if (result && Number.isInteger(result.length) && result.length > 0 && !Number.isInteger(result.pageCount)) {
+        result.pageCount = result.length;
+      }
+      return result;
+    } catch (error) {
+      if (error instanceof ContextualPdfRenderError) throw error;
+      throw new ContextualPdfRenderError(classifyContextualPdfRenderError(error), 'Contextual PDF page rendering failed.', error);
+    }
+  };
+}
+
+export const renderPdfPages = createPdfPageRenderer();
 
 async function extractRulebookImages(projectId, pdfFileKeyOrPath) {
   if (!pdfFileKeyOrPath) {

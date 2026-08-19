@@ -304,7 +304,10 @@ export function createContextualEvidenceAdoptionService({
         return { inventory, idempotent: false };
       } catch (error) {
         if (error instanceof ContextualEvidenceAdoptionError) throw error;
-        throw new ContextualEvidenceAdoptionError('CONTEXTUAL_ADOPTION_RENDER_FAILED', 'Contextual review pages could not be created; no source was adopted.', 422, error);
+        const adoptionError = new ContextualEvidenceAdoptionError('CONTEXTUAL_ADOPTION_RENDER_FAILED', 'Contextual review pages could not be created; no source was adopted.', 422, error);
+        adoptionError.correlationId = error?.correlationId;
+        adoptionError.renderSubcode = error?.renderSubcode;
+        throw adoptionError;
       }
     });
   }

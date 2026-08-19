@@ -163,7 +163,7 @@ describe('contextual evidence adoption service', () => {
     const preview = await service.previewLocalUpload('demo-project', { path: localPath, originalname: 'Failure.pdf' });
 
     await expect(service.adoptLocalPreview('demo-project', preview.id, { projectId: 'demo-project', filename: 'Failure.pdf' }))
-      .rejects.toMatchObject({ code: 'CONTEXTUAL_ADOPTION_RENDER_FAILED' });
+      .rejects.toMatchObject({ code: 'CONTEXTUAL_ADOPTION_RENDER_FAILED', correlationId: expect.stringMatching(/^contextual-/), renderSubcode: 'CONTEXTUAL_RENDER_IN_PROCESS_FAILURE' });
     await expect(service.adoptLocalPreview('demo-project', preview.id, { projectId: 'demo-project', filename: 'Failure.pdf' }))
       .rejects.toMatchObject({ code: 'CONTEXTUAL_ADOPTION_CANDIDATE_NOT_FOUND' });
     expect(fs.existsSync(path.join(dataRoot, 'demo-project', 'contextual-evidence', 'manifest.json'))).toBe(false);

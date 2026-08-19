@@ -117,6 +117,36 @@ test('verifies a selected local PDF before its separate confirmation request', a
 });
 
 
+test('shows a development-only correlation reference without renderer diagnostics after adoption fails', async () => {
+  const candidate = {
+    id: 'candidate-failure', filename: 'Failure Rulebook.pdf', bytes: 123, sha256: documentSha256, sha256Prefix: documentSha256.slice(0, 12), pageCount: 1,
+    source: 'verified_legacy_upload', matchingEvidence: { originalFilename: 'Failure Rulebook.pdf', projectName: 'Legacy Game', sourceRecordId: 'source-failure', linkage: 'project-owned-upload-record' }, eligible: true,
+  };
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'development';
+  global.fetch
+    .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ contextualEvidence: { available: false, code: 'CONTEXTUAL_EVIDENCE_UNAVAILABLE' } }) }))
+    .mockImplementationOnce(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ projectId: 'legacy', status: 'ready', candidates: [candidate], eligibleCandidate: candidate }) }))
+    .mockImplementationOnce(() => Promise.resolve({ ok: false, status: 422, json: () => Promise.resolve({
+      code: 'CONTEXTUAL_ADOPTION_RENDER_FAILED', correlationId: 'contextual-ui-test-123',
+      renderSubcode: 'CONTEXTUAL_RENDER_IN_PROCESS_FAILURE', diagnostic: { stderrSummary: 'PRIVATE_RENDER_STDERR' },
+    }) }));
+  try {
+    render(<ContextualEvidenceBrowser isOpen onClose={jest.fn()} onSelect={jest.fn()} projectId="legacy" sceneId="scene" plan={{ primaryIntent: 'rulebook_reference' }} />);
+    expect(await screen.findByText('Failure Rulebook.pdf')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Confirm adoption of Failure Rulebook.pdf for legacy'));
+    fireEvent.click(screen.getByRole('button', { name: 'Adopt verified legacy source' }));
+
+    const failure = await screen.findByText(/Contextual source adoption failed/);
+    expect(failure).toHaveTextContent('CONTEXTUAL_ADOPTION_RENDER_FAILED · reference contextual-ui-test-123');
+    expect(failure).not.toHaveTextContent('CONTEXTUAL_RENDER_IN_PROCESS_FAILURE');
+    expect(failure).not.toHaveTextContent('PRIVATE_RENDER_STDERR');
+  } finally {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
+  }
+});
+
 test('does not render a stale project inventory after the browser switches projects', async () => {
   let resolveFirst;
   const firstResponse = new Promise((resolve) => { resolveFirst = resolve; });

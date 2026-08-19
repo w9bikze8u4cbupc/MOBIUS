@@ -390,4 +390,32 @@ it('exposes only scoped adoption contracts and does not invoke legacy extraction
   expect((await (await fetch(`${baseUrl}/api/projects/demo/images`)).json()).images).toEqual([]);
 });
 
+it('exposes only the public code, message, and correlation reference for a contextual render failure', async () => {
+  const privateSentinel = 'PRIVATE_RENDER_STDERR_C:\\outside-project\\ABYSS.pdf';
+  const failure = Object.assign(new Error('Contextual review pages could not be created; no source was adopted.'), {
+    code: 'CONTEXTUAL_ADOPTION_RENDER_FAILED',
+    status: 422,
+    correlationId: 'contextual-api-test-123',
+    renderSubcode: 'CONTEXTUAL_RENDER_IN_PROCESS_FAILURE',
+    diagnostic: { stderrSummary: privateSentinel },
+    rawDiagnostics: privateSentinel,
+  });
+  contextualAdoption.adoptLocalPreview.mockRejectedValueOnce(failure);
+
+  const response = await fetch(`${baseUrl}/api/projects/demo/contextual-evidence/adoption/local`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ candidateId: 'local-a', confirmation: { projectId: 'demo', filename: 'Demo Rulebook.pdf' } }),
+  });
+  const payload = await response.json();
+
+  expect(response.status).toBe(422);
+  expect(payload).toEqual({
+    code: 'CONTEXTUAL_ADOPTION_RENDER_FAILED',
+    error: 'Contextual review pages could not be created; no source was adopted.',
+    correlationId: 'contextual-api-test-123',
+  });
+  expect(JSON.stringify(payload)).not.toContain('CONTEXTUAL_RENDER_IN_PROCESS_FAILURE');
+  expect(JSON.stringify(payload)).not.toContain(privateSentinel);
+});
+
 });

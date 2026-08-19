@@ -17,13 +17,51 @@ export const DEFAULT_RENDER_PROFILE = Object.freeze({
 export const MINIMUM_CROP_PIXELS = 32;
 
 export class ContextualEvidenceError extends Error {
-  constructor(code, message, status = 400, cause = null) {
+  constructor(code, message, status = 400, cause = null, diagnostic = null) {
     super(message);
     this.name = 'ContextualEvidenceError';
     this.code = code;
     this.status = status;
     this.cause = cause || undefined;
+    this.correlationId = diagnostic?.correlationId || undefined;
+    this.renderSubcode = diagnostic?.subcode || undefined;
+    this.diagnostic = diagnostic || undefined;
   }
+}
+
+function taggedRenderFailure(subcode, message, cause = null) {
+  const error = new Error(message);
+  error.contextualRenderSubcode = subcode;
+  error.cause = cause || undefined;
+  return error;
+}
+
+function sanitizeRenderSummary(value) {
+  const text = String(value || '').replace(/[\r\n\t]+/g, ' ')
+    .replace(/[A-Za-z]:[\\/][^'"`]+/g, '<path>')
+    .replace(/(?:^|\s)\/[^'"`]+/g, ' <path>')
+    .replace(/%PDF-[^\s]*/g, '<pdf-content>')
+    .trim();
+  return text ? text.slice(0, 240) : null;
+}
+
+function renderDiagnostic(correlationId, error, { phase, expectedPageCount = null, actualPageCount = null } = {}) {
+  const subcode = error?.subcode || error?.contextualRenderSubcode || (
+    phase === 'page_count' ? 'CONTEXTUAL_RENDER_PAGE_COUNT_MISMATCH'
+      : phase === 'page_validation' || phase === 'page_persist' ? 'CONTEXTUAL_RENDER_OUTPUT_VALIDATION_FAILED'
+        : phase === 'publish' ? 'CONTEXTUAL_RENDER_ATOMIC_PUBLISH_FAILED'
+          : 'CONTEXTUAL_RENDER_IN_PROCESS_FAILURE'
+  );
+  return {
+    correlationId,
+    subcode,
+    command: 'pdf-to-img/pdfjs in-process',
+    exitCode: Number.isInteger(error?.exitCode) ? error.exitCode : null,
+    expectedPageCount,
+    actualPageCount,
+    stderrSummary: sanitizeRenderSummary(error?.stderr),
+    errorSummary: sanitizeRenderSummary(error?.message),
+  };
 }
 
 function sha256(value) {
@@ -336,10 +374,15 @@ export function createContextualEvidenceService({
       throw new ContextualEvidenceError('CONTEXTUAL_EVIDENCE_UNAVAILABLE', 'Contextual evidence could not be prepared.', 422);
     }
     const stagingDir = path.join(path.resolve(dataRoot, projectId), `.contextual-evidence-staging-${crypto.randomUUID()}`);
+    const correlationId = `contextual-${crypto.randomUUID()}`;
+    let phase = 'source_read';
+    let expectedPageCount = null;
+    let actualPageCount = 0;
     try {
       const sourceBytes = await fs.promises.readFile(uploadPath);
       if (!sourceBytes.length) throw new Error('empty source');
       const sourceSha256 = sha256(sourceBytes);
+      phase = 'source_copy';
       await fs.promises.mkdir(path.join(stagingDir, 'source'), { recursive: true });
       await fs.promises.mkdir(path.join(stagingDir, 'pages'), { recursive: true });
       await fs.promises.mkdir(path.join(stagingDir, 'crop-cache'), { recursive: true });
@@ -347,23 +390,28 @@ export function createContextualEvidenceService({
       const copiedBytes = await fs.promises.readFile(path.join(stagingDir, 'source', 'rulebook.pdf'));
       if (copiedBytes.length !== sourceBytes.length || sha256(copiedBytes) !== sourceSha256) throw new Error('source copy hash mismatch');
 
+      const canonicalSourcePath = path.join(stagingDir, 'source', 'rulebook.pdf');
       const pages = [];
-      const renderedPages = await renderPages(uploadPath, profile);
-      const expectedPageCount = Number.isInteger(renderedPages?.pageCount) && renderedPages.pageCount > 0
+      phase = 'render_start';
+      const renderedPages = await renderPages(canonicalSourcePath, profile);
+      expectedPageCount = Number.isInteger(renderedPages?.pageCount) && renderedPages.pageCount > 0
         ? renderedPages.pageCount : null;
       let pageNumber = 0;
       for await (const renderedPage of renderedPages) {
         pageNumber += 1;
+        actualPageCount = pageNumber;
         const pageBytes = Buffer.from(renderedPage);
+        phase = 'page_validation';
         const metadata = await sharpImpl(pageBytes).metadata();
         if (metadata.format !== 'png' || !Number.isInteger(metadata.width) || metadata.width < 1 || !Number.isInteger(metadata.height) || metadata.height < 1) {
-          throw new Error('renderer returned a non-PNG page');
+          throw taggedRenderFailure('CONTEXTUAL_RENDER_OUTPUT_VALIDATION_FAILED', 'Renderer returned a non-PNG page.');
         }
         const pageSha256 = sha256(pageBytes);
         const filenameForPage = expectedPageFilename(pageNumber);
+        phase = 'page_persist';
         await fs.promises.writeFile(path.join(stagingDir, 'pages', filenameForPage), pageBytes);
         const persistedBytes = await fs.promises.readFile(path.join(stagingDir, 'pages', filenameForPage));
-        if (sha256(persistedBytes) !== pageSha256) throw new Error('page copy hash mismatch');
+        if (sha256(persistedBytes) !== pageSha256) throw taggedRenderFailure('CONTEXTUAL_RENDER_OUTPUT_VALIDATION_FAILED', 'Rendered page copy hash mismatch.');
         pages.push({
           number: pageNumber,
           assetId: pageAssetId(sourceSha256, pageNumber, profile.id, pageSha256),
@@ -373,8 +421,11 @@ export function createContextualEvidenceService({
           crops: [],
         });
       }
-      if (!pages.length) throw new Error('renderer returned no pages');
-      if (expectedPageCount !== null && expectedPageCount !== pages.length) throw new Error('renderer page count mismatch');
+      if (!pages.length) throw taggedRenderFailure('CONTEXTUAL_RENDER_OUTPUT_VALIDATION_FAILED', 'Renderer returned no pages.');
+      if (expectedPageCount !== null && expectedPageCount !== pages.length) {
+        phase = 'page_count';
+        throw taggedRenderFailure('CONTEXTUAL_RENDER_PAGE_COUNT_MISMATCH', 'Renderer page count did not match its page iterator.');
+      }
       const manifest = {
         version: CONTEXTUAL_EVIDENCE_VERSION,
         projectId,
@@ -400,12 +451,15 @@ export function createContextualEvidenceService({
       };
       validateManifest(projectId, manifest);
       await writeAtomic(path.join(stagingDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+      phase = 'publish';
       await replaceEvidenceDir(projectId, stagingDir);
       return toContextualEvidenceInventory(projectId, manifest);
     } catch (error) {
       await fs.promises.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
       if (error instanceof ContextualEvidenceError && error.code === 'PROJECT_ID_INVALID') throw error;
-      throw new ContextualEvidenceError('CONTEXTUAL_EVIDENCE_UNAVAILABLE', 'Contextual evidence could not be prepared.', 422, error);
+      const diagnostic = renderDiagnostic(correlationId, error, { phase, expectedPageCount, actualPageCount });
+      console.error('[ContextualRender]', JSON.stringify(diagnostic));
+      throw new ContextualEvidenceError('CONTEXTUAL_EVIDENCE_UNAVAILABLE', 'Contextual evidence could not be prepared.', 422, error, diagnostic);
     }
   }
 

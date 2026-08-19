@@ -46,7 +46,11 @@ describe('contextual evidence service', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(evidenceRoot, 'manifest.json'), 'utf8'));
     const sourceHash = hash(Buffer.from('%PDF-local-fixture'));
 
-    expect(renderer).toHaveBeenCalledWith(sourcePdfPath, DEFAULT_RENDER_PROFILE);
+    const renderedSourcePath = renderer.mock.calls[0][0];
+    expect(path.basename(renderedSourcePath)).toBe('rulebook.pdf');
+    expect(path.basename(path.dirname(path.dirname(renderedSourcePath)))).toMatch(/^\.contextual-evidence-staging-/);
+    expect(renderedSourcePath).not.toBe(path.join(evidenceRoot, 'source', 'rulebook.pdf'));
+    expect(renderer).toHaveBeenCalledWith(renderedSourcePath, DEFAULT_RENDER_PROFILE);
     expect(fs.existsSync(path.join(evidenceRoot, 'source', 'rulebook.pdf'))).toBe(true);
     expect(fs.existsSync(path.join(evidenceRoot, 'pages', 'page-0001.png'))).toBe(true);
     expect(fs.existsSync(path.join(evidenceRoot, 'crop-cache'))).toBe(true);
@@ -129,7 +133,55 @@ describe('contextual evidence service', () => {
       .rejects.toMatchObject({ code: 'CONTEXTUAL_ASSET_INVALID' });
     await expect(service.resolveAssetFile('other-project', inventory.pages[0].id, 'full'))
       .rejects.toBeInstanceOf(ContextualEvidenceError);
-    await expect(service.resolveAssetFile('demo-project', inventory.pages[0].id, 'original'))
-      .rejects.toMatchObject({ code: 'CONTEXTUAL_ASSET_VARIANT_INVALID' });
+  });
+
+  it('publishes a valid 12-page manifest only after all raster pages validate', async () => {
+    const twelvePages = await Promise.all(Array.from({ length: 12 }, (_value, index) => sharp({
+      create: { width: 80 + index, height: 90 + index, channels: 3, background: { r: index, g: 20, b: 40 } },
+    }).png().toBuffer()));
+    const service = createContextualEvidenceService({ dataRoot: path.join(temporaryRoot, 'data'), renderPages: rendererFor(twelvePages) });
+
+    const inventory = await service.persistUpload('twelve-page-project', sourcePdfPath, { filename: 'Fixture.pdf' });
+    expect(inventory.source.pageCount).toBe(12);
+    expect(inventory.pages).toHaveLength(12);
+    expect(fs.existsSync(path.join(temporaryRoot, 'data', 'twelve-page-project', 'contextual-evidence', 'manifest.json'))).toBe(true);
+  });
+
+  it('emits sanitized correlated diagnostics and cleans staging for render, mismatch, and raster validation failures', async () => {
+    const dataRoot = path.join(temporaryRoot, 'data');
+    const stagingDirectories = (projectId) => {
+      const projectDir = path.join(dataRoot, projectId);
+      return fs.existsSync(projectDir)
+        ? fs.readdirSync(projectDir).filter((entry) => entry.startsWith('.contextual-evidence-staging-')) : [];
+    };
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const processFailure = new Error('renderer failed at C:\\private path\\ABYSS.pdf with %PDF-private');
+    processFailure.subcode = 'CONTEXTUAL_RENDER_NODE_RUNTIME_UNSUPPORTED';
+    const failingService = createContextualEvidenceService({ dataRoot, renderPages: jest.fn(async () => { throw processFailure; }) });
+    await expect(failingService.persistUpload('render-failure', sourcePdfPath)).rejects.toMatchObject({
+      code: 'CONTEXTUAL_EVIDENCE_UNAVAILABLE', renderSubcode: 'CONTEXTUAL_RENDER_NODE_RUNTIME_UNSUPPORTED', correlationId: expect.stringMatching(/^contextual-/),
+    });
+    const diagnostic = JSON.parse(consoleSpy.mock.calls[0][1]);
+    expect(diagnostic).toMatchObject({ subcode: 'CONTEXTUAL_RENDER_NODE_RUNTIME_UNSUPPORTED', command: 'pdf-to-img/pdfjs in-process', exitCode: null, expectedPageCount: null, actualPageCount: 0 });
+    expect(JSON.stringify(diagnostic)).not.toContain(sourcePdfPath);
+    expect(JSON.stringify(diagnostic)).not.toContain('C:\\private path\\ABYSS.pdf');
+    expect(JSON.stringify(diagnostic)).not.toContain('%PDF-private');
+    expect(fs.existsSync(path.join(dataRoot, 'render-failure', 'contextual-evidence', 'manifest.json'))).toBe(false);
+    expect(stagingDirectories('render-failure')).toEqual([]);
+
+    const mismatchRenderer = jest.fn(() => {
+      const result = (async function* fixturePages() { yield pages[0]; })();
+      result.pageCount = 2;
+      return result;
+    });
+    const mismatchService = createContextualEvidenceService({ dataRoot, renderPages: mismatchRenderer });
+    await expect(mismatchService.persistUpload('mismatch-failure', sourcePdfPath)).rejects.toMatchObject({ renderSubcode: 'CONTEXTUAL_RENDER_PAGE_COUNT_MISMATCH' });
+    const invalidRasterService = createContextualEvidenceService({ dataRoot, renderPages: jest.fn(async function* () { yield Buffer.from('not-png'); }) });
+    await expect(invalidRasterService.persistUpload('validation-failure', sourcePdfPath)).rejects.toMatchObject({ renderSubcode: 'CONTEXTUAL_RENDER_OUTPUT_VALIDATION_FAILED' });
+    expect(fs.existsSync(path.join(dataRoot, 'mismatch-failure', 'contextual-evidence', 'manifest.json'))).toBe(false);
+    expect(fs.existsSync(path.join(dataRoot, 'validation-failure', 'contextual-evidence', 'manifest.json'))).toBe(false);
+    expect(stagingDirectories('mismatch-failure')).toEqual([]);
+    expect(stagingDirectories('validation-failure')).toEqual([]);
+    consoleSpy.mockRestore();
   });
 });

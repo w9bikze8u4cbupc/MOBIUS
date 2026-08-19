@@ -67,9 +67,17 @@ async function responseJson(response) {
   if (!response.ok) {
     const error = new Error(body?.code || `HTTP_${response.status}`);
     error.status = response.status;
+    error.correlationId = typeof body?.correlationId === 'string' ? body.correlationId : null;
     throw error;
   }
   return body;
+}
+
+function publicFailure(error, fallback) {
+  const code = error?.message || fallback;
+  return process.env.NODE_ENV === 'development' && error?.correlationId
+    ? `${code} · reference ${error.correlationId}`
+    : code;
 }
 
 export function ContextualEvidenceBrowser({ isOpen, onClose, onSelect, projectId, sceneId, plan = {} }) {
@@ -131,13 +139,13 @@ export function ContextualEvidenceBrowser({ isOpen, onClose, onSelect, projectId
       } catch (fetchError) {
         if (!stillCurrent()) return;
         setStatus(fetchError?.status === 404 ? 'legacy_unavailable' : 'failed');
-        setError(fetchError?.message || 'CONTEXTUAL_EVIDENCE_UNAVAILABLE');
+        setError(publicFailure(fetchError, 'CONTEXTUAL_EVIDENCE_UNAVAILABLE'));
         if (fetchError?.status === 404) {
           try {
             const result = await responseJson(await fetch(apiUrl(projectId, '/adoption/candidates')));
             if (stillCurrent()) setDiscovery(result);
           } catch (discoveryError) {
-            if (stillCurrent()) setError(discoveryError?.message || 'CONTEXTUAL_ADOPTION_NO_CANDIDATE');
+            if (stillCurrent()) setError(publicFailure(discoveryError, 'CONTEXTUAL_ADOPTION_NO_CANDIDATE'));
           }
         }
       }
@@ -189,7 +197,7 @@ export function ContextualEvidenceBrowser({ isOpen, onClose, onSelect, projectId
     } catch (cropError) {
       if (!isCurrentProject()) return;
       setCropStatus('failed');
-      setError(cropError?.message || 'CONTEXTUAL_CROP_UNAVAILABLE');
+      setError(publicFailure(cropError, 'CONTEXTUAL_CROP_UNAVAILABLE'));
     }
   };
   const previewLocal = async (file) => {
@@ -208,7 +216,7 @@ export function ContextualEvidenceBrowser({ isOpen, onClose, onSelect, projectId
     } catch (previewError) {
       if (!isCurrentProject()) return;
       setAdoptionStatus('failed');
-      setError(previewError?.message || 'CONTEXTUAL_ADOPTION_SOURCE_INVALID');
+      setError(publicFailure(previewError, 'CONTEXTUAL_ADOPTION_SOURCE_INVALID'));
     }
   };
   const adopt = async (source, candidate) => {
@@ -225,7 +233,7 @@ export function ContextualEvidenceBrowser({ isOpen, onClose, onSelect, projectId
     } catch (adoptionError) {
       if (!isCurrentProject()) return;
       setAdoptionStatus('failed');
-      setError(adoptionError?.message || 'CONTEXTUAL_ADOPTION_RENDER_FAILED');
+      setError(publicFailure(adoptionError, 'CONTEXTUAL_ADOPTION_RENDER_FAILED'));
     }
   };
 

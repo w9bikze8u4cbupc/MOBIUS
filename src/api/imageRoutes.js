@@ -164,7 +164,11 @@ async function safeImageListResponse(projectId, state, contextualEvidence) {
 
 function contextualEvidenceErrorResponse(res, error) {
   if (error instanceof ContextualEvidenceError || (typeof error?.code === 'string' && Number.isInteger(error?.status))) {
-    return res.status(error.status).json({ code: error.code, error: error.message || 'Contextual evidence is unavailable.' });
+    return res.status(error.status).json({
+      code: error.code,
+      error: error.message || 'Contextual evidence is unavailable.',
+      ...(typeof error.correlationId === 'string' ? { correlationId: error.correlationId } : {}),
+    });
   }
   console.error('[ContextualEvidence]', error);
   return res.status(422).json({ code: 'CONTEXTUAL_EVIDENCE_UNAVAILABLE', error: 'Contextual evidence is unavailable.' });
