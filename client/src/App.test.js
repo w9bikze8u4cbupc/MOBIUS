@@ -75,8 +75,11 @@ jest.mock('./components/steps/ScriptStep', () => ({
   ),
 }));
 jest.mock('./components/steps/StoryboardStep', () => ({
-  StoryboardStep: ({ onGenerateStoryboard, storyboardError }) => (
+  StoryboardStep: ({ onGenerateStoryboard, storyboardError, images = [], storyboardManifest }) => (
     <>
+      <div data-testid="storyboard-image-count">{images.length}</div>
+      <div data-testid="storyboard-review-state">{storyboardManifest?.scenes?.[0]?.visualPlan?.reviewState || 'none'}</div>
+      <div data-testid="storyboard-candidate-count">{storyboardManifest?.scenes?.[0]?.visualPlan?.assetCandidates?.length || 0}</div>
       <button onClick={onGenerateStoryboard}>Generate storyboard</button>
       {storyboardError && <div>{storyboardError}</div>}
     </>
@@ -88,6 +91,7 @@ jest.mock('./components/steps/RenderExportStep', () => ({ RenderExportStep: () =
 beforeEach(() => {
   window.localStorage.clear();
   jest.clearAllMocks();
+  axios.get.mockResolvedValue({ data: { images: [], componentImages: {}, componentImageLinkDetails: {} } });
 });
 
 test('retains approved component-link provenance when an image mutation omits it', async () => {
@@ -100,6 +104,11 @@ test('retains approved component-link provenance when an image mutation omits it
     componentImageLinkDetails: { monsters: { 'monster-token': { origin: 'manual' } } },
     activeStepId: 'images',
   });
+  axios.get.mockResolvedValue({ data: {
+    images: [{ id: 'monster-token' }],
+    componentImages: { monsters: ['monster-token'] },
+    componentImageLinkDetails: { monsters: { 'monster-token': { origin: 'manual' } } },
+  } });
   expect(loadLatestProjectContext(window.localStorage).componentImageLinkDetails).toEqual({
     monsters: { 'monster-token': { origin: 'manual' } },
   });
@@ -705,4 +714,99 @@ test('never rotates arbitrary project images into an unresolved canonical storyb
     },
   });
   expect(scenes[0]).toMatchObject({ imageUrls: [], visualPlan: expect.objectContaining({ reviewState: 'needs_visual_review' }) });
+});
+
+
+test('rehydrates a historical storyboard from the canonical project image inventory', async () => {
+  saveProjectContext(window.localStorage, {
+    projectId: 'abyss-mstkmf2r-4mlb',
+    gameName: 'Abyss',
+    language: 'english',
+    components: [{ id: 'monster-tokens', name: 'Monster token', aliases: ['monster tokens'] }],
+    images: [],
+    componentImageLinks: {},
+    componentImageLinkDetails: {},
+    storyboardManifest: {
+      version: '1.2.0',
+      scenes: [{
+        id: 'scene-1', order: 1, title: 'Setup', spokenText: 'Place the monster tokens.',
+        visualDirections: [{ instruction: 'Show monster tokens.', componentRefs: ['monster tokens'] }],
+        sources: [{ section: 1, startOffset: 0, endOffset: 24 }], imageAssetIds: [],
+      }],
+    },
+    activeStepId: 'storyboard',
+  });
+  axios.get.mockImplementation((url) => {
+    if (url.endsWith('/api/projects/abyss-mstkmf2r-4mlb/images')) {
+      return Promise.resolve({ data: {
+        images: [{ id: 'monster-image', name: 'Monster token', source: 'hephaestus', curation: { candidate: true } }],
+        componentImages: { 'monster-tokens': ['monster-image'] },
+        componentImageLinkDetails: { 'monster-tokens': { 'monster-image': { origin: 'manual' } } },
+      } });
+    }
+    return Promise.resolve({ data: { ready: true } });
+  });
+
+  render(<App />);
+  await waitFor(() => expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('/api/projects/abyss-mstkmf2r-4mlb/images')));
+  await waitFor(() => expect(screen.getByTestId('storyboard-image-count')).toHaveTextContent('1'));
+  await waitFor(() => expect(screen.getByTestId('storyboard-candidate-count')).toHaveTextContent('1'));
+  await waitFor(() => {
+    const persisted = loadLatestProjectContext(window.localStorage);
+    expect(persisted.images).toEqual([expect.objectContaining({ id: 'monster-image' })]);
+    expect(persisted.componentImageLinkDetails).toEqual({ 'monster-tokens': { 'monster-image': { origin: 'manual' } } });
+  });
+});
+
+
+test('does not hydrate canonical inventory for a fresh upload after restoring another project', async () => {
+  saveProjectContext(window.localStorage, {
+    projectId: 'restored-abyss', gameName: 'Abyss', language: 'english', activeStepId: 'project',
+  });
+  getDocument.mockReturnValue({
+    promise: Promise.resolve({
+      numPages: 1,
+      getPage: () => Promise.resolve({ getTextContent: () => Promise.resolve({ items: [{ str: 'Rulebook text' }] }) }),
+    }),
+  });
+  axios.get.mockResolvedValue({ data: { images: [], componentImages: {}, componentImageLinkDetails: {} } });
+  const { container } = render(<App />);
+  await waitFor(() => expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('/api/projects/restored-abyss/images')));
+  axios.get.mockClear();
+
+  const pdfFile = new File(['pdf contents'], 'Abyss.pdf', { type: 'application/pdf' });
+  Object.defineProperty(pdfFile, 'arrayBuffer', { value: () => Promise.resolve(new ArrayBuffer(0)) });
+  fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [pdfFile] } });
+  await waitFor(() => expect(screen.getByPlaceholderText('Auto-generated from uploaded PDF filename').value).toMatch(/^abyss-/));
+  expect(axios.get).not.toHaveBeenCalled();
+});
+
+
+test('fails closed when canonical inventory hydration is unavailable', async () => {
+  saveProjectContext(window.localStorage, {
+    projectId: 'abyss-canonical-unavailable', gameName: 'Abyss', language: 'english',
+    components: [{ id: 'monster-tokens', name: 'Monster token' }],
+    images: [{ id: 'stale-monster', name: 'Stale monster asset' }],
+    componentImageLinks: { 'monster-tokens': ['stale-monster'] },
+    componentImageLinkDetails: { 'monster-tokens': { 'stale-monster': { origin: 'manual' } } },
+    storyboardManifest: {
+      version: '1.2.0',
+      scenes: [{
+        id: 'scene-1', order: 1, title: 'Setup', spokenText: 'Place the monster token.',
+        visualDirections: [{ instruction: 'Show monster token.', componentRefs: ['monster-tokens'] }],
+        sources: [{ section: 1, startOffset: 0, endOffset: 24 }], imageAssetIds: ['stale-monster'],
+        visualPlan: { selectedAssetIds: ['stale-monster'], selectionMethod: 'approved_component_link', reviewState: 'resolved' },
+      }],
+    },
+    activeStepId: 'storyboard',
+  });
+  axios.get.mockRejectedValue({ response: { data: { code: 'IMAGE_INVENTORY_UNAVAILABLE' } } });
+
+  render(<App />);
+  await waitFor(() => expect(screen.getByTestId('storyboard-image-count')).toHaveTextContent('0'));
+  await waitFor(() => expect(screen.getByTestId('storyboard-review-state')).toHaveTextContent('needs_visual_review'));
+  await waitFor(() => {
+    expect(loadLatestProjectContext(window.localStorage).images).toEqual([]);
+    expect(loadLatestProjectContext(window.localStorage).storyboardManifest.scenes[0].visualPlan.reviewState).toBe('needs_visual_review');
+  });
 });

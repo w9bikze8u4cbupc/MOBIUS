@@ -14,7 +14,7 @@
     "status", "reviewNotes", "timing"
   ],
   "visualPlanRequiredFields": [
-    "componentRefs", "sourceReferences", "assetCandidates", "selectedAssetIds",
+    "componentRefs", "componentRefMatches", "sourceReferences", "assetCandidates", "selectedAssetIds",
     "selectionMethod", "reviewState", "reviewReason", "requiresExplicitVisual", "overviewExceptionAllowed"
   ],
   "visualReviewPolicy": {

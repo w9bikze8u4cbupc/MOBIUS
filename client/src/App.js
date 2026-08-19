@@ -325,6 +325,7 @@ const [dragActive, setDragActive] = useState(false); // For drag and drop file a
 const fileInputRef = useRef(); // Ref for the hidden file input
   const [hasHydratedProjectContext, setHasHydratedProjectContext] = useState(false);
   const previousProjectIdRef = useRef("");
+  const restoredProjectIdRef = useRef("");
 
   // State for displaying translation status/errors
   const [translationStatus, setTranslationStatus] = useState({
@@ -431,6 +432,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
     const context = loadLatestProjectContext(window.localStorage);
     if (context) {
+      restoredProjectIdRef.current = context.projectId;
       setProjectId(context.projectId);
       setGameName(context.gameName);
       setLanguage(context.language);
@@ -462,6 +464,78 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     }
     setHasHydratedProjectContext(true);
   }, []);
+
+  useEffect(() => {
+    if (!hasHydratedProjectContext || restoredProjectIdRef.current !== projectId) return undefined;
+    if (!isCanonicalRecoveryProjectId(projectId)) {
+      if (projectId.trim() && process.env.NODE_ENV === 'development') {
+        console.info('[storyboard-visual-inventory]', {
+          projectIdValid: false,
+          inventorySource: 'unavailable',
+          inventoryCount: 0,
+          resolvedComponentReferenceCount: 0,
+          candidateCountsByScene: [],
+        });
+      }
+      return undefined;
+    }
+    let active = true;
+
+    axios.get(`${BACKEND_URL}/api/projects/${encodeURIComponent(projectId)}/images`)
+      .then(({ data }) => {
+        if (!active) return;
+        const images = Array.isArray(data?.images) ? data.images : [];
+        const componentImages = data?.componentImages && typeof data.componentImages === 'object' ? data.componentImages : {};
+        const componentImageLinkDetails = data?.componentImageLinkDetails && typeof data.componentImageLinkDetails === 'object'
+          ? data.componentImageLinkDetails
+          : {};
+        setProjectImages(images);
+        setComponentImageLinks(componentImages);
+        setComponentImageLinkDetails(componentImageLinkDetails);
+        setStoryboardManifest((previous) => {
+          const reconciled = reconcileStoryboardVisualPlans(previous, {
+            images,
+            componentImageLinks: componentImages,
+            componentImageLinkDetails,
+            components: gameComponents,
+          });
+          if (process.env.NODE_ENV === 'development') {
+            const scenes = reconciled?.scenes || [];
+            console.info('[storyboard-visual-inventory]', {
+              projectIdValid: true,
+              inventorySource: 'canonical_image_api',
+              inventoryCount: images.length,
+              resolvedComponentReferenceCount: scenes.reduce((count, scene) => count + (scene.visualPlan?.componentRefs || []).length, 0),
+              candidateCountsByScene: scenes.map((scene) => ({ sceneId: scene.id, count: (scene.visualPlan?.assetCandidates || []).length })),
+            });
+          }
+          return reconciled;
+        });
+      })
+      .catch((error) => {
+        if (!active) return;
+        setProjectImages([]);
+        setComponentImageLinks({});
+        setComponentImageLinkDetails({});
+        setStoryboardManifest((previous) => reconcileStoryboardVisualPlans(previous, {
+          images: [],
+          componentImageLinks: {},
+          componentImageLinkDetails: {},
+          components: gameComponents,
+        }));
+        if (process.env.NODE_ENV === 'development') {
+          console.info('[storyboard-visual-inventory]', {
+            projectIdValid: true,
+            inventorySource: 'canonical_image_api',
+            inventoryCount: 0,
+            hydrationFailed: true,
+            code: error.response?.data?.code || 'IMAGE_INVENTORY_UNAVAILABLE',
+          });
+        }
+      });
+
+    return () => { active = false; };
+  }, [gameComponents, hasHydratedProjectContext, projectId]);
 
   useEffect(() => {
     if (!hasHydratedProjectContext || !projectId.trim() || typeof window === 'undefined') return;
@@ -1029,6 +1103,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         images: projectImages,
         componentImageLinks,
         componentImageLinkDetails,
+        components: gameComponents,
       }));
     } catch (err) {
       const apiError = err.response?.data?.code || err.response?.data?.error || err.message;
@@ -1041,7 +1116,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   const handleUpdateStoryboardScene = (sceneId, patch) => {
     setStoryboardManifest((previous) => reconcileStoryboardVisualPlans(
       applyStoryboardSceneEdit(previous, sceneId, patch),
-      { images: projectImages, componentImageLinks, componentImageLinkDetails },
+      { images: projectImages, componentImageLinks, componentImageLinkDetails, components: gameComponents },
     ));
   };
 
@@ -1071,6 +1146,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         images: projectImages,
         componentImageLinks,
         componentImageLinkDetails,
+        components: gameComponents,
       });
       if (!releaseVisualPlans.valid) {
         throw new Error(releaseVisualPlans.code);

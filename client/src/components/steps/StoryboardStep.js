@@ -12,6 +12,35 @@ function sourceLabel(source) {
   return `Section ${source.section}, ${source.startOffset}–${source.endOffset}`;
 }
 
+export function preserveVisualDirectionMetadata(existingDirections = [], value = '') {
+  const existing = Array.isArray(existingDirections) ? existingDirections : [];
+  const instructions = String(value).split('\n').map((instruction) => instruction.trim()).filter(Boolean);
+  const byInstruction = new Map();
+  existing.forEach((direction, index) => {
+    const instruction = String(direction?.instruction || '').trim();
+    if (!instruction) return;
+    const matches = byInstruction.get(instruction) || [];
+    matches.push({ direction, index });
+    byInstruction.set(instruction, matches);
+  });
+  const usedIndexes = new Set();
+  const reconciled = instructions.map((instruction) => {
+    const match = byInstruction.get(instruction)?.shift();
+    if (!match) return null;
+    usedIndexes.add(match.index);
+    return { ...match.direction, instruction };
+  });
+  const unmatchedExisting = existing.filter((_direction, index) => !usedIndexes.has(index));
+  const unmatchedIndexes = reconciled.flatMap((direction, index) => direction ? [] : [index]);
+  // A single changed line is an edit; multiple unmatched lines are structural changes and get fresh metadata.
+  if (unmatchedExisting.length === 1 && unmatchedIndexes.length === 1) {
+    reconciled[unmatchedIndexes[0]] = { ...unmatchedExisting[0], instruction: instructions[unmatchedIndexes[0]] };
+  }
+  return reconciled.map((direction, index) => direction || ({
+    instruction: instructions[index], onScreenText: '', camera: '', highlights: [], arrows: [], componentRefs: [],
+  }));
+}
+
 function assetThumbnailUrl(projectId, assetId) {
   return projectId && assetId
     ? `${BACKEND_URL}/api/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(assetId)}/file?variant=thumbnail`
@@ -113,7 +142,9 @@ export function StoryboardStep({
                 </label>
               </div>
               <label>Visual directions
-                <textarea aria-label={`Visual directions for ${scene.id}`} value={(scene.visualDirections || []).map((direction) => direction.instruction).filter(Boolean).join('\n')} onChange={(event) => onUpdateScene(scene.id, { visualDirections: event.target.value.split('\n').map((instruction) => instruction.trim()).filter(Boolean).map((instruction) => ({ instruction, onScreenText: '', camera: '', highlights: [], arrows: [], componentRefs: [] })) })} rows={2} style={{ width: '100%' }} />
+                <textarea aria-label={`Visual directions for ${scene.id}`} value={(scene.visualDirections || []).map((direction) => direction.instruction).filter(Boolean).join('\n')} onChange={(event) => onUpdateScene(scene.id, {
+                  visualDirections: preserveVisualDirectionMetadata(scene.visualDirections, event.target.value),
+                })} rows={2} style={{ width: '100%' }} />
               </label>
               <p><strong>Referenced components:</strong> {(plan.componentRefs || []).length ? plan.componentRefs.join(', ') : 'none'}</p>
               <p><strong>Source references:</strong> {(plan.sourceReferences || scene.sources || []).length ? (plan.sourceReferences || scene.sources).map(sourceLabel).join('; ') : 'None'}</p>

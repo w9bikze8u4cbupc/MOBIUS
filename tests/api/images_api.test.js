@@ -202,4 +202,45 @@ describe('images api routes', () => {
     expect(payload.error).toMatch(/strict physical component inventory/i);
   });
 
+  it('hydrates safe project-scoped review assets and retains component-link provenance', async () => {
+  appendImages('abyss-mstkmf2r-4mlb', [{
+    id: 'heph-monster', name: 'Monster token', label: 'Curated monster token', source: 'bgg', type: 'token',
+    originalUrl: 'https://untrusted.example/monster.png',
+    width: 600, height: 800, tags: ['monster'], metadata: { page: 4, classification: 'token', curation: { candidate: true, score: 0.98 } },
+    quality: { score: 0.98, notes: 'private note' },
+  }, {
+    id: 'missing-local-asset', source: 'hephaestus', fileKey: 'C:/missing/asset.png', thumbnailKey: 'C:/missing/thumb.png',
+  }]);
+  linkImagesToComponent('abyss-mstkmf2r-4mlb', 'monster-tokens', ['heph-monster']);
+
+  const response = await fetch(`${baseUrl}/api/projects/abyss-mstkmf2r-4mlb/images`);
+  const payload = await response.json();
+  expect(response.status).toBe(200);
+  expect(payload.images).toHaveLength(1);
+  expect(payload.images[0]).toMatchObject({
+    id: 'heph-monster', name: 'Monster token', source: 'bgg', page: 4, classification: 'token',
+    localUrl: '/api/projects/abyss-mstkmf2r-4mlb/images/heph-monster/file',
+    thumbnailUrl: '/api/projects/abyss-mstkmf2r-4mlb/images/heph-monster/file?variant=thumbnail',
+  });
+  expect(payload.images[0]).not.toHaveProperty('fileKey');
+  expect(payload.images[0]).not.toHaveProperty('thumbnailKey');
+  expect(payload.images[0]).not.toHaveProperty('originalUrl');
+  expect(payload.componentImageLinkDetails).toEqual({ 'monster-tokens': { 'heph-monster': { origin: 'manual' } } });
+});
+
+it('rejects invalid project IDs and assets from another project deterministically', async () => {
+  appendImages('other-project', [{ id: 'foreign-image', source: 'hephaestus' }]);
+  const invalidProject = await fetch(`${baseUrl}/api/projects/Abyss!/images`);
+  expect(invalidProject.status).toBe(400);
+  await expect(invalidProject.json()).resolves.toMatchObject({ code: 'PROJECT_ID_INVALID' });
+
+  const foreignLink = await fetch(`${baseUrl}/api/projects/abyss-mstkmf2r-4mlb/components/monster-tokens/images`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ imageIds: ['foreign-image'] }),
+  });
+  expect(foreignLink.status).toBe(400);
+  await expect(foreignLink.json()).resolves.toMatchObject({ code: 'IMAGE_ASSET_INVALID' });
+});
+
 });

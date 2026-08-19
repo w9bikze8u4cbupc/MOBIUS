@@ -1,6 +1,7 @@
 const AUTO_LINK_CONFIDENCE_THRESHOLD = 0.9;
 const OVERVIEW_TITLES = /\b(introduction|intro|overview|outro|conclusion|wrap[-\s]?up)\b/i;
 const REQUIRED_SCENE_TITLES = /\b(setup|action|turn|score|scoring|endgame|round|phase|gameplay)\b/i;
+const VAGUE_COMPONENT_TERMS = new Set(['game', 'point', 'strategy', 'influence']);
 const VALID_SELECTION_METHODS = new Set([
   'approved_component_link',
   'operator_selected',
@@ -15,16 +16,126 @@ function uniqueStrings(values) {
     .map((value) => value.trim()))];
 }
 
+function singularToken(value) {
+  if (value.endsWith('ies') && value.length > 4) return `${value.slice(0, -3)}y`;
+  if (value.endsWith('s') && value.length > 3 && !value.endsWith('ss')) return value.slice(0, -1);
+  return value;
+}
+
+export function normalizeComponentReference(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(singularToken)
+    .join(' ');
+}
+
 function normalized(value) {
-  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return normalizeComponentReference(value);
 }
 
-export function deriveSceneComponentRefs(scene) {
-  return uniqueStrings((scene?.visualDirections || []).flatMap((direction) => direction?.componentRefs || []));
+function componentAliasValues(component) {
+  if (!component || typeof component !== 'object') return [];
+  const values = [
+    component.id,
+    component.name,
+    component.nameEn,
+    component.name_en,
+    component.nameFr,
+    component.name_fr,
+    component.frenchName,
+    component.translatedName,
+    ...(Array.isArray(component.aliases) ? component.aliases : []),
+    ...(Array.isArray(component.synonyms) ? component.synonyms : []),
+  ];
+  return uniqueStrings(values);
 }
 
-export function isOverviewVisualException(scene) {
-  const componentRefs = deriveSceneComponentRefs(scene);
+function componentCatalog(components = []) {
+  const aliases = new Map();
+  (Array.isArray(components) ? components : []).forEach((component) => {
+    const componentId = typeof component?.id === 'string' ? component.id.trim() : '';
+    if (!componentId) return;
+    componentAliasValues(component).forEach((alias) => {
+      const key = normalized(alias);
+      if (!key || VAGUE_COMPONENT_TERMS.has(key)) return;
+      const existing = aliases.get(key) || [];
+      if (!existing.some((entry) => entry.componentId === componentId)) {
+        existing.push({ componentId, alias });
+        aliases.set(key, existing);
+      }
+    });
+  });
+  return aliases;
+}
+
+function recordMatch(matches, componentId, matchedToken, sourceField) {
+  if (!componentId || matches.some((match) => match.componentId === componentId)) return;
+  matches.push({ componentId, matchedToken, sourceField });
+}
+
+function resolvedAlias(alias, aliases) {
+  const candidates = aliases.get(normalized(alias)) || [];
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
+function textIncludesAlias(text, alias) {
+  const source = ` ${normalized(text)} `;
+  const target = normalized(alias);
+  return Boolean(target) && !VAGUE_COMPONENT_TERMS.has(target) && source.includes(` ${target} `);
+}
+
+/**
+ * Resolves only explicit, explainable component mentions to canonical component IDs.
+ * Ambiguous aliases and vague terms are intentionally ignored.
+ */
+export function resolveSceneComponentReferences(scene, components = []) {
+  const aliases = componentCatalog(components);
+  const matches = [];
+  const directions = Array.isArray(scene?.visualDirections) ? scene.visualDirections : [];
+
+  directions.forEach((direction, directionIndex) => {
+    uniqueStrings(direction?.componentRefs).forEach((reference) => {
+      const resolved = resolvedAlias(reference, aliases);
+      if (resolved) recordMatch(matches, resolved.componentId, reference, `visualDirections[${directionIndex}].componentRefs`);
+      else if (aliases.size === 0) recordMatch(matches, reference, reference, `visualDirections[${directionIndex}].componentRefs`);
+    });
+  });
+
+  if (aliases.size === 0) return matches;
+
+  const fields = [
+    ...directions.flatMap((direction, directionIndex) => [
+      { value: direction?.instruction, sourceField: `visualDirections[${directionIndex}].instruction` },
+      { value: direction?.onScreenText, sourceField: `visualDirections[${directionIndex}].onScreenText` },
+    ]),
+    { value: scene?.title, sourceField: 'title' },
+    { value: scene?.spokenText, sourceField: 'spokenText' },
+  ];
+
+  fields.forEach(({ value, sourceField }) => {
+    if (typeof value !== 'string' || !value.trim()) return;
+    aliases.forEach((entries, aliasKey) => {
+      if (entries.length !== 1 || VAGUE_COMPONENT_TERMS.has(aliasKey)) return;
+      const entry = entries[0];
+      if (textIncludesAlias(value, entry.alias)) recordMatch(matches, entry.componentId, entry.alias, sourceField);
+    });
+  });
+
+  return matches;
+}
+
+export function deriveSceneComponentRefs(scene, components = []) {
+  return resolveSceneComponentReferences(scene, components).map((match) => match.componentId);
+}
+
+export function isOverviewVisualException(scene, components = []) {
+  const componentRefs = deriveSceneComponentRefs(scene, components);
   const title = String(scene?.title || '');
   return componentRefs.length === 0 && OVERVIEW_TITLES.test(title) && !REQUIRED_SCENE_TITLES.test(title);
 }
@@ -86,11 +197,13 @@ export function resolveSceneVisualPlan(scene, {
   images = [],
   componentImageLinks = {},
   componentImageLinkDetails = {},
+  components = [],
   policy = { allowAutomaticComponentLinks: false },
 } = {}) {
   const inventory = new Map((images || []).filter((image) => image?.id).map((image) => [image.id, image]));
-  const componentRefs = deriveSceneComponentRefs(scene);
-  const overviewExceptionAllowed = isOverviewVisualException(scene);
+  const componentRefMatches = resolveSceneComponentReferences(scene, components);
+  const componentRefs = componentRefMatches.map((match) => match.componentId);
+  const overviewExceptionAllowed = isOverviewVisualException(scene, components);
   const priorPlan = scene?.visualPlan && typeof scene.visualPlan === 'object' ? scene.visualPlan : {};
   const candidates = [];
 
@@ -152,11 +265,12 @@ export function resolveSceneVisualPlan(scene, {
           : overviewExceptionAllowed
             ? 'Overview/outro requires an explicit project-owned brand asset or rulebook reference.'
             : componentRefs.length
-              ? 'No approved project asset is linked to this scene’s referenced component.'
+              ? 'No approved project asset is linked to this scene’s explicitly referenced component.'
               : 'Instructional scene requires an explicit project-owned visual selection.';
 
   return {
     componentRefs,
+    componentRefMatches,
     sourceReferences: sourceReferences(scene),
     assetCandidates,
     selectedAssetIds,

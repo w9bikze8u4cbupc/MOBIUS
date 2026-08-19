@@ -140,6 +140,7 @@ function createCanonicalScene(section, chunk, index, language) {
     componentRefs,
     visualPlan: {
       componentRefs,
+      componentRefMatches: [],
       sourceReferences: sources.map(({ section, startOffset, endOffset }) => ({ section, startOffset, endOffset })),
       assetCandidates: [],
       selectedAssetIds: [],

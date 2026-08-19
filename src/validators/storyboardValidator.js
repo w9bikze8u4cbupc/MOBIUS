@@ -136,9 +136,13 @@ function validateCanonicalSceneDto(manifest, contract, bucket) {
       visualPlanRequired.forEach((field) => {
         if (visualPlan[field] === undefined) pushError(bucket, `Canonical scene ${scene.id || index} visualPlan missing ${field}`);
       });
-      if (!Array.isArray(visualPlan.componentRefs) || !Array.isArray(visualPlan.sourceReferences)
-        || !Array.isArray(visualPlan.assetCandidates) || !Array.isArray(visualPlan.selectedAssetIds)) {
+      if (!Array.isArray(visualPlan.componentRefs) || !Array.isArray(visualPlan.componentRefMatches)
+        || !Array.isArray(visualPlan.sourceReferences) || !Array.isArray(visualPlan.assetCandidates) || !Array.isArray(visualPlan.selectedAssetIds)) {
         pushError(bucket, `Canonical scene ${scene.id || index} visualPlan arrays invalid`);
+      }
+      if (Array.isArray(visualPlan.componentRefMatches) && visualPlan.componentRefMatches.some((match) => !match
+        || typeof match.componentId !== 'string' || typeof match.matchedToken !== 'string' || typeof match.sourceField !== 'string')) {
+        pushError(bucket, `Canonical scene ${scene.id || index} visualPlan component reference matches invalid`);
       }
       if (!['approved_component_link', 'operator_selected', 'brand_asset', 'rulebook_reference', 'unresolved'].includes(visualPlan.selectionMethod)) {
         pushError(bucket, `Canonical scene ${scene.id || index} visualPlan selection method invalid`);

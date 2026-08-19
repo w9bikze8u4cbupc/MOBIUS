@@ -1,5 +1,6 @@
 import {
   reconcileStoryboardVisualPlans,
+  resolveSceneComponentReferences,
   resolveSceneVisualPlan,
   validateStoryboardVisualPlans,
 } from './storyboardVisualPlan';
@@ -115,4 +116,59 @@ test('metadata-free component links remain suggestions until an operator selects
 test('overview selection stays unresolved until the operator explicitly designates its visual role', () => {
   const overview = requiredScene({ title: 'Introduction', visualDirections: [], imageAssetIds: [], visualPlan: { selectedAssetIds: ['monster-image'], selectionMethod: 'brand_asset', reviewState: 'resolved' } });
   expect(resolveSceneVisualPlan(overview, { images: inventory })).toMatchObject({ reviewState: 'needs_visual_review', selectionMethod: 'unresolved' });
+});
+
+
+test('resolves explicit multilingual aliases with plural normalization and persists explainability metadata', () => {
+  const components = [
+    { id: 'exploration-cards', nameEn: 'Exploration card', nameFr: 'Carte Exploration', aliases: ['exploration cards'] },
+    { id: 'lords', name: 'Lord', synonyms: ['seigneur'] },
+  ];
+  const scene = requiredScene({
+    title: 'Exploration cards',
+    spokenText: 'Reveal the cartes exploration, then recruit a Lord.',
+    visualDirections: [{ instruction: 'Show the exploration cards.', componentRefs: ['exploration card'] }],
+  });
+  const matches = resolveSceneComponentReferences(scene, components);
+  expect(matches).toEqual(expect.arrayContaining([
+    expect.objectContaining({ componentId: 'exploration-cards', matchedToken: 'exploration card', sourceField: 'visualDirections[0].componentRefs' }),
+    expect.objectContaining({ componentId: 'lords', sourceField: 'spokenText' }),
+  ]));
+  const plan = resolveSceneVisualPlan(scene, { components });
+  expect(plan.componentRefs).toEqual(expect.arrayContaining(['exploration-cards', 'lords']));
+  expect(plan.componentRefMatches).toEqual(matches);
+});
+
+test('does not infer components from vague words or ambiguous aliases', () => {
+  const scene = requiredScene({
+    title: 'Strategy',
+    spokenText: 'This game awards points through influence and strategy.',
+    visualDirections: [{ instruction: 'Explain the strategy.', componentRefs: [] }],
+  });
+  const components = [
+    { id: 'game-board', name: 'Game', aliases: ['game'] },
+    { id: 'score-track', name: 'Points', aliases: ['points'] },
+    { id: 'first-influence', name: 'Influence', aliases: ['influence'] },
+    { id: 'second-influence', name: 'Influence marker', aliases: ['influence'] },
+  ];
+  expect(resolveSceneComponentReferences(scene, components)).toEqual([]);
+  expect(resolveSceneVisualPlan(scene, { components, images: inventory }).componentRefs).toEqual([]);
+});
+
+test('only matching resolved components receive approved-link suggestions', () => {
+  const components = [
+    { id: 'monster-tokens', name: 'Monster token', aliases: ['monster tokens'] },
+    { id: 'keys', name: 'Key' },
+  ];
+  const plan = resolveSceneVisualPlan(requiredScene(), {
+    components,
+    images: inventory,
+    componentImageLinks: { 'monster-tokens': ['monster-image'], keys: ['unrelated-image'] },
+    componentImageLinkDetails: {
+      'monster-tokens': { 'monster-image': { origin: 'manual' } },
+      keys: { 'unrelated-image': { origin: 'manual' } },
+    },
+  });
+  expect(plan.assetCandidates).toEqual(expect.arrayContaining([expect.objectContaining({ assetId: 'monster-image', componentId: 'monster-tokens', approved: true })]));
+  expect(plan.assetCandidates).not.toEqual(expect.arrayContaining([expect.objectContaining({ assetId: 'unrelated-image', componentId: 'keys' })]));
 });

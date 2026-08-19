@@ -45,6 +45,64 @@ import { curateHephaestusAssets } from '../services/hephaestusCuration.js';
 import { hybridMatch } from '../services/hybridMatcher.js';
 import { isEligibleComponentForMatching } from '../services/componentInventory.js';
 
+const PROJECT_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function isValidProjectId(projectId) {
+  return typeof projectId === 'string' && projectId.length <= 128 && PROJECT_ID_PATTERN.test(projectId);
+}
+
+function safeImageForReview(projectId, image) {
+  const metadata = image?.metadata && typeof image.metadata === 'object' ? image.metadata : {};
+  const curation = image?.curation && typeof image.curation === 'object' ? image.curation : (metadata.curation || {});
+  const quality = image?.quality && typeof image.quality === 'object' ? image.quality : {};
+  const assetPath = `/api/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(image.id)}/file`;
+  return {
+    id: image.id,
+    name: String(image.name || image.label || image.title || image.id),
+    label: String(image.label || image.name || image.title || image.id),
+    type: image.type || metadata.type || null,
+    source: image.source || null,
+    page: Number.isFinite(Number(image.page ?? metadata.page)) ? Number(image.page ?? metadata.page) : null,
+    category: image.category || metadata.category || null,
+    classification: image.classification || metadata.classification || null,
+    width: Number.isFinite(Number(image.width)) ? Number(image.width) : null,
+    height: Number.isFinite(Number(image.height)) ? Number(image.height) : null,
+    tags: Array.isArray(image.tags) ? image.tags.filter((tag) => typeof tag === 'string').map((tag) => tag.slice(0, 160)) : [],
+    quality: { score: Number.isFinite(Number(quality.score)) ? Number(quality.score) : null },
+    curation: {
+      candidate: curation.candidate !== false,
+      score: Number.isFinite(Number(curation.score)) ? Number(curation.score) : null,
+      isDuplicate: curation.isDuplicate === true,
+      lowInformation: curation.lowInformation === true,
+    },
+    localUrl: assetPath,
+    thumbnailUrl: `${assetPath}?variant=thumbnail`,
+  };
+}
+
+function isReviewImageAvailable(image) {
+  if (typeof image?.fileKey === 'string' && image.fileKey) return fs.existsSync(image.fileKey);
+  return typeof image?.originalUrl === 'string' && image.originalUrl.length > 0;
+}
+
+function safeComponentImageLinkDetails(details) {
+  return Object.fromEntries(Object.entries(details || {}).map(([componentId, assets]) => [
+    componentId,
+    Object.fromEntries(Object.entries(assets || {}).map(([assetId, detail]) => [assetId, {
+      origin: typeof detail?.origin === 'string' ? detail.origin : 'manual',
+      ...(Number.isFinite(Number(detail?.confidence)) ? { confidence: Number(detail.confidence) } : {}),
+    }])),
+  ]));
+}
+
+function safeImageListResponse(projectId, state) {
+  return {
+    images: (state.images || []).filter((image) => typeof image?.id === 'string' && image.id && isReviewImageAvailable(image)).map((image) => safeImageForReview(projectId, image)),
+    componentImages: state.componentImages || {},
+    componentImageLinkDetails: safeComponentImageLinkDetails(state.componentImageLinkDetails),
+  };
+}
+
 
 export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {}) {
   const uploadMiddleware = upload || { single: () => (_req, _res, next) => next() };
@@ -95,8 +153,11 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
 
   app.get('/api/projects/:projectId/images', (req, res) => {
     const { projectId } = req.params;
+    if (!isValidProjectId(projectId)) {
+      return res.status(400).json({ code: 'PROJECT_ID_INVALID', error: 'Project ID is invalid.' });
+    }
     const state = listImages(projectId);
-    res.json({ images: state.images, componentImages: state.componentImages, componentImageLinkDetails: state.componentImageLinkDetails });
+    return res.json(safeImageListResponse(projectId, state));
   });
 
   app.post('/api/projects/:projectId/images/fetch-bgg', async (req, res) => {
@@ -530,15 +591,24 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
 
   app.post('/api/projects/:projectId/components/:componentId/images', (req, res) => {
     const { projectId, componentId } = req.params;
+    if (!isValidProjectId(projectId)) {
+      return res.status(400).json({ code: 'PROJECT_ID_INVALID', error: 'Project ID is invalid.' });
+    }
     const { imageIds, manualImageIds } = req.body || {};
+    const requestedIds = Array.isArray(imageIds) ? imageIds : [];
+    const state = listImages(projectId);
+    const availableIds = new Set((state.images || []).map((image) => image.id));
+    if (requestedIds.some((imageId) => typeof imageId !== 'string' || !availableIds.has(imageId))) {
+      return res.status(400).json({ code: 'IMAGE_ASSET_INVALID', error: 'One or more image assets do not belong to this project.' });
+    }
     const links = linkImagesToComponent(
       projectId,
       componentId,
-      Array.isArray(imageIds) ? imageIds : [],
+      requestedIds,
       { manualImageIds: Array.isArray(manualImageIds) ? manualImageIds : null },
     );
-    const state = listImages(projectId);
-    res.json({ images: state.images, componentImages: links, componentImageLinkDetails: state.componentImageLinkDetails });
+    const refreshed = listImages(projectId);
+    return res.json({ ...safeImageListResponse(projectId, refreshed), componentImages: links });
   });
 
   // DEPRECATED: AI-based cropping produced poor results. Use extract-native instead.
