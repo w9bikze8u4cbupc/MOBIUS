@@ -39,7 +39,14 @@ jest.mock('./GenesisQaReportButton', () => ({ GenesisQaReportButton: () => null 
 jest.mock('./components/PipelineStepper', () => ({ PipelineStepper: () => null }));
 jest.mock('./components/steps/MetadataInputStep', () => ({ MetadataInputStep: () => null }));
 jest.mock('./components/steps/IngestionReviewStep', () => ({ IngestionReviewStep: () => null }));
-jest.mock('./components/steps/ImagesStep', () => ({ ImagesStep: () => null }));
+jest.mock('./components/steps/ImagesStep', () => ({
+  ImagesStep: ({ onImagesUpdated }) => (
+    <button type="button" onClick={() => onImagesUpdated({ images: [], componentImages: {} })}>
+      Apply ordinary image update
+    </button>
+  ),
+}));
+
 jest.mock('./components/steps/ScriptStep', () => ({
   ScriptStep: ({
     onSummarize,
@@ -81,6 +88,36 @@ jest.mock('./components/steps/RenderExportStep', () => ({ RenderExportStep: () =
 beforeEach(() => {
   window.localStorage.clear();
   jest.clearAllMocks();
+});
+
+test('retains approved component-link provenance when an image mutation omits it', async () => {
+  saveProjectContext(window.localStorage, {
+    projectId: 'abyss-image-provenance',
+    gameName: 'Abyss',
+    language: 'english',
+    images: [{ id: 'monster-token' }],
+    componentImageLinks: { monsters: ['monster-token'] },
+    componentImageLinkDetails: { monsters: { 'monster-token': { origin: 'manual' } } },
+    activeStepId: 'images',
+  });
+  expect(loadLatestProjectContext(window.localStorage).componentImageLinkDetails).toEqual({
+    monsters: { 'monster-token': { origin: 'manual' } },
+  });
+
+  render(<App />);
+  const updateButton = await screen.findByRole('button', { name: 'Apply ordinary image update' });
+  await waitFor(() => {
+    expect(loadLatestProjectContext(window.localStorage).componentImageLinkDetails).toEqual({
+      monsters: { 'monster-token': { origin: 'manual' } },
+    });
+  });
+  fireEvent.click(updateButton);
+
+  await waitFor(() => {
+    expect(loadLatestProjectContext(window.localStorage).componentImageLinkDetails).toEqual({
+      monsters: { 'monster-token': { origin: 'manual' } },
+    });
+  });
 });
 
 test('filename helper creates a safe unique ID', () => {
@@ -469,7 +506,7 @@ test('buildRemotionScenes carries canonical narration and non-spoken visual dire
     sectionTitle: 'Setup', narrationText: 'Place the board.',
     visualDirections: [{ instruction: 'Overhead board view', onScreenText: 'Setup board', componentRefs: ['board'] }],
     sources: [{ section: 1, startOffset: 0, endOffset: 100 }], componentRefs: ['board'],
-    visualOverlayText: 'Setup board', imageUrls: ['data/board.png'],
+    visualOverlayText: 'Setup board', imageUrls: ['data/board.png'], visualPlan: null,
   });
 });
 
@@ -650,8 +687,22 @@ test('uses canonical storyboard spokenText and timing for Remotion without leaki
     componentImageLinks: {},
   });
   expect(scenes).toEqual([expect.objectContaining({
-    id: 'scene-section-01-1', narrationText: 'Place the board.', durationInFrames: 96, imageUrls: ['/uploads/board.png'],
+    id: 'scene-section-01-1', narrationText: 'Place the board.', durationInFrames: 96, imageUrls: ['/uploads/board.png'], storyboardVersion: '1.2.0',
   })]);
   expect(JSON.stringify(scenes[0].narrationText)).not.toContain('Do not narrate');
   expect(JSON.stringify(scenes[0].narrationText)).not.toContain('Show board');
+});
+
+
+test('never rotates arbitrary project images into an unresolved canonical storyboard scene', () => {
+  const scenes = buildRemotionScenes({
+    script: 'fallback narration', scriptPackage: null, gameName: 'Abyss',
+    images: [{ id: 'unrelated-image', fileKey: 'src/api/uploads/unrelated.png' }],
+    componentImageLinks: { council: ['unrelated-image'] },
+    storyboardManifest: {
+      version: '1.2.0',
+      scenes: [{ id: 'unresolved', title: 'Setup', spokenText: 'Place the monster tokens.', durationMs: 3200, visualDirections: [{ componentRefs: ['monster-tokens'] }], sources: [{ section: 1 }], componentRefs: ['monster-tokens'], imageAssetIds: [], visualPlan: { requiresExplicitVisual: true, selectedAssetIds: [], reviewState: 'needs_visual_review' } }],
+    },
+  });
+  expect(scenes[0]).toMatchObject({ imageUrls: [], visualPlan: expect.objectContaining({ reviewState: 'needs_visual_review' }) });
 });

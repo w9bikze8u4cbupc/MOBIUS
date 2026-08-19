@@ -177,6 +177,123 @@ function getBackgroundMusic(project) {
   };
 }
 
+function parseProjectImages(project) {
+  try {
+    const images = typeof project.images === 'string' ? JSON.parse(project.images) : project.images;
+    return Array.isArray(images) ? images.filter((image) => image?.id) : [];
+  } catch {
+    return [];
+  }
+}
+
+function getProjectImageRenderReference(image) {
+  const reference = typeof image?.fileKey === 'string' && image.fileKey.trim()
+    ? image.fileKey
+    : typeof image?.localUrl === 'string' && image.localUrl.trim()
+      ? image.localUrl
+      : null;
+  return reference || null;
+}
+
+const AUTO_LINK_CONFIDENCE_THRESHOLD = 0.9;
+
+function uniqueComponentRefs(scene) {
+  return [...new Set((scene?.visualDirections || []).flatMap((direction) => direction?.componentRefs || [])
+    .filter((componentId) => typeof componentId === 'string' && componentId.trim())
+    .map((componentId) => componentId.trim()))];
+}
+
+function isApprovedComponentLinkDetail(detail, policy) {
+  if (!detail || typeof detail !== 'object') return false;
+  if (detail.origin === 'manual' || detail.origin === 'legacy') return true;
+  return detail.origin === 'auto'
+    && policy?.allowAutomaticComponentLinks === true
+    && Number(detail.confidence) >= AUTO_LINK_CONFIDENCE_THRESHOLD;
+}
+
+function approvedComponentSelectionIsPersisted(scene, visualPlan, projectMetadata) {
+  const projectContext = projectMetadata?.projectContext;
+  const componentImageLinks = projectContext?.componentImageLinks;
+  const componentImageLinkDetails = projectContext?.componentImageLinkDetails;
+  const policy = projectContext?.visualPlanPolicy || { allowAutomaticComponentLinks: false };
+  const componentRefs = uniqueComponentRefs(scene);
+  const selectedAssetIds = Array.isArray(visualPlan?.selectedAssetIds) ? visualPlan.selectedAssetIds.filter(Boolean) : [];
+  if (!componentRefs.length || !componentImageLinks || !componentImageLinkDetails) return false;
+  return selectedAssetIds.every((assetId) => componentRefs.some((componentId) => (
+    Array.isArray(componentImageLinks[componentId])
+      && componentImageLinks[componentId].includes(assetId)
+      && isApprovedComponentLinkDetail(componentImageLinkDetails[componentId]?.[assetId], policy)
+  )));
+}
+
+function canonicalStoryboardSceneIds(projectMetadata) {
+  const manifest = projectMetadata?.renderState?.storyboardManifest;
+  if (!manifest || manifest.version !== '1.2.0' || !Array.isArray(manifest.scenes)) return null;
+  return new Set(manifest.scenes.map((scene) => scene?.id).filter((sceneId) => typeof sceneId === 'string' && sceneId));
+}
+
+export function bindReleaseVisualPlanAssets(scenes, project) {
+  const projectMetadata = parseProjectMetadata(project);
+  const canonicalSceneIds = canonicalStoryboardSceneIds(projectMetadata);
+  const imagesById = new Map(parseProjectImages(project).map((image) => [image.id, image]));
+  return (scenes || []).map((scene) => {
+    const isCanonicalScene = canonicalSceneIds
+      ? canonicalSceneIds.has(scene?.id)
+      : scene?.storyboardVersion === '1.2.0';
+    if (canonicalSceneIds && !isCanonicalScene) {
+      throw createRemotionError(
+        'VISUAL_PLAN_INCOMPLETE',
+        `Release render scene does not match the persisted canonical storyboard: ${scene?.id || 'unknown-scene'}.`,
+      );
+    }
+    if (!isCanonicalScene) return scene;
+    const visualPlan = scene.visualPlan;
+    const selectedAssetIds = Array.isArray(visualPlan?.selectedAssetIds) ? visualPlan.selectedAssetIds.filter(Boolean) : [];
+    const overviewValid = visualPlan?.overviewExceptionAllowed !== true
+      || ((visualPlan.selectionMethod === 'brand_asset' || visualPlan.selectionMethod === 'rulebook_reference')
+        && visualPlan.overviewSelectionConfirmed === true);
+    const selectedImageUrls = selectedAssetIds.map((assetId) => getProjectImageRenderReference(imagesById.get(assetId)));
+    if (!visualPlan || visualPlan.requiresExplicitVisual !== true
+      || visualPlan.reviewState !== 'resolved'
+      || selectedAssetIds.length === 0
+      || !overviewValid
+      || (visualPlan.selectionMethod === 'approved_component_link'
+        && !approvedComponentSelectionIsPersisted(scene, visualPlan, projectMetadata))
+      || selectedImageUrls.some((url) => !url)) {
+      throw createRemotionError(
+        'VISUAL_PLAN_INCOMPLETE',
+        `Release render requires resolved project-owned visual plans for: ${scene.id || 'unknown-scene'}.`,
+      );
+    }
+    return { ...scene, storyboardVersion: '1.2.0', imageUrls: selectedImageUrls, imageUrl: selectedImageUrls[0] };
+  });
+}
+
+export function validateReleaseVisualPlans(scenes) {
+  const incompleteSceneIds = (scenes || []).filter((scene) => {
+    const visualPlan = scene?.visualPlan;
+    const isCanonicalScene = scene?.storyboardVersion === '1.2.0';
+    if (isCanonicalScene && (!visualPlan || visualPlan.requiresExplicitVisual !== true)) return true;
+    if (!visualPlan || visualPlan.requiresExplicitVisual !== true) return false;
+    const selectedAssetIds = Array.isArray(visualPlan.selectedAssetIds) ? visualPlan.selectedAssetIds.filter(Boolean) : [];
+    const imageUrls = Array.isArray(scene.imageUrls) ? scene.imageUrls.filter(Boolean) : [];
+    const overviewValid = visualPlan.overviewExceptionAllowed !== true
+      || ((visualPlan.selectionMethod === 'brand_asset' || visualPlan.selectionMethod === 'rulebook_reference')
+        && visualPlan.overviewSelectionConfirmed === true);
+    return visualPlan.reviewState !== 'resolved'
+      || selectedAssetIds.length === 0
+      || imageUrls.length === 0
+      || !overviewValid
+      || imageUrls.some((url) => String(url).includes('placeholder'));
+  }).map((scene) => scene.id || 'unknown-scene');
+  if (incompleteSceneIds.length) {
+    throw createRemotionError(
+      'VISUAL_PLAN_INCOMPLETE',
+      `Release render requires resolved project-owned visual plans for: ${incompleteSceneIds.join(', ')}.`,
+    );
+  }
+}
+
 function prepareScenesForRenderer(scenes, backgroundMusic) {
   const resolvedBackgroundMusicFile = backgroundMusic
     ? resolveProjectAsset(backgroundMusic.file)
@@ -410,8 +527,11 @@ export function registerRemotionRenderRoutes(
         );
       }
 
+      const persistedScenes = parseProjectScenes(project);
+      const releaseScenes = bindReleaseVisualPlanAssets(persistedScenes, project);
+      validateReleaseVisualPlans(releaseScenes);
       const scenes = prepareScenesForRenderer(
-        parseProjectScenes(project),
+        releaseScenes,
         getBackgroundMusic(project),
       );
       const renderId = `remotion-${randomUUID()}`;

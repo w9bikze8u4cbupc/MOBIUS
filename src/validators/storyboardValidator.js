@@ -128,6 +128,32 @@ function validateCanonicalSceneDto(manifest, contract, bucket) {
     if (typeof scene.spokenText !== 'string' || !scene.spokenText.trim()) pushError(bucket, `Canonical scene ${scene.id || index} spokenText missing`);
     if (!Array.isArray(scene.sources) || !scene.sources.length) pushError(bucket, `Canonical scene ${scene.id || index} sources missing`);
     if (!Array.isArray(scene.visualDirections) || !Array.isArray(scene.imageAssetIds)) pushError(bucket, `Canonical scene ${scene.id || index} visual data invalid`);
+    const visualPlan = scene.visualPlan;
+    const visualPlanRequired = contract.visualPlanRequiredFields || [];
+    if (!visualPlan || typeof visualPlan !== 'object') {
+      pushError(bucket, `Canonical scene ${scene.id || index} visualPlan missing`);
+    } else {
+      visualPlanRequired.forEach((field) => {
+        if (visualPlan[field] === undefined) pushError(bucket, `Canonical scene ${scene.id || index} visualPlan missing ${field}`);
+      });
+      if (!Array.isArray(visualPlan.componentRefs) || !Array.isArray(visualPlan.sourceReferences)
+        || !Array.isArray(visualPlan.assetCandidates) || !Array.isArray(visualPlan.selectedAssetIds)) {
+        pushError(bucket, `Canonical scene ${scene.id || index} visualPlan arrays invalid`);
+      }
+      if (!['approved_component_link', 'operator_selected', 'brand_asset', 'rulebook_reference', 'unresolved'].includes(visualPlan.selectionMethod)) {
+        pushError(bucket, `Canonical scene ${scene.id || index} visualPlan selection method invalid`);
+      }
+      if (!['resolved', 'needs_visual_review', 'blocked'].includes(visualPlan.reviewState)) {
+        pushError(bucket, `Canonical scene ${scene.id || index} visualPlan review state invalid`);
+      }
+      if (typeof visualPlan.reviewReason !== 'string' || typeof visualPlan.requiresExplicitVisual !== 'boolean'
+        || typeof visualPlan.overviewExceptionAllowed !== 'boolean') {
+        pushError(bucket, `Canonical scene ${scene.id || index} visualPlan metadata invalid`);
+      }
+      if (scene.imageAssetIds.join('|') !== visualPlan.selectedAssetIds.join('|')) {
+        pushError(bucket, `Canonical scene ${scene.id || index} visualPlan selected assets disagree`);
+      }
+    }
     if (!['matched', 'needs_visual_review', 'blocked'].includes(scene.visualReviewState)) pushError(bucket, `Canonical scene ${scene.id || index} visual review state invalid`);
     if (!['draft', 'ready', 'blocked'].includes(scene.status)) pushError(bucket, `Canonical scene ${scene.id || index} status invalid`);
     if (typeof scene.reviewNotes !== 'string') pushError(bucket, `Canonical scene ${scene.id || index} review notes invalid`);

@@ -96,7 +96,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
   app.get('/api/projects/:projectId/images', (req, res) => {
     const { projectId } = req.params;
     const state = listImages(projectId);
-    res.json({ images: state.images, componentImages: state.componentImages });
+    res.json({ images: state.images, componentImages: state.componentImages, componentImageLinkDetails: state.componentImageLinkDetails });
   });
 
   app.post('/api/projects/:projectId/images/fetch-bgg', async (req, res) => {
@@ -106,7 +106,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
       const fetched = await fetchBggImages(projectId, bggUrl);
       const enhanced = fetched.map(runImageEnhancement);
       const state = appendImages(projectId, enhanced);
-      res.json({ images: state.images, componentImages: state.componentImages });
+      res.json({ images: state.images, componentImages: state.componentImages, componentImageLinkDetails: state.componentImageLinkDetails });
     } catch (err) {
       console.error('Failed to fetch BGG images', err);
       res.status(400).json({ error: err.message || 'Unable to fetch BGG images' });
@@ -121,7 +121,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
       const extracted = await extractRulebookImages(projectId, pdfInput);
       const enhanced = extracted.map(runImageEnhancement);
       const state = appendImages(projectId, enhanced);
-      res.json({ images: state.images, componentImages: state.componentImages });
+      res.json({ images: state.images, componentImages: state.componentImages, componentImageLinkDetails: state.componentImageLinkDetails });
     } catch (err) {
       console.error('Failed to extract rulebook images', err);
       res.status(400).json({ error: err.message || 'Unable to extract rulebook images' });
@@ -144,7 +144,8 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         mode: 'pages',
         pagesCount: enhanced.length,
         images: state.images, 
-        componentImages: state.componentImages 
+        componentImages: state.componentImages,
+        componentImageLinkDetails: state.componentImageLinkDetails
       });
     } catch (err) {
       console.error('[ImageExtraction]', JSON.stringify({
@@ -186,7 +187,8 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
           pagesCount: enhanced.length,
           newImagesCount: enhanced.length,
           images: state.images, 
-          componentImages: state.componentImages 
+          componentImages: state.componentImages,
+        componentImageLinkDetails: state.componentImageLinkDetails
         });
       }
       
@@ -201,7 +203,8 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         newImagesCount: enhanced.length,
         message: result.message,
         images: state.images, 
-        componentImages: state.componentImages 
+        componentImages: state.componentImages,
+        componentImageLinkDetails: state.componentImageLinkDetails
       });
     } catch (err) {
       console.error('[ImageExtraction]', JSON.stringify({
@@ -264,7 +267,8 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
           message: 'No component images detected in rulebook pages',
           cropsCount: 0,
           images: state.images,
-          componentImages: state.componentImages
+          componentImages: state.componentImages,
+          componentImageLinkDetails: state.componentImageLinkDetails
         });
       }
       
@@ -283,7 +287,8 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         message: `Extracted ${enhanced.length} component images from ${pagePaths.length} pages`,
         cropsCount: enhanced.length,
         images: updatedState.images,
-        componentImages: updatedState.componentImages
+        componentImages: updatedState.componentImages,
+        componentImageLinkDetails: updatedState.componentImageLinkDetails
       });
     } catch (err) {
       console.error('Component cropping failed:', err);
@@ -338,7 +343,8 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
           message: 'No component images detected in rulebook pages',
           stats: result.stats,
           images: state.images,
-          componentImages: state.componentImages
+          componentImages: state.componentImages,
+          componentImageLinkDetails: state.componentImageLinkDetails
         });
       }
       
@@ -358,7 +364,8 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         stats: result.stats,
         cropsCount: enhanced.length,
         images: updatedState.images,
-        componentImages: updatedState.componentImages
+        componentImages: updatedState.componentImages,
+        componentImageLinkDetails: updatedState.componentImageLinkDetails
       });
     } catch (err) {
       console.error('Multi-stage pipeline failed:', err);
@@ -402,6 +409,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
           imagesCount: 0,
           images: state.images,
           componentImages: state.componentImages,
+          componentImageLinkDetails: state.componentImageLinkDetails,
         });
       }
 
@@ -455,6 +463,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         curatedCount: curatedResult.stats.curatedCount,
         images: updatedState.images,
         componentImages: updatedState.componentImages,
+        componentImageLinkDetails: updatedState.componentImageLinkDetails,
       });
     } catch (err) {
       console.error('[HEPHAESTUS]', JSON.stringify({
@@ -477,7 +486,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
       });
       const enhanced = runImageEnhancement(ingested);
       const state = appendImages(projectId, [enhanced]);
-      res.json({ images: state.images, componentImages: state.componentImages });
+      res.json({ images: state.images, componentImages: state.componentImages, componentImageLinkDetails: state.componentImageLinkDetails });
     } catch (err) {
       console.error('Failed to ingest manual image', err);
       res.status(400).json({ error: err.message || 'Unable to save manual image' });
@@ -493,7 +502,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         normalizeImageAsset({ ...img, source: 'image-extractor', tags: ['extracted'] })
       );
       const state = appendImages(projectId, normalized.map(runImageEnhancement));
-      res.json({ images: state.images, componentImages: state.componentImages });
+      res.json({ images: state.images, componentImages: state.componentImages, componentImageLinkDetails: state.componentImageLinkDetails });
     } catch (err) {
       console.error('Failed to fetch extractor images', err);
       res.status(400).json({ error: err.message || 'Unable to fetch extractor images' });
@@ -516,7 +525,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
     };
     upsertImage(projectId, updated);
     const refreshed = listImages(projectId);
-    res.json({ images: refreshed.images, componentImages: refreshed.componentImages });
+    res.json({ images: refreshed.images, componentImages: refreshed.componentImages, componentImageLinkDetails: refreshed.componentImageLinkDetails });
   });
 
   app.post('/api/projects/:projectId/components/:componentId/images', (req, res) => {
@@ -529,7 +538,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
       { manualImageIds: Array.isArray(manualImageIds) ? manualImageIds : null },
     );
     const state = listImages(projectId);
-    res.json({ images: state.images, componentImages: links });
+    res.json({ images: state.images, componentImages: links, componentImageLinkDetails: state.componentImageLinkDetails });
   });
 
   // DEPRECATED: AI-based cropping produced poor results. Use extract-native instead.
@@ -556,7 +565,8 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         cropsCount: 0,
         pagesCount: enhanced.length,
         images: state.images, 
-        componentImages: state.componentImages 
+        componentImages: state.componentImages,
+        componentImageLinkDetails: state.componentImageLinkDetails
       });
     } catch (err) {
       console.error('Failed to extract images:', err);
@@ -629,7 +639,8 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
       res.json({ 
         ...results,
         images: state.images, 
-        componentImages: state.componentImages 
+        componentImages: state.componentImages,
+        componentImageLinkDetails: state.componentImageLinkDetails
       });
     } catch (err) {
       console.error('Auto-gather failed:', err);
@@ -662,6 +673,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
           candidates: {},
           images: updatedState.images,
           componentImages: updatedState.componentImages,
+        componentImageLinkDetails: updatedState.componentImageLinkDetails,
         });
       }
 
@@ -675,6 +687,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         stats: result.stats,
         images: updatedState.images,
         componentImages: updatedState.componentImages,
+        componentImageLinkDetails: updatedState.componentImageLinkDetails,
       });
     } catch (err) {
       console.error('Hybrid match failed:', err);

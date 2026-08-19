@@ -325,4 +325,155 @@ describe('POST /api/render-remotion', () => {
     });
     expect(runRemotionRender).not.toHaveBeenCalled();
   });
+
+
+test('rejects a release scene with an unresolved visual plan before it reaches the renderer', async () => {
+  const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+  const runRemotionRender = jest.fn();
+  const app = loadTestApp(outputDirectory, { runRemotionRender });
+  server = await startServer(app);
+  const sampleScenes = JSON.parse(fs.readFileSync(SAMPLE_SCRIPT_PATH, 'utf8'));
+  sampleScenes[0] = {
+    ...sampleScenes[0],
+    id: 'scene-unresolved',
+    imageUrls: [],
+    visualPlan: {
+      requiresExplicitVisual: true,
+      reviewState: 'needs_visual_review',
+      selectedAssetIds: [],
+    },
+  };
+
+  const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Unresolved visual plan', metadata: {}, components: [], images: [], script: '', audio: '', scenes: sampleScenes }),
+  });
+  const savedProject = await saveResponse.json();
+  const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ projectId: savedProject.projectId }),
+  });
+
+  expect(renderResponse.status).toBe(400);
+  await expect(renderResponse.json()).resolves.toEqual(expect.objectContaining({ ok: false, code: 'VISUAL_PLAN_INCOMPLETE' }));
+  expect(runRemotionRender).not.toHaveBeenCalled();
+});
+
+test('rejects a canonical render scene that omits its visual plan', async () => {
+  const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+  const runRemotionRender = jest.fn();
+  const app = loadTestApp(outputDirectory, { runRemotionRender });
+  server = await startServer(app);
+  const sampleScenes = JSON.parse(fs.readFileSync(SAMPLE_SCRIPT_PATH, 'utf8'));
+  sampleScenes[0] = { ...sampleScenes[0], id: 'scene-missing-plan', storyboardVersion: '1.2.0', imageUrls: [] };
+  const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Missing visual plan', metadata: {}, components: [], images: [], script: '', audio: '', scenes: sampleScenes }),
+  });
+  const savedProject = await saveResponse.json();
+  const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: savedProject.projectId }),
+  });
+  expect(renderResponse.status).toBe(400);
+  await expect(renderResponse.json()).resolves.toEqual(expect.objectContaining({ ok: false, code: 'VISUAL_PLAN_INCOMPLETE' }));
+  expect(runRemotionRender).not.toHaveBeenCalled();
+});
+
+test('rejects forged overview designations and selected IDs absent from the saved inventory', async () => {
+  const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+  const runRemotionRender = jest.fn();
+  const app = loadTestApp(outputDirectory, { runRemotionRender });
+  server = await startServer(app);
+  const sampleScenes = JSON.parse(fs.readFileSync(SAMPLE_SCRIPT_PATH, 'utf8'));
+  sampleScenes[0] = {
+    ...sampleScenes[0], id: 'scene-forged-overview', storyboardVersion: '1.2.0', imageUrls: ['src/api/uploads/not-selected.png'],
+    visualPlan: { requiresExplicitVisual: true, overviewExceptionAllowed: true, selectionMethod: 'operator_selected', overviewSelectionConfirmed: false, reviewState: 'resolved', selectedAssetIds: ['foreign-image'] },
+  };
+  const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Forged overview', metadata: {}, components: [], images: [{ id: 'owned-image', fileKey: 'src/api/uploads/owned.png' }], script: '', audio: '', scenes: sampleScenes }),
+  });
+  const savedProject = await saveResponse.json();
+  const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: savedProject.projectId }),
+  });
+  expect(renderResponse.status).toBe(400);
+  await expect(renderResponse.json()).resolves.toEqual(expect.objectContaining({ ok: false, code: 'VISUAL_PLAN_INCOMPLETE' }));
+  expect(runRemotionRender).not.toHaveBeenCalled();
+});
+
+test('requires persisted approved component-link provenance before releasing canonical visuals', async () => {
+  const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+  const outputPath = path.join(outputDirectory, 'mobius-tutorial.mp4');
+  const runRemotionRender = jest.fn(async () => ({ outputPaths: [outputPath] }));
+  const app = loadTestApp(outputDirectory, { runRemotionRender });
+  server = await startServer(app);
+  const approvedScene = (selectedAssetIds) => ({
+    id: 'scene-approved-component', storyboardVersion: '1.2.0', narrationText: 'Show the monster token.', durationInFrames: 90,
+    visualDirections: [{ instruction: 'Show monster token.', componentRefs: ['monster-token'] }],
+    imageAssetIds: selectedAssetIds,
+    visualPlan: { requiresExplicitVisual: true, reviewState: 'resolved', selectionMethod: 'approved_component_link', selectedAssetIds },
+  });
+  const metadata = {
+    projectContext: {
+      componentImageLinks: { 'monster-token': ['approved-image'] },
+      componentImageLinkDetails: { 'monster-token': { 'approved-image': { origin: 'manual' } } },
+      visualPlanPolicy: { allowAutomaticComponentLinks: false },
+    },
+  };
+  const images = [
+    { id: 'approved-image', fileKey: 'src/api/uploads/approved-image.png' },
+    { id: 'unrelated-image', fileKey: 'src/api/uploads/unrelated-image.png' },
+  ];
+
+  const approvedSave = await fetch(`${baseUrl(server)}/save-project`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Approved component visual', metadata, components: [], images, script: '', audio: '', scenes: [approvedScene(['approved-image'])] }),
+  });
+  const approvedProject = await approvedSave.json();
+  const approvedRender = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: approvedProject.projectId }),
+  });
+  expect(approvedRender.status).toBe(200);
+  expect(runRemotionRender).toHaveBeenCalledWith(expect.objectContaining({
+    scenes: [expect.objectContaining({ imageUrls: [expect.stringMatching(/[\\/]src[\\/]api[\\/]uploads[\\/]approved-image\.png$/)] })],
+  }));
+
+  runRemotionRender.mockClear();
+  const forgedSave = await fetch(`${baseUrl(server)}/save-project`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Forged approved component visual', metadata, components: [], images, script: '', audio: '', scenes: [approvedScene(['unrelated-image'])] }),
+  });
+  const forgedProject = await forgedSave.json();
+  const forgedRender = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: forgedProject.projectId }),
+  });
+  expect(forgedRender.status).toBe(400);
+  await expect(forgedRender.json()).resolves.toEqual(expect.objectContaining({ ok: false, code: 'VISUAL_PLAN_INCOMPLETE' }));
+  expect(runRemotionRender).not.toHaveBeenCalled();
+});
+
+test('rejects markerless render scenes when the persisted project has a canonical storyboard', async () => {
+  const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+  const runRemotionRender = jest.fn();
+  const app = loadTestApp(outputDirectory, { runRemotionRender });
+  server = await startServer(app);
+  const scenes = [{ id: 'scene-markerless', narrationText: 'Show the board.', imageUrls: ['src/api/uploads/legacy-looking.png'] }];
+  const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Markerless canonical scene', components: [], images: [], script: '', audio: '', scenes,
+      metadata: { renderState: { storyboardManifest: { version: '1.2.0', scenes: [{ id: 'scene-markerless' }] } } },
+    }),
+  });
+  const savedProject = await saveResponse.json();
+  const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: savedProject.projectId }),
+  });
+
+  expect(renderResponse.status).toBe(400);
+  await expect(renderResponse.json()).resolves.toEqual(expect.objectContaining({ ok: false, code: 'VISUAL_PLAN_INCOMPLETE' }));
+  expect(runRemotionRender).not.toHaveBeenCalled();
+});
+
 });

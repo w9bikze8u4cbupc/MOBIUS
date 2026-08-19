@@ -69,6 +69,37 @@ describe('images api routes', () => {
     jest.resetAllMocks();
   });
 
+  it('returns component-link provenance from ordinary image mutations', async () => {
+    axios.get.mockResolvedValue({
+      data: '<items><item><image>http://image.jpg</image><thumbnail>http://thumb.jpg</thumbnail></item></items>',
+    });
+
+    const firstFetchRes = await fetch(`${baseUrl}/api/projects/demo/images/fetch-bgg`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ bggUrl: '123' }),
+    });
+    const firstFetchPayload = await firstFetchRes.json();
+    const linkedImageId = firstFetchPayload.images[0].id;
+    linkImagesToComponent('demo', 'monster-token', [linkedImageId]);
+
+    const secondFetchRes = await fetch(`${baseUrl}/api/projects/demo/images/fetch-bgg`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ bggUrl: '123' }),
+    });
+    const secondFetchPayload = await secondFetchRes.json();
+    expect(secondFetchPayload.componentImageLinkDetails['monster-token'][linkedImageId]).toEqual({ origin: 'manual' });
+
+    const patchRes = await fetch(`${baseUrl}/api/projects/demo/images/${linkedImageId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tags: ['approved'] }),
+    });
+    const patchPayload = await patchRes.json();
+    expect(patchPayload.componentImageLinkDetails['monster-token'][linkedImageId]).toEqual({ origin: 'manual' });
+  });
+
   it('fetches BGG images and persists them', async () => {
     axios.get.mockResolvedValue({
       data: '<items><item><image>http://image.jpg</image><thumbnail>http://thumb.jpg</thumbnail></item></items>',

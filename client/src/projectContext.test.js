@@ -400,7 +400,7 @@ test('persists storyboard operator edits and blocks incomplete storyboard confir
   saveProjectContext(window.localStorage, { version: 4, projectId: 'storyboard-edits', gameName: 'Abyss', language: 'english', rulebookText: 'Setup', storyboardManifest: edited });
   const hydrated = loadLatestProjectContext(window.localStorage).storyboardManifest;
   expect(hydrated.scenes[0]).toMatchObject({ spokenText: 'Place the board between every player.', durationMs: 2200, transition: 'slide-left', imageAssetIds: ['board-image'], reviewNotes: 'Use the top-down image.' });
-  expect(validateStoryboardReview(hydrated)).toMatchObject({ valid: true });
+  expect(validateStoryboardReview(hydrated, [{ id: 'board-image' }])).toMatchObject({ valid: true });
   expect(validateStoryboardReview({ ...hydrated, scenes: [{ ...hydrated.scenes[0], sources: [] }] })).toMatchObject({ valid: false, code: 'STORYBOARD_REVIEW_INCOMPLETE' });
   expect(validateStoryboardReview({ ...hydrated, scenes: [{ ...hydrated.scenes[0], durationMs: 0 }] })).toMatchObject({ valid: false, code: 'STORYBOARD_REVIEW_INCOMPLETE' });
   expect(validateStoryboardReview({ ...hydrated, scenes: [{ ...hydrated.scenes[0], visualReviewState: 'matched', imageAssetIds: [] }] }, [{ id: 'board-image' }])).toMatchObject({ valid: false, code: 'STORYBOARD_REVIEW_INCOMPLETE' });
@@ -410,6 +410,25 @@ test('persists storyboard operator edits and blocks incomplete storyboard confir
   expect(validateStoryboardReview(blocked)).toMatchObject({ valid: false, code: 'STORYBOARD_REVIEW_INCOMPLETE' });
   const unblocked = applyStoryboardSceneEdit(blocked, 'scene-1', { visualReviewState: 'needs_visual_review' });
   expect(unblocked.scenes[0].status).toBe('draft');
-  expect(validateStoryboardReview(unblocked)).toMatchObject({ valid: true });
+  expect(validateStoryboardReview(unblocked, [{ id: 'board-image' }])).toMatchObject({ valid: true });
   expect(validateStoryboardReview(applyStoryboardSceneEdit(hydrated, 'scene-1', { spokenText: '', visualReviewState: 'blocked' }))).toMatchObject({ valid: false, code: 'STORYBOARD_REVIEW_INCOMPLETE' });
+});
+
+
+test('persists visual-plan selections and keeps foreign asset IDs non-confirmable after reload', () => {
+  const storyboardManifest = {
+    version: '1.2.0',
+    scenes: [{
+      id: 'scene-visual', index: 0, order: 1, sectionId: 'section-01', title: 'Setup', spokenText: 'Place the board.',
+      wordCount: 3, estimatedDurationMs: 1600, durationMs: 1600, durationSec: 1.6, transition: 'fade-in', visualDirections: [{ componentRefs: ['board'] }],
+      sources: [{ section: 1, startOffset: 0, endOffset: 10 }], imageAssetIds: ['board-image'], visualReviewState: 'matched', status: 'draft', reviewNotes: 'Verified overhead board image.', timing: { startMs: 0, endMs: 1600 },
+      visualPlan: { componentRefs: ['board'], sourceReferences: [{ section: 1, startOffset: 0, endOffset: 10 }], assetCandidates: [], selectedAssetIds: ['board-image'], selectionMethod: 'operator_selected', reviewState: 'resolved', reviewReason: 'Operator selected a project-owned visual asset.', requiresExplicitVisual: true, overviewExceptionAllowed: false },
+    }],
+  };
+  saveProjectContext(window.localStorage, { version: 5, projectId: 'visual-plan-persist', gameName: 'Abyss', language: 'english', rulebookText: 'Setup', images: [{ id: 'board-image' }], storyboardManifest });
+  const hydrated = loadLatestProjectContext(window.localStorage);
+  expect(hydrated.storyboardManifest.scenes[0].visualPlan.selectedAssetIds).toEqual(['board-image']);
+  expect(validateStoryboardReview(hydrated.storyboardManifest, hydrated.images)).toMatchObject({ valid: true });
+  const foreign = { ...hydrated.storyboardManifest, scenes: [{ ...hydrated.storyboardManifest.scenes[0], imageAssetIds: ['foreign-image'], visualPlan: { ...hydrated.storyboardManifest.scenes[0].visualPlan, selectedAssetIds: ['foreign-image'] } }] };
+  expect(validateStoryboardReview(foreign, hydrated.images)).toMatchObject({ valid: false });
 });

@@ -40,6 +40,7 @@ import {
   validateMatchingIngestionManifest,
   validateStoryboardReview,
 } from "./projectContext";
+import { reconcileStoryboardVisualPlans, validateStoryboardVisualPlans } from './storyboardVisualPlan';
 import "./styles/pipeline.css";
 
 // Configure PDF.js worker
@@ -227,10 +228,11 @@ function pathIsAbsolute(filePath) {
   return /^([a-zA-Z]:)?\//.test(filePath);
 }
 
-export function buildRemotionScenes({ script, scriptPackage, storyboardManifest, gameName, images, componentImageLinks }) {
+export function buildRemotionScenes({ script, scriptPackage, storyboardManifest, gameName, images, componentImageLinks, previewMode = false }) {
   const canonicalStoryboardScenes = storyboardManifest?.version === '1.2.0' && Array.isArray(storyboardManifest.scenes)
     ? storyboardManifest.scenes.filter((scene) => String(scene.spokenText || '').trim())
     : null;
+  const isCanonicalStoryboard = Boolean(canonicalStoryboardScenes);
   const sections = canonicalStoryboardScenes
     ? canonicalStoryboardScenes.map((scene) => ({
       id: scene.id,
@@ -240,6 +242,8 @@ export function buildRemotionScenes({ script, scriptPackage, storyboardManifest,
       sources: Array.isArray(scene.sources) ? scene.sources : [],
       componentRefs: Array.isArray(scene.componentRefs) ? scene.componentRefs : [],
       imageAssetIds: Array.isArray(scene.imageAssetIds) ? scene.imageAssetIds : [],
+      visualPlan: scene.visualPlan || null,
+      storyboardVersion: isCanonicalStoryboard ? '1.2.0' : null,
       durationInFrames: Math.max(1, Math.round((Number(scene.durationMs) || 0) / 1000 * 30)),
     }))
     : Array.isArray(scriptPackage?.sections) && scriptPackage.sections.length > 0
@@ -252,16 +256,12 @@ export function buildRemotionScenes({ script, scriptPackage, storyboardManifest,
       })).filter((section) => section.narrationText)
       : splitRemotionSections(script, gameName);
   const imagesById = new Map((images || []).map((image) => [image.id, getRemotionImagePath(image)]));
-  const linkedImageIds = new Set(Object.values(componentImageLinks || {}).flat().filter(Boolean));
-  const imageUrls = (linkedImageIds.size > 0 ? (images || []).filter((image) => linkedImageIds.has(image.id)) : (images || []))
-    .map((image) => getRemotionImagePath(image))
-    .filter(Boolean);
 
   return sections.map((section, index) => {
     const wordCount = section.narrationText.split(/\s+/).filter(Boolean).length;
     const visualImageUrls = [...new Set([
       ...(section.imageAssetIds || []).map((imageId) => imagesById.get(imageId)),
-      ...(section.componentRefs || []).flatMap((componentId) => componentImageLinks?.[componentId] || []).map((imageId) => imagesById.get(imageId)),
+      ...(isCanonicalStoryboard ? [] : (section.componentRefs || []).flatMap((componentId) => componentImageLinks?.[componentId] || []).map((imageId) => imagesById.get(imageId))),
     ].filter(Boolean))];
     const visualOverlayText = (section.visualDirections || [])
       .map((direction) => direction.onScreenText)
@@ -277,9 +277,11 @@ export function buildRemotionScenes({ script, scriptPackage, storyboardManifest,
       visualOverlayText,
       imageUrls: visualImageUrls.length > 0
         ? visualImageUrls
-        : imageUrls.length > 0
-          ? [imageUrls[index % imageUrls.length]]
-          : [REMOTION_PLACEHOLDER_IMAGE],
+        : !isCanonicalStoryboard && previewMode
+          ? [REMOTION_PLACEHOLDER_IMAGE]
+          : [],
+      visualPlan: section.visualPlan || null,
+      storyboardVersion: section.storyboardVersion || null,
       themeBorderColor: REMOTION_SCENE_COLORS[index % REMOTION_SCENE_COLORS.length],
       durationInFrames: section.durationInFrames || Math.max(90, Math.round((wordCount / 150) * 60 * 30)),
     };
@@ -321,7 +323,7 @@ function App() {
 const [dragActive, setDragActive] = useState(false); // For drag and drop file area
   // eslint-disable-next-line no-unused-vars
 const fileInputRef = useRef(); // Ref for the hidden file input
-  const hasHydratedProjectContextRef = useRef(false);
+  const [hasHydratedProjectContext, setHasHydratedProjectContext] = useState(false);
   const previousProjectIdRef = useRef("");
 
   // State for displaying translation status/errors
@@ -345,6 +347,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   const [completedStepIds, setCompletedStepIds] = useState([]);
   const [projectImages, setProjectImages] = useState([]);
   const [componentImageLinks, setComponentImageLinks] = useState({});
+  const [componentImageLinkDetails, setComponentImageLinkDetails] = useState({});
   const [extractingName, setExtractingName] = useState(false);
   const [bggLookupLoading, setBggLookupLoading] = useState(false);
   const [metadataWarning, setMetadataWarning] = useState('');
@@ -422,7 +425,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
   useEffect(() => {
     if (typeof window === 'undefined') {
-      hasHydratedProjectContextRef.current = true;
+      setHasHydratedProjectContext(true);
       return;
     }
 
@@ -437,6 +440,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       setMetadata(context.metadata);
       setProjectImages(context.images);
       setComponentImageLinks(context.componentImageLinks);
+      setComponentImageLinkDetails(context.componentImageLinkDetails || {});
       setSummary(context.script);
       setGeneratedScript(context.generatedScript);
       setScriptProvenance(context.scriptProvenance);
@@ -455,13 +459,12 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       }
       setActiveStepId(context.activeStepId);
       setCompletedStepIds(context.completedStepIds);
-      previousProjectIdRef.current = context.projectId;
     }
-    hasHydratedProjectContextRef.current = true;
+    setHasHydratedProjectContext(true);
   }, []);
 
   useEffect(() => {
-    if (!hasHydratedProjectContextRef.current || !projectId.trim() || typeof window === 'undefined') return;
+    if (!hasHydratedProjectContext || !projectId.trim() || typeof window === 'undefined') return;
     saveProjectContext(window.localStorage, createPersistedProjectContext({
       projectId,
       gameName,
@@ -472,6 +475,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       metadata,
       images: projectImages,
       componentImageLinks,
+      componentImageLinkDetails,
       script: editedSummary || summary,
       scriptPackage,
       generatedScript,
@@ -485,10 +489,12 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     activeStepId,
     completedStepIds,
     componentImageLinks,
+    componentImageLinkDetails,
     editedSummary,
     gameComponents,
     gameName,
     generatedScript,
+    hasHydratedProjectContext,
     ingestionManifest,
     language,
     metadata,
@@ -511,6 +517,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       previousProjectIdRef.current = projectId;
       setProjectImages([]);
       setComponentImageLinks({});
+      setComponentImageLinkDetails({});
     }
   }, [projectId]);
 
@@ -996,6 +1003,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           metadata,
           images: projectImages,
           componentImageLinks,
+          componentImageLinkDetails,
           script: editedSummary || summary,
           scriptPackage,
           generatedScript,
@@ -1017,7 +1025,11 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         scriptPackage: isSourceCompleteScriptPackage(scriptPackage) ? scriptPackage : null,
         options: { includeOverlayHashes: true, language }
       });
-      setStoryboardManifest(data.manifest);
+      setStoryboardManifest(reconcileStoryboardVisualPlans(data.manifest, {
+        images: projectImages,
+        componentImageLinks,
+        componentImageLinkDetails,
+      }));
     } catch (err) {
       const apiError = err.response?.data?.code || err.response?.data?.error || err.message;
       setStoryboardError(apiError);
@@ -1027,7 +1039,10 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   };
 
   const handleUpdateStoryboardScene = (sceneId, patch) => {
-    setStoryboardManifest((previous) => applyStoryboardSceneEdit(previous, sceneId, patch));
+    setStoryboardManifest((previous) => reconcileStoryboardVisualPlans(
+      applyStoryboardSceneEdit(previous, sceneId, patch),
+      { images: projectImages, componentImageLinks, componentImageLinkDetails },
+    ));
   };
 
   const handleStartRender = async () => {
@@ -1052,10 +1067,19 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         throw new Error("Choose a background-music file before rendering.");
       }
 
+      const releaseVisualPlans = validateStoryboardVisualPlans(storyboardManifest, {
+        images: projectImages,
+        componentImageLinks,
+        componentImageLinkDetails,
+      });
+      if (!releaseVisualPlans.valid) {
+        throw new Error(releaseVisualPlans.code);
+      }
+      const releaseStoryboardManifest = releaseVisualPlans.manifest || storyboardManifest;
       const scenes = buildRemotionScenes({
         script,
         scriptPackage,
-        storyboardManifest,
+        storyboardManifest: releaseStoryboardManifest,
         gameName,
         images: projectImages,
         componentImageLinks,
@@ -1063,13 +1087,16 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       if (scenes.length === 0) {
         throw new Error("The tutorial script does not contain renderable scenes.");
       }
+      if (scenes.some((scene) => scene.visualPlan?.requiresExplicitVisual && scene.imageUrls.length === 0)) {
+        throw new Error('VISUAL_PLAN_INCOMPLETE');
+      }
 
       const renderMetadata = {
         ...metadata,
         renderState: {
           ...(metadata.renderState || {}),
           ingestionManifest,
-          storyboardManifest,
+          storyboardManifest: releaseStoryboardManifest,
         },
       };
       const projectContext = createPersistedProjectContext({
@@ -1082,6 +1109,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         metadata,
         images: projectImages,
         componentImageLinks,
+        componentImageLinkDetails,
         script,
         scriptPackage,
         generatedScript,
@@ -1575,7 +1603,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           setError("Generate the storyboard to proceed.");
           return;
         }
-        const storyboardReview = validateStoryboardReview(storyboardManifest, projectImages);
+        const storyboardReview = validateStoryboardReview(storyboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails });
         if (!storyboardReview.valid) {
           setError(storyboardReview.code);
           return;
@@ -1633,7 +1661,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
             onStepClick={goToStep}
             onConfirmStep={handleConfirmStep}
             canConfirmStep={(stepId) => (stepId !== 'script' || canConfirmScript)
-              && (stepId !== 'storyboard' || validateStoryboardReview(storyboardManifest, projectImages).valid)}
+              && (stepId !== 'storyboard' || validateStoryboardReview(storyboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails }).valid)}
           />
 
           {error && (<div style={{ color: "red", marginBottom: 12 }}>{error}</div>)}
@@ -1701,9 +1729,16 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               components={gameComponents}
               images={projectImages}
               componentImages={componentImageLinks}
-              onImagesUpdated={({ images, componentImages }) => {
+              onImagesUpdated={({ images, componentImages, componentImageLinkDetails }) => {
                 setProjectImages(images || []);
                 setComponentImageLinks(componentImages || {});
+                // Legacy mutation responses may not yet carry this canonical
+                // provenance map. Do not erase known manual approval evidence.
+                setComponentImageLinkDetails((previous) => (
+                  componentImageLinkDetails && typeof componentImageLinkDetails === 'object'
+                    ? componentImageLinkDetails
+                    : previous
+                ));
               }}
               gameName={gameName}
               bggUrl={bggUrl}
@@ -1741,6 +1776,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
             <StoryboardStep
               onGenerateStoryboard={handleGenerateStoryboard}
               onUpdateScene={handleUpdateStoryboardScene}
+              projectId={projectId}
+              images={projectImages}
               storyboardManifest={storyboardManifest}
               storyboardError={storyboardError}
               storyboarding={storyboarding}
@@ -1774,7 +1811,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               className="confirm-step-btn"
               onClick={() => handleConfirmStep(activeStepId)}
               disabled={(activeStepId === 'script' && !canConfirmScript)
-                || (activeStepId === 'storyboard' && !validateStoryboardReview(storyboardManifest, projectImages).valid)}
+                || (activeStepId === 'storyboard' && !validateStoryboardReview(storyboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails }).valid)}
               style={{
                 background: 'linear-gradient(90deg, #1565c0, #1976d2)',
                 color: 'white',

@@ -1,4 +1,6 @@
-export const PROJECT_CONTEXT_VERSION = 4;
+import { validateStoryboardVisualPlans } from './storyboardVisualPlan';
+
+export const PROJECT_CONTEXT_VERSION = 5;
 export const SCRIPT_PROVENANCE = Object.freeze({
   MANUAL: 'manual',
   GENERATED_SOURCE_COMPLETE: 'generated_source_complete',
@@ -325,6 +327,8 @@ export function createPersistedProjectContext(context) {
     rulebookPages: Array.isArray(context.rulebookPages) ? context.rulebookPages : [], components: Array.isArray(context.components) ? context.components : [],
     metadata: context.metadata && typeof context.metadata === 'object' ? context.metadata : {}, images: Array.isArray(context.images) ? context.images : [],
     componentImageLinks: context.componentImageLinks && typeof context.componentImageLinks === 'object' ? context.componentImageLinks : {},
+    componentImageLinkDetails: context.componentImageLinkDetails && typeof context.componentImageLinkDetails === 'object' ? context.componentImageLinkDetails : {},
+    visualPlanPolicy: context.visualPlanPolicy && typeof context.visualPlanPolicy === 'object' ? context.visualPlanPolicy : { allowAutomaticComponentLinks: false },
     ingestionManifest: context.ingestionManifest && typeof context.ingestionManifest === 'object' && !Array.isArray(context.ingestionManifest) ? context.ingestionManifest : null,
     storyboardManifest: context.storyboardManifest && typeof context.storyboardManifest === 'object' && !Array.isArray(context.storyboardManifest) ? context.storyboardManifest : null,
     ...scriptState, activeStepId: asTrimmedString(context.activeStepId) || 'project',
@@ -334,7 +338,7 @@ export function createPersistedProjectContext(context) {
 
 export function hydrateProjectContext(value) {
   const context = value && typeof value === 'object' ? value : null;
-  if (!context || ![1, 2, 3, PROJECT_CONTEXT_VERSION].includes(context.version) || !asTrimmedString(context.projectId)) return null;
+  if (!context || ![1, 2, 3, 4, PROJECT_CONTEXT_VERSION].includes(context.version) || !asTrimmedString(context.projectId)) return null;
   return createPersistedProjectContext(context);
 }
 
@@ -405,7 +409,7 @@ export function applyStoryboardSceneEdit(manifest, sceneId, patch = {}) {
   return { ...manifest, scenes, totalEstimatedDurationMs: startMs };
 }
 
-export function validateStoryboardReview(manifest, projectImages = null) {
+export function validateStoryboardReview(manifest, projectImages = null, visualContext = {}) {
   if (!manifest || !Array.isArray(manifest.scenes) || manifest.scenes.length === 0) {
     return { valid: false, code: 'STORYBOARD_REVIEW_MISSING' };
   }
@@ -421,7 +425,14 @@ export function validateStoryboardReview(manifest, projectImages = null) {
       || scene.status === 'blocked' || scene.visualReviewState === 'blocked'
       || !hasResolvedMatchedAsset;
   });
-  return failures.length
-    ? { valid: false, code: 'STORYBOARD_REVIEW_INCOMPLETE', sceneIds: failures.map((scene) => scene.id) }
-    : { valid: true, code: null };
+  if (failures.length) {
+    return { valid: false, code: 'STORYBOARD_REVIEW_INCOMPLETE', sceneIds: failures.map((scene) => scene.id) };
+  }
+  const visualValidation = validateStoryboardVisualPlans(manifest, {
+    images: projectImages || [],
+    ...visualContext,
+  });
+  return visualValidation.valid
+    ? { valid: true, code: null, visualSummary: visualValidation.summary }
+    : { valid: false, code: visualValidation.code, sceneIds: visualValidation.sceneIds, visualSummary: visualValidation.summary };
 }
