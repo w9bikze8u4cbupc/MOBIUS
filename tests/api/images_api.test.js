@@ -44,6 +44,13 @@ import express from 'express';
 import { registerImageRoutes } from '../../src/api/imageRoutes.js';
 import { appendImages, linkImagesToComponent, resetImageStore } from '../../src/services/imageStore.js';
 
+const contextualEvidence = {
+  persistUpload: jest.fn(),
+  inventory: jest.fn(async () => { throw { code: 'CONTEXTUAL_EVIDENCE_UNAVAILABLE' }; }),
+  resolveAssetFile: jest.fn(),
+  registerCrop: jest.fn(),
+};
+
 describe('images api routes', () => {
   const fixtureDirectory = path.join(process.cwd(), 'data', '.image-route-test-fixtures');
   const sourceBytes = Buffer.from('89504e470d0a1a0a736f75726365', 'hex');
@@ -60,7 +67,11 @@ describe('images api routes', () => {
     fs.writeFileSync(thumbnailPath, thumbnailBytes);
     app = express();
     app.use(express.json());
-    registerImageRoutes(app, { extractorApiKey: 'key', upload: { single: () => (req, _res, next) => next() } });
+    registerImageRoutes(app, {
+      extractorApiKey: 'key',
+      upload: { single: () => (req, _res, next) => { req.file = { path: sourcePath }; next(); } },
+      contextualEvidence,
+    });
     server = app.listen(0, () => {
       const { port } = server.address();
       baseUrl = `http://127.0.0.1:${port}`;
@@ -78,6 +89,7 @@ describe('images api routes', () => {
   beforeEach(() => {
     resetImageStore();
     jest.resetAllMocks();
+    contextualEvidence.inventory.mockImplementation(async () => { throw { code: 'CONTEXTUAL_EVIDENCE_UNAVAILABLE' }; });
   });
 
   it('returns component-link provenance from ordinary image mutations', async () => {
@@ -301,6 +313,38 @@ it('rejects malformed, foreign, unknown, and traversal thumbnail requests withou
   const forbiddenPayload = await forbidden.json();
   expect(forbiddenPayload).toEqual(expect.objectContaining({ code: 'IMAGE_FILE_FORBIDDEN' }));
   expect(JSON.stringify(forbiddenPayload)).not.toContain('C:');
+});
+
+it('persists contextual evidence immediately after an accepted PDF upload', async () => {
+  contextualEvidence.persistUpload.mockResolvedValue({ available: true });
+
+  const response = await fetch(`${baseUrl}/api/projects/demo/images/extract-pdf`, { method: 'POST' });
+
+  expect(response.status).toBe(200);
+  expect(contextualEvidence.persistUpload).toHaveBeenCalledWith('demo', sourcePath, { filename: undefined });
+});
+
+it('merges contextual metadata into project inventory and serves only a resolved contextual asset variant', async () => {
+  const pageId = 'page-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  contextualEvidence.inventory.mockResolvedValue({
+    available: true, projectId: 'demo', assets: [{ id: pageId, kind: 'contextual_page', source: 'rulebook_context' }], pages: [],
+  });
+  contextualEvidence.resolveAssetFile.mockResolvedValue({ path: sourcePath, contentType: 'image/png', kind: 'contextual_page' });
+
+  const inventory = await (await fetch(`${baseUrl}/api/projects/demo/images`)).json();
+  expect(inventory.contextualEvidence).toEqual(expect.objectContaining({ available: true, projectId: 'demo' }));
+  expect(inventory.contextualAssets).toEqual([expect.objectContaining({ id: pageId, source: 'rulebook_context' })]);
+
+  const file = await fetch(`${baseUrl}/api/projects/demo/contextual-assets/${pageId}/file?variant=thumbnail`);
+  expect(file.status).toBe(200);
+  expect(file.headers.get('content-type')).toBe('image/png');
+  expect(file.headers.get('x-content-type-options')).toBe('nosniff');
+  expect(contextualEvidence.resolveAssetFile).toHaveBeenCalledWith('demo', pageId, 'thumbnail');
+
+  contextualEvidence.resolveAssetFile.mockRejectedValue({ code: 'CONTEXTUAL_ASSET_VARIANT_INVALID', status: 400, message: 'Contextual asset variant is invalid.' });
+  const invalid = await fetch(`${baseUrl}/api/projects/demo/contextual-assets/${pageId}/file?variant=raw`);
+  expect(invalid.status).toBe(400);
+  await expect(invalid.json()).resolves.toMatchObject({ code: 'CONTEXTUAL_ASSET_VARIANT_INVALID' });
 });
 
 });

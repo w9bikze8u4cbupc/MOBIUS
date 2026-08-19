@@ -27,6 +27,10 @@ import {
   extractAllImages as extractNativeImages,
 } from '../services/nativeImageExtractor.js';
 import {
+  ContextualEvidenceError,
+  contextualEvidenceService,
+} from '../services/contextualEvidenceService.js';
+import {
   extractComponentsFromAllPages,
   isJobInProgress,
   clearJobLock,
@@ -136,17 +140,77 @@ function safeComponentImageLinkDetails(details) {
   ]));
 }
 
-function safeImageListResponse(projectId, state) {
+async function safeImageListResponse(projectId, state, contextualEvidence) {
+  let contextualInventory = null;
+  try {
+    contextualInventory = await contextualEvidence.inventory(projectId);
+  } catch (error) {
+    if (error?.code !== 'CONTEXTUAL_EVIDENCE_UNAVAILABLE') throw error;
+  }
   return {
     images: (state.images || []).filter((image) => typeof image?.id === 'string' && image.id && isReviewImageAvailable(image)).map((image) => safeImageForReview(projectId, image)),
     componentImages: state.componentImages || {},
     componentImageLinkDetails: safeComponentImageLinkDetails(state.componentImageLinkDetails),
+    contextualEvidence: contextualInventory || {
+      available: false,
+      code: 'CONTEXTUAL_EVIDENCE_UNAVAILABLE',
+      message: 'A verified source PDF must be explicitly adopted before contextual rulebook evidence is available.',
+    },
+    // Contextual assets are intentionally excluded from component matching but remain in the project inventory.
+    contextualAssets: contextualInventory?.assets || [],
   };
 }
 
+function contextualEvidenceErrorResponse(res, error) {
+  if (error instanceof ContextualEvidenceError || (typeof error?.code === 'string' && Number.isInteger(error?.status))) {
+    return res.status(error.status).json({ code: error.code, error: error.message || 'Contextual evidence is unavailable.' });
+  }
+  console.error('[ContextualEvidence]', error);
+  return res.status(422).json({ code: 'CONTEXTUAL_EVIDENCE_UNAVAILABLE', error: 'Contextual evidence is unavailable.' });
+}
 
-export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {}) {
+function sendContextualEvidenceFile(res, file) {
+  res.set({
+    'Cache-Control': 'private, max-age=300, must-revalidate, no-transform',
+    'Content-Type': file.contentType,
+    'X-Content-Type-Options': 'nosniff',
+  });
+  return res.sendFile(file.path);
+}
+
+export function registerImageRoutes(app, { upload, extractorApiKey, openai, contextualEvidence = contextualEvidenceService } = {}) {
   const uploadMiddleware = upload || { single: () => (_req, _res, next) => next() };
+
+  app.get('/api/projects/:projectId/contextual-evidence', async (req, res) => {
+    try {
+      return res.json(await contextualEvidence.inventory(req.params.projectId));
+    } catch (error) {
+      return contextualEvidenceErrorResponse(res, error);
+    }
+  });
+
+  // The only file-serving endpoint for contextual evidence. It resolves an asset ID
+  // against the manifest; it never accepts source paths, page numbers, or crop bounds.
+  app.get('/api/projects/:projectId/contextual-assets/:assetId/file', async (req, res) => {
+    try {
+      return sendContextualEvidenceFile(res, await contextualEvidence.resolveAssetFile(
+        req.params.projectId,
+        req.params.assetId,
+        req.query.variant === undefined ? 'full' : req.query.variant,
+      ));
+    } catch (error) {
+      return contextualEvidenceErrorResponse(res, error);
+    }
+  });
+
+  app.post('/api/projects/:projectId/contextual-evidence/pages/:pageId/crops', async (req, res) => {
+    try {
+      const crop = await contextualEvidence.registerCrop(req.params.projectId, req.params.pageId, req.body || {});
+      return res.status(201).json(crop);
+    } catch (error) {
+      return contextualEvidenceErrorResponse(res, error);
+    }
+  });
 
   // Serve only a canonical, project-owned stored asset. Client paths are never accepted.
   app.get('/api/projects/:projectId/images/:imageId/file', (req, res) => {
@@ -193,13 +257,17 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
     return next(error);
   });
 
-  app.get('/api/projects/:projectId/images', (req, res) => {
+  app.get('/api/projects/:projectId/images', async (req, res) => {
     const { projectId } = req.params;
     if (!isValidProjectId(projectId)) {
       return res.status(400).json({ code: 'PROJECT_ID_INVALID', error: 'Project ID is invalid.' });
     }
-    const state = listImages(projectId);
-    return res.json(safeImageListResponse(projectId, state));
+    try {
+      const state = listImages(projectId);
+      return res.json(await safeImageListResponse(projectId, state, contextualEvidence));
+    } catch (error) {
+      return contextualEvidenceErrorResponse(res, error);
+    }
   });
 
   app.post('/api/projects/:projectId/images/fetch-bgg', async (req, res) => {
@@ -235,9 +303,13 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
   app.post('/api/projects/:projectId/images/extract-pdf', uploadMiddleware.single('file'), async (req, res) => {
     const { projectId } = req.params;
     try {
+      if (!isValidProjectId(projectId)) {
+        return res.status(400).json({ code: 'PROJECT_ID_INVALID', error: 'Project ID is invalid.' });
+      }
       if (!req.file) {
         return res.status(400).json({ error: 'PDF file is required' });
       }
+      await contextualEvidence.persistUpload(projectId, req.file.path, { filename: req.file.originalname });
       console.log('Extracting page images from uploaded PDF:', req.file.path);
       const extracted = await extractRulebookImages(projectId, req.file.path);
       const enhanced = extracted.map(runImageEnhancement);
@@ -251,6 +323,9 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         componentImageLinkDetails: state.componentImageLinkDetails
       });
     } catch (err) {
+      if (err instanceof ContextualEvidenceError) {
+        return contextualEvidenceErrorResponse(res, err);
+      }
       console.error('[ImageExtraction]', JSON.stringify({
         route: 'extract-pdf',
         engine: 'legacy-page-renderer',
@@ -264,9 +339,13 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
   app.post('/api/projects/:projectId/images/extract-native', uploadMiddleware.single('file'), async (req, res) => {
     const { projectId } = req.params;
     try {
+      if (!isValidProjectId(projectId)) {
+        return res.status(400).json({ code: 'PROJECT_ID_INVALID', error: 'Project ID is invalid.' });
+      }
       if (!req.file) {
         return res.status(400).json({ error: 'PDF file is required' });
       }
+      await contextualEvidence.persistUpload(projectId, req.file.path, { filename: req.file.originalname });
       
       console.log('Extracting native embedded images from PDF:', req.file.path);
       const fsModule = await import('fs');
@@ -310,6 +389,9 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
         componentImageLinkDetails: state.componentImageLinkDetails
       });
     } catch (err) {
+      if (err instanceof ContextualEvidenceError) {
+        return contextualEvidenceErrorResponse(res, err);
+      }
       console.error('[ImageExtraction]', JSON.stringify({
         route: 'extract-native',
         engine: 'native-or-legacy-fallback',
@@ -631,7 +713,7 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
     res.json({ images: refreshed.images, componentImages: refreshed.componentImages, componentImageLinkDetails: refreshed.componentImageLinkDetails });
   });
 
-  app.post('/api/projects/:projectId/components/:componentId/images', (req, res) => {
+  app.post('/api/projects/:projectId/components/:componentId/images', async (req, res) => {
     const { projectId, componentId } = req.params;
     if (!isValidProjectId(projectId)) {
       return res.status(400).json({ code: 'PROJECT_ID_INVALID', error: 'Project ID is invalid.' });
@@ -650,7 +732,11 @@ export function registerImageRoutes(app, { upload, extractorApiKey, openai } = {
       { manualImageIds: Array.isArray(manualImageIds) ? manualImageIds : null },
     );
     const refreshed = listImages(projectId);
-    return res.json({ ...safeImageListResponse(projectId, refreshed), componentImages: links });
+    try {
+      return res.json({ ...await safeImageListResponse(projectId, refreshed, contextualEvidence), componentImages: links });
+    } catch (error) {
+      return contextualEvidenceErrorResponse(res, error);
+    }
   });
 
   // DEPRECATED: AI-based cropping produced poor results. Use extract-native instead.

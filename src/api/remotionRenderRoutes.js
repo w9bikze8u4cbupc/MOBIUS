@@ -7,6 +7,7 @@ import multer from 'multer';
 import { promisify } from 'node:util';
 import { generateNarration } from '../services/elevenLabsService.js';
 import { sanitizeSpokenText } from '../services/scriptPackage.js';
+import { contextualEvidenceService } from '../services/contextualEvidenceService.js';
 
 const execFileAsync = promisify(execFile);
 // Keep this compatible with the repository's Jest CommonJS transform.
@@ -249,11 +250,54 @@ function selectedAssetAssignments(visualPlan) {
   return selectedAssetIds.map((assetId) => byAssetId.get(assetId));
 }
 
+function contextualAssignmentRoleIsAllowedForRelease(intent, assignment) {
+  if (intent === 'board_setup') {
+    return assignment.kind === 'contextual_crop' && assignment.role === 'board_setup_context' && assignment.confirmed === true;
+  }
+  return ['game_overview', 'assembled_tableau', 'rulebook_reference'].includes(intent)
+    && assignment.role === 'rulebook_reference';
+}
+
+function contextualPlanClaimIsEligible(visualPlan) {
+  const assignments = Array.isArray(visualPlan?.contextualEvidenceAssignments) ? visualPlan.contextualEvidenceAssignments : [];
+  if (!assignments.length || visualPlan?.coverageStatus !== 'resolved') return false;
+  const validProvenance = assignments.every((assignment) => assignment
+    && ['contextual_page', 'contextual_crop'].includes(assignment.kind)
+    && typeof assignment.assetId === 'string' && assignment.assetId.trim()
+    && typeof assignment.pageId === 'string' && assignment.pageId.trim()
+    && /^[a-f0-9]{64}$/.test(assignment.documentSha256 || '')
+    && /^[a-f0-9]{64}$/.test(assignment.pageRasterSha256 || '')
+    && typeof assignment.renderProfile === 'string' && assignment.renderProfile.trim()
+    && (assignment.kind !== 'contextual_page' || assignment.assetId === assignment.pageId)
+    && (assignment.kind !== 'contextual_crop' || assignment.assetId === assignment.cropId)
+    && contextualAssignmentRoleIsAllowedForRelease(visualPlan.primaryIntent, assignment));
+  if (!validProvenance) return false;
+  if (visualPlan.primaryIntent === 'board_setup') {
+    const primaryRefs = (visualPlan.primaryComponentRefs || []).filter(Boolean);
+    return primaryRefs.length === 0 && assignments.some((assignment) => assignment.kind === 'contextual_crop'
+      && assignment.role === 'board_setup_context' && assignment.confirmed === true);
+  }
+  if (!['game_overview', 'assembled_tableau', 'rulebook_reference'].includes(visualPlan.primaryIntent)) return false;
+  return assignments.some((assignment) => assignment.role === 'rulebook_reference');
+}
+
+async function resolveContextualReleaseAssets(visualPlan, projectId, contextualEvidence) {
+  if (!contextualPlanClaimIsEligible(visualPlan)) return null;
+  try {
+    const resolved = await Promise.all(visualPlan.contextualEvidenceAssignments.map((assignment) => contextualEvidence.resolveAssignment(projectId, assignment)));
+    if (resolved.some(({ capabilities }, index) => !capabilities.includes(visualPlan.contextualEvidenceAssignments[index].role))) return null;
+    return resolved.map(({ path: assetPath }) => assetPath);
+  } catch {
+    return null;
+  }
+}
+
 function coverageIsReleaseReady(visualPlan) {
   if (!visualPlan || !RELEASE_PRIMARY_INTENTS.has(visualPlan.primaryIntent)
     || (visualPlan.coverageStatus !== 'resolved' && visualPlan.coverageStatus !== 'operator_override')) return false;
   if (visualPlan.coverageStatus === 'operator_override' && typeof visualPlan.operatorOverride?.reason !== 'string') return false;
   if (visualPlan.coverageStatus === 'operator_override' && visualPlan.operatorOverride.reason.trim().length < 3) return false;
+  if (contextualPlanClaimIsEligible(visualPlan)) return true;
   const assignments = selectedAssetAssignments(visualPlan);
   if (!assignments) return false;
   const roles = new Set(assignments.map((assignment) => assignment?.role));
@@ -297,11 +341,11 @@ function canonicalStoryboardSceneIds(projectMetadata) {
   return new Set(manifest.scenes.map((scene) => scene?.id).filter((sceneId) => typeof sceneId === 'string' && sceneId));
 }
 
-export function bindReleaseVisualPlanAssets(scenes, project) {
+export async function bindReleaseVisualPlanAssets(scenes, project, { contextualEvidence = contextualEvidenceService } = {}) {
   const projectMetadata = parseProjectMetadata(project);
   const canonicalSceneIds = canonicalStoryboardSceneIds(projectMetadata);
   const imagesById = new Map(parseProjectImages(project).map((image) => [image.id, image]));
-  return (scenes || []).map((scene) => {
+  return Promise.all((scenes || []).map(async (scene) => {
     const isCanonicalScene = canonicalSceneIds
       ? canonicalSceneIds.has(scene?.id)
       : scene?.storyboardVersion === '1.2.0';
@@ -314,6 +358,8 @@ export function bindReleaseVisualPlanAssets(scenes, project) {
     if (!isCanonicalScene) return scene;
     const visualPlan = scene.visualPlan;
     const selectedAssetIds = Array.isArray(visualPlan?.selectedAssetIds) ? visualPlan.selectedAssetIds.filter(Boolean) : [];
+    const contextualImagePaths = await resolveContextualReleaseAssets(visualPlan, String(project.id), contextualEvidence);
+    const usesContextualEvidence = Array.isArray(contextualImagePaths) && contextualImagePaths.length > 0;
     const overviewValid = visualPlan?.overviewExceptionAllowed !== true
       || ((visualPlan.selectionMethod === 'brand_asset' || visualPlan.selectionMethod === 'rulebook_reference')
         && visualPlan.overviewSelectionConfirmed === true);
@@ -321,18 +367,19 @@ export function bindReleaseVisualPlanAssets(scenes, project) {
     if (!visualPlan || visualPlan.requiresExplicitVisual !== true
       || visualPlan.reviewState !== 'resolved'
       || !coverageIsReleaseReady(visualPlan)
-      || selectedAssetIds.length === 0
+      || (!usesContextualEvidence && selectedAssetIds.length === 0)
       || !overviewValid
-      || (visualPlan.selectionMethod === 'approved_component_link'
+      || (!usesContextualEvidence && visualPlan.selectionMethod === 'approved_component_link'
         && !approvedComponentSelectionIsPersisted(scene, visualPlan, projectMetadata))
-      || selectedImageUrls.some((url) => !url)) {
+      || (!usesContextualEvidence && selectedImageUrls.some((url) => !url))) {
       throw createRemotionError(
         'VISUAL_PLAN_INCOMPLETE',
         `Release render requires resolved project-owned visual plans for: ${scene.id || 'unknown-scene'}.`,
       );
     }
-    return { ...scene, storyboardVersion: '1.2.0', imageUrls: selectedImageUrls, imageUrl: selectedImageUrls[0] };
-  });
+    const imageUrls = usesContextualEvidence ? contextualImagePaths : selectedImageUrls;
+    return { ...scene, storyboardVersion: '1.2.0', imageUrls, imageUrl: imageUrls[0] };
+  }));
 }
 
 export function validateReleaseVisualPlans(scenes, projectMetadata = {}) {
@@ -346,9 +393,10 @@ export function validateReleaseVisualPlans(scenes, projectMetadata = {}) {
     const overviewValid = visualPlan.overviewExceptionAllowed !== true
       || ((visualPlan.selectionMethod === 'brand_asset' || visualPlan.selectionMethod === 'rulebook_reference')
         && visualPlan.overviewSelectionConfirmed === true);
+    const usesContextualEvidence = contextualPlanClaimIsEligible(visualPlan);
     return visualPlan.reviewState !== 'resolved'
       || !coverageIsReleaseReady(visualPlan)
-      || selectedAssetIds.length === 0
+      || (!usesContextualEvidence && selectedAssetIds.length === 0)
       || imageUrls.length === 0
       || !overviewValid
       || imageUrls.some((url) => String(url).includes('placeholder'));
@@ -483,6 +531,7 @@ export function registerRemotionRenderRoutes(
     isNarrationAvailable = () => Boolean(process.env.ELEVENLABS_API_KEY?.trim()),
     backgroundMusicUploadDirectory = defaultBackgroundMusicUploadDirectory,
     outputBaseDirectory = defaultOutputBaseDirectory,
+    contextualEvidence = contextualEvidenceService,
   } = {},
 ) {
   if (!db) {
@@ -599,7 +648,7 @@ export function registerRemotionRenderRoutes(
       }
 
       const persistedScenes = parseProjectScenes(project);
-      const releaseScenes = bindReleaseVisualPlanAssets(persistedScenes, project);
+      const releaseScenes = await bindReleaseVisualPlanAssets(persistedScenes, project, { contextualEvidence });
       validateReleaseVisualPlans(releaseScenes, parseProjectMetadata(project));
       const scenes = prepareScenesForRenderer(
         releaseScenes,

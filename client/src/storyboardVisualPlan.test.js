@@ -266,3 +266,19 @@ test('browser-style selection is inventory-bound and does not bypass tableau or 
   const foreignSelection = requiredScene({ visualPlan: { selectedAssetIds: ['foreign-image'], selectionMethod: 'operator_selected', assetAssignments: [{ assetId: 'foreign-image', role: 'primary', componentId: 'monster-tokens' }] } });
   expect(resolveSceneVisualPlan(foreignSelection, coverageContext)).toMatchObject({ selectedAssetIds: [], coverageStatus: 'unresolved' });
 });
+
+
+test('contextual evidence is provenance-bound, cannot satisfy component closeups, and allows only confirmed board crops', () => {
+  const provenance = { documentSha256: 'a'.repeat(64), pageRasterSha256: 'b'.repeat(64), renderProfile: 'pdf-to-img-review-144dpi-png-v1' };
+  const contextualPage = { kind: 'contextual_page', assetId: 'page-1', pageId: 'page-1', role: 'rulebook_reference', confirmed: true, ...provenance };
+  const overview = requiredScene({ title: 'Introduction', visualDirections: [], visualPlan: { contextualEvidenceAssignments: [contextualPage], selectionMethod: 'rulebook_reference', overviewSelectionConfirmed: true } });
+  expect(resolveSceneVisualPlan(overview, coverageContext)).toMatchObject({ coverageStatus: 'resolved', selectedAssetIds: [], contextualEvidenceAssignments: [contextualPage] });
+
+  const closeup = requiredScene({ title: 'Monster tokens', visualPlan: { contextualEvidenceAssignments: [contextualPage] } });
+  expect(resolveSceneVisualPlan(closeup, { images: inventory, components: coverageComponents })).toMatchObject({ coverageStatus: 'unresolved', contextualEvidenceAssignments: [] });
+
+  const unconfirmedBoardContext = requiredScene({ title: 'Board setup', visualDirections: [{ instruction: 'Show board setup context.', componentRefs: [] }], visualPlan: { contextualEvidenceAssignments: [{ kind: 'contextual_crop', assetId: 'crop-1', cropId: 'crop-1', pageId: 'page-1', role: 'board_setup_context', confirmed: false, ...provenance }] } });
+  expect(resolveSceneVisualPlan(unconfirmedBoardContext, coverageContext).contextualEvidenceAssignments).toEqual([]);
+  const confirmedBoardContext = { ...unconfirmedBoardContext, visualPlan: { contextualEvidenceAssignments: [{ kind: 'contextual_crop', assetId: 'crop-1', cropId: 'crop-1', pageId: 'page-1', role: 'board_setup_context', confirmed: true, ...provenance }] } };
+  expect(resolveSceneVisualPlan(confirmedBoardContext, coverageContext).contextualEvidenceAssignments).toEqual([expect.objectContaining({ role: 'board_setup_context', confirmed: true })]);
+});

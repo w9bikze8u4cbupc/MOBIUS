@@ -18,6 +18,19 @@
     "coverageStatus", "coverageReason", "coverageEvidence", "assetAssignments", "assetReuse", "sourceReferences", "assetCandidates", "selectedAssetIds",
     "selectionMethod", "reviewState", "reviewReason", "requiresExplicitVisual", "overviewExceptionAllowed"
   ],
+  "visualPlanOptionalFields": ["contextualEvidenceAssignments"],
+  "contextualEvidencePolicy": {
+    "assetKinds": ["contextual_page", "contextual_crop"],
+    "source": "rulebook_context",
+    "requiredAssignmentFields": ["kind", "assetId", "documentSha256", "pageId", "pageRasterSha256", "renderProfile", "role", "confirmed"],
+    "allowedIntents": ["game_overview", "assembled_tableau", "board_setup", "rulebook_reference"],
+    "fullPageCapabilities": ["overview", "rulebook_reference", "supporting"],
+    "operatorCropCapabilities": ["overview", "rulebook_reference", "supporting", "board_setup_context"],
+    "boardSetupRole": "board_setup_context",
+    "boardSetupRequiresOperatorCrop": true,
+    "boardSetupConfirmationRequired": true,
+    "prohibitedPrimaryIntents": ["component_closeup", "card_action", "token_action"]
+  },
   "visualReviewPolicy": {
     "needs_visual_review": "non-blocking when narration, provenance, timing, and transition validation pass; it must remain visible to the operator and must not be represented as a matched asset",
     "matched": "requires at least one imageAssetId that resolves to the current project image inventory before confirmation",

@@ -484,3 +484,16 @@ test('persists browser-selected visual roles, evidence, and review notes through
     }),
   });
 });
+
+
+test('accepts policy-valid contextual rulebook evidence without treating it as a project image ID', () => {
+  const contextualStoryboard = {
+    version: '1.2.0',
+    scenes: [{
+      id: 'context-scene', title: 'Introduction', spokenText: 'Learn the game from this rulebook page.', durationMs: 1600, transition: 'fade-in', visualDirections: [],
+      sources: [{ section: 1, startOffset: 0, endOffset: 10 }], imageAssetIds: [], visualReviewState: 'matched', status: 'draft',
+      visualPlan: { primaryIntent: 'game_overview', selectedAssetIds: [], assetAssignments: [], contextualEvidenceAssignments: [{ kind: 'contextual_page', assetId: 'page-1', pageId: 'page-1', documentSha256: 'a'.repeat(64), pageRasterSha256: 'b'.repeat(64), renderProfile: 'pdf-to-img-review-144dpi-png-v1', role: 'rulebook_reference', confirmed: true }], selectionMethod: 'rulebook_reference', overviewSelectionConfirmed: true },
+    }],
+  };
+  expect(validateStoryboardReview(contextualStoryboard, [])).toMatchObject({ valid: true });
+});

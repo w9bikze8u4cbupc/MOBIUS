@@ -29,8 +29,20 @@ function express() {
     get(path, handler) {
       routes.push({ method: 'GET', path, handler });
     },
-    post(path, handler) {
-      routes.push({ method: 'POST', path, handler });
+    post(path, ...handlers) {
+      routes.push({
+        method: 'POST',
+        path,
+        handler: (req, res) => {
+          const run = (index) => {
+            const handler = handlers[index];
+            if (!handler) return undefined;
+            if (handler.length >= 3) return handler(req, res, () => run(index + 1));
+            return handler(req, res);
+          };
+          return run(0);
+        },
+      });
     },
     patch(path, handler) {
       routes.push({ method: 'PATCH', path, handler });

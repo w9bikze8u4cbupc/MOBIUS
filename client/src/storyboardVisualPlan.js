@@ -7,6 +7,31 @@ const PRIMARY_INTENTS = new Set(['game_overview', 'assembled_tableau', 'board_se
 const COVERAGE_STATUSES = new Set(['unresolved', 'partial', 'resolved', 'operator_override', 'blocked']);
 const ASSET_ROLES = new Set(['primary', 'supporting', 'overview', 'brand', 'rulebook_reference']);
 const VALID_SELECTION_METHODS = new Set(['approved_component_link', 'operator_selected', 'brand_asset', 'rulebook_reference', 'unresolved']);
+const CONTEXTUAL_EVIDENCE_ROLES = Object.freeze({
+  game_overview: new Set(['rulebook_reference']),
+  assembled_tableau: new Set(['rulebook_reference']),
+  board_setup: new Set(['board_setup_context']),
+  rulebook_reference: new Set(['rulebook_reference']),
+});
+const CONTEXTUAL_EVIDENCE_KINDS = new Set(['contextual_page', 'contextual_crop']);
+
+export function contextualEvidenceRoleIsAllowed(intent, role) {
+  return CONTEXTUAL_EVIDENCE_ROLES[intent]?.has(role) === true;
+}
+
+export function contextualEvidenceAssignmentIsAllowed(intent, assignment) {
+  if (!assignment || !CONTEXTUAL_EVIDENCE_KINDS.has(assignment.kind)
+    || typeof assignment.assetId !== 'string' || !assignment.assetId.trim()
+    || typeof assignment.pageId !== 'string' || !assignment.pageId.trim()
+    || !/^[a-f0-9]{64}$/.test(assignment.documentSha256 || '')
+    || !/^[a-f0-9]{64}$/.test(assignment.pageRasterSha256 || '')
+    || typeof assignment.renderProfile !== 'string' || !assignment.renderProfile.trim()
+    || !contextualEvidenceRoleIsAllowed(intent, assignment.role)) return false;
+  if (assignment.kind === 'contextual_page' && assignment.assetId !== assignment.pageId) return false;
+  if (assignment.kind === 'contextual_crop' && (typeof assignment.cropId !== 'string' || !assignment.cropId.trim() || assignment.assetId !== assignment.cropId)) return false;
+  return assignment.role !== 'board_setup_context'
+    || (assignment.kind === 'contextual_crop' && assignment.confirmed === true);
+}
 
 function uniqueStrings(values) {
   return [...new Set((Array.isArray(values) ? values : [])
@@ -244,20 +269,44 @@ function normaliseAssignments(priorAssignments, selectedAssetIds, requirements, 
   });
 }
 
+function normaliseContextualEvidenceAssignments(priorAssignments, intent) {
+  const seen = new Set();
+  return (Array.isArray(priorAssignments) ? priorAssignments : []).filter((assignment) => {
+    if (!contextualEvidenceAssignmentIsAllowed(intent, assignment)) return false;
+    const key = `${assignment.kind}:${assignment.assetId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map((assignment) => ({
+    kind: assignment.kind,
+    assetId: assignment.assetId,
+    documentSha256: assignment.documentSha256,
+    pageId: assignment.pageId,
+    pageRasterSha256: assignment.pageRasterSha256,
+    cropId: assignment.kind === 'contextual_crop' ? assignment.cropId : null,
+    renderProfile: assignment.renderProfile,
+    role: assignment.role,
+    confirmed: assignment.confirmed === true,
+  }));
+}
+
 function operatorOverrideReason(priorPlan) {
   const reason = priorPlan?.operatorOverride?.reason;
   return typeof reason === 'string' && reason.trim().length >= 3 ? reason.trim() : '';
 }
 
-function intentEvidenceSatisfied(intent, assignments, priorPlan) {
+function intentEvidenceSatisfied(intent, assignments, contextualAssignments, priorPlan, requirements) {
   const roles = new Set(assignments.map((assignment) => assignment.role));
+  contextualAssignments.forEach((assignment) => roles.add(assignment.role));
   if (intent === 'brand_outro') return priorPlan?.overviewSelectionConfirmed === true && (roles.has('brand') || roles.has('rulebook_reference'));
-  if (intent === 'rulebook_reference') return priorPlan?.overviewSelectionConfirmed === true && roles.has('rulebook_reference');
+  if (intent === 'rulebook_reference') return roles.has('rulebook_reference');
   if (intent === 'game_overview' || intent === 'assembled_tableau') return priorPlan?.overviewSelectionConfirmed === true && (roles.has('overview') || roles.has('brand') || roles.has('rulebook_reference'));
+  // Contextual evidence may document a board setup only when no component-primary proof is required.
+  if (intent === 'board_setup') return requirements.primaryComponentRefs.length === 0 && contextualAssignments.some((assignment) => assignment.role === 'board_setup_context' && assignment.confirmed === true);
   return null;
 }
 
-function coverageFor(requirements, assignments, priorPlan, priorBlocked) {
+function coverageFor(requirements, assignments, contextualAssignments, priorPlan, priorBlocked) {
   const primaryEvidence = requirements.primaryComponentRefs.map((componentId) => ({
     requirement: 'primary_component', componentId,
     assetIds: assignments.filter((assignment) => assignment.role === 'primary' && assignment.componentId === componentId).map((assignment) => assignment.assetId),
@@ -266,11 +315,11 @@ function coverageFor(requirements, assignments, priorPlan, priorBlocked) {
     requirement: 'supporting_component', componentId,
     assetIds: assignments.filter((assignment) => assignment.role === 'supporting' && assignment.componentId === componentId).map((assignment) => assignment.assetId),
   }));
-  const intentSatisfied = intentEvidenceSatisfied(requirements.primaryIntent, assignments, priorPlan);
+  const intentSatisfied = intentEvidenceSatisfied(requirements.primaryIntent, assignments, contextualAssignments, priorPlan, requirements);
   const allPrimarySatisfied = primaryEvidence.length > 0 && primaryEvidence.every((evidence) => evidence.assetIds.length > 0);
   const operatorDefinedSatisfied = requirements.primaryIntent === 'operator_defined' && assignments.some((assignment) => assignment.role === 'primary');
   const operatorReason = operatorOverrideReason(priorPlan);
-  const hasAnyEvidence = assignments.length > 0;
+  const hasAnyEvidence = assignments.length > 0 || contextualAssignments.length > 0;
   const hasSupportingEvidence = supportingEvidence.some((evidence) => evidence.assetIds.length > 0);
   let coverageStatus = 'unresolved';
   let coverageReason = 'No primary visual evidence has been selected.';
@@ -297,6 +346,7 @@ function coverageFor(requirements, assignments, priorPlan, priorBlocked) {
     ...primaryEvidence.map((evidence) => ({ ...evidence, satisfied: evidence.assetIds.length > 0 })),
     ...supportingEvidence.map((evidence) => ({ ...evidence, satisfied: evidence.assetIds.length > 0 })),
     ...(assignments.length ? [{ requirement: 'intent_role', intent: requirements.primaryIntent, assetIds: assignments.map((assignment) => assignment.assetId), satisfied: intentSatisfied === true || allPrimarySatisfied }] : []),
+    ...(contextualAssignments.length ? [{ requirement: 'contextual_evidence', intent: requirements.primaryIntent, assetIds: contextualAssignments.map((assignment) => assignment.assetId), satisfied: intentSatisfied === true, contextual: true }] : []),
     ...(operatorReason ? [{ requirement: 'operator_override', assetIds: assignments.map((assignment) => assignment.assetId), satisfied: coverageStatus === 'operator_override', reason: operatorReason }] : []),
   ];
   return { coverageStatus, coverageReason, coverageEvidence };
@@ -347,8 +397,9 @@ export function resolveSceneVisualPlan(scene, {
   if (selectedAssetIds.length > 0 && (selectionMethod === 'unresolved' || (selectionMethod === 'approved_component_link' && !selectedIdsAreApprovedPrimary))) selectionMethod = 'operator_selected';
 
   const assetAssignments = normaliseAssignments(priorPlan.assetAssignments, selectedAssetIds, requirements, assetCandidates, selectionMethod);
+  const contextualEvidenceAssignments = normaliseContextualEvidenceAssignments(priorPlan.contextualEvidenceAssignments, requirements.primaryIntent);
   const priorBlocked = priorPlan.reviewState === 'blocked' || priorPlan.coverageStatus === 'blocked' || scene?.visualReviewState === 'blocked';
-  const coverage = coverageFor(requirements, assetAssignments, priorPlan, priorBlocked);
+  const coverage = coverageFor(requirements, assetAssignments, contextualEvidenceAssignments, priorPlan, priorBlocked);
   const releaseResolved = coverage.coverageStatus === 'resolved' || coverage.coverageStatus === 'operator_override';
   const reviewState = priorBlocked ? 'blocked' : (releaseResolved ? 'resolved' : 'needs_visual_review');
   const reviewReason = priorBlocked
@@ -367,6 +418,7 @@ export function resolveSceneVisualPlan(scene, {
     coverageReason: coverage.coverageReason,
     coverageEvidence: coverage.coverageEvidence,
     assetAssignments,
+    contextualEvidenceAssignments,
     assetReuse: Array.isArray(priorPlan.assetReuse) ? priorPlan.assetReuse : [],
     operatorOverride: operatorOverrideReason(priorPlan) ? { reason: operatorOverrideReason(priorPlan) } : null,
     sourceReferences: sourceReferences(scene),

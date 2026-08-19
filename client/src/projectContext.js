@@ -1,4 +1,4 @@
-import { validateStoryboardVisualPlans } from './storyboardVisualPlan';
+import { contextualEvidenceAssignmentIsAllowed, validateStoryboardVisualPlans } from './storyboardVisualPlan';
 
 export const PROJECT_CONTEXT_VERSION = 5;
 export const SCRIPT_PROVENANCE = Object.freeze({
@@ -416,7 +416,9 @@ export function validateStoryboardReview(manifest, projectImages = null, visualC
   const knownImageAssetIds = Array.isArray(projectImages) ? new Set(projectImages.map((image) => image?.id).filter(Boolean)) : null;
   const failures = manifest.scenes.filter((scene) => {
     const imageAssetIds = Array.isArray(scene.imageAssetIds) ? scene.imageAssetIds.filter(Boolean) : [];
+    const hasConfirmedContextualEvidence = (scene.visualPlan?.contextualEvidenceAssignments || []).some((assignment) => contextualEvidenceAssignmentIsAllowed(scene.visualPlan?.primaryIntent, assignment));
     const hasResolvedMatchedAsset = scene.visualReviewState !== 'matched'
+      || hasConfirmedContextualEvidence
       || (imageAssetIds.length > 0 && (!knownImageAssetIds || imageAssetIds.some((id) => knownImageAssetIds.has(id))));
     return !String(scene.spokenText || '').trim()
       || !Array.isArray(scene.sources) || scene.sources.length === 0

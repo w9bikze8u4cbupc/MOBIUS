@@ -108,3 +108,21 @@ test('builds only a canonical encoded project-asset thumbnail URL', () => {
   expect(url).not.toContain('data/');
   expect(assetThumbnailUrl('', 'board-image')).toBeNull();
 });
+
+
+test('shows rulebook browsing only for contextual-capable intents and accepts canonical contextual thumbnails', () => {
+  const onUpdateScene = jest.fn();
+  const overviewManifest = { ...manifest, scenes: [{ ...manifest.scenes[0], title: 'Introduction', visualPlan: { primaryIntent: 'game_overview', primaryComponentRefs: [], supportingComponentRefs: [], selectedAssetIds: [], assetAssignments: [], contextualEvidenceAssignments: [], coverageStatus: 'unresolved', assetCandidates: [], assetReuse: [], reviewState: 'needs_visual_review', selectionMethod: 'unresolved', requiresExplicitVisual: true } }] };
+  render(<StoryboardStep onGenerateStoryboard={jest.fn()} onUpdateScene={onUpdateScene} projectId="abyss-project" images={assets} storyboardManifest={overviewManifest} storyboarding={false} />);
+  expect(screen.getByRole('button', { name: 'Browse rulebook pages for scene-section-01-1' })).toBeInTheDocument();
+  expect(assetThumbnailUrl('abyss-project', { kind: 'contextual_page', id: 'page-1' })).toBe('http://localhost:5001/api/projects/abyss-project/contextual-assets/page-1/file?variant=thumbnail');
+});
+
+test('does not show rulebook browsing for closeup, card, or token intents', () => {
+  const intents = ['component_closeup', 'card_action', 'token_action'];
+  intents.forEach((primaryIntent) => {
+    const { unmount } = render(<StoryboardStep onGenerateStoryboard={jest.fn()} onUpdateScene={jest.fn()} projectId="p" images={assets} storyboardManifest={{ ...manifest, scenes: [{ ...manifest.scenes[0], visualPlan: { primaryIntent, primaryComponentRefs: ['thing'], supportingComponentRefs: [], selectedAssetIds: [], assetAssignments: [], assetCandidates: [], assetReuse: [], reviewState: 'needs_visual_review', selectionMethod: 'unresolved', requiresExplicitVisual: true } }] }} storyboarding={false} />);
+    expect(screen.queryByRole('button', { name: 'Browse rulebook pages for scene-section-01-1' })).not.toBeInTheDocument();
+    unmount();
+  });
+});

@@ -113,6 +113,35 @@ function validateSceneStructure(manifest, contract, bucket) {
   });
 }
 
+function validateContextualEvidenceAssignments(visualPlan, sceneId, bucket) {
+  if (visualPlan.contextualEvidenceAssignments === undefined) return;
+  const assignments = visualPlan.contextualEvidenceAssignments;
+  if (!Array.isArray(assignments)) {
+    pushError(bucket, `Canonical scene ${sceneId} contextual evidence assignments invalid`);
+    return;
+  }
+  const rolesByIntent = {
+    game_overview: ['rulebook_reference'],
+    assembled_tableau: ['rulebook_reference'],
+    board_setup: ['board_setup_context'],
+    rulebook_reference: ['rulebook_reference'],
+  };
+  const allowedRoles = rolesByIntent[visualPlan.primaryIntent] || [];
+  if (assignments.some((assignment) => !assignment
+    || !['contextual_page', 'contextual_crop'].includes(assignment.kind)
+    || typeof assignment.assetId !== 'string' || !assignment.assetId.trim()
+    || typeof assignment.pageId !== 'string' || !assignment.pageId.trim()
+    || !/^[a-f0-9]{64}$/.test(assignment.documentSha256 || '')
+    || !/^[a-f0-9]{64}$/.test(assignment.pageRasterSha256 || '')
+    || typeof assignment.renderProfile !== 'string' || !assignment.renderProfile.trim()
+    || !allowedRoles.includes(assignment.role)
+    || (assignment.kind === 'contextual_page' && assignment.assetId !== assignment.pageId)
+    || (assignment.kind === 'contextual_crop' && (typeof assignment.cropId !== 'string' || !assignment.cropId.trim() || assignment.assetId !== assignment.cropId))
+    || (assignment.role === 'board_setup_context' && (assignment.kind !== 'contextual_crop' || assignment.confirmed !== true)))) {
+    pushError(bucket, `Canonical scene ${sceneId} contextual evidence policy invalid`);
+  }
+}
+
 function validateCanonicalSceneDto(manifest, contract, bucket) {
   if (contract.version !== '1.2.0') return;
   const required = contract.canonicalSceneRequiredFields || [];
@@ -154,6 +183,7 @@ function validateCanonicalSceneDto(manifest, contract, bucket) {
           || !['primary', 'supporting', 'overview', 'brand', 'rulebook_reference'].includes(assignment.role))) {
         pushError(bucket, `Canonical scene ${scene.id || index} visualPlan coverage metadata invalid`);
       }
+      validateContextualEvidenceAssignments(visualPlan, scene.id || index, bucket);
       if (!['approved_component_link', 'operator_selected', 'brand_asset', 'rulebook_reference', 'unresolved'].includes(visualPlan.selectionMethod)) {
         pushError(bucket, `Canonical scene ${scene.id || index} visualPlan selection method invalid`);
       }

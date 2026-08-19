@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { VisualAssetBrowser, roleIsValidForIntent, validRolesForIntent } from '../VisualAssetBrowser';
+import { ContextualEvidenceBrowser, canBrowseContextualEvidence, contextualAssetThumbnailUrl } from '../ContextualEvidenceBrowser';
 
 const TRANSITIONS = ['fade-in', 'slide-left', 'slide-right', 'zoom-on-component', 'highlight-pulse'];
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL !== undefined ? process.env.REACT_APP_BACKEND_URL : '';
@@ -41,10 +42,16 @@ export function preserveVisualDirectionMetadata(existingDirections = [], value =
   }));
 }
 
-export function assetThumbnailUrl(projectId, assetId) {
-  if (!projectId || !assetId) return null;
+export function assetThumbnailUrl(projectId, assetOrId) {
+  if (assetOrId && typeof assetOrId === 'object' && (assetOrId.kind === 'contextual_page' || assetOrId.kind === 'contextual_crop')) {
+    if (contextualAssetThumbnailUrl(assetOrId)) return contextualAssetThumbnailUrl(assetOrId);
+    if (!projectId || !assetOrId.id) return null;
+    const apiOrigin = BACKEND_URL.replace(/\/+$/, '');
+    return `${apiOrigin}/api/projects/${encodeURIComponent(projectId)}/contextual-assets/${encodeURIComponent(assetOrId.id)}/file?variant=thumbnail`;
+  }
+  if (!projectId || !assetOrId) return null;
   const apiOrigin = BACKEND_URL.replace(/\/+$/, '');
-  return `${apiOrigin}/api/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(assetId)}/file?variant=thumbnail`;
+  return `${apiOrigin}/api/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(assetOrId)}/file?variant=thumbnail`;
 }
 
 function VisualAsset({ projectId, asset, assetId }) {
@@ -70,6 +77,7 @@ export function StoryboardStep({
   const scenes = storyboardManifest?.scenes || [];
   const [overrideDrafts, setOverrideDrafts] = useState({});
   const [browserSceneId, setBrowserSceneId] = useState(null);
+  const [contextualBrowserSceneId, setContextualBrowserSceneId] = useState(null);
   const summary = scenes.reduce((result, scene) => {
     const plan = scene.visualPlan || {};
     result.totalDurationMs += Number(scene.durationMs) || 0;
@@ -107,6 +115,36 @@ export function StoryboardStep({
     });
   };
 
+  const updateContextualSelection = (scene, asset, assignment) => {
+    const intent = scene.visualPlan?.primaryIntent || 'operator_defined';
+    if (!canBrowseContextualEvidence(intent) || !asset?.id || !assignment?.role) return;
+    const contextualAssignment = {
+      kind: asset.kind,
+      assetId: asset.id,
+      documentSha256: assignment.documentSha256,
+      pageId: assignment.pageId,
+      pageRasterSha256: assignment.pageRasterSha256,
+      cropId: assignment.cropId,
+      renderProfile: assignment.renderProfile,
+      role: assignment.role,
+      confirmed: assignment.confirmed === true,
+    };
+    const existing = (scene.visualPlan?.contextualEvidenceAssignments || [])
+      .filter((item) => item?.assetId !== contextualAssignment.assetId);
+    const contextualEvidenceAssignments = [...existing, contextualAssignment];
+    onUpdateScene(scene.id, {
+      visualPlan: {
+        ...(scene.visualPlan || {}),
+        contextualEvidenceAssignments,
+        selectionMethod: assignment.role === 'rulebook_reference' ? 'rulebook_reference' : 'operator_selected',
+        overviewSelectionConfirmed: assignment.role === 'rulebook_reference' ? true : scene.visualPlan?.overviewSelectionConfirmed === true,
+        reviewReason: assignment.role === 'board_setup_context'
+          ? 'Operator confirmed canonical contextual board-setup evidence; it does not prove a component closeup.'
+          : 'Operator selected canonical contextual rulebook evidence.',
+      },
+    });
+  };
+
   return <div className="pipeline-section">
     <h3>Storyboard Generation & Review</h3>
     <div className="pipeline-actions"><button onClick={onGenerateStoryboard} disabled={storyboarding}>{storyboarding ? 'Generating storyboard…' : 'Generate storyboard'}</button></div>
@@ -140,6 +178,7 @@ export function StoryboardStep({
             <p><strong>Primary/intent assets:</strong> {satisfyingAssets.length ? satisfyingAssets.map((assetId) => imageById.get(assetId)?.name || assetId).join(', ') : 'none'}</p>
             <p><strong>Supporting assets:</strong> {supportingAssets.length ? supportingAssets.map((assetId) => imageById.get(assetId)?.name || assetId).join(', ') : 'none'}</p>
             <button type="button" aria-label={`Browse project assets for ${scene.id}`} onClick={() => setBrowserSceneId(scene.id)}>Browse current-project visuals</button>
+            {canBrowseContextualEvidence(plan.primaryIntent) && <button type="button" aria-label={`Browse rulebook pages for ${scene.id}`} onClick={() => setContextualBrowserSceneId(scene.id)}>Browse rulebook pages</button>}
           </section>
           <p><strong>Referenced components:</strong> {(plan.componentRefs || []).length ? plan.componentRefs.join(', ') : 'none'}</p>
           <p><strong>Source references:</strong> {(plan.sourceReferences || scene.sources || []).length ? (plan.sourceReferences || scene.sources).map(sourceLabel).join('; ') : 'None'}</p>
@@ -154,6 +193,7 @@ export function StoryboardStep({
               <button type="button" aria-label={`Remove ${assetId} from ${scene.id}`} onClick={() => updateVisualSelection(scene, selectedIds.filter((id) => id !== assetId), plan.selectionMethod)}>Remove</button>
             </div>;
           }) : ' none'}</div>
+          {(plan.contextualEvidenceAssignments || []).length > 0 && <div><strong>Selected contextual evidence:</strong> {(plan.contextualEvidenceAssignments || []).map((assignment) => <div key={`${assignment.kind}:${assignment.assetId}`} style={{ margin: '6px 0' }}>{assetThumbnailUrl(projectId, { kind: assignment.kind, id: assignment.assetId }) ? <img src={assetThumbnailUrl(projectId, { kind: assignment.kind, id: assignment.assetId })} alt={`Contextual ${assignment.kind} ${assignment.assetId} thumbnail`} style={{ width: 52, height: 52, objectFit: 'cover', verticalAlign: 'middle', marginRight: 6 }} /> : <span role="status">Contextual preview unavailable</span>}<span>{assignment.role.replace(/_/g, ' ')} · page {assignment.pageId} · {assignment.confirmed ? 'confirmed' : 'not confirmed'}</span><button type="button" aria-label={`Remove contextual ${assignment.assetId} from ${scene.id}`} onClick={() => onUpdateScene(scene.id, { visualPlan: { ...plan, contextualEvidenceAssignments: (plan.contextualEvidenceAssignments || []).filter((item) => item.assetId !== assignment.assetId) } })}>Remove</button></div>)}</div>}
           <VisualAssetBrowser
             isOpen={browserSceneId === scene.id}
             onClose={() => setBrowserSceneId(null)}
@@ -163,6 +203,14 @@ export function StoryboardStep({
             inventoryStatus={inventoryStatus}
             thumbnailUrlForAsset={(asset) => assetThumbnailUrl(projectId, asset.id)}
             onSelect={(asset, assignment) => updateVisualSelection(scene, [...selectedIds, asset.id], 'operator_selected', { assetId: asset.id, ...assignment })}
+          />
+          <ContextualEvidenceBrowser
+            isOpen={contextualBrowserSceneId === scene.id}
+            onClose={() => setContextualBrowserSceneId(null)}
+            onSelect={(asset, assignment) => updateContextualSelection(scene, asset, assignment)}
+            projectId={projectId}
+            sceneId={scene.id}
+            plan={plan}
           />
           {plan.overviewExceptionAllowed && <label>Overview selection method
             <select aria-label={`Overview method for ${scene.id}`} value={plan.selectionMethod === 'brand_asset' || plan.selectionMethod === 'rulebook_reference' ? plan.selectionMethod : 'brand_asset'} onChange={(event) => onUpdateScene(scene.id, {

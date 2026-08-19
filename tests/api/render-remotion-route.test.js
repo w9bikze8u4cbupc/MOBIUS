@@ -564,4 +564,40 @@ test('rejects repeated non-brand assets even if persisted reuse annotations are 
   expect(runRemotionRender).not.toHaveBeenCalled();
 });
 
+test('requires server-resolved contextual provenance before a contextual visual can render', async () => {
+  const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+  const runRemotionRender = jest.fn();
+  const contextualEvidence = { resolveAssignment: jest.fn(async () => { throw new Error('unavailable'); }) };
+  const app = loadTestApp(outputDirectory, { runRemotionRender, contextualEvidence });
+  server = await startServer(app);
+  const contextualAssignment = {
+    kind: 'contextual_page', assetId: 'page-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', pageId: 'page-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    documentSha256: 'a'.repeat(64), pageRasterSha256: 'b'.repeat(64), renderProfile: 'pdf-to-img-review-144dpi-png-v1',
+    role: 'rulebook_reference', confirmed: false,
+  };
+  const scene = {
+    id: 'scene-contextual', storyboardVersion: '1.2.0', narrationText: 'Refer to the rulebook.', durationInFrames: 90,
+    imageAssetIds: [], imageUrls: [],
+    visualPlan: {
+      requiresExplicitVisual: true, reviewState: 'resolved', selectedAssetIds: [], assetAssignments: [], assetReuse: [],
+      selectionMethod: 'rulebook_reference', overviewExceptionAllowed: true, overviewSelectionConfirmed: true,
+      primaryIntent: 'game_overview', primaryComponentRefs: [], supportingComponentRefs: [], coverageStatus: 'resolved',
+      coverageReason: 'Verified contextual reference.', coverageEvidence: [], contextualEvidenceAssignments: [contextualAssignment],
+    },
+  };
+  const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Unresolved contextual provenance', metadata: {}, components: [], images: [], script: '', audio: '', scenes: [scene] }),
+  });
+  const savedProject = await saveResponse.json();
+  const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: savedProject.projectId }),
+  });
+  expect(renderResponse.status).toBe(400);
+  await expect(renderResponse.json()).resolves.toEqual(expect.objectContaining({ code: 'VISUAL_PLAN_INCOMPLETE' }));
+  expect(contextualEvidence.resolveAssignment).toHaveBeenCalledWith(String(savedProject.projectId), contextualAssignment);
+  expect(runRemotionRender).not.toHaveBeenCalled();
+});
+
+
 });

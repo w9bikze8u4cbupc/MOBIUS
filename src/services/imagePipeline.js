@@ -207,6 +207,13 @@ async function fetchBggImages(projectId, bggIdOrUrl) {
   return candidates.map((c) => normalizeImageAsset({ ...c }));
 }
 
+export async function renderPdfPages(pdfFileKeyOrPath) {
+  if (!pdfFileKeyOrPath) {
+    throw new Error('pdfFileKeyOrPath is required');
+  }
+  return pdfToImg.pdf(pdfFileKeyOrPath);
+}
+
 async function extractRulebookImages(projectId, pdfFileKeyOrPath) {
   if (!pdfFileKeyOrPath) {
     throw new Error('pdfFileKeyOrPath is required');
@@ -215,7 +222,7 @@ async function extractRulebookImages(projectId, pdfFileKeyOrPath) {
   const outputDir = path.join(process.cwd(), 'data', 'rulebook-images', String(projectId));
   await fsPromises.mkdir(outputDir, { recursive: true });
 
-  const pdfResult = await pdfToImg.pdf(pdfFileKeyOrPath);
+  const pdfResult = await renderPdfPages(pdfFileKeyOrPath);
   const images = [];
   let pageIndex = 0;
   for await (const page of pdfResult) {
@@ -424,6 +431,7 @@ export {
   prepareImagesForRenderer,
   SUPPORTED_IMAGE_EXTENSIONS,
   fetchBggImages,
+  renderPdfPages,
   extractRulebookImages,
   ingestManualImage,
   runImageEnhancement,
