@@ -85,7 +85,9 @@ jest.mock('./components/steps/StoryboardStep', () => ({
     </>
   ),
 }));
-jest.mock('./components/steps/VoiceStep', () => ({ VoiceStep: () => null }));
+jest.mock('./components/steps/VoiceStep', () => ({
+  VoiceStep: ({ onPlayAudio }) => <button type="button" onClick={() => onPlayAudio('Preview narration', 0)}>Generate voice preview</button>,
+}));
 jest.mock('./components/steps/RenderExportStep', () => ({ RenderExportStep: () => null }));
 
 beforeEach(() => {
@@ -575,6 +577,89 @@ async function createStoryboardIngestionManifest(context) {
     assets: { pages: pageHashes, components: [{ id: 'comp-setup', hash: 'validated-component-hash' }] },
   };
 }
+
+async function createImageHandoffContext({ images, componentImageLinks = {}, componentImageLinkDetails = {} } = {}) {
+  const context = {
+    projectId: 'abyss-image-handoff', gameName: 'Abyss', language: 'english',
+    rulebookText: 'Setup\nPlace the board.', components: [{ id: 'board', name: 'Board' }],
+    images, componentImageLinks, componentImageLinkDetails,
+    activeStepId: 'images', completedStepIds: ['project', 'metadata', 'ingestion'],
+  };
+  return { ...context, ingestionManifest: await createStoryboardIngestionManifest(context) };
+}
+
+test('confirms a valid ingested image inventory with zero links and persists storyboard-review handoff status', async () => {
+  const context = await createImageHandoffContext({
+    images: [{ id: 'curated-board', curation: { candidate: true } }],
+  });
+  saveProjectContext(window.localStorage, context);
+  axios.get.mockResolvedValue({ data: { images: context.images, componentImages: {}, componentImageLinkDetails: {} } });
+
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: /Confirm Images & Continue/i }));
+
+  await waitFor(() => expect(loadLatestProjectContext(window.localStorage)).toMatchObject({
+    activeStepId: 'script', completedStepIds: expect.arrayContaining(['images']),
+    imageReviewStatus: {
+      status: 'pending_visual_storyboard_review', inventoryAssetCount: 1, curatedCandidateCount: 1,
+      approvedLinkCount: 0, unresolvedComponentCount: 1,
+    },
+    componentImageLinks: {}, storyboardManifest: null,
+  }));
+  expect(screen.getByTestId('script-readiness')).toHaveTextContent('ready');
+});
+
+test('keeps Images blocked with a typed recoverable state when valid ingestion has no inventory', async () => {
+  const context = await createImageHandoffContext({ images: [] });
+  saveProjectContext(window.localStorage, context);
+  axios.get.mockResolvedValue({ data: { images: [], componentImages: {}, componentImageLinkDetails: {} } });
+
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: /Confirm Images & Continue/i }));
+
+  expect(await screen.findByText(/IMAGE_INVENTORY_REQUIRED/)).toBeInTheDocument();
+  expect(loadLatestProjectContext(window.localStorage)).toMatchObject({
+    activeStepId: 'images', completedStepIds: ['project', 'metadata', 'ingestion'], imageReviewStatus: null,
+  });
+});
+
+test('retains the Images handoff behavior for legacy approved component links', async () => {
+  const context = await createImageHandoffContext({
+    images: [{ id: 'legacy-board', curation: { candidate: true } }],
+    componentImageLinks: { board: ['legacy-board'] },
+    componentImageLinkDetails: { board: { 'legacy-board': { origin: 'legacy' } } },
+  });
+  saveProjectContext(window.localStorage, context);
+  axios.get.mockResolvedValue({ data: { images: context.images, componentImages: context.componentImageLinks, componentImageLinkDetails: context.componentImageLinkDetails } });
+
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: /Confirm Images & Continue/i }));
+
+  await waitFor(() => expect(loadLatestProjectContext(window.localStorage)).toMatchObject({
+    activeStepId: 'script',
+    imageReviewStatus: { approvedLinkCount: 1, unresolvedComponentCount: 0 },
+    componentImageLinks: { board: ['legacy-board'] },
+  }));
+});
+
+test('blocks Voice/TTS for an unresolved required storyboard visual plan before any provider request', async () => {
+  saveProjectContext(window.localStorage, {
+    projectId: 'abyss-voice-visual-gate', gameName: 'Abyss', language: 'english', rulebookText: 'Setup',
+    components: [{ id: 'board', name: 'Board' }], images: [{ id: 'board-image' }], componentImageLinks: {},
+    storyboardManifest: {
+      version: '1.2.0',
+      scenes: [{ id: 'scene-board', title: 'Board setup', visualDirections: [{ instruction: 'Show the board.', componentRefs: ['board'] }], imageAssetIds: [] }],
+    },
+    activeStepId: 'voice', completedStepIds: ['project', 'metadata', 'ingestion', 'images', 'script', 'storyboard'],
+  });
+  axios.get.mockResolvedValue({ data: { images: [{ id: 'board-image' }], componentImages: {}, componentImageLinkDetails: {} } });
+
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Generate voice preview' }));
+
+  expect(await screen.findByText('VISUAL_PLAN_INCOMPLETE')).toBeInTheDocument();
+  expect(axios.post).not.toHaveBeenCalled();
+});
 
 test('hydrates a matching persisted manifest and sends it with the validated script package to storyboard', async () => {
   const context = {

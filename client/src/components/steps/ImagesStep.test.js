@@ -19,6 +19,22 @@ beforeEach(() => {
   axios.post.mockReset();
 });
 
+test('shows a pending storyboard-review summary without treating zero links as visual coverage', () => {
+  render(
+    <ImagesStep
+      projectId="abyss-image-review"
+      pdfFile={pdfFile}
+      imageReviewSummary={{ curatedCandidateCount: 144, approvedLinkCount: 0, unresolvedComponentCount: 9 }}
+      imageReviewStatus={{ status: 'pending_visual_storyboard_review' }}
+    />
+  );
+
+  expect(screen.getByText('144 curated candidates / 0 approved links / 9 components awaiting storyboard review')).toBeInTheDocument();
+  expect(screen.getByText(/No component links have been approved yet/i)).toBeInTheDocument();
+  expect(screen.getByText(/next review gate is Storyboard/i)).toBeInTheDocument();
+  expect(screen.getByText(/not visual-coverage approval/i)).toBeInTheDocument();
+});
+
 test('shows explicit readiness errors and disables both image actions when project ID is missing', () => {
   render(<ImagesStep pdfFile={pdfFile} />);
 

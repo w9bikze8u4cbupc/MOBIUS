@@ -25,6 +25,7 @@ import {
   applyStoryboardSceneEdit,
   buildDeterministicIngestionPages,
   buildScriptGenerationRequest,
+  createImageReviewStatus,
   createPersistedProjectContext,
   getIngestionDocumentId,
   getScriptInputReadiness,
@@ -37,6 +38,7 @@ import {
   SCRIPT_PROVENANCE,
   saveProjectContext,
   scriptPackageToEditableNarration,
+  summarizeImageReview,
   validateMatchingIngestionManifest,
   validateStoryboardReview,
 } from "./projectContext";
@@ -349,6 +351,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   const [projectImages, setProjectImages] = useState([]);
   const [componentImageLinks, setComponentImageLinks] = useState({});
   const [componentImageLinkDetails, setComponentImageLinkDetails] = useState({});
+  const [imageReviewStatus, setImageReviewStatus] = useState(null);
   const [extractingName, setExtractingName] = useState(false);
   const [bggLookupLoading, setBggLookupLoading] = useState(false);
   const [metadataWarning, setMetadataWarning] = useState('');
@@ -443,6 +446,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       setProjectImages(context.images);
       setComponentImageLinks(context.componentImageLinks);
       setComponentImageLinkDetails(context.componentImageLinkDetails || {});
+      setImageReviewStatus(context.imageReviewStatus || null);
       setSummary(context.script);
       setGeneratedScript(context.generatedScript);
       setScriptProvenance(context.scriptProvenance);
@@ -550,6 +554,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       images: projectImages,
       componentImageLinks,
       componentImageLinkDetails,
+      imageReviewStatus,
       script: editedSummary || summary,
       scriptPackage,
       generatedScript,
@@ -564,6 +569,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     completedStepIds,
     componentImageLinks,
     componentImageLinkDetails,
+    imageReviewStatus,
     editedSummary,
     gameComponents,
     gameName,
@@ -592,6 +598,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       setProjectImages([]);
       setComponentImageLinks({});
       setComponentImageLinkDetails({});
+      setImageReviewStatus(null);
     }
   }, [projectId]);
 
@@ -872,6 +879,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setComponentExtraction(null);
     setRulebookPages([]);
     setCompletedStepIds([]);
+    setImageReviewStatus(null);
     setMetadata({ publisher: "", playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "" });
     setShowThemePrompt(false);
     setError("");
@@ -1078,6 +1086,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           images: projectImages,
           componentImageLinks,
           componentImageLinkDetails,
+          imageReviewStatus,
           script: editedSummary || summary,
           scriptPackage,
           generatedScript,
@@ -1186,6 +1195,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         images: projectImages,
         componentImageLinks,
         componentImageLinkDetails,
+        imageReviewStatus,
         script,
         scriptPackage,
         generatedScript,
@@ -1666,11 +1676,26 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         break;
       }
       case "images": {
-        const hasLinked = Object.values(componentImageLinks || {}).some((links) => (links || []).length > 0);
-        if (!hasLinked) {
-          setError("Link at least one image to a component before confirming.");
+        const validation = await validateMatchingIngestionManifest(ingestionManifest, {
+          projectId,
+          gameName,
+          rulebookText,
+        });
+        if (!validation.valid) {
+          setError(validation.code);
           return;
         }
+        const reviewStatus = createImageReviewStatus({
+          images: projectImages,
+          componentImageLinks,
+          componentImageLinkDetails,
+          components: gameComponents,
+        });
+        if (reviewStatus.inventoryAssetCount === 0) {
+          setError('IMAGE_INVENTORY_REQUIRED: Load and review at least one project image before continuing.');
+          return;
+        }
+        setImageReviewStatus(reviewStatus);
         setError("");
         setAndAdvance();
         break;
@@ -1726,6 +1751,12 @@ const fileInputRef = useRef(); // Ref for the hidden file input
   const effectiveScript = editedSummary.trim();
   const canConfirmScript = Boolean(effectiveScript)
     && isTrustedScriptProvenance(scriptProvenance);
+  const imageReviewSummary = summarizeImageReview({
+    images: projectImages,
+    componentImageLinks,
+    componentImageLinkDetails,
+    components: gameComponents,
+  });
   const scriptInputReadiness = getScriptInputReadiness({
     projectId,
     gameName,
@@ -1815,6 +1846,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               components={gameComponents}
               images={projectImages}
               componentImages={componentImageLinks}
+              imageReviewSummary={imageReviewSummary}
+              imageReviewStatus={imageReviewStatus}
               onImagesUpdated={({ images, componentImages, componentImageLinkDetails }) => {
                 setProjectImages(images || []);
                 setComponentImageLinks(componentImages || {});

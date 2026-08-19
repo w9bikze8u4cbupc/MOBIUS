@@ -79,6 +79,8 @@ export function ImagesStep({
   components = [], 
   images = [], 
   componentImages = {}, 
+  imageReviewSummary = null,
+  imageReviewStatus = null,
   onImagesUpdated,
   gameName = '',
   bggUrl = '',
@@ -139,6 +141,11 @@ export function ImagesStep({
     return image.source !== 'hephaestus' || curation?.candidate !== false;
   }), [localImages]);
   const rawHephaestusImages = useMemo(() => (localImages || []).filter((image) => image.source === 'hephaestus'), [localImages]);
+  const reviewSummary = useMemo(() => imageReviewSummary || {
+    curatedCandidateCount: curatedImages.length,
+    approvedLinkCount: Object.values(localLinks || {}).reduce((count, links) => count + new Set(Array.isArray(links) ? links : []).size, 0),
+    unresolvedComponentCount: matchingComponents.filter((component) => !(localLinks?.[component.id] || []).length).length,
+  }, [curatedImages.length, imageReviewSummary, localLinks, matchingComponents]);
 
   const groupedImages = useMemo(() => {
     return curatedImages.reduce((acc, img) => {
@@ -599,6 +606,15 @@ export function ImagesStep({
         Gather images from the PDF rulebook, BoardGameGeek, and other sources. 
         Then match them to your game components for the tutorial.
       </p>
+      <section
+        aria-label="Image storyboard review summary"
+        style={{ marginBottom: 20, padding: 14, borderRadius: 8, background: '#fff8e1', border: '1px solid #f0c36d', fontSize: 14 }}
+      >
+        <strong>{reviewSummary.curatedCandidateCount || 0} curated candidates / {reviewSummary.approvedLinkCount || 0} approved links / {reviewSummary.unresolvedComponentCount || 0} components awaiting storyboard review</strong>
+        {reviewSummary.approvedLinkCount === 0 && <p style={{ margin: '8px 0 0' }}>No component links have been approved yet. Nothing will be selected automatically to satisfy this workflow step.</p>}
+        <p style={{ margin: '8px 0 0' }}>The next review gate is Storyboard, where intent-specific visual selection and contextual rulebook pages are available. Voice and release rendering remain blocked until required scene coverage is resolved or explicitly documented.</p>
+        {imageReviewStatus?.status === 'pending_visual_storyboard_review' && <p style={{ margin: '8px 0 0' }}>Images have been handed off for scene-by-scene storyboard review; this is not visual-coverage approval.</p>}
+      </section>
 
       {/* Image extraction readiness */}
       <div

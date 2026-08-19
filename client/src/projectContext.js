@@ -1,6 +1,6 @@
 import { contextualEvidenceAssignmentIsAllowed, validateStoryboardVisualPlans } from './storyboardVisualPlan';
 
-export const PROJECT_CONTEXT_VERSION = 5;
+export const PROJECT_CONTEXT_VERSION = 6;
 export const SCRIPT_PROVENANCE = Object.freeze({
   MANUAL: 'manual',
   GENERATED_SOURCE_COMPLETE: 'generated_source_complete',
@@ -26,6 +26,65 @@ const CANONICAL_RECOVERY_PROJECT_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function asTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+export const IMAGE_REVIEW_STATUS = Object.freeze({
+  PENDING_VISUAL_STORYBOARD_REVIEW: 'pending_visual_storyboard_review',
+});
+
+function isCuratedImageCandidate(image) {
+  const curation = image?.curation || image?.metadata?.curation || {};
+  return image && curation.candidate !== false && !curation.isDuplicate && !curation.lowInformation;
+}
+
+function isApprovedImageReviewLink(detail) {
+  if (!detail || typeof detail !== 'object') return true; // Preserve legacy approved links.
+  if (detail.origin === 'manual' || detail.origin === 'legacy') return true;
+  return detail.origin === 'auto' && Number(detail.confidence) >= 0.9;
+}
+
+export function summarizeImageReview({ images = [], componentImageLinks = {}, componentImageLinkDetails = {}, components = [] } = {}) {
+  const inventory = Array.isArray(images) ? images.filter((image) => image?.id) : [];
+  const approvedComponentIds = new Set();
+  let approvedLinkCount = 0;
+  Object.entries(componentImageLinks && typeof componentImageLinks === 'object' ? componentImageLinks : {}).forEach(([componentId, assetIds]) => {
+    [...new Set(Array.isArray(assetIds) ? assetIds.filter((assetId) => typeof assetId === 'string' && assetId) : [])].forEach((assetId) => {
+      if (!isApprovedImageReviewLink(componentImageLinkDetails?.[componentId]?.[assetId])) return;
+      approvedLinkCount += 1;
+      approvedComponentIds.add(componentId);
+    });
+  });
+  const componentIds = (Array.isArray(components) ? components : [])
+    .map((component) => asTrimmedString(component?.id) || asTrimmedString(component?.name))
+    .filter(Boolean);
+  return {
+    inventoryAssetCount: inventory.length,
+    curatedCandidateCount: inventory.filter(isCuratedImageCandidate).length,
+    approvedLinkCount,
+    unresolvedComponentCount: componentIds.filter((componentId) => !approvedComponentIds.has(componentId)).length,
+  };
+}
+
+export function createImageReviewStatus(context = {}, reviewedAt = new Date().toISOString()) {
+  return {
+    status: IMAGE_REVIEW_STATUS.PENDING_VISUAL_STORYBOARD_REVIEW,
+    ...summarizeImageReview(context),
+    reviewedAt: asTrimmedString(reviewedAt),
+  };
+}
+
+function normalizeImageReviewStatus(value) {
+  if (!value || value.status !== IMAGE_REVIEW_STATUS.PENDING_VISUAL_STORYBOARD_REVIEW) return null;
+  const fields = ['inventoryAssetCount', 'curatedCandidateCount', 'approvedLinkCount', 'unresolvedComponentCount'];
+  if (!fields.every((field) => Number.isInteger(value[field]) && value[field] >= 0)) return null;
+  return {
+    status: IMAGE_REVIEW_STATUS.PENDING_VISUAL_STORYBOARD_REVIEW,
+    inventoryAssetCount: value.inventoryAssetCount,
+    curatedCandidateCount: value.curatedCandidateCount,
+    approvedLinkCount: value.approvedLinkCount,
+    unresolvedComponentCount: value.unresolvedComponentCount,
+    reviewedAt: asTrimmedString(value.reviewedAt),
+  };
 }
 
 export function isCanonicalRecoveryProjectId(value) {
@@ -328,6 +387,7 @@ export function createPersistedProjectContext(context) {
     metadata: context.metadata && typeof context.metadata === 'object' ? context.metadata : {}, images: Array.isArray(context.images) ? context.images : [],
     componentImageLinks: context.componentImageLinks && typeof context.componentImageLinks === 'object' ? context.componentImageLinks : {},
     componentImageLinkDetails: context.componentImageLinkDetails && typeof context.componentImageLinkDetails === 'object' ? context.componentImageLinkDetails : {},
+    imageReviewStatus: normalizeImageReviewStatus(context.imageReviewStatus),
     visualPlanPolicy: context.visualPlanPolicy && typeof context.visualPlanPolicy === 'object' ? context.visualPlanPolicy : { allowAutomaticComponentLinks: false },
     ingestionManifest: context.ingestionManifest && typeof context.ingestionManifest === 'object' && !Array.isArray(context.ingestionManifest) ? context.ingestionManifest : null,
     storyboardManifest: context.storyboardManifest && typeof context.storyboardManifest === 'object' && !Array.isArray(context.storyboardManifest) ? context.storyboardManifest : null,
@@ -338,7 +398,7 @@ export function createPersistedProjectContext(context) {
 
 export function hydrateProjectContext(value) {
   const context = value && typeof value === 'object' ? value : null;
-  if (!context || ![1, 2, 3, 4, PROJECT_CONTEXT_VERSION].includes(context.version) || !asTrimmedString(context.projectId)) return null;
+  if (!context || ![1, 2, 3, 4, 5, PROJECT_CONTEXT_VERSION].includes(context.version) || !asTrimmedString(context.projectId)) return null;
   return createPersistedProjectContext(context);
 }
 

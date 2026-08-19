@@ -2,6 +2,7 @@ import { TextEncoder } from 'util';
 import { webcrypto } from 'crypto';
 import {
   buildDeterministicIngestionPages,
+  createImageReviewStatus,
   applyStoryboardSceneEdit,
   buildScriptGenerationRequest,
   getIngestionDocumentId,
@@ -67,6 +68,29 @@ Object.defineProperty(globalThis, 'TextEncoder', { configurable: true, value: Te
         components,
         metadata: context.metadata,
       },
+    });
+  });
+
+  test('persists a reviewed image inventory handoff without approving component coverage', () => {
+    const imageReviewStatus = createImageReviewStatus({
+      images: [{ id: 'curated-card', curation: { candidate: true } }, { id: 'decorative', curation: { candidate: false } }],
+      componentImageLinks: {},
+      componentImageLinkDetails: {},
+      components: [{ id: 'cards', name: 'Cards' }, { id: 'board', name: 'Board' }],
+    }, '2026-08-19T00:00:00.000Z');
+    saveProjectContext(window.localStorage, {
+      projectId: 'image-review-handoff', gameName: 'Abyss', language: 'english',
+      rulebookText: 'Approved rulebook text', components: [{ id: 'cards', name: 'Cards' }, { id: 'board', name: 'Board' }],
+      images: [{ id: 'curated-card', curation: { candidate: true } }, { id: 'decorative', curation: { candidate: false } }],
+      componentImageLinks: {}, imageReviewStatus, activeStepId: 'script', completedStepIds: ['images'],
+    });
+
+    expect(loadLatestProjectContext(window.localStorage)).toMatchObject({
+      imageReviewStatus: {
+        status: 'pending_visual_storyboard_review', inventoryAssetCount: 2, curatedCandidateCount: 1,
+        approvedLinkCount: 0, unresolvedComponentCount: 2, reviewedAt: '2026-08-19T00:00:00.000Z',
+      },
+      componentImageLinks: {},
     });
   });
 
