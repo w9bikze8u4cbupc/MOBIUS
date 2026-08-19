@@ -432,3 +432,27 @@ test('persists visual-plan selections and keeps foreign asset IDs non-confirmabl
   const foreign = { ...hydrated.storyboardManifest, scenes: [{ ...hydrated.storyboardManifest.scenes[0], imageAssetIds: ['foreign-image'], visualPlan: { ...hydrated.storyboardManifest.scenes[0].visualPlan, selectedAssetIds: ['foreign-image'] } }] };
   expect(validateStoryboardReview(foreign, hydrated.images)).toMatchObject({ valid: false });
 });
+
+
+test('persists visual requirement coverage and documented overrides through edit and reload', () => {
+  const manifest = {
+    version: '1.2.0',
+    scenes: [{
+      id: 'coverage-scene', index: 0, order: 1, sectionId: 'section-01', title: 'Completed tableau', spokenText: 'End the game.', wordCount: 3,
+      estimatedDurationMs: 1200, durationMs: 1200, durationSec: 1.2, transition: 'fade-in', visualDirections: [], sources: [{ section: 1, startOffset: 0, endOffset: 10 }],
+      imageAssetIds: ['end-card'], visualReviewState: 'matched', status: 'draft', reviewNotes: '', timing: { startMs: 0, endMs: 1200 },
+      visualPlan: {
+        componentRefs: [], componentRefMatches: [], primaryIntent: 'assembled_tableau', primaryComponentRefs: [], supportingComponentRefs: [],
+        coverageStatus: 'operator_override', coverageReason: 'Operator override: approved title card.', coverageEvidence: [],
+        assetAssignments: [{ assetId: 'end-card', role: 'overview', componentId: null }], assetReuse: [], operatorOverride: { reason: 'Approved title card represents the completed game.' },
+        sourceReferences: [], assetCandidates: [], selectedAssetIds: ['end-card'], selectionMethod: 'operator_selected', reviewState: 'resolved', reviewReason: 'Operator override.', requiresExplicitVisual: true, overviewExceptionAllowed: true, overviewSelectionConfirmed: false,
+      },
+    }],
+  };
+  const edited = applyStoryboardSceneEdit(manifest, 'coverage-scene', { reviewNotes: 'Reviewed final tableau coverage.' });
+  saveProjectContext(window.localStorage, { version: 5, projectId: 'coverage-reload', gameName: 'Abyss', language: 'english', rulebookText: 'End', images: [{ id: 'end-card' }], storyboardManifest: edited });
+  const restored = loadLatestProjectContext(window.localStorage).storyboardManifest.scenes[0];
+  expect(restored.visualPlan).toMatchObject({ primaryIntent: 'assembled_tableau', coverageStatus: 'operator_override', operatorOverride: { reason: 'Approved title card represents the completed game.' } });
+  expect(restored.visualPlan.assetAssignments).toEqual([{ assetId: 'end-card', role: 'overview', componentId: null }]);
+  expect(restored.reviewNotes).toBe('Reviewed final tableau coverage.');
+});

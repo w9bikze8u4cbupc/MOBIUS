@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 const TRANSITIONS = ['fade-in', 'slide-left', 'slide-right', 'zoom-on-component', 'highlight-pulse'];
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL !== undefined ? process.env.REACT_APP_BACKEND_URL : '';
@@ -65,32 +65,39 @@ export function StoryboardStep({
   storyboarding,
 }) {
   const scenes = storyboardManifest?.scenes || [];
+  const [overrideDrafts, setOverrideDrafts] = useState({});
   const summary = scenes.reduce((result, scene) => {
     const plan = scene.visualPlan || {};
     result.totalDurationMs += Number(scene.durationMs) || 0;
-    if (plan.reviewState === 'resolved') result.resolved += 1;
+    result[plan.coverageStatus || 'unresolved'] = (result[plan.coverageStatus || 'unresolved'] || 0) + 1;
     if (plan.reviewState === 'blocked') result.blocked += 1;
-    if (plan.reviewState !== 'resolved' && plan.reviewState !== 'blocked') result.unresolved += 1;
     if (plan.selectionMethod === 'approved_component_link') result.approvedComponentLinked += 1;
     if (plan.selectionMethod === 'operator_selected') result.operatorSelected += 1;
-    if (plan.overviewExceptionAllowed && plan.reviewState === 'resolved') result.overviewExceptions += 1;
+    if ((plan.assetReuse || []).some((reuse) => reuse.exceedsThreshold)) result.reuseWarnings += 1;
     return result;
-  }, { totalDurationMs: 0, resolved: 0, unresolved: 0, blocked: 0, approvedComponentLinked: 0, operatorSelected: 0, overviewExceptions: 0 });
+  }, { totalDurationMs: 0, resolved: 0, partial: 0, unresolved: 0, operator_override: 0, blocked: 0, approvedComponentLinked: 0, operatorSelected: 0, reuseWarnings: 0 });
   const imageById = new Map(images.filter((image) => image?.id).map((image) => [image.id, image]));
 
-  const updateVisualSelection = (scene, selectedAssetIds, selectionMethod) => onUpdateScene(scene.id, {
-    imageAssetIds: selectedAssetIds,
-    visualReviewState: selectedAssetIds.length ? 'matched' : 'needs_visual_review',
-    visualPlan: {
-      ...(scene.visualPlan || {}),
-      selectedAssetIds,
-      selectionMethod: selectedAssetIds.length ? selectionMethod : 'unresolved',
-      reviewState: selectedAssetIds.length ? 'resolved' : 'needs_visual_review',
-      reviewReason: selectedAssetIds.length ? 'Operator selected a project-owned visual asset.' : 'No selected visual asset.',
-      overviewSelectionConfirmed: scene.visualPlan?.overviewExceptionAllowed ? false : scene.visualPlan?.overviewSelectionConfirmed === true,
-      manualSelectionReviewed: selectedAssetIds.length === 0,
-    },
-  });
+  const updateVisualSelection = (scene, selectedAssetIds, selectionMethod, assignment = null) => {
+    const existingAssignments = (scene.visualPlan?.assetAssignments || []).filter((item) => selectedAssetIds.includes(item.assetId));
+    const assetAssignments = assignment
+      ? [...existingAssignments.filter((item) => item.assetId !== assignment.assetId), assignment]
+      : existingAssignments;
+    onUpdateScene(scene.id, {
+      imageAssetIds: selectedAssetIds,
+      visualReviewState: selectedAssetIds.length ? 'matched' : 'needs_visual_review',
+      visualPlan: {
+        ...(scene.visualPlan || {}),
+        selectedAssetIds,
+        assetAssignments,
+        selectionMethod: selectedAssetIds.length ? selectionMethod : 'unresolved',
+        reviewState: selectedAssetIds.length ? 'resolved' : 'needs_visual_review',
+        reviewReason: selectedAssetIds.length ? 'Operator selected a project-owned visual asset for review.' : 'No selected visual asset.',
+        overviewSelectionConfirmed: scene.visualPlan?.overviewExceptionAllowed ? false : scene.visualPlan?.overviewSelectionConfirmed === true,
+        manualSelectionReviewed: selectedAssetIds.length === 0,
+      },
+    });
+  };
 
   return (
     <div className="pipeline-section">
@@ -105,7 +112,7 @@ export function StoryboardStep({
         <div className="pipeline-section">
           <h4>Storyboard visual review</h4>
           <p data-testid="storyboard-summary">
-            {scenes.length} scenes · {formatDuration(summary.totalDurationMs)} estimated · {summary.resolved} resolved · {summary.unresolved} unresolved · {summary.blocked} blocked · {summary.approvedComponentLinked} approved component-linked · {summary.operatorSelected} operator-selected · {summary.overviewExceptions} branded overview/outro exceptions
+            {scenes.length} scenes · {formatDuration(summary.totalDurationMs)} estimated · {summary.resolved} resolved by primary evidence · {summary.partial} partial · {summary.unresolved} unresolved · {summary.operator_override} operator overrides · {summary.blocked} blocked · {summary.reuseWarnings} reuse warnings
           </p>
           {storyboardManifest.durationWarning && <p style={{ color: '#9c6500' }}>{storyboardManifest.durationWarning}</p>}
           {scenes.map((scene) => {
@@ -146,16 +153,29 @@ export function StoryboardStep({
                   visualDirections: preserveVisualDirectionMetadata(scene.visualDirections, event.target.value),
                 })} rows={2} style={{ width: '100%' }} />
               </label>
+              <p><strong>Primary visual intent:</strong> {plan.primaryIntent || 'operator_defined'}</p>
+              <p><strong>Primary requirements:</strong> {(plan.primaryComponentRefs || []).length ? plan.primaryComponentRefs.join(', ') : 'explicit overview/brand/rulebook evidence'}</p>
+              <p><strong>Supporting requirements:</strong> {(plan.supportingComponentRefs || []).length ? plan.supportingComponentRefs.join(', ') : 'none'}</p>
+              <p><strong>Coverage:</strong> {plan.coverageStatus === 'resolved' ? 'Resolved by primary evidence' : plan.coverageStatus === 'partial' ? 'Partial — primary visual still missing' : plan.coverageStatus === 'operator_override' ? 'Resolved by documented operator override' : plan.coverageStatus || 'Unresolved'} · {plan.coverageReason || plan.reviewReason}</p>
               <p><strong>Referenced components:</strong> {(plan.componentRefs || []).length ? plan.componentRefs.join(', ') : 'none'}</p>
               <p><strong>Source references:</strong> {(plan.sourceReferences || scene.sources || []).length ? (plan.sourceReferences || scene.sources).map(sourceLabel).join('; ') : 'None'}</p>
               <p><strong>Visual plan:</strong> {plan.reviewState} · {plan.selectionMethod} · {plan.reviewReason}</p>
-              <p><strong>Selected visual assets:</strong> {selectedIds.length ? selectedIds.map((assetId) => <span key={assetId}><VisualAsset projectId={projectId} assetId={assetId} label={imageById.get(assetId)?.name || assetId} /><button type="button" aria-label={`Remove ${assetId} from ${scene.id}`} onClick={() => updateVisualSelection(scene, selectedIds.filter((id) => id !== assetId), plan.selectionMethod)}>Remove</button></span>) : 'none'}</p>
+              <p><strong>Selected visual assets:</strong> {selectedIds.length ? selectedIds.map((assetId) => {
+                const assignment = (plan.assetAssignments || []).find((item) => item.assetId === assetId) || { role: 'supporting', componentId: null };
+                const reuse = (plan.assetReuse || []).find((item) => item.assetId === assetId);
+                return <span key={assetId}><VisualAsset projectId={projectId} assetId={assetId} label={imageById.get(assetId)?.name || assetId} />
+                  <label>role <select aria-label={`Role for ${assetId} in ${scene.id}`} value={assignment.role} onChange={(event) => onUpdateScene(scene.id, { visualPlan: { ...plan, assetAssignments: [...(plan.assetAssignments || []).filter((item) => item.assetId !== assetId), { ...assignment, assetId, role: event.target.value }] } })}>
+                    <option value="primary">primary</option><option value="supporting">supporting</option><option value="overview">overview</option><option value="brand">brand</option><option value="rulebook_reference">rulebook reference</option>
+                  </select></label>
+                  {reuse?.exceedsThreshold && <span style={{ color: '#9c6500' }}> · reuse warning: {reuse.count}/{reuse.threshold}</span>}
+                  <button type="button" aria-label={`Remove ${assetId} from ${scene.id}`} onClick={() => updateVisualSelection(scene, selectedIds.filter((id) => id !== assetId), plan.selectionMethod)}>Remove</button></span>;
+              }) : 'none'}</p>
               {Object.entries(candidatesByComponent).map(([componentId, candidates]) => <div key={componentId} style={{ marginBottom: 8 }}>
                 <strong>Candidate assets for {componentId}</strong>
                 {candidates.map((candidate) => <div key={`${candidate.componentId}-${candidate.assetId}`} style={{ margin: '6px 0' }}>
                   <VisualAsset projectId={projectId} assetId={candidate.assetId} label={imageById.get(candidate.assetId)?.name || candidate.assetId} />
                   <span>{candidate.source}{candidate.approved ? ' · approved component link' : ' · curated suggestion'}</span>
-                  <button type="button" aria-label={`Use ${candidate.assetId} for ${scene.id}`} onClick={() => updateVisualSelection(scene, [...new Set([...selectedIds, candidate.assetId])], candidate.approved ? 'approved_component_link' : 'operator_selected')}>Use visual</button>
+                  <button type="button" aria-label={`Use ${candidate.assetId} for ${scene.id}`} onClick={() => updateVisualSelection(scene, [...new Set([...selectedIds, candidate.assetId])], candidate.approved ? 'approved_component_link' : 'operator_selected', { assetId: candidate.assetId, role: candidate.requirementRole === 'primary' ? 'primary' : 'supporting', componentId: candidate.componentId })}>Use visual</button>
                 </div>)}
               </div>)}
               <label>Project asset selection
@@ -171,7 +191,7 @@ export function StoryboardStep({
                 <select aria-label={`Overview method for ${scene.id}`} value={plan.selectionMethod === 'brand_asset' || plan.selectionMethod === 'rulebook_reference' ? plan.selectionMethod : 'brand_asset'} onChange={(event) => onUpdateScene(scene.id, {
                   imageAssetIds: selectedIds,
                   visualReviewState: selectedIds.length ? 'matched' : 'needs_visual_review',
-                  visualPlan: { ...plan, selectedAssetIds: selectedIds, selectionMethod: event.target.value, reviewState: selectedIds.length ? 'resolved' : 'needs_visual_review', overviewSelectionConfirmed: true, reviewReason: `Operator designated this project-owned asset as a ${event.target.value === 'brand_asset' ? 'named brand/box/assembled-game visual' : 'rulebook reference'}.` },
+                  visualPlan: { ...plan, selectedAssetIds: selectedIds, assetAssignments: selectedIds.map((assetId) => ({ ...(plan.assetAssignments || []).find((item) => item.assetId === assetId), assetId, role: event.target.value === 'brand_asset' ? 'brand' : 'rulebook_reference' })), selectionMethod: event.target.value, reviewState: selectedIds.length ? 'resolved' : 'needs_visual_review', overviewSelectionConfirmed: true, reviewReason: `Operator designated this project-owned asset as a ${event.target.value === 'brand_asset' ? 'named brand/box/assembled-game visual' : 'rulebook reference'}.` },
                 })}>
                   <option value="brand_asset">named brand/box/assembled-game asset</option><option value="rulebook_reference">rulebook reference</option>
                 </select>
@@ -179,6 +199,10 @@ export function StoryboardStep({
               <label>Image asset IDs (current project only)
                 <input aria-label={`Image assets for ${scene.id}`} value={selectedIds.join(', ')} onChange={(event) => updateVisualSelection(scene, event.target.value.split(',').map((assetId) => assetId.trim()).filter(Boolean), plan.selectionMethod)} style={{ width: '100%' }} />
               </label>
+              <label>Documented operator override
+                <input aria-label={`Override reason for ${scene.id}`} value={overrideDrafts[scene.id] ?? plan.operatorOverride?.reason ?? ''} onChange={(event) => setOverrideDrafts((previous) => ({ ...previous, [scene.id]: event.target.value }))} placeholder="Concise reason required" style={{ width: '100%' }} />
+              </label>
+              <button type="button" aria-label={`Apply override for ${scene.id}`} disabled={!String(overrideDrafts[scene.id] ?? plan.operatorOverride?.reason ?? '').trim()} onClick={() => onUpdateScene(scene.id, { visualPlan: { ...plan, operatorOverride: { reason: String(overrideDrafts[scene.id] ?? plan.operatorOverride?.reason ?? '').trim() } } })}>Apply documented override</button>
               <label>Review notes
                 <textarea aria-label={`Review notes for ${scene.id}`} value={scene.reviewNotes || ''} onChange={(event) => onUpdateScene(scene.id, { reviewNotes: event.target.value })} rows={2} style={{ width: '100%' }} />
               </label>

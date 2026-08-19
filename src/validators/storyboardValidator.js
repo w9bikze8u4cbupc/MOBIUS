@@ -137,12 +137,22 @@ function validateCanonicalSceneDto(manifest, contract, bucket) {
         if (visualPlan[field] === undefined) pushError(bucket, `Canonical scene ${scene.id || index} visualPlan missing ${field}`);
       });
       if (!Array.isArray(visualPlan.componentRefs) || !Array.isArray(visualPlan.componentRefMatches)
-        || !Array.isArray(visualPlan.sourceReferences) || !Array.isArray(visualPlan.assetCandidates) || !Array.isArray(visualPlan.selectedAssetIds)) {
+        || !Array.isArray(visualPlan.primaryComponentRefs) || !Array.isArray(visualPlan.supportingComponentRefs)
+        || !Array.isArray(visualPlan.coverageEvidence) || !Array.isArray(visualPlan.assetAssignments)
+        || !Array.isArray(visualPlan.assetReuse) || !Array.isArray(visualPlan.sourceReferences)
+        || !Array.isArray(visualPlan.assetCandidates) || !Array.isArray(visualPlan.selectedAssetIds)) {
         pushError(bucket, `Canonical scene ${scene.id || index} visualPlan arrays invalid`);
       }
       if (Array.isArray(visualPlan.componentRefMatches) && visualPlan.componentRefMatches.some((match) => !match
         || typeof match.componentId !== 'string' || typeof match.matchedToken !== 'string' || typeof match.sourceField !== 'string')) {
         pushError(bucket, `Canonical scene ${scene.id || index} visualPlan component reference matches invalid`);
+      }
+      if (!['game_overview', 'assembled_tableau', 'board_setup', 'component_closeup', 'card_action', 'token_action', 'rulebook_reference', 'brand_outro', 'operator_defined'].includes(visualPlan.primaryIntent)
+        || !['unresolved', 'partial', 'resolved', 'operator_override', 'blocked'].includes(visualPlan.coverageStatus)
+        || typeof visualPlan.coverageReason !== 'string'
+        || visualPlan.assetAssignments.some((assignment) => !assignment || typeof assignment.assetId !== 'string'
+          || !['primary', 'supporting', 'overview', 'brand', 'rulebook_reference'].includes(assignment.role))) {
+        pushError(bucket, `Canonical scene ${scene.id || index} visualPlan coverage metadata invalid`);
       }
       if (!['approved_component_link', 'operator_selected', 'brand_asset', 'rulebook_reference', 'unresolved'].includes(visualPlan.selectionMethod)) {
         pushError(bucket, `Canonical scene ${scene.id || index} visualPlan selection method invalid`);

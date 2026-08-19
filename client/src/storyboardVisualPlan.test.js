@@ -172,3 +172,78 @@ test('only matching resolved components receive approved-link suggestions', () =
   expect(plan.assetCandidates).toEqual(expect.arrayContaining([expect.objectContaining({ assetId: 'monster-image', componentId: 'monster-tokens', approved: true })]));
   expect(plan.assetCandidates).not.toEqual(expect.arrayContaining([expect.objectContaining({ assetId: 'unrelated-image', componentId: 'keys' })]));
 });
+
+
+const coverageComponents = [
+  { id: 'monster-tokens', name: 'Monster token', aliases: ['monster tokens'] },
+  { id: 'game-board', name: 'Game board', aliases: ['board'] },
+  { id: 'keys', name: 'Key', aliases: ['keys'] },
+];
+const coverageContext = {
+  components: coverageComponents,
+  images: inventory,
+  componentImageLinks: { 'monster-tokens': ['monster-image'] },
+  componentImageLinkDetails: { 'monster-tokens': { 'monster-image': { origin: 'manual' } } },
+};
+
+test('does not let a monster-token link resolve overview, tableau, board, title outro, or rulebook intents', () => {
+  const scenes = [
+    requiredScene({ title: 'Opening shot', visualDirections: [{ instruction: 'Show a game overview with monster tokens.', componentRefs: ['monster-tokens'] }] }),
+    requiredScene({ title: 'Final tableau', visualDirections: [{ instruction: 'End with a completed player tableau and monster token.', componentRefs: ['monster-tokens'] }] }),
+    requiredScene({ title: 'Setup', visualDirections: [{ instruction: 'Place the board in the center with a monster token.', componentRefs: ['monster-tokens'] }] }),
+    requiredScene({ title: 'Game title outro', visualDirections: [{ instruction: 'Show the game title and monster token.', componentRefs: ['monster-tokens'] }] }),
+    requiredScene({ title: 'Rulebook reference', visualDirections: [{ instruction: 'Show the rulebook page with a monster token.', componentRefs: ['monster-tokens'] }] }),
+  ];
+  const plans = scenes.map((scene) => resolveSceneVisualPlan(scene, coverageContext));
+  expect(plans.map((plan) => plan.coverageStatus)).toEqual(['unresolved', 'unresolved', 'unresolved', 'unresolved', 'unresolved']);
+  expect(plans.map((plan) => plan.selectedAssetIds)).toEqual([[], [], [], [], []]);
+  expect(plans[2].primaryIntent).toBe('board_setup');
+  expect(plans[2].primaryComponentRefs).toEqual(['game-board']);
+});
+
+test('approved primary Monster-token evidence resolves only an explicit Monster-token visual', () => {
+  const plan = resolveSceneVisualPlan(requiredScene({
+    title: 'Monster tokens', visualDirections: [{ instruction: 'Show a closeup of Monster tokens.', componentRefs: ['monster-tokens'] }],
+  }), coverageContext);
+  expect(plan).toMatchObject({
+    primaryIntent: 'token_action', primaryComponentRefs: ['monster-tokens'], selectedAssetIds: ['monster-image'],
+    coverageStatus: 'resolved', reviewState: 'resolved', selectionMethod: 'approved_component_link',
+  });
+  expect(plan.assetAssignments).toEqual([expect.objectContaining({ assetId: 'monster-image', role: 'primary', componentId: 'monster-tokens' })]);
+});
+
+test('a multi-component scene is partial when only secondary component evidence is available', () => {
+  const scene = requiredScene({
+    title: 'Components',
+    visualDirections: [{ instruction: 'Show Monster tokens and Keys.', componentRefs: ['monster-tokens', 'keys'] }],
+  });
+  const plan = resolveSceneVisualPlan(scene, coverageContext);
+  expect(plan.primaryComponentRefs).toEqual(['monster-tokens', 'keys']);
+  expect(plan.selectedAssetIds).toEqual(['monster-image']);
+  expect(plan.coverageStatus).toBe('partial');
+  expect(validateStoryboardVisualPlans({ version: '1.2.0', scenes: [scene] }, coverageContext)).toMatchObject({ valid: false, code: 'VISUAL_PLAN_INCOMPLETE' });
+});
+
+test('explicit primary evidence and documented operator override permit release validation', () => {
+  const explicitPrimary = requiredScene({
+    visualPlan: { selectedAssetIds: ['monster-image'], selectionMethod: 'operator_selected', assetAssignments: [{ assetId: 'monster-image', role: 'primary', componentId: 'monster-tokens' }] },
+  });
+  expect(validateStoryboardVisualPlans({ version: '1.2.0', scenes: [explicitPrimary] }, coverageContext)).toMatchObject({ valid: true, summary: { resolved: 1 } });
+
+  const overridden = requiredScene({
+    title: 'Completed tableau',
+    visualDirections: [{ instruction: 'End with a completed player tableau.', componentRefs: [] }],
+    visualPlan: { selectedAssetIds: ['monster-image'], selectionMethod: 'operator_selected', assetAssignments: [{ assetId: 'monster-image', role: 'overview' }], operatorOverride: { reason: 'Only approved end-card asset available.' } },
+  });
+  expect(validateStoryboardVisualPlans({ version: '1.2.0', scenes: [overridden] }, coverageContext)).toMatchObject({ valid: true, summary: { overrides: 1 } });
+  const undocumented = { ...overridden, visualPlan: { ...overridden.visualPlan, operatorOverride: { reason: '' } } };
+  expect(validateStoryboardVisualPlans({ version: '1.2.0', scenes: [undocumented] }, coverageContext)).toMatchObject({ valid: false, code: 'VISUAL_PLAN_INCOMPLETE' });
+});
+
+test('over-reused non-brand evidence blocks release while brand evidence is exempt', () => {
+  const primaryScene = (id) => requiredScene({ id, visualPlan: { selectedAssetIds: ['monster-image'], selectionMethod: 'operator_selected', assetAssignments: [{ assetId: 'monster-image', role: 'primary', componentId: 'monster-tokens' }] } });
+  const reused = validateStoryboardVisualPlans({ version: '1.2.0', scenes: [primaryScene('one'), primaryScene('two'), primaryScene('three')] }, coverageContext);
+  expect(reused).toMatchObject({ valid: false, code: 'VISUAL_ASSET_REUSE_EXCEEDED' });
+  const brandScene = (id) => requiredScene({ id, title: 'Game title outro', visualDirections: [], visualPlan: { selectedAssetIds: ['monster-image'], selectionMethod: 'brand_asset', overviewSelectionConfirmed: true, assetAssignments: [{ assetId: 'monster-image', role: 'brand' }] } });
+  expect(validateStoryboardVisualPlans({ version: '1.2.0', scenes: [brandScene('brand-one'), brandScene('brand-two'), brandScene('brand-three')] }, coverageContext)).toMatchObject({ valid: true });
+});

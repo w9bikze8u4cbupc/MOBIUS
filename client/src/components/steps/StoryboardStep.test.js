@@ -61,3 +61,30 @@ test('preserves metadata by instruction identity through insertion and reorderin
     directions[0],
   ]);
 });
+
+
+test('shows semantic coverage and requires a reason to apply an operator override', () => {
+  const onUpdateScene = jest.fn();
+  const coverageManifest = {
+    ...manifest,
+    scenes: [{
+      ...manifest.scenes[0],
+      visualPlan: {
+        primaryIntent: 'assembled_tableau', primaryComponentRefs: [], supportingComponentRefs: ['monster-tokens'], coverageStatus: 'partial',
+        coverageReason: 'Partial — primary visual still missing.', coverageEvidence: [], selectedAssetIds: ['asset-1'], assetAssignments: [{ assetId: 'asset-1', role: 'supporting' }], assetReuse: [],
+        assetCandidates: [], selectionMethod: 'operator_selected', reviewState: 'needs_visual_review', reviewReason: 'Partial — primary visual still missing.', requiresExplicitVisual: true,
+      },
+      imageAssetIds: ['asset-1'],
+    }],
+  };
+  render(<StoryboardStep onGenerateStoryboard={jest.fn()} onUpdateScene={onUpdateScene} images={[{ id: 'asset-1', name: 'Token asset' }]} storyboardManifest={coverageManifest} storyboarding={false} />);
+  expect(screen.getByText('assembled_tableau')).toBeInTheDocument();
+  expect(screen.getAllByText(/Partial — primary visual still missing/).length).toBeGreaterThan(0);
+  const apply = screen.getByRole('button', { name: 'Apply override for scene-section-01-1' });
+  expect(apply).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('Override reason for scene-section-01-1'), { target: { value: 'Approved end card is the only licensed finale image.' } });
+  fireEvent.click(apply);
+  expect(onUpdateScene).toHaveBeenLastCalledWith('scene-section-01-1', expect.objectContaining({
+    visualPlan: expect.objectContaining({ operatorOverride: { reason: 'Approved end card is the only licensed finale image.' } }),
+  }));
+});

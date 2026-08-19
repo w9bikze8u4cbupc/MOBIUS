@@ -1,14 +1,12 @@
 const AUTO_LINK_CONFIDENCE_THRESHOLD = 0.9;
-const OVERVIEW_TITLES = /\b(introduction|intro|overview|outro|conclusion|wrap[-\s]?up)\b/i;
+export const DEFAULT_NON_BRAND_REUSE_THRESHOLD = 2;
+const OVERVIEW_TITLES = /\b(introduction|intro|overview|outro|conclusion|wrap[-\s]?up|opening shot)\b/i;
 const REQUIRED_SCENE_TITLES = /\b(setup|action|turn|score|scoring|endgame|round|phase|gameplay)\b/i;
-const VAGUE_COMPONENT_TERMS = new Set(['game', 'point', 'strategy', 'influence']);
-const VALID_SELECTION_METHODS = new Set([
-  'approved_component_link',
-  'operator_selected',
-  'brand_asset',
-  'rulebook_reference',
-  'unresolved',
-]);
+const VAGUE_COMPONENT_TERMS = new Set(['game', 'point', 'strategy', 'influence', 'timing']);
+const PRIMARY_INTENTS = new Set(['game_overview', 'assembled_tableau', 'board_setup', 'component_closeup', 'card_action', 'token_action', 'rulebook_reference', 'brand_outro', 'operator_defined']);
+const COVERAGE_STATUSES = new Set(['unresolved', 'partial', 'resolved', 'operator_override', 'blocked']);
+const ASSET_ROLES = new Set(['primary', 'supporting', 'overview', 'brand', 'rulebook_reference']);
+const VALID_SELECTION_METHODS = new Set(['approved_component_link', 'operator_selected', 'brand_asset', 'rulebook_reference', 'unresolved']);
 
 function uniqueStrings(values) {
   return [...new Set((Array.isArray(values) ? values : [])
@@ -41,19 +39,12 @@ function normalized(value) {
 
 function componentAliasValues(component) {
   if (!component || typeof component !== 'object') return [];
-  const values = [
-    component.id,
-    component.name,
-    component.nameEn,
-    component.name_en,
-    component.nameFr,
-    component.name_fr,
-    component.frenchName,
-    component.translatedName,
+  return uniqueStrings([
+    component.id, component.name, component.nameEn, component.name_en, component.nameFr, component.name_fr,
+    component.frenchName, component.translatedName,
     ...(Array.isArray(component.aliases) ? component.aliases : []),
     ...(Array.isArray(component.synonyms) ? component.synonyms : []),
-  ];
-  return uniqueStrings(values);
+  ]);
 }
 
 function componentCatalog(components = []) {
@@ -90,15 +81,11 @@ function textIncludesAlias(text, alias) {
   return Boolean(target) && !VAGUE_COMPONENT_TERMS.has(target) && source.includes(` ${target} `);
 }
 
-/**
- * Resolves only explicit, explainable component mentions to canonical component IDs.
- * Ambiguous aliases and vague terms are intentionally ignored.
- */
+/** Resolves only explicit, explainable component mentions to canonical component IDs. */
 export function resolveSceneComponentReferences(scene, components = []) {
   const aliases = componentCatalog(components);
   const matches = [];
   const directions = Array.isArray(scene?.visualDirections) ? scene.visualDirections : [];
-
   directions.forEach((direction, directionIndex) => {
     uniqueStrings(direction?.componentRefs).forEach((reference) => {
       const resolved = resolvedAlias(reference, aliases);
@@ -106,9 +93,7 @@ export function resolveSceneComponentReferences(scene, components = []) {
       else if (aliases.size === 0) recordMatch(matches, reference, reference, `visualDirections[${directionIndex}].componentRefs`);
     });
   });
-
   if (aliases.size === 0) return matches;
-
   const fields = [
     ...directions.flatMap((direction, directionIndex) => [
       { value: direction?.instruction, sourceField: `visualDirections[${directionIndex}].instruction` },
@@ -117,7 +102,6 @@ export function resolveSceneComponentReferences(scene, components = []) {
     { value: scene?.title, sourceField: 'title' },
     { value: scene?.spokenText, sourceField: 'spokenText' },
   ];
-
   fields.forEach(({ value, sourceField }) => {
     if (typeof value !== 'string' || !value.trim()) return;
     aliases.forEach((entries, aliasKey) => {
@@ -126,8 +110,60 @@ export function resolveSceneComponentReferences(scene, components = []) {
       if (textIncludesAlias(value, entry.alias)) recordMatch(matches, entry.componentId, entry.alias, sourceField);
     });
   });
-
   return matches;
+}
+
+function visualRequirementText(scene) {
+  return [
+    scene?.title,
+    ...(scene?.visualDirections || []).flatMap((direction) => [direction?.instruction, direction?.onScreenText]),
+    ...(scene?.overlay?.onScreenText || []),
+  ].filter((value) => typeof value === 'string').join(' ');
+}
+
+function hasVisualPhrase(text, expression) {
+  return expression.test(String(text || ''));
+}
+
+function isBoardReference(componentId, match) {
+  return /\b(board|layout|tableau)\b/i.test(`${componentId || ''} ${match?.matchedToken || ''}`);
+}
+
+/**
+ * Requirements deliberately use title, visual directions, and overlay context only.
+ * Spoken narration remains useful for explainability but cannot manufacture a visual requirement.
+ */
+export function deriveSceneVisualRequirements(scene, components = []) {
+  const componentRefMatches = resolveSceneComponentReferences(scene, components);
+  const visualMatches = componentRefMatches.filter((match) => match.sourceField === 'title' || match.sourceField.startsWith('visualDirections['));
+  const directMatches = visualMatches.filter((match) => match.sourceField.endsWith('.componentRefs'));
+  const visualComponentRefs = uniqueStrings(visualMatches.map((match) => match.componentId));
+  const directComponentRefs = uniqueStrings(directMatches.map((match) => match.componentId));
+  const text = visualRequirementText(scene);
+  let primaryIntent = 'operator_defined';
+  if (hasVisualPhrase(text, /\b(rulebook|page|reference)\b/i)) primaryIntent = 'rulebook_reference';
+  else if (hasVisualPhrase(text, /\b(game title|title card|brand|outro|conclusion|wrap[-\s]?up)\b/i)) primaryIntent = 'brand_outro';
+  else if (hasVisualPhrase(text, /\b(assembled game|completed tableau|player tableau)\b/i)) primaryIntent = 'assembled_tableau';
+  else if (hasVisualPhrase(text, /\b(board in the center|board setup|setup[^.]{0,60}\bboard\b|lay out[^.]{0,60}\bboard\b)\b/i)) primaryIntent = 'board_setup';
+  else if (hasVisualPhrase(text, /\b(opening shot|game overview|overview|introduction|intro)\b/i)) primaryIntent = 'game_overview';
+  else if (hasVisualPhrase(text, /\b(cards?|exploration|council|lords?|locations?)\b/i) && visualComponentRefs.length) primaryIntent = 'card_action';
+  else if (hasVisualPhrase(text, /\b(tokens?|keys?|pearls?|monsters?)\b/i) && visualComponentRefs.length) primaryIntent = 'token_action';
+  else if (visualComponentRefs.length) primaryIntent = 'component_closeup';
+
+  let primaryComponentRefs = [];
+  if (primaryIntent === 'board_setup') {
+    primaryComponentRefs = visualMatches.filter((match) => isBoardReference(match.componentId, match)).map((match) => match.componentId);
+  } else if (['component_closeup', 'card_action', 'token_action'].includes(primaryIntent)) {
+    primaryComponentRefs = directComponentRefs.length ? directComponentRefs : visualComponentRefs;
+  }
+  primaryComponentRefs = uniqueStrings(primaryComponentRefs);
+  const supportingComponentRefs = visualComponentRefs.filter((componentId) => !primaryComponentRefs.includes(componentId));
+  return {
+    primaryIntent,
+    primaryComponentRefs,
+    supportingComponentRefs,
+    componentRefMatches,
+  };
 }
 
 export function deriveSceneComponentRefs(scene, components = []) {
@@ -135,14 +171,12 @@ export function deriveSceneComponentRefs(scene, components = []) {
 }
 
 export function isOverviewVisualException(scene, components = []) {
-  const componentRefs = deriveSceneComponentRefs(scene, components);
-  const title = String(scene?.title || '');
-  return componentRefs.length === 0 && OVERVIEW_TITLES.test(title) && !REQUIRED_SCENE_TITLES.test(title);
+  const intent = deriveSceneVisualRequirements(scene, components).primaryIntent;
+  return ['game_overview', 'assembled_tableau', 'brand_outro', 'rulebook_reference'].includes(intent)
+    || (deriveSceneComponentRefs(scene, components).length === 0 && OVERVIEW_TITLES.test(String(scene?.title || '')) && !REQUIRED_SCENE_TITLES.test(String(scene?.title || '')));
 }
 
-export function requiresExplicitVisualPlan() {
-  return true;
-}
+export function requiresExplicitVisualPlan() { return true; }
 
 function imageIsCuratedCandidate(image) {
   const curation = image?.curation || image?.metadata?.curation || {};
@@ -152,129 +186,193 @@ function imageIsCuratedCandidate(image) {
 function imageMatchesComponent(image, componentId) {
   const reference = normalized(componentId);
   if (!reference) return false;
-  const values = [
-    image?.componentId,
-    image?.componentRef,
-    image?.name,
-    image?.title,
-    ...(image?.tags || []),
-    ...(image?.metadata?.tags || []),
-  ].map(normalized).filter(Boolean);
+  const values = [image?.componentId, image?.componentRef, image?.name, image?.title, ...(image?.tags || []), ...(image?.metadata?.tags || [])]
+    .map(normalized).filter(Boolean);
   return values.some((value) => value === reference || value.includes(reference) || reference.includes(value));
 }
 
 function approvedLinkDetail(detail, policy) {
   if (!detail) return false;
   if (detail.origin === 'manual' || detail.origin === 'legacy') return true;
-  if (detail.origin !== 'auto') return false;
-  return policy?.allowAutomaticComponentLinks === true
-    && Number(detail.confidence) >= AUTO_LINK_CONFIDENCE_THRESHOLD;
+  return detail.origin === 'auto' && policy?.allowAutomaticComponentLinks === true && Number(detail.confidence) >= AUTO_LINK_CONFIDENCE_THRESHOLD;
 }
 
 function sourceReferences(scene) {
-  return (scene?.sources || []).map((source) => ({
-    section: source.section,
-    startOffset: source.startOffset,
-    endOffset: source.endOffset,
+  return (scene?.sources || []).map((source) => ({ section: source.section, startOffset: source.startOffset, endOffset: source.endOffset }));
+}
+
+function candidateRecord(assetId, componentId, source, approved, image, requirementRole) {
+  return { assetId, componentId: componentId || null, source, approved, requirementRole, curationScore: image?.curation?.score ?? image?.metadata?.curation?.score ?? null };
+}
+
+function validSelectionMethod(value) { return VALID_SELECTION_METHODS.has(value) ? value : 'unresolved'; }
+
+function validAssetRole(value) { return ASSET_ROLES.has(value) ? value : 'supporting'; }
+
+function normaliseAssignments(priorAssignments, selectedAssetIds, requirements, candidates, selectionMethod) {
+  const selected = new Set(selectedAssetIds);
+  const candidateByAsset = new Map();
+  candidates.forEach((candidate) => {
+    const matches = candidateByAsset.get(candidate.assetId) || [];
+    matches.push(candidate);
+    candidateByAsset.set(candidate.assetId, matches);
+  });
+  const existing = new Map((Array.isArray(priorAssignments) ? priorAssignments : [])
+    .filter((assignment) => selected.has(assignment?.assetId))
+    .map((assignment) => [assignment.assetId, assignment]));
+  return selectedAssetIds.map((assetId) => {
+    const prior = existing.get(assetId);
+    const candidate = (candidateByAsset.get(assetId) || []).find((entry) => entry.requirementRole === 'primary')
+      || (candidateByAsset.get(assetId) || [])[0];
+    let role = validAssetRole(prior?.role);
+    let componentId = typeof prior?.componentId === 'string' ? prior.componentId : null;
+    if (!prior) {
+      if (selectionMethod === 'brand_asset') role = 'brand';
+      else if (selectionMethod === 'rulebook_reference') role = 'rulebook_reference';
+      else if (candidate?.requirementRole === 'primary') role = 'primary';
+      else if (candidate?.requirementRole === 'supporting') role = 'supporting';
+      else if (requirements.primaryIntent === 'operator_defined' && selectionMethod === 'operator_selected') role = 'primary';
+      else if (requirements.primaryComponentRefs.length === 1 && selectionMethod === 'operator_selected') role = 'primary';
+    }
+    if (role === 'primary' && !componentId) {
+      componentId = candidate?.requirementRole === 'primary'
+        ? candidate.componentId
+        : (requirements.primaryComponentRefs.length === 1 ? requirements.primaryComponentRefs[0] : null);
+    }
+    if (role === 'supporting' && !componentId && candidate?.requirementRole === 'supporting') componentId = candidate.componentId;
+    return { assetId, role, componentId };
+  });
+}
+
+function operatorOverrideReason(priorPlan) {
+  const reason = priorPlan?.operatorOverride?.reason;
+  return typeof reason === 'string' && reason.trim().length >= 3 ? reason.trim() : '';
+}
+
+function intentEvidenceSatisfied(intent, assignments, priorPlan) {
+  const roles = new Set(assignments.map((assignment) => assignment.role));
+  if (intent === 'brand_outro') return priorPlan?.overviewSelectionConfirmed === true && (roles.has('brand') || roles.has('rulebook_reference'));
+  if (intent === 'rulebook_reference') return priorPlan?.overviewSelectionConfirmed === true && roles.has('rulebook_reference');
+  if (intent === 'game_overview' || intent === 'assembled_tableau') return priorPlan?.overviewSelectionConfirmed === true && (roles.has('overview') || roles.has('brand') || roles.has('rulebook_reference'));
+  return null;
+}
+
+function coverageFor(requirements, assignments, priorPlan, priorBlocked) {
+  const primaryEvidence = requirements.primaryComponentRefs.map((componentId) => ({
+    requirement: 'primary_component', componentId,
+    assetIds: assignments.filter((assignment) => assignment.role === 'primary' && assignment.componentId === componentId).map((assignment) => assignment.assetId),
   }));
-}
-
-function candidateRecord(assetId, componentId, source, approved, image) {
-  return {
-    assetId,
-    componentId: componentId || null,
-    source,
-    approved,
-    curationScore: image?.curation?.score ?? image?.metadata?.curation?.score ?? null,
-  };
-}
-
-function validSelectionMethod(value) {
-  return VALID_SELECTION_METHODS.has(value) ? value : 'unresolved';
+  const supportingEvidence = requirements.supportingComponentRefs.map((componentId) => ({
+    requirement: 'supporting_component', componentId,
+    assetIds: assignments.filter((assignment) => assignment.role === 'supporting' && assignment.componentId === componentId).map((assignment) => assignment.assetId),
+  }));
+  const intentSatisfied = intentEvidenceSatisfied(requirements.primaryIntent, assignments, priorPlan);
+  const allPrimarySatisfied = primaryEvidence.length > 0 && primaryEvidence.every((evidence) => evidence.assetIds.length > 0);
+  const operatorDefinedSatisfied = requirements.primaryIntent === 'operator_defined' && assignments.some((assignment) => assignment.role === 'primary');
+  const operatorReason = operatorOverrideReason(priorPlan);
+  const hasAnyEvidence = assignments.length > 0;
+  const hasSupportingEvidence = supportingEvidence.some((evidence) => evidence.assetIds.length > 0);
+  let coverageStatus = 'unresolved';
+  let coverageReason = 'No primary visual evidence has been selected.';
+  if (priorBlocked) {
+    coverageStatus = 'blocked';
+    coverageReason = priorPlan.reviewReason || 'Operator blocked this visual plan.';
+  } else if (operatorReason && hasAnyEvidence) {
+    coverageStatus = 'operator_override';
+    coverageReason = `Operator override: ${operatorReason}`;
+  } else if (intentSatisfied === true || allPrimarySatisfied || operatorDefinedSatisfied) {
+    coverageStatus = 'resolved';
+    coverageReason = intentSatisfied === true
+      ? `Resolved with explicit ${requirements.primaryIntent.replace(/_/g, ' ')} evidence.`
+      : operatorDefinedSatisfied
+        ? 'Resolved by an explicit operator-defined primary visual.'
+        : 'Resolved by primary component evidence.';
+  } else if (hasAnyEvidence || hasSupportingEvidence) {
+    coverageStatus = 'partial';
+    coverageReason = requirements.primaryComponentRefs.length
+      ? 'Partial — primary visual evidence is still missing.'
+      : `Partial — ${requirements.primaryIntent.replace(/_/g, ' ')} evidence is still missing.`;
+  }
+  const coverageEvidence = [
+    ...primaryEvidence.map((evidence) => ({ ...evidence, satisfied: evidence.assetIds.length > 0 })),
+    ...supportingEvidence.map((evidence) => ({ ...evidence, satisfied: evidence.assetIds.length > 0 })),
+    ...(assignments.length ? [{ requirement: 'intent_role', intent: requirements.primaryIntent, assetIds: assignments.map((assignment) => assignment.assetId), satisfied: intentSatisfied === true || allPrimarySatisfied }] : []),
+    ...(operatorReason ? [{ requirement: 'operator_override', assetIds: assignments.map((assignment) => assignment.assetId), satisfied: coverageStatus === 'operator_override', reason: operatorReason }] : []),
+  ];
+  return { coverageStatus, coverageReason, coverageEvidence };
 }
 
 export function resolveSceneVisualPlan(scene, {
-  images = [],
-  componentImageLinks = {},
-  componentImageLinkDetails = {},
-  components = [],
-  policy = { allowAutomaticComponentLinks: false },
+  images = [], componentImageLinks = {}, componentImageLinkDetails = {}, components = [],
+  policy = { allowAutomaticComponentLinks: false, maxNonBrandAssetReuse: DEFAULT_NON_BRAND_REUSE_THRESHOLD },
 } = {}) {
   const inventory = new Map((images || []).filter((image) => image?.id).map((image) => [image.id, image]));
-  const componentRefMatches = resolveSceneComponentReferences(scene, components);
-  const componentRefs = componentRefMatches.map((match) => match.componentId);
+  const requirements = deriveSceneVisualRequirements(scene, components);
+  const componentRefs = requirements.componentRefMatches.map((match) => match.componentId);
   const overviewExceptionAllowed = isOverviewVisualException(scene, components);
   const priorPlan = scene?.visualPlan && typeof scene.visualPlan === 'object' ? scene.visualPlan : {};
   const candidates = [];
-
+  const componentRequirementRole = (componentId) => requirements.primaryComponentRefs.includes(componentId) ? 'primary'
+    : requirements.supportingComponentRefs.includes(componentId) ? 'supporting' : 'context';
   componentRefs.forEach((componentId) => {
+    const requirementRole = componentRequirementRole(componentId);
     uniqueStrings(componentImageLinks?.[componentId]).forEach((assetId) => {
       const image = inventory.get(assetId);
       if (!image) return;
       const detail = componentImageLinkDetails?.[componentId]?.[assetId];
-      const approved = approvedLinkDetail(detail, policy);
-      candidates.push(candidateRecord(assetId, componentId, 'component_link', approved, image));
+      candidates.push(candidateRecord(assetId, componentId, 'component_link', approvedLinkDetail(detail, policy), image, requirementRole));
     });
     (images || []).filter((image) => imageIsCuratedCandidate(image) && imageMatchesComponent(image, componentId))
-      .forEach((image) => candidates.push(candidateRecord(image.id, componentId, 'curated_suggestion', false, image)));
+      .forEach((image) => candidates.push(candidateRecord(image.id, componentId, 'curated_suggestion', false, image, requirementRole)));
   });
-
   const assetCandidates = [];
   const seenCandidateIds = new Set();
   candidates.forEach((candidate) => {
     const key = `${candidate.componentId || ''}:${candidate.assetId}`;
-    if (!seenCandidateIds.has(key)) {
-      seenCandidateIds.add(key);
-      assetCandidates.push(candidate);
-    }
+    if (!seenCandidateIds.has(key)) { seenCandidateIds.add(key); assetCandidates.push(candidate); }
   });
 
   const hasExplicitPlanSelection = Array.isArray(priorPlan.selectedAssetIds);
   const requestedIds = uniqueStrings(hasExplicitPlanSelection ? priorPlan.selectedAssetIds : scene?.imageAssetIds);
   const validSelectedIds = requestedIds.filter((id) => inventory.has(id));
   const invalidSelection = requestedIds.length > validSelectedIds.length;
-  const approvedLinkedIds = uniqueStrings(assetCandidates.filter((candidate) => candidate.approved).map((candidate) => candidate.assetId));
+  const primaryApprovedIds = uniqueStrings(assetCandidates.filter((candidate) => candidate.approved && candidate.requirementRole === 'primary').map((candidate) => candidate.assetId));
   let selectedAssetIds = validSelectedIds;
   let selectionMethod = validSelectionMethod(priorPlan.selectionMethod);
-
-  if (selectedAssetIds.length === 0 && !invalidSelection && !priorPlan.manualSelectionReviewed && approvedLinkedIds.length > 0) {
-    selectedAssetIds = approvedLinkedIds;
+  if (selectedAssetIds.length === 0 && !invalidSelection && !priorPlan.manualSelectionReviewed && primaryApprovedIds.length > 0) {
+    selectedAssetIds = primaryApprovedIds;
     selectionMethod = 'approved_component_link';
   }
-  const selectedIdsAreApproved = selectedAssetIds.length > 0
-    && selectedAssetIds.every((assetId) => approvedLinkedIds.includes(assetId));
-  if (selectedAssetIds.length > 0 && (selectionMethod === 'unresolved'
-    || (selectionMethod === 'approved_component_link' && !selectedIdsAreApproved))) {
-    selectionMethod = 'operator_selected';
-  }
+  const selectedIdsAreApprovedPrimary = selectedAssetIds.length > 0 && selectedAssetIds.every((assetId) => primaryApprovedIds.includes(assetId));
+  if (selectedAssetIds.length > 0 && (selectionMethod === 'unresolved' || (selectionMethod === 'approved_component_link' && !selectedIdsAreApprovedPrimary))) selectionMethod = 'operator_selected';
 
-  const priorBlocked = priorPlan.reviewState === 'blocked' || scene?.visualReviewState === 'blocked';
-  const selectionIsAllowedOverview = !overviewExceptionAllowed
-    || ((selectionMethod === 'brand_asset' || selectionMethod === 'rulebook_reference')
-      && priorPlan.overviewSelectionConfirmed === true);
-  const resolved = !priorBlocked && selectedAssetIds.length > 0 && selectionIsAllowedOverview;
-  const reviewState = priorBlocked ? 'blocked' : (resolved ? 'resolved' : 'needs_visual_review');
+  const assetAssignments = normaliseAssignments(priorPlan.assetAssignments, selectedAssetIds, requirements, assetCandidates, selectionMethod);
+  const priorBlocked = priorPlan.reviewState === 'blocked' || priorPlan.coverageStatus === 'blocked' || scene?.visualReviewState === 'blocked';
+  const coverage = coverageFor(requirements, assetAssignments, priorPlan, priorBlocked);
+  const releaseResolved = coverage.coverageStatus === 'resolved' || coverage.coverageStatus === 'operator_override';
+  const reviewState = priorBlocked ? 'blocked' : (releaseResolved ? 'resolved' : 'needs_visual_review');
   const reviewReason = priorBlocked
-    ? (priorPlan.reviewReason || 'Operator blocked this visual plan.')
+    ? (priorPlan.reviewReason || coverage.coverageReason)
     : invalidSelection
       ? 'One or more selected assets are not present in the current project inventory.'
-      : resolved && selectionMethod === 'approved_component_link'
-        ? 'Resolved from an approved component-image link explicitly referenced by this scene.'
-        : resolved
-          ? (priorPlan.reviewReason || 'Operator selected a project-owned visual asset.')
-          : overviewExceptionAllowed
-            ? 'Overview/outro requires an explicit project-owned brand asset or rulebook reference.'
-            : componentRefs.length
-              ? 'No approved project asset is linked to this scene’s explicitly referenced component.'
-              : 'Instructional scene requires an explicit project-owned visual selection.';
+      : coverage.coverageReason;
 
   return {
     componentRefs,
-    componentRefMatches,
+    componentRefMatches: requirements.componentRefMatches,
+    primaryIntent: PRIMARY_INTENTS.has(requirements.primaryIntent) ? requirements.primaryIntent : 'operator_defined',
+    primaryComponentRefs: requirements.primaryComponentRefs,
+    supportingComponentRefs: requirements.supportingComponentRefs,
+    coverageStatus: COVERAGE_STATUSES.has(coverage.coverageStatus) ? coverage.coverageStatus : 'unresolved',
+    coverageReason: coverage.coverageReason,
+    coverageEvidence: coverage.coverageEvidence,
+    assetAssignments,
+    assetReuse: Array.isArray(priorPlan.assetReuse) ? priorPlan.assetReuse : [],
+    operatorOverride: operatorOverrideReason(priorPlan) ? { reason: operatorOverrideReason(priorPlan) } : null,
     sourceReferences: sourceReferences(scene),
     assetCandidates,
     selectedAssetIds,
-    selectionMethod: resolved ? selectionMethod : 'unresolved',
+    selectionMethod: releaseResolved ? selectionMethod : 'unresolved',
     reviewState,
     reviewReason,
     requiresExplicitVisual: requiresExplicitVisualPlan(scene),
@@ -284,9 +382,27 @@ export function resolveSceneVisualPlan(scene, {
   };
 }
 
+function annotateAssetReuse(scenes, policy = {}) {
+  const threshold = Number.isInteger(policy.maxNonBrandAssetReuse) ? policy.maxNonBrandAssetReuse : DEFAULT_NON_BRAND_REUSE_THRESHOLD;
+  const usage = new Map();
+  scenes.forEach((scene) => (scene.visualPlan?.assetAssignments || []).forEach((assignment) => {
+    const entries = usage.get(assignment.assetId) || [];
+    entries.push({ sceneId: scene.id, role: assignment.role });
+    usage.set(assignment.assetId, entries);
+  }));
+  return scenes.map((scene) => {
+    const assetReuse = (scene.visualPlan?.assetAssignments || []).map((assignment) => {
+      const entries = usage.get(assignment.assetId) || [];
+      const exempt = assignment.role === 'brand';
+      return { assetId: assignment.assetId, count: entries.length, threshold, exempt, exceedsThreshold: !exempt && entries.length > threshold, sceneIds: entries.map((entry) => entry.sceneId) };
+    });
+    return { ...scene, visualPlan: { ...scene.visualPlan, assetReuse } };
+  });
+}
+
 export function reconcileStoryboardVisualPlans(manifest, context = {}) {
   if (!manifest || manifest.version !== '1.2.0' || !Array.isArray(manifest.scenes)) return manifest;
-  const scenes = manifest.scenes.map((scene) => {
+  const resolvedScenes = manifest.scenes.map((scene) => {
     const visualPlan = resolveSceneVisualPlan(scene, context);
     return {
       ...scene,
@@ -297,27 +413,29 @@ export function reconcileStoryboardVisualPlans(manifest, context = {}) {
       status: visualPlan.reviewState === 'blocked' ? 'blocked' : (scene.status === 'blocked' ? 'draft' : scene.status || 'draft'),
     };
   });
-  return { ...manifest, scenes };
+  return { ...manifest, scenes: annotateAssetReuse(resolvedScenes, context.policy) };
 }
 
 export function validateStoryboardVisualPlans(manifest, context = {}) {
-  if (!manifest || manifest.version !== '1.2.0' || !Array.isArray(manifest.scenes)) {
-    return { valid: true, code: null, sceneIds: [], summary: null };
-  }
+  if (!manifest || manifest.version !== '1.2.0' || !Array.isArray(manifest.scenes)) return { valid: true, code: null, sceneIds: [], summary: null };
   const reconciled = reconcileStoryboardVisualPlans(manifest, context);
   const scenes = reconciled.scenes || [];
-  const failures = scenes.filter((scene) => scene.visualPlan?.requiresExplicitVisual
-    && (scene.visualPlan.reviewState !== 'resolved' || scene.visualPlan.selectedAssetIds.length === 0));
+  const incomplete = scenes.filter((scene) => scene.visualPlan?.requiresExplicitVisual
+    && !['resolved', 'operator_override'].includes(scene.visualPlan?.coverageStatus));
+  const reuseFailures = scenes.filter((scene) => (scene.visualPlan?.assetReuse || []).some((reuse) => reuse.exceedsThreshold));
   const summary = {
     total: scenes.length,
-    resolved: scenes.filter((scene) => scene.visualPlan?.reviewState === 'resolved').length,
-    unresolved: scenes.filter((scene) => scene.visualPlan?.reviewState === 'needs_visual_review').length,
-    blocked: scenes.filter((scene) => scene.visualPlan?.reviewState === 'blocked').length,
+    resolved: scenes.filter((scene) => scene.visualPlan?.coverageStatus === 'resolved').length,
+    partial: scenes.filter((scene) => scene.visualPlan?.coverageStatus === 'partial').length,
+    unresolved: scenes.filter((scene) => scene.visualPlan?.coverageStatus === 'unresolved').length,
+    overrides: scenes.filter((scene) => scene.visualPlan?.coverageStatus === 'operator_override').length,
+    blocked: scenes.filter((scene) => scene.visualPlan?.coverageStatus === 'blocked').length,
     approvedComponentLinked: scenes.filter((scene) => scene.visualPlan?.selectionMethod === 'approved_component_link').length,
     operatorSelected: scenes.filter((scene) => scene.visualPlan?.selectionMethod === 'operator_selected').length,
-    overviewExceptions: scenes.filter((scene) => scene.visualPlan?.overviewExceptionAllowed && scene.visualPlan?.reviewState === 'resolved').length,
+    overviewExceptions: scenes.filter((scene) => scene.visualPlan?.overviewExceptionAllowed && scene.visualPlan?.coverageStatus === 'resolved').length,
+    reuseWarnings: scenes.flatMap((scene) => (scene.visualPlan?.assetReuse || []).filter((reuse) => reuse.exceedsThreshold).map((reuse) => ({ sceneId: scene.id, ...reuse }))),
   };
-  return failures.length
-    ? { valid: false, code: 'VISUAL_PLAN_INCOMPLETE', sceneIds: failures.map((scene) => scene.id), summary, manifest: reconciled }
-    : { valid: true, code: null, sceneIds: [], summary, manifest: reconciled };
+  if (incomplete.length) return { valid: false, code: 'VISUAL_PLAN_INCOMPLETE', sceneIds: incomplete.map((scene) => scene.id), summary, manifest: reconciled };
+  if (reuseFailures.length) return { valid: false, code: 'VISUAL_ASSET_REUSE_EXCEEDED', sceneIds: reuseFailures.map((scene) => scene.id), summary, manifest: reconciled };
+  return { valid: true, code: null, sceneIds: [], summary, manifest: reconciled };
 }

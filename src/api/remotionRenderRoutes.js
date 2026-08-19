@@ -216,14 +216,79 @@ function approvedComponentSelectionIsPersisted(scene, visualPlan, projectMetadat
   const componentImageLinks = projectContext?.componentImageLinks;
   const componentImageLinkDetails = projectContext?.componentImageLinkDetails;
   const policy = projectContext?.visualPlanPolicy || { allowAutomaticComponentLinks: false };
-  const componentRefs = uniqueComponentRefs(scene);
+  const primaryComponentRefs = Array.isArray(visualPlan?.primaryComponentRefs) ? visualPlan.primaryComponentRefs.filter(Boolean) : [];
+  const assignments = Array.isArray(visualPlan?.assetAssignments) ? visualPlan.assetAssignments : [];
   const selectedAssetIds = Array.isArray(visualPlan?.selectedAssetIds) ? visualPlan.selectedAssetIds.filter(Boolean) : [];
-  if (!componentRefs.length || !componentImageLinks || !componentImageLinkDetails) return false;
-  return selectedAssetIds.every((assetId) => componentRefs.some((componentId) => (
-    Array.isArray(componentImageLinks[componentId])
-      && componentImageLinks[componentId].includes(assetId)
-      && isApprovedComponentLinkDetail(componentImageLinkDetails[componentId]?.[assetId], policy)
-  )));
+  if (!primaryComponentRefs.length || !componentImageLinks || !componentImageLinkDetails) return false;
+  return selectedAssetIds.every((assetId) => assignments.some((assignment) => assignment?.assetId === assetId
+    && assignment.role === 'primary'
+    && primaryComponentRefs.includes(assignment.componentId)
+    && Array.isArray(componentImageLinks[assignment.componentId])
+    && componentImageLinks[assignment.componentId].includes(assetId)
+    && isApprovedComponentLinkDetail(componentImageLinkDetails[assignment.componentId]?.[assetId], policy)));
+}
+
+const DEFAULT_NON_BRAND_REUSE_THRESHOLD = 2;
+const COMPONENT_PRIMARY_INTENTS = new Set(['board_setup', 'component_closeup', 'card_action', 'token_action']);
+const RELEASE_PRIMARY_INTENTS = new Set([
+  'game_overview', 'assembled_tableau', 'board_setup', 'component_closeup', 'card_action',
+  'token_action', 'rulebook_reference', 'brand_outro', 'operator_defined',
+]);
+
+function selectedAssetAssignments(visualPlan) {
+  const selectedAssetIds = [...new Set((Array.isArray(visualPlan?.selectedAssetIds) ? visualPlan.selectedAssetIds : [])
+    .filter((assetId) => typeof assetId === 'string' && assetId.trim()))];
+  const selected = new Set(selectedAssetIds);
+  const assignments = Array.isArray(visualPlan?.assetAssignments) ? visualPlan.assetAssignments : [];
+  if (!selectedAssetIds.length || !assignments.length || assignments.some((assignment) => !selected.has(assignment?.assetId))) return null;
+  const byAssetId = new Map();
+  assignments.forEach((assignment) => {
+    if (!byAssetId.has(assignment.assetId)) byAssetId.set(assignment.assetId, assignment);
+  });
+  if (selectedAssetIds.some((assetId) => !byAssetId.has(assetId))) return null;
+  return selectedAssetIds.map((assetId) => byAssetId.get(assetId));
+}
+
+function coverageIsReleaseReady(visualPlan) {
+  if (!visualPlan || !RELEASE_PRIMARY_INTENTS.has(visualPlan.primaryIntent)
+    || (visualPlan.coverageStatus !== 'resolved' && visualPlan.coverageStatus !== 'operator_override')) return false;
+  if (visualPlan.coverageStatus === 'operator_override' && typeof visualPlan.operatorOverride?.reason !== 'string') return false;
+  if (visualPlan.coverageStatus === 'operator_override' && visualPlan.operatorOverride.reason.trim().length < 3) return false;
+  const assignments = selectedAssetAssignments(visualPlan);
+  if (!assignments) return false;
+  const roles = new Set(assignments.map((assignment) => assignment?.role));
+  if (visualPlan.coverageStatus === 'operator_override') return assignments.length > 0;
+  if (visualPlan.primaryIntent === 'brand_outro') return visualPlan.overviewSelectionConfirmed === true && (roles.has('brand') || roles.has('rulebook_reference'));
+  if (visualPlan.primaryIntent === 'rulebook_reference') return visualPlan.overviewSelectionConfirmed === true && roles.has('rulebook_reference');
+  if (visualPlan.primaryIntent === 'game_overview' || visualPlan.primaryIntent === 'assembled_tableau') return visualPlan.overviewSelectionConfirmed === true && (roles.has('overview') || roles.has('brand') || roles.has('rulebook_reference'));
+  const primaryComponentRefs = [...new Set((Array.isArray(visualPlan.primaryComponentRefs) ? visualPlan.primaryComponentRefs : [])
+    .filter((componentId) => typeof componentId === 'string' && componentId.trim()))];
+  if (visualPlan.primaryIntent === 'operator_defined') return roles.has('primary');
+  if (!COMPONENT_PRIMARY_INTENTS.has(visualPlan.primaryIntent) || !primaryComponentRefs.length) return false;
+  return primaryComponentRefs.every((componentId) => assignments.some((assignment) => assignment?.role === 'primary' && assignment.componentId === componentId));
+}
+
+function releaseReuseExceeded(scenes, projectMetadata = {}) {
+  const threshold = Number.isInteger(projectMetadata?.projectContext?.visualPlanPolicy?.maxNonBrandAssetReuse)
+    ? projectMetadata.projectContext.visualPlanPolicy.maxNonBrandAssetReuse
+    : DEFAULT_NON_BRAND_REUSE_THRESHOLD;
+  const nonBrandUsage = new Map();
+  (scenes || []).forEach((scene) => {
+    const visualPlan = scene?.visualPlan;
+    if (visualPlan?.requiresExplicitVisual !== true) return;
+    const assignments = selectedAssetAssignments(visualPlan);
+    if (!assignments) return;
+    assignments.forEach((assignment) => {
+      const explicitBrandAsset = assignment.role === 'brand'
+        && visualPlan.primaryIntent === 'brand_outro'
+        && visualPlan.overviewSelectionConfirmed === true;
+      if (explicitBrandAsset) return;
+      const scenesUsingAsset = nonBrandUsage.get(assignment.assetId) || new Set();
+      scenesUsingAsset.add(scene.id || 'unknown-scene');
+      nonBrandUsage.set(assignment.assetId, scenesUsingAsset);
+    });
+  });
+  return [...nonBrandUsage.values()].some((sceneIds) => sceneIds.size > threshold);
 }
 
 function canonicalStoryboardSceneIds(projectMetadata) {
@@ -255,6 +320,7 @@ export function bindReleaseVisualPlanAssets(scenes, project) {
     const selectedImageUrls = selectedAssetIds.map((assetId) => getProjectImageRenderReference(imagesById.get(assetId)));
     if (!visualPlan || visualPlan.requiresExplicitVisual !== true
       || visualPlan.reviewState !== 'resolved'
+      || !coverageIsReleaseReady(visualPlan)
       || selectedAssetIds.length === 0
       || !overviewValid
       || (visualPlan.selectionMethod === 'approved_component_link'
@@ -269,7 +335,7 @@ export function bindReleaseVisualPlanAssets(scenes, project) {
   });
 }
 
-export function validateReleaseVisualPlans(scenes) {
+export function validateReleaseVisualPlans(scenes, projectMetadata = {}) {
   const incompleteSceneIds = (scenes || []).filter((scene) => {
     const visualPlan = scene?.visualPlan;
     const isCanonicalScene = scene?.storyboardVersion === '1.2.0';
@@ -281,15 +347,20 @@ export function validateReleaseVisualPlans(scenes) {
       || ((visualPlan.selectionMethod === 'brand_asset' || visualPlan.selectionMethod === 'rulebook_reference')
         && visualPlan.overviewSelectionConfirmed === true);
     return visualPlan.reviewState !== 'resolved'
+      || !coverageIsReleaseReady(visualPlan)
       || selectedAssetIds.length === 0
       || imageUrls.length === 0
       || !overviewValid
       || imageUrls.some((url) => String(url).includes('placeholder'));
   }).map((scene) => scene.id || 'unknown-scene');
-  if (incompleteSceneIds.length) {
+  const reuseExceeded = releaseReuseExceeded(scenes, projectMetadata);
+  if (incompleteSceneIds.length || reuseExceeded) {
+    const reason = incompleteSceneIds.length
+      ? `for: ${incompleteSceneIds.join(', ')}`
+      : 'because a non-brand visual asset exceeds the configured reuse threshold.';
     throw createRemotionError(
       'VISUAL_PLAN_INCOMPLETE',
-      `Release render requires resolved project-owned visual plans for: ${incompleteSceneIds.join(', ')}.`,
+      `Release render requires resolved project-owned visual plans ${reason}`,
     );
   }
 }
@@ -529,7 +600,7 @@ export function registerRemotionRenderRoutes(
 
       const persistedScenes = parseProjectScenes(project);
       const releaseScenes = bindReleaseVisualPlanAssets(persistedScenes, project);
-      validateReleaseVisualPlans(releaseScenes);
+      validateReleaseVisualPlans(releaseScenes, parseProjectMetadata(project));
       const scenes = prepareScenesForRenderer(
         releaseScenes,
         getBackgroundMusic(project),

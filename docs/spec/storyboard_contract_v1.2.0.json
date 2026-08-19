@@ -14,7 +14,8 @@
     "status", "reviewNotes", "timing"
   ],
   "visualPlanRequiredFields": [
-    "componentRefs", "componentRefMatches", "sourceReferences", "assetCandidates", "selectedAssetIds",
+    "componentRefs", "componentRefMatches", "primaryIntent", "primaryComponentRefs", "supportingComponentRefs",
+    "coverageStatus", "coverageReason", "coverageEvidence", "assetAssignments", "assetReuse", "sourceReferences", "assetCandidates", "selectedAssetIds",
     "selectionMethod", "reviewState", "reviewReason", "requiresExplicitVisual", "overviewExceptionAllowed"
   ],
   "visualReviewPolicy": {

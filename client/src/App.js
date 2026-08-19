@@ -1526,7 +1526,17 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
   // --- Audio Playback for a single section (used by "Play Audio" button) ---
   const handlePlayAudio = async (section, idx) => {
-    // Check if audio already exists for this section
+    const visualGate = validateStoryboardVisualPlans(storyboardManifest, {
+      images: projectImages,
+      componentImageLinks,
+      componentImageLinkDetails,
+      components: gameComponents,
+    });
+    if (!visualGate.valid) {
+      setError(visualGate.code);
+      return;
+    }
+    // Check if audio already exists for this section
     if (audio[idx]) {
       // If audio exists, just play it
       const audioPlayer = document.getElementById(`audio-${idx}`);
@@ -1679,7 +1689,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           setError("Generate the storyboard to proceed.");
           return;
         }
-        const storyboardReview = validateStoryboardReview(storyboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails });
+        const storyboardReview = validateStoryboardReview(storyboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails, components: gameComponents });
         if (!storyboardReview.valid) {
           setError(storyboardReview.code);
           return;
@@ -1737,7 +1747,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
             onStepClick={goToStep}
             onConfirmStep={handleConfirmStep}
             canConfirmStep={(stepId) => (stepId !== 'script' || canConfirmScript)
-              && (stepId !== 'storyboard' || validateStoryboardReview(storyboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails }).valid)}
+              && (stepId !== 'storyboard' || validateStoryboardReview(storyboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails, components: gameComponents }).valid)}
           />
 
           {error && (<div style={{ color: "red", marginBottom: 12 }}>{error}</div>)}
@@ -1887,7 +1897,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               className="confirm-step-btn"
               onClick={() => handleConfirmStep(activeStepId)}
               disabled={(activeStepId === 'script' && !canConfirmScript)
-                || (activeStepId === 'storyboard' && !validateStoryboardReview(storyboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails }).valid)}
+                || (activeStepId === 'storyboard' && !validateStoryboardReview(storyboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails, components: gameComponents }).valid)}
               style={{
                 background: 'linear-gradient(90deg, #1565c0, #1976d2)',
                 color: 'white',

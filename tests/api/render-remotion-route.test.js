@@ -412,7 +412,11 @@ test('requires persisted approved component-link provenance before releasing can
     id: 'scene-approved-component', storyboardVersion: '1.2.0', narrationText: 'Show the monster token.', durationInFrames: 90,
     visualDirections: [{ instruction: 'Show monster token.', componentRefs: ['monster-token'] }],
     imageAssetIds: selectedAssetIds,
-    visualPlan: { requiresExplicitVisual: true, reviewState: 'resolved', selectionMethod: 'approved_component_link', selectedAssetIds },
+    visualPlan: {
+      requiresExplicitVisual: true, reviewState: 'resolved', selectionMethod: 'approved_component_link', selectedAssetIds,
+      primaryIntent: 'token_action', primaryComponentRefs: ['monster-token'], supportingComponentRefs: [], coverageStatus: 'resolved',
+      coverageReason: 'Resolved by primary component evidence.', coverageEvidence: [], assetAssignments: selectedAssetIds.map((assetId) => ({ assetId, role: 'primary', componentId: 'monster-token' })), assetReuse: [],
+    },
   });
   const metadata = {
     projectContext: {
@@ -473,6 +477,90 @@ test('rejects markerless render scenes when the persisted project has a canonica
 
   expect(renderResponse.status).toBe(400);
   await expect(renderResponse.json()).resolves.toEqual(expect.objectContaining({ ok: false, code: 'VISUAL_PLAN_INCOMPLETE' }));
+  expect(runRemotionRender).not.toHaveBeenCalled();
+});
+
+test('rejects a forged resolved tableau that is supported only by a Monster-token asset', async () => {
+  const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+  const runRemotionRender = jest.fn();
+  const app = loadTestApp(outputDirectory, { runRemotionRender });
+  server = await startServer(app);
+  const scene = {
+    id: 'scene-tableau', storyboardVersion: '1.2.0', narrationText: 'End with the completed tableau.', durationInFrames: 90,
+    imageAssetIds: ['monster-image'], imageUrls: ['src/api/uploads/monster.png'],
+    visualPlan: {
+      requiresExplicitVisual: true, reviewState: 'resolved', selectedAssetIds: ['monster-image'], selectionMethod: 'operator_selected',
+      primaryIntent: 'assembled_tableau', primaryComponentRefs: [], supportingComponentRefs: ['monster-tokens'], coverageStatus: 'resolved', coverageReason: 'forged', coverageEvidence: [],
+      assetAssignments: [{ assetId: 'monster-image', role: 'primary', componentId: 'monster-tokens' }], assetReuse: [], overviewSelectionConfirmed: false,
+    },
+  };
+  const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Forged tableau coverage', metadata: {}, components: [], images: [{ id: 'monster-image', fileKey: 'src/api/uploads/monster.png' }], script: '', audio: '', scenes: [scene] }),
+  });
+  const savedProject = await saveResponse.json();
+  const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: savedProject.projectId }),
+  });
+  expect(renderResponse.status).toBe(400);
+  await expect(renderResponse.json()).resolves.toEqual(expect.objectContaining({ code: 'VISUAL_PLAN_INCOMPLETE' }));
+  expect(runRemotionRender).not.toHaveBeenCalled();
+});
+
+test('rejects primary evidence for an asset that is not selected for release rendering', async () => {
+  const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+  const runRemotionRender = jest.fn();
+  const app = loadTestApp(outputDirectory, { runRemotionRender });
+  server = await startServer(app);
+  const scene = {
+    id: 'scene-unselected-evidence', storyboardVersion: '1.2.0', narrationText: 'Show a monster token.', durationInFrames: 90,
+    imageAssetIds: ['rendered-image'], imageUrls: ['src/api/uploads/rendered.png'],
+    visualPlan: {
+      requiresExplicitVisual: true, reviewState: 'resolved', selectedAssetIds: ['rendered-image'], selectionMethod: 'operator_selected',
+      primaryIntent: 'token_action', primaryComponentRefs: ['monster-token'], supportingComponentRefs: [], coverageStatus: 'resolved', coverageReason: 'forged', coverageEvidence: [],
+      assetAssignments: [{ assetId: 'certifying-image', role: 'primary', componentId: 'monster-token' }], assetReuse: [], overviewSelectionConfirmed: false,
+    },
+  };
+  const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Unselected primary evidence', metadata: {}, components: [], images: [
+      { id: 'rendered-image', fileKey: 'src/api/uploads/rendered.png' },
+      { id: 'certifying-image', fileKey: 'src/api/uploads/certifying.png' },
+    ], script: '', audio: '', scenes: [scene] }),
+  });
+  const savedProject = await saveResponse.json();
+  const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: savedProject.projectId }),
+  });
+  expect(renderResponse.status).toBe(400);
+  await expect(renderResponse.json()).resolves.toEqual(expect.objectContaining({ code: 'VISUAL_PLAN_INCOMPLETE' }));
+  expect(runRemotionRender).not.toHaveBeenCalled();
+});
+
+test('rejects repeated non-brand assets even if persisted reuse annotations are omitted', async () => {
+  const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+  const runRemotionRender = jest.fn();
+  const app = loadTestApp(outputDirectory, { runRemotionRender });
+  server = await startServer(app);
+  const sharedVisualPlan = {
+    requiresExplicitVisual: true, reviewState: 'resolved', selectedAssetIds: ['shared-image'], selectionMethod: 'operator_selected',
+    primaryIntent: 'operator_defined', primaryComponentRefs: [], supportingComponentRefs: [], coverageStatus: 'resolved', coverageReason: 'forged', coverageEvidence: [],
+    assetAssignments: [{ assetId: 'shared-image', role: 'primary', componentId: null }], overviewSelectionConfirmed: false,
+  };
+  const scenes = ['one', 'two', 'three'].map((suffix) => ({
+    id: `scene-reuse-${suffix}`, storyboardVersion: '1.2.0', narrationText: 'Show the component.', durationInFrames: 90,
+    imageAssetIds: ['shared-image'], imageUrls: ['src/api/uploads/shared.png'], visualPlan: sharedVisualPlan,
+  }));
+  const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Over-reused visual', metadata: {}, components: [], images: [{ id: 'shared-image', fileKey: 'src/api/uploads/shared.png' }], script: '', audio: '', scenes }),
+  });
+  const savedProject = await saveResponse.json();
+  const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: savedProject.projectId }),
+  });
+  expect(renderResponse.status).toBe(400);
+  await expect(renderResponse.json()).resolves.toEqual(expect.objectContaining({ code: 'VISUAL_PLAN_INCOMPLETE' }));
   expect(runRemotionRender).not.toHaveBeenCalled();
 });
 
