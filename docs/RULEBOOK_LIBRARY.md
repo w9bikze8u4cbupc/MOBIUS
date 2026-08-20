@@ -30,14 +30,19 @@ Les pages de fichiers communautaires, les liens nécessitant un contournement de
 Avant tout téléchargement réel, exécuter dans **Windows PowerShell** :
 
 ```powershell
-Get-PSDrive -PSProvider FileSystem |
-    Select-Object Name, Root,
-        @{Name='FreeGB'; Expression = { [math]::Round($_.Free / 1GB, 2) }},
-        @{Name='UsedGB'; Expression = { [math]::Round($_.Used / 1GB, 2) }} |
-    Format-Table -AutoSize
+Set-Location 'C:\mobius-games-tutorial-generator'
+.\scripts\check-rulebook-library-space.ps1
 ```
 
-MOBIUS doit conserver une marge de sécurité : le collecteur sera configuré pour refuser tout nouveau téléchargement si l’espace libre passe sous le seuil que l’opérateur choisira.
+Le script vérifie le volume qui contient `C:\mobius-games-tutorial-generator\data\rulebook-library`, applique par défaut une marge de sécurité de 20 Go et retourne `DownloadReady : True` uniquement lorsque cette marge est respectée. Pour utiliser un autre disque ou un autre seuil :
+
+```powershell
+.\scripts\check-rulebook-library-space.ps1 `
+  -LibraryRoot 'D:\MobiusRulebooks' `
+  -MinimumFreeGB 30
+```
+
+MOBIUS doit conserver cette marge de sécurité : le futur collecteur refusera tout nouveau téléchargement si l’espace libre passe sous le seuil retenu par l’opérateur.
 
 ## Initialiser et importer le classement
 
