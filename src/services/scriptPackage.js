@@ -78,16 +78,74 @@ export function inspectScriptPackageTransport(content) {
   return inspection;
 }
 
+function escapeRawControlCharactersInJsonStrings(value) {
+  let inString = false;
+  let escaped = false;
+  let repaired = '';
+  let changed = false;
+  for (const character of value) {
+    if (!inString) {
+      if (character === '"') inString = true;
+      repaired += character;
+      continue;
+    }
+    if (escaped) {
+      escaped = false;
+      repaired += character;
+      continue;
+    }
+    if (character === '\\') {
+      escaped = true;
+      repaired += character;
+      continue;
+    }
+    if (character === '"') {
+      inString = false;
+      repaired += character;
+      continue;
+    }
+    if (character === '\n') {
+      repaired += '\\n';
+      changed = true;
+      continue;
+    }
+    if (character === '\r') {
+      repaired += '\\r';
+      changed = true;
+      continue;
+    }
+    if (character === '\t') {
+      repaired += '\\t';
+      changed = true;
+      continue;
+    }
+    repaired += character;
+  }
+  return changed ? repaired : value;
+}
+
 function parseJsonObject(content) {
   const trimmed = String(content || '').trim();
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
   const candidate = fenced ? fenced[1].trim() : trimmed;
-  try {
-    const value = JSON.parse(candidate);
+  const parseObject = (json) => {
+    const value = JSON.parse(json);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('not an object');
     return value;
+  };
+  try {
+    return parseObject(candidate);
   } catch {
-    throw createValidationError('malformed_json', 'Final synthesis did not return the required script-package JSON object.', ['package']);
+    // Some providers occasionally emit a literal line break inside an otherwise
+    // valid JSON string. Escape only those forbidden control characters; never
+    // unwrap prose, invent fields, or repair structural JSON mistakes.
+    try {
+      const repaired = escapeRawControlCharactersInJsonStrings(candidate);
+      if (repaired === candidate) throw new Error('no deterministic repair');
+      return parseObject(repaired);
+    } catch {
+      throw createValidationError('malformed_json', 'Final synthesis did not return the required script-package JSON object.', ['package']);
+    }
   }
 }
 

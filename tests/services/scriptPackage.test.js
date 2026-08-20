@@ -78,6 +78,13 @@ describe('canonical script package', () => {
     expect(() => parse(section)).toThrow(expect.objectContaining({ code: 'SCRIPT_PACKAGE_INVALID', reason, validationFields: fields }));
   });
 
+  test('repairs only raw line breaks inside an otherwise valid model JSON string', () => {
+    const content = JSON.stringify({ sections: [canonicalSection({ spokenText: 'Place the board.\nThen shuffle the deck.' })] })
+      .replace('Place the board.\\nThen shuffle the deck.', 'Place the board.\nThen shuffle the deck.');
+    const result = parseGeneratedScriptPackage(content, { chunks, profile });
+    expect(result.sections[0].spokenText).toBe('Place the board. Then shuffle the deck.');
+  });
+
   test('rejects malformed and prose-wrapped JSON rather than repairing it', () => {
     for (const content of ['{not json}', `Explanation\n${JSON.stringify({ sections: [canonicalSection()] })}`]) {
       expect(() => parseGeneratedScriptPackage(content, { chunks, profile })).toThrow(expect.objectContaining({ code: 'SCRIPT_PACKAGE_INVALID', reason: 'malformed_json' }));
