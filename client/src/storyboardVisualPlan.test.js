@@ -475,3 +475,38 @@ test('permits a sourced three-Key schematic only when explicit directions requir
   const insufficient = resolveSceneVisualPlan({ ...scene, sources: [] }, { images, components });
   expect(insufficient).toMatchObject({ coverageStatus: 'partial', schematicComponentEvidence: [] });
 });
+
+
+test('completes an empty sourced three-Key scene only from unambiguous resolved cross-scene component evidence', () => {
+  const components = [
+    { id: 'lords', name: 'Lords' },
+    { id: 'locations', name: 'Locations' },
+    { id: 'key-tokens', name: 'Key tokens' },
+  ];
+  const images = [{ id: 'lord-image' }, { id: 'location-image' }];
+  const sourceDirections = [{ instruction: 'Show Lords and Locations together.', componentRefs: ['lords', 'locations'] }];
+  const source = requiredScene({
+    id: 'source', order: 1, title: 'Recruit and Control', visualDirections: sourceDirections,
+    visualPlan: { selectedAssetIds: ['lord-image', 'location-image'], selectionMethod: 'operator_selected', assetAssignments: [
+      { assetId: 'lord-image', role: 'primary', componentId: 'lords' },
+      { assetId: 'location-image', role: 'primary', componentId: 'locations' },
+    ] },
+  });
+  const emptyControl = requiredScene({
+    id: 'empty-control', order: 2, title: 'Controlling Locations',
+    visualDirections: [{
+      instruction: 'Animate three Keys combining into a Location, then slide the contributing Lords beneath it.',
+      componentRefs: ['lords', 'locations', 'key-tokens'],
+    }],
+    visualPlan: { selectedAssetIds: [], assetAssignments: [] },
+  });
+  const reconciled = reconcileStoryboardVisualPlans({ version: '1.2.0', scenes: [source, emptyControl] }, { images, components });
+  const completed = reconciled.scenes.find((scene) => scene.id === 'empty-control');
+  expect(completed.visualPlan).toMatchObject({
+    coverageStatus: 'resolved', selectionMethod: 'verified_cross_scene_reuse', selectedAssetIds: ['lord-image', 'location-image'],
+    assetAssignments: expect.arrayContaining([
+      expect.objectContaining({ assetId: 'lord-image', componentId: 'lords', role: 'primary' }),
+      expect.objectContaining({ assetId: 'location-image', componentId: 'locations', role: 'primary' }),
+    ]),
+  });
+});

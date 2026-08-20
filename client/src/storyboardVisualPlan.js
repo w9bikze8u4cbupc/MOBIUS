@@ -6,7 +6,7 @@ const VAGUE_COMPONENT_TERMS = new Set(['game', 'point', 'strategy', 'influence',
 const PRIMARY_INTENTS = new Set(['game_overview', 'assembled_tableau', 'board_setup', 'component_closeup', 'card_action', 'token_action', 'rulebook_reference', 'brand_outro', 'operator_defined']);
 const COVERAGE_STATUSES = new Set(['unresolved', 'partial', 'resolved', 'operator_override', 'blocked']);
 const ASSET_ROLES = new Set(['primary', 'supporting', 'overview', 'brand', 'rulebook_reference']);
-const VALID_SELECTION_METHODS = new Set(['approved_component_link', 'operator_selected', 'brand_asset', 'rulebook_reference', 'unresolved']);
+const VALID_SELECTION_METHODS = new Set(['approved_component_link', 'operator_selected', 'verified_cross_scene_reuse', 'brand_asset', 'rulebook_reference', 'unresolved']);
 const CONTEXTUAL_EVIDENCE_ROLES = Object.freeze({
   game_overview: new Set(['rulebook_reference']),
   assembled_tableau: new Set(['rulebook_reference']),
@@ -566,6 +566,46 @@ function consensusPrimaryComponentsByAsset(scenes = []) {
     .map(([assetId, componentIds]) => [assetId, [...componentIds][0]]));
 }
 
+function consensusPrimaryAssetsByComponent(scenes = []) {
+  const assetIdsByComponent = new Map();
+  scenes.filter((scene) => scene?.visualPlan?.coverageStatus === 'resolved').forEach((scene) => {
+    const primaryRequirements = new Set(scene.visualPlan?.primaryComponentRefs || []);
+    (scene.visualPlan?.assetAssignments || []).forEach((assignment) => {
+      if (assignment?.role !== 'primary' || !primaryRequirements.has(assignment.componentId) || !assignment.assetId) return;
+      const assets = assetIdsByComponent.get(assignment.componentId) || new Set();
+      assets.add(assignment.assetId);
+      assetIdsByComponent.set(assignment.componentId, assets);
+    });
+  });
+  return new Map([...assetIdsByComponent].filter(([, assetIds]) => assetIds.size === 1)
+    .map(([componentId, assetIds]) => [componentId, [...assetIds][0]]));
+}
+
+function fillEmptySceneFromVerifiedComponentConsensus(scene, assetByComponent) {
+  const plan = scene?.visualPlan || {};
+  if (plan.coverageStatus === 'resolved' || plan.coverageStatus === 'operator_override'
+    || (plan.selectedAssetIds || []).length > 0) return scene;
+  const primaryRefs = plan.primaryComponentRefs || [];
+  const schematicRefs = new Set((plan.schematicComponentEvidence || []).map((evidence) => evidence.componentId));
+  const assignments = primaryRefs.flatMap((componentId) => {
+    const assetId = assetByComponent.get(componentId);
+    return assetId ? [{ assetId, role: 'primary', componentId }] : [];
+  });
+  const allMissingAreSchematic = primaryRefs.every((componentId) => assetByComponent.has(componentId) || schematicRefs.has(componentId));
+  if (!assignments.length || !allMissingAreSchematic) return scene;
+  return {
+    ...scene,
+    imageAssetIds: assignments.map((assignment) => assignment.assetId),
+    visualPlan: {
+      ...plan,
+      selectedAssetIds: assignments.map((assignment) => assignment.assetId),
+      assetAssignments: assignments,
+      selectionMethod: 'verified_cross_scene_reuse',
+      manualSelectionReviewed: true,
+    },
+  };
+}
+
 function repairRedundantComponentAssignments(scene, consensusByAsset) {
   const plan = scene?.visualPlan || {};
   if (plan.coverageStatus === 'resolved' || plan.coverageStatus === 'operator_override') return scene;
@@ -612,7 +652,12 @@ export function reconcileStoryboardVisualPlans(manifest, context = {}) {
     const repaired = repairRedundantComponentAssignments(scene, consensusByAsset);
     return repaired === scene ? scene : withResolvedVisualPlan(repaired, context);
   });
-  return { ...manifest, scenes: annotateAssetReuse(repairedScenes, context.policy) };
+  const consensusAssetByComponent = consensusPrimaryAssetsByComponent(initiallyResolvedScenes);
+  const completedScenes = repairedScenes.map((scene) => {
+    const filled = fillEmptySceneFromVerifiedComponentConsensus(scene, consensusAssetByComponent);
+    return filled === scene ? scene : withResolvedVisualPlan(filled, context);
+  });
+  return { ...manifest, scenes: annotateAssetReuse(completedScenes, context.policy) };
 }
 
 export function validateStoryboardVisualPlans(manifest, context = {}) {
