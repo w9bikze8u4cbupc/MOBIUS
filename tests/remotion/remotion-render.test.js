@@ -39,6 +39,19 @@ describe('Remotion offline MP4 render', () => {
         themeBorderColor: '#E91E63',
         durationInFrames: 15,
       },
+      {
+        id: 'brand-outro',
+        narrationText: 'Thank you for watching Les Jeux Mobius Games.',
+        imageUrls: [],
+        sectionTitle: 'Les Jeux Mobius Games',
+        themeBorderColor: '#52d6c5',
+        durationInFrames: 15,
+        visualPlan: {
+          primaryIntent: 'brand_outro',
+          coverageStatus: 'operator_override',
+          operatorOverride: { reason: 'Use the approved channel outro without claiming rulebook evidence.' },
+        },
+      },
     ]), 'utf8');
 
     execFileSync(process.execPath, [
@@ -71,7 +84,7 @@ describe('Remotion offline MP4 render', () => {
     fs.rmSync(temporaryDirectory, { recursive: true, force: true });
   });
 
-  test('renders one transition-enabled MP4 from gallery and legacy local-image scenes', () => {
+  test('renders one transition-enabled MP4 from gallery, legacy, and documented brand-outro scenes', () => {
     expect(fs.existsSync(outputPath)).toBe(true);
     expect(fs.statSync(outputPath).size).toBeGreaterThan(0);
   });

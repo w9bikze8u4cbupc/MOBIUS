@@ -53,6 +53,63 @@ const resolveImageUrls = (imageUrls, imageUrl) => {
   return imageUrl ? [imageUrl] : [];
 };
 
+const isDocumentedBrandOutro = (visualPlan) => (
+  visualPlan?.primaryIntent === 'brand_outro'
+  && visualPlan?.coverageStatus === 'operator_override'
+  && typeof visualPlan?.operatorOverride?.reason === 'string'
+  && visualPlan.operatorOverride.reason.trim().length >= 3
+);
+
+const BrandOutroCard = ({ accentColor, frame, height, width }) => {
+  const titleOpacity = interpolate(frame, [8, 28], [0, 1], clamp);
+  const titleScale = interpolate(frame, [8, 28], [0.92, 1], clamp);
+  const ringRotation = interpolate(frame, [0, 180], [0, 18], clamp);
+  return (
+    <section
+      aria-label="Les Jeux Mobius Games outro"
+      style={{
+        alignItems: 'center',
+        background: 'radial-gradient(circle at 48% 34%, #176b8a 0%, #0b3856 43%, #0a2034 100%)',
+        border: `4px solid ${accentColor}`,
+        borderRadius: Math.max(18, Math.round(width * 0.013)),
+        boxShadow: '0 24px 70px rgba(0, 0, 0, 0.34)',
+        display: 'flex',
+        flex: '1 1 0',
+        justifyContent: 'center',
+        minWidth: 0,
+        overflow: 'hidden',
+        position: 'relative',
+      }}
+    >
+      <div style={{
+        border: `12px solid ${accentColor}`,
+        borderRadius: '50%',
+        height: Math.round(Math.min(width, height) * 0.18),
+        opacity: 0.75,
+        position: 'absolute',
+        transform: `rotate(${ringRotation}deg) scaleX(1.65)`,
+        width: Math.round(Math.min(width, height) * 0.18),
+      }} />
+      <div style={{
+        alignItems: 'center',
+        display: 'flex',
+        flexDirection: 'column',
+        opacity: titleOpacity,
+        padding: Math.round(width * 0.04),
+        position: 'relative',
+        textAlign: 'center',
+        transform: `scale(${titleScale})`,
+      }}>
+        <p style={{ color: '#d6f7ff', fontSize: Math.max(26, Math.round(width * 0.02)), fontWeight: 800, letterSpacing: 5, margin: 0 }}>LES JEUX</p>
+        <h2 style={{ color: '#ffffff', fontSize: Math.max(54, Math.round(width * 0.053)), fontWeight: 900, letterSpacing: 2, lineHeight: 1, margin: '12px 0' }}>MOBIUS</h2>
+        <p style={{ color: accentColor, fontSize: Math.max(26, Math.round(width * 0.021)), fontWeight: 800, letterSpacing: 3, margin: 0 }}>GAMES</p>
+        <div style={{ background: 'rgba(255,255,255,0.16)', borderRadius: 999, height: 3, margin: '28px 0 20px', width: '72%' }} />
+        <p style={{ color: '#d9f6ff', fontSize: Math.max(24, Math.round(width * 0.018)), fontWeight: 700, lineHeight: 1.3, margin: 0 }}>Merci d’avoir regardé</p>
+      </div>
+    </section>
+  );
+};
+
 /**
  * Renders one deterministic MOBIUS tutorial scene. The typography deliberately
  * exceeds 96px for titles and 64px for narration at every supported resolution.
@@ -69,6 +126,7 @@ export const MobiusComposition = ({
   backgroundMusicFile,
   backgroundMusicVolume = 0.12,
   backgroundMusicStartFrom = 0,
+  visualPlan,
 }) => {
   const frame = useCurrentFrame();
   const { fps, height, width } = useVideoConfig();
@@ -84,6 +142,7 @@ export const MobiusComposition = ({
   const borderScale = interpolate(borderEntrance, [0, 1], [0.975, 1], clamp);
   const backgroundShift = interpolate(frame, [0, Math.max(1, fps * 5)], [0, 1], clamp);
   const resolvedImageUrls = resolveImageUrls(imageUrls, imageUrl);
+  const showGeneratedBrandOutro = resolvedImageUrls.length === 0 && isDocumentedBrandOutro(visualPlan);
 
   return (
     <AbsoluteFill
@@ -133,7 +192,10 @@ export const MobiusComposition = ({
               <NarrationText>{narrationText}</NarrationText>
             </div>
           </section>
-          <MediaGallery imageUrls={resolvedImageUrls} label={sectionTitle} />
+          {showGeneratedBrandOutro
+            ? <BrandOutroCard accentColor={themeBorderColor} frame={frame} height={height} width={width} />
+            : <MediaGallery imageUrls={resolvedImageUrls} label={sectionTitle} />}
+
         </div>
       </AbsoluteFill>
       {backgroundMusicFile ? (

@@ -125,9 +125,18 @@ function assertNonEmptyString(value, fieldName, sceneIndex) {
   }
 }
 
+function isDocumentedBrandOutro(scene) {
+  const plan = scene?.visualPlan;
+  return plan?.primaryIntent === 'brand_outro'
+    && plan?.coverageStatus === 'operator_override'
+    && typeof plan?.operatorOverride?.reason === 'string'
+    && plan.operatorOverride.reason.trim().length >= 3;
+}
+
 function normalizeImageUrls(scene, sceneIndex) {
+  const allowGeneratedBrandOutro = isDocumentedBrandOutro(scene);
   if (scene.imageUrls !== undefined) {
-    if (!Array.isArray(scene.imageUrls) || scene.imageUrls.length === 0) {
+    if (!Array.isArray(scene.imageUrls) || (scene.imageUrls.length === 0 && !allowGeneratedBrandOutro)) {
       fail(`Scene ${sceneIndex + 1}: imageUrls must be a non-empty array of image paths or URLs.`);
     }
 
@@ -137,6 +146,7 @@ function normalizeImageUrls(scene, sceneIndex) {
     return scene.imageUrls;
   }
 
+  if (allowGeneratedBrandOutro) return [];
   assertNonEmptyString(scene.imageUrl, 'imageUrl', sceneIndex);
   return [scene.imageUrl];
 }
