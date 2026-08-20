@@ -323,7 +323,7 @@ function App() {
   // --- State Variables ---
   const [file, setFile] = useState(null);
   const [rulebookText, setRulebookText] = useState("");
-  const [language, setLanguage] = useState("english");
+  const [language, setLanguage] = useState("french");
   const [voice, setVoice] = useState(""); // Stores ElevenLabs voice ID
   const [gameName, setGameName] = useState("");
   const [projectId, setProjectId] = useState("");
