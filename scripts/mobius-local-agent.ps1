@@ -4,7 +4,8 @@ param(
     [string]$Mode = 'Watch',
     [string]$RepoRoot = 'C:\mobius-games-tutorial-generator',
     [ValidateRange(30, 3600)]
-    [int]$IntervalSeconds = 90
+    [int]$IntervalSeconds = 90,
+    [switch]$ForceBuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -100,6 +101,7 @@ function Stop-MobiusApi {
 }
 
 function Invoke-MobiusDeployment {
+    param([switch]$ForceBuild)
     if (-not (Test-Path (Join-Path $repo '.git'))) {
         throw "MOBIUS repository not found: $repo"
     }
@@ -120,16 +122,20 @@ function Invoke-MobiusDeployment {
     Invoke-Git @('fetch', 'origin', 'main') | Out-Null
     $head = (Invoke-Git @('rev-parse', 'HEAD') | Select-Object -First 1).Trim()
     $remote = (Invoke-Git @('rev-parse', 'origin/main') | Select-Object -First 1).Trim()
-    if ($head -eq $remote) {
+    if ($head -eq $remote -and -not $ForceBuild) {
         Start-MobiusApi
         Write-AgentStatus 'ready' 'MOBIUS is current and responding on port 5001.' $head
         return $false
     }
 
-    Write-AgentStatus 'updating' "Updating MOBIUS from $head to $remote." $remote
-    Write-AgentLog 'INFO' "Applying fast-forward update $head -> $remote."
+    $target = if ($head -eq $remote) { $head } else { $remote }
+    $operation = if ($head -eq $remote) { 'Rebuilding current MOBIUS revision' } else { "Updating MOBIUS from $head to $remote" }
+    Write-AgentStatus 'updating' "$operation." $target
+    Write-AgentLog 'INFO' "$operation."
     Stop-MobiusApi
-    Invoke-Git @('pull', '--ff-only', 'origin', 'main') | Out-Null
+    if ($head -ne $remote) {
+        Invoke-Git @('pull', '--ff-only', 'origin', 'main') | Out-Null
+    }
 
     $clientDir = Join-Path $repo 'client'
     if (-not (Test-Path (Join-Path $clientDir 'package.json'))) {
@@ -167,7 +173,7 @@ try {
     }
 
     if ($Mode -eq 'Sync') {
-        [void](Invoke-MobiusDeployment)
+        [void](Invoke-MobiusDeployment -ForceBuild:$ForceBuild)
         exit 0
     }
 

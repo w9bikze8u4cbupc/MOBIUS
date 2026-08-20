@@ -19,6 +19,8 @@ const requiredAgentTokens = [
   'RedirectStandardError $serverErrLog',
   "'waiting_for_clean_tree'",
   "'ready'",
+  '[switch]$ForceBuild',
+  'Invoke-MobiusDeployment -ForceBuild:$ForceBuild',
 ];
 for (const token of requiredAgentTokens) {
   if (!agent.includes(token)) throw new Error(`Missing agent safety contract: ${token}`);
@@ -30,6 +32,7 @@ const requiredInstallerTokens = [
   'Register-ScheduledTask',
   'Start-ScheduledTask',
   'mobius-local-agent.status.json',
+  '& $agent -Mode Sync -ForceBuild',
 ];
 for (const token of requiredInstallerTokens) {
   if (!installer.includes(token)) throw new Error(`Missing installer contract: ${token}`);

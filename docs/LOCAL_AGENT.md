@@ -24,7 +24,7 @@ Set-Location 'C:\mobius-games-tutorial-generator'
 .\scripts\install-mobius-local-agent.ps1
 ```
 
-L’installateur crée la tâche Windows **`MOBIUS Local Agent`**, la démarre immédiatement, puis l’agent relance le contrôle toutes les 90 secondes. Les correctifs futurs ne demandent plus `git pull`, `npm run build` ni le redémarrage manuel de `node src/api/index.js`.
+L’installateur applique d’abord la version locale courante — reconstruction du client et redémarrage vérifié de l’API — puis crée la tâche Windows **`MOBIUS Local Agent`**, la démarre immédiatement et lance ensuite un contrôle toutes les 90 secondes. Les correctifs futurs ne demandent plus `git pull`, `npm run build` ni le redémarrage manuel de `node src/api/index.js`.
 
 Les cmdlets Microsoft `Register-ScheduledTask` et `New-ScheduledTaskTrigger -AtLogOn` permettent d’enregistrer une tâche locale puis de la déclencher à la connexion.[1] [2] `Start-Process` permet au superviseur de lancer l’API locale avec un répertoire de travail et des fichiers de sortie explicites.[3]
 

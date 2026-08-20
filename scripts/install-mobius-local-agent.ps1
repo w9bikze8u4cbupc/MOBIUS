@@ -20,6 +20,14 @@ if (-not (Test-Path $agent)) {
 }
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+
+# Apply the current checkout once before registering the watcher. This removes the
+# need for a separate manual build/restart when the agent is first activated.
+& $agent -Mode Sync -ForceBuild -RepoRoot $repo -IntervalSeconds $IntervalSeconds
+if ($LASTEXITCODE -ne 0) {
+    throw "Initial MOBIUS synchronization failed. Inspect $(Join-Path $logDir 'mobius-local-agent.log')"
+}
+
 $powerShell = Join-Path $PSHOME 'powershell.exe'
 if (-not (Test-Path $powerShell)) { $powerShell = 'powershell.exe' }
 
