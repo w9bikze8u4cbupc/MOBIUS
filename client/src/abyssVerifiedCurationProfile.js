@@ -27,17 +27,46 @@ const evidenceBySceneId = {
   'scene-section-12-21': pages.components,
 };
 
-function verifiedMechanicAssignment(page) {
+const setupCrop = {
+  assetId: 'crop-75a60c2fc31c95cf2bf1a297831bf08e',
+  cropId: 'crop-75a60c2fc31c95cf2bf1a297831bf08e',
+  pageId: pages.components.pageId,
+  pageRasterSha256: pages.components.pageRasterSha256,
+};
+
+function normalizedSceneText(scene) {
+  return `${scene?.title || ''} ${(scene?.visualDirections || []).map((direction) => direction?.instruction || '').join(' ')}`
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+/**
+ * These are narrow, operator-reviewed migrations for the French Abyss script.
+ * They are intentionally title-based because regenerated French scenes receive
+ * new IDs. No introduction, objective, conclusion, scoring, or generic scene
+ * gets a borrowed proof merely to satisfy a release gate.
+ */
+function evidenceForReviewedFrenchScene(scene) {
+  const text = normalizedSceneText(scene);
+  if (/mise en place|installation/.test(text)) return { page: setupCrop, role: 'board_setup_context', kind: 'contextual_crop' };
+  if (/materiel/.test(text)) return { page: pages.components, role: 'verified_mechanic_rulebook', kind: 'contextual_page' };
+  if (/deroulement d.?un tour|explorer les profondeurs|conseil et recrutement/.test(text)) {
+    return { page: pages.exploration, role: 'verified_mechanic_rulebook', kind: 'contextual_page' };
+  }
+  return null;
+}
+
+function verifiedEvidenceAssignment({ page, role = 'verified_mechanic_rulebook', kind = 'contextual_page' }) {
   return {
-    kind: 'contextual_page',
+    kind,
     assetId: page.assetId,
     documentSha256: DOCUMENT_SHA256,
     pageId: page.pageId,
     pageRasterSha256: page.pageRasterSha256,
+    ...(kind === 'contextual_crop' ? { cropId: page.cropId } : {}),
     renderProfile: RENDER_PROFILE,
-    role: 'verified_mechanic_rulebook',
+    role,
     confirmed: true,
-    verifiedMechanicEvidence: true,
+    verifiedMechanicEvidence: role === 'verified_mechanic_rulebook',
   };
 }
 
@@ -46,17 +75,21 @@ export function applyVerifiedAbyssCurationProfile(manifest, projectId) {
   return {
     ...manifest,
     scenes: manifest.scenes.map((scene) => {
-      const page = evidenceBySceneId[scene?.id];
-      if (!page) return scene;
+      const legacyPage = evidenceBySceneId[scene?.id];
+      const reviewedEvidence = legacyPage
+        ? { page: legacyPage, role: 'verified_mechanic_rulebook', kind: 'contextual_page' }
+        : evidenceForReviewedFrenchScene(scene);
+      if (!reviewedEvidence) return scene;
       const plan = scene.visualPlan || {};
       const assignments = Array.isArray(plan.contextualEvidenceAssignments) ? plan.contextualEvidenceAssignments : [];
-      const alreadyPresent = assignments.some((assignment) => assignment?.assetId === page.assetId && assignment?.verifiedMechanicEvidence === true);
+      const alreadyPresent = assignments.some((assignment) => assignment?.assetId === reviewedEvidence.page.assetId
+        && assignment?.role === reviewedEvidence.role && assignment?.confirmed === true);
       if (alreadyPresent) return scene;
       return {
         ...scene,
         visualPlan: {
           ...plan,
-          contextualEvidenceAssignments: [...assignments, verifiedMechanicAssignment(page)],
+          contextualEvidenceAssignments: [...assignments, verifiedEvidenceAssignment(reviewedEvidence)],
           selectionMethod: 'rulebook_reference',
           manualSelectionReviewed: true,
         },
