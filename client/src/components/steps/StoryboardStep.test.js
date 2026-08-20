@@ -115,7 +115,7 @@ test('shows rulebook browsing only for contextual-capable intents and accepts ca
   const overviewManifest = { ...manifest, scenes: [{ ...manifest.scenes[0], title: 'Introduction', visualPlan: { primaryIntent: 'game_overview', primaryComponentRefs: [], supportingComponentRefs: [], selectedAssetIds: [], assetAssignments: [], contextualEvidenceAssignments: [], coverageStatus: 'unresolved', assetCandidates: [], assetReuse: [], reviewState: 'needs_visual_review', selectionMethod: 'unresolved', requiresExplicitVisual: true } }] };
   render(<StoryboardStep onGenerateStoryboard={jest.fn()} onUpdateScene={onUpdateScene} projectId="abyss-project" images={assets} storyboardManifest={overviewManifest} storyboarding={false} />);
   expect(screen.getByRole('button', { name: 'Browse rulebook pages for scene-section-01-1' })).toBeInTheDocument();
-  expect(assetThumbnailUrl('abyss-project', { kind: 'contextual_page', id: 'page-1' })).toBe('http://localhost:5001/api/projects/abyss-project/contextual-assets/page-1/file?variant=thumbnail');
+  expect(assetThumbnailUrl('abyss-project', { kind: 'contextual_page', id: 'page-1' })).toBe('/api/projects/abyss-project/contextual-assets/page-1/file?variant=thumbnail');
 });
 
 test('does not show rulebook browsing for closeup, card, or token intents', () => {
@@ -144,4 +144,23 @@ test('shows the human-readable board setup intent and contextual browse action',
   render(<StoryboardStep onGenerateStoryboard={jest.fn()} onUpdateScene={jest.fn()} projectId="abyss-project" images={assets} storyboardManifest={boardSetupManifest} storyboarding={false} />);
   expect(screen.getByText('board setup')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Browse rulebook pages for scene-section-01-1' })).toBeInTheDocument();
+});
+
+
+test('lets an operator assign a selected primary asset to an explicit component requirement', () => {
+  const onUpdateScene = jest.fn();
+  const multiComponentManifest = {
+    ...manifest,
+    scenes: [{ ...manifest.scenes[0], visualPlan: {
+      primaryIntent: 'component_closeup', primaryComponentRefs: ['exploration-cards', 'lords'], supportingComponentRefs: [],
+      componentLabels: { 'exploration-cards': 'Exploration cards', lords: 'Lords' }, selectedAssetIds: ['board-image'],
+      assetAssignments: [{ assetId: 'board-image', role: 'primary', componentId: null }], coverageStatus: 'partial', assetCandidates: [], assetReuse: [], reviewState: 'needs_visual_review', selectionMethod: 'operator_selected', requiresExplicitVisual: true,
+    } }],
+  };
+  render(<StoryboardStep onGenerateStoryboard={jest.fn()} onUpdateScene={onUpdateScene} images={assets} storyboardManifest={multiComponentManifest} storyboarding={false} />);
+  const componentSelect = screen.getByLabelText('Component for board-image in scene-section-01-1');
+  fireEvent.change(componentSelect, { target: { value: 'exploration-cards' } });
+  expect(onUpdateScene).toHaveBeenLastCalledWith('scene-section-01-1', expect.objectContaining({
+    visualPlan: expect.objectContaining({ assetAssignments: [expect.objectContaining({ assetId: 'board-image', role: 'primary', componentId: 'exploration-cards' })] }),
+  }));
 });
