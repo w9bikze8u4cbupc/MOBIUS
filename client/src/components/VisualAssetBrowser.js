@@ -138,6 +138,17 @@ function selectedComponentId(asset, plan) {
     || ((plan.primaryComponentRefs || []).length === 1 ? plan.primaryComponentRefs[0] : null);
 }
 
+function componentOptionsForRole(plan = {}, role) {
+  if (role === 'primary') return plan.primaryComponentRefs || [];
+  if (role === 'supporting') return plan.supportingComponentRefs || [];
+  return [];
+}
+
+function defaultComponentIdForRole(plan, role) {
+  const options = componentOptionsForRole(plan, role);
+  return options.length === 1 ? options[0] : '';
+}
+
 export function VisualAssetBrowser({
   isOpen,
   onClose,
@@ -150,20 +161,29 @@ export function VisualAssetBrowser({
 }) {
   const [filters, setFilters] = useState({ search: '', type: 'all', page: '', linkStatus: 'all', compatibleOnly: true, qualityThreshold: '' });
   const [role, setRole] = useState(defaultRoleForIntent(plan.primaryIntent));
+  const [componentId, setComponentId] = useState(defaultComponentIdForRole(plan, defaultRoleForIntent(plan.primaryIntent)));
   const [pageIndex, setPageIndex] = useState(0);
   const [thumbnailStates, setThumbnailStates] = useState({});
   const assets = useMemo(() => filterAndSortVisualAssets(images, plan, filters), [images, plan, filters]);
+  const componentOptions = componentOptionsForRole(plan, role);
   const failedPreviewCount = assets.filter((asset) => thumbnailStates[asset.id] === 'failed').length;
   const pageCount = Math.max(1, Math.ceil(assets.length / PAGE_SIZE));
   const visibleAssets = assets.slice(pageIndex * PAGE_SIZE, (pageIndex + 1) * PAGE_SIZE);
   const roleOptions = validRolesForIntent(plan.primaryIntent);
 
   useEffect(() => {
-    setRole(defaultRoleForIntent(plan.primaryIntent));
+    const defaultRole = defaultRoleForIntent(plan.primaryIntent);
+    setRole(defaultRole);
+    setComponentId(defaultComponentIdForRole(plan, defaultRole));
     setFilters((previous) => ({ ...previous, compatibleOnly: true }));
     setPageIndex(0);
     setThumbnailStates({});
-  }, [plan.primaryIntent, sceneId, isOpen, images]);
+  }, [plan, sceneId, isOpen, images]);
+
+  useEffect(() => {
+    const options = componentOptionsForRole(plan, role);
+    setComponentId((previous) => options.includes(previous) ? previous : defaultComponentIdForRole(plan, role));
+  }, [plan, role]);
 
   useEffect(() => { if (pageIndex >= pageCount) setPageIndex(Math.max(0, pageCount - 1)); }, [pageCount, pageIndex]);
 
@@ -190,6 +210,7 @@ export function VisualAssetBrowser({
         <label>Minimum quality <input aria-label={`Minimum quality for ${sceneId}`} type="number" step="0.01" value={filters.qualityThreshold} onChange={(event) => updateFilter('qualityThreshold', event.target.value)} /></label>
         <label><input aria-label={`Only compatible assets for ${sceneId}`} type="checkbox" checked={filters.compatibleOnly} onChange={(event) => updateFilter('compatibleOnly', event.target.checked)} /> Only compatible with this scene</label>
         <label>Role <select aria-label={`Selected asset role for ${sceneId}`} value={role} onChange={(event) => setRole(event.target.value)}>{roleOptions.map((option) => <option key={option} value={option}>{option.replace('_', ' ')}</option>)}</select></label>
+        {componentOptions.length > 0 && <label>Component requirement <select aria-label={`Component requirement for ${sceneId}`} value={componentId} onChange={(event) => setComponentId(event.target.value)}><option value="">choose explicitly</option>{componentOptions.map((componentRef) => <option key={componentRef} value={componentRef}>{componentRef}</option>)}</select></label>}
       </div>
       <p aria-live="polite">{assets.length} current-project assets · sorted by compatibility, approval/link provenance, quality, then source page. Selection does not create an override. {failedPreviewCount > 0 && <><strong>{failedPreviewCount} preview{failedPreviewCount === 1 ? '' : 's'} unavailable.</strong> <button type="button" onClick={() => setThumbnailStates({})}>Retry unavailable previews</button></>}</p>
       {assets.length === 0 ? <p role="status">No current-project assets match these filters. Clear the compatibility filter to review all available metadata.</p> : <>
@@ -199,7 +220,7 @@ export function VisualAssetBrowser({
             const src = asset.previewKind === 'unavailable' || typeof thumbnailUrlForAsset !== 'function' ? null : thumbnailUrlForAsset(asset);
             const thumbnailState = thumbnailStates[asset.id] || 'loading';
             const previewFailed = !src || thumbnailState === 'failed';
-            const selectAsset = () => onSelect(asset, { role, componentId: selectedComponentId(asset, plan) });
+            const selectAsset = () => onSelect(asset, { role, componentId: componentId || selectedComponentId(asset, plan) });
             return <article role="listitem" key={asset.id} style={{ border: '1px solid #d0d7de', borderRadius: 6, padding: 8 }}>
               <div style={{ minHeight: 176, display: 'grid', placeItems: 'center', position: 'relative', background: '#111827', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
                 {!previewFailed && <img src={src} alt={`${assetDisplayName(asset)} thumbnail`} onLoad={() => setThumbnailStates((previous) => ({ ...previous, [asset.id]: 'loaded' }))} onError={() => setThumbnailStates((previous) => ({ ...previous, [asset.id]: 'failed' }))} style={{ display: 'block', width: '100%', height: 176, objectFit: 'contain', background: '#111827' }} />}

@@ -137,3 +137,30 @@ test('shows an explicit unavailable state without requesting a remote-only previ
   expect(screen.getByText('Preview unavailable')).toBeInTheDocument();
   expect(screen.getByText('board · page 4 · quality 0.4')).toBeInTheDocument();
 });
+
+
+test('lets an operator map a manually reviewed asset to one explicit primary component requirement', () => {
+  const onSelect = jest.fn();
+  const multiComponentPlan = {
+    primaryIntent: 'component_closeup',
+    primaryComponentRefs: ['lords', 'locations'],
+    supportingComponentRefs: ['monster-tokens'],
+    assetCandidates: [],
+  };
+  render(<VisualAssetBrowser
+    isOpen
+    onClose={jest.fn()}
+    onSelect={onSelect}
+    sceneId="scene-objective"
+    plan={multiComponentPlan}
+    images={[assets[3]]}
+    thumbnailUrlForAsset={() => '/safe-thumbnail'}
+  />);
+
+  fireEvent.click(screen.getByLabelText('Only compatible assets for scene-objective'));
+  fireEvent.change(screen.getByLabelText('Component requirement for scene-objective'), { target: { value: 'locations' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Select Native card — page 5, image 42 for scene-objective as primary' }));
+
+  expect(onSelect).toHaveBeenCalledWith(assets[3], { role: 'primary', componentId: 'locations' });
+  expect(onSelect.mock.calls[0][1]).not.toHaveProperty('operatorOverride');
+});
