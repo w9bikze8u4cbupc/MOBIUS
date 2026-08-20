@@ -255,3 +255,30 @@ test('filters an asset by its stable identifier for reproducible operator select
   expect(filterAndSortVisualAssets(assets, boardPlan, { search: 'native-card', compatibleOnly: false })
     .map((asset) => asset.id)).toEqual(['native-card']);
 });
+
+
+test('selects a known local asset by stable ID with the explicitly chosen component', () => {
+  const onSelect = jest.fn();
+  const plan = {
+    primaryIntent: 'component_closeup',
+    primaryComponentRefs: ['monster-tokens'],
+    componentLabels: { 'monster-tokens': 'Monster tokens' },
+    assetCandidates: [],
+  };
+  render(<VisualAssetBrowser
+    isOpen
+    onClose={jest.fn()}
+    onSelect={onSelect}
+    sceneId="scene-known-id"
+    plan={plan}
+    images={[assets[2]]}
+    thumbnailUrlForAsset={() => '/safe-thumbnail'}
+  />);
+
+  fireEvent.change(screen.getByLabelText('Known asset ID for scene-known-id'), { target: { value: 'monster-token' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Select known asset for scene-known-id' }));
+  expect(onSelect).toHaveBeenCalledWith(assets[2], { role: 'primary', componentId: 'monster-tokens' });
+
+  fireEvent.change(screen.getByLabelText('Known asset ID for scene-known-id'), { target: { value: 'not-in-project' } });
+  expect(screen.getByRole('button', { name: 'Select known asset for scene-known-id' })).toBeDisabled();
+});

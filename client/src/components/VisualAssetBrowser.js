@@ -180,8 +180,13 @@ export function VisualAssetBrowser({
   const [componentId, setComponentId] = useState(defaultComponentIdForRole(plan, defaultRoleForIntent(plan.primaryIntent)));
   const [pageIndex, setPageIndex] = useState(0);
   const [thumbnailStates, setThumbnailStates] = useState({});
+  const [directAssetId, setDirectAssetId] = useState('');
   const primaryIntent = plan.primaryIntent;
   const assets = useMemo(() => filterAndSortVisualAssets(images, plan, filters), [images, plan, filters]);
+  const directAsset = useMemo(() => {
+    const id = String(directAssetId || '').trim();
+    return id ? (Array.isArray(images) ? images : []).find((asset) => asset?.id === id) || null : null;
+  }, [images, directAssetId]);
   const componentOptions = componentOptionsForRole(plan, role);
   const failedPreviewCount = assets.filter((asset) => thumbnailStates[asset.id] === 'failed').length;
   const pageCount = Math.max(1, Math.ceil(assets.length / PAGE_SIZE));
@@ -194,6 +199,7 @@ export function VisualAssetBrowser({
     setFilters((previous) => ({ ...previous, compatibleOnly: true }));
     setPageIndex(0);
     setThumbnailStates({});
+    setDirectAssetId('');
   }, [sceneId, isOpen, primaryIntent]);
 
   useEffect(() => {
@@ -227,6 +233,8 @@ export function VisualAssetBrowser({
         <label><input aria-label={`Only compatible assets for ${sceneId}`} type="checkbox" checked={filters.compatibleOnly} onChange={(event) => updateFilter('compatibleOnly', event.target.checked)} /> Only compatible with this scene</label>
         <label><input aria-label={`Hide exact duplicate assets for ${sceneId}`} type="checkbox" checked={filters.hideDuplicates !== false} onChange={(event) => updateFilter('hideDuplicates', event.target.checked)} /> Hide exact duplicates</label>
         <label>Role <select aria-label={`Selected asset role for ${sceneId}`} value={role} onChange={(event) => setRole(event.target.value)}>{roleOptions.map((option) => <option key={option} value={option}>{option.replace('_', ' ')}</option>)}</select></label>
+        <label>Known asset ID <input aria-label={`Known asset ID for ${sceneId}`} value={directAssetId} onChange={(event) => setDirectAssetId(event.target.value)} placeholder="heph_p2_img…" /></label>
+        {String(directAssetId || '').trim() && <button type="button" aria-label={`Select known asset for ${sceneId}`} disabled={!directAsset} onClick={() => onSelect(directAsset, { role, componentId: componentId || selectedComponentId(directAsset, plan) })}>{directAsset ? `Select known asset: ${assetDisplayName(directAsset)}` : 'Known asset ID not found'}</button>}
         {componentOptions.length > 0 && <label>Component requirement <select aria-label={`Component requirement for ${sceneId}`} value={componentId} onChange={(event) => setComponentId(event.target.value)}><option value="">choose explicitly</option>{componentOptions.map((componentRef) => <option key={componentRef} value={componentRef}>{componentRequirementLabel(plan, componentRef)}</option>)}</select></label>}
         {componentOptions.length > 1 && <div aria-label={`Component quick selection for ${sceneId}`} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
           <span>Quick component selection:</span>
