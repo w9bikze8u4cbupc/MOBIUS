@@ -231,9 +231,20 @@ function pathIsAbsolute(filePath) {
   return /^([a-zA-Z]:)?\//.test(filePath);
 }
 
+function normalizeRenderVisualPlan(scene) {
+  const plan = scene?.visualPlan || {};
+  return {
+    ...plan,
+    primaryIntent: scene?.primaryIntent || plan.primaryIntent,
+    coverageStatus: scene?.coverageStatus || plan.coverageStatus,
+    contextualEvidenceAssignments: scene?.contextualEvidenceAssignments || plan.contextualEvidenceAssignments || [],
+    operatorOverride: scene?.operatorOverride || plan.operatorOverride || null,
+  };
+}
+
 export function hasRenderVisualEvidence(scene) {
   if ((scene?.imageUrls || []).length > 0) return true;
-  const plan = scene?.visualPlan || {};
+  const plan = normalizeRenderVisualPlan(scene);
   if ((plan.contextualEvidenceAssignments || []).some((assignment) => assignment?.confirmed === true)) return true;
   return plan.primaryIntent === 'brand_outro'
     && plan.coverageStatus === 'operator_override'
@@ -254,7 +265,7 @@ export function buildRemotionScenes({ script, scriptPackage, storyboardManifest,
       sources: Array.isArray(scene.sources) ? scene.sources : [],
       componentRefs: Array.isArray(scene.componentRefs) ? scene.componentRefs : [],
       imageAssetIds: Array.isArray(scene.imageAssetIds) ? scene.imageAssetIds : [],
-      visualPlan: scene.visualPlan || null,
+      visualPlan: normalizeRenderVisualPlan(scene),
       storyboardVersion: isCanonicalStoryboard ? '1.2.0' : null,
       durationInFrames: Math.max(1, Math.round((Number(scene.durationMs) || 0) / 1000 * 30)),
     }))

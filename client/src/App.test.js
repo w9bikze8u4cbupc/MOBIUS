@@ -814,7 +814,8 @@ test('uses canonical storyboard spokenText and timing for Remotion without leaki
 test('recognizes confirmed contextual evidence and a documented brand outro as renderable without a local image URL', () => {
   expect(hasRenderVisualEvidence({
     imageUrls: [],
-    visualPlan: { contextualEvidenceAssignments: [{ assetId: 'page-5', confirmed: true }] },
+    contextualEvidenceAssignments: [{ assetId: 'page-5', confirmed: true }],
+    visualPlan: { coverageStatus: 'resolved' },
   })).toBe(true);
   expect(hasRenderVisualEvidence({
     imageUrls: [],
