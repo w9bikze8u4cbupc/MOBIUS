@@ -947,3 +947,37 @@ test('fails closed when canonical inventory hydration is unavailable', async () 
     expect(loadLatestProjectContext(window.localStorage).storyboardManifest.scenes[0].visualPlan.reviewState).toBe('needs_visual_review');
   });
 });
+
+test('buildRemotionScenes preserves canonical resolved coverage for contextual evidence without a local image URL', () => {
+  const scenes = buildRemotionScenes({
+    script: 'ignored legacy script',
+    gameName: 'Abyss',
+    images: [],
+    componentImageLinks: {},
+    storyboardManifest: {
+      version: '1.2.0',
+      scenes: [{
+        id: 'scene-contextual',
+        title: 'Rules reference',
+        spokenText: 'See the official rules reference.',
+        durationMs: 2500,
+        visualDirections: [],
+        sources: [{ section: 6 }],
+        imageAssetIds: [],
+        visualPlan: {
+          requiresExplicitVisual: true,
+          coverageStatus: 'resolved',
+          contextualEvidenceAssignments: [{ confirmed: true, pageNumber: 6 }],
+        },
+      }],
+    },
+  });
+
+  expect(scenes).toHaveLength(1);
+  expect(scenes[0].imageUrls).toEqual([]);
+  expect(scenes[0].visualPlan).toMatchObject({
+    requiresExplicitVisual: true,
+    coverageStatus: 'resolved',
+  });
+  expect(isRenderVisualPlanComplete(scenes[0])).toBe(true);
+});

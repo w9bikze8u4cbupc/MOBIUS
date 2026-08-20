@@ -1235,8 +1235,11 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       if (scenes.length === 0) {
         throw new Error("The tutorial script does not contain renderable scenes.");
       }
-      if (scenes.some((scene) => !isRenderVisualPlanComplete(scene))) {
-        throw new Error('VISUAL_PLAN_INCOMPLETE');
+      // validateStoryboardVisualPlans above is the single canonical coverage gate.
+      // This post-projection check protects only against a malformed conversion,
+      // not against a second, potentially divergent interpretation of coverage.
+      if (scenes.some((scene) => scene.storyboardVersion === '1.2.0' && !scene.visualPlan)) {
+        throw new Error('RENDER_SCENE_VISUAL_PLAN_MISSING');
       }
 
       const renderMetadata = {
