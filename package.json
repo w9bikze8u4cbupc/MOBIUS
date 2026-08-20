@@ -10,6 +10,7 @@
     "ai:models": "node scripts/list-ai-models.mjs",
     "rulebook-library": "node scripts/rulebook-library.mjs",
     "local-agent:check": "node scripts/test-mobius-local-agent.mjs",
+    "isolated-agent:check": "node scripts/test-mobius-isolated-agent.mjs",
     "test:ai-models-module": "node --test scripts/list-ai-models.module-compat.test.mjs",
     "postinstall": "cd client && npm install",
     "compile-shotlist": "node scripts/compile-shotlist.mjs",
