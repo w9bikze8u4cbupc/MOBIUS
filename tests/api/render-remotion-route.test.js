@@ -637,7 +637,7 @@ test('renders a documented brand outro without inventing a local rulebook image'
     imageAssetIds: [], imageUrls: [],
     visualPlan: {
       requiresExplicitVisual: true, reviewState: 'resolved', selectedAssetIds: [], assetAssignments: [], assetReuse: [],
-      selectionMethod: 'operator_selected', primaryIntent: 'brand_outro', primaryComponentRefs: [], supportingComponentRefs: [],
+      selectionMethod: 'operator_selected', overviewExceptionAllowed: true, primaryIntent: 'brand_outro', primaryComponentRefs: [], supportingComponentRefs: [],
       coverageStatus: 'operator_override', coverageReason: 'Use the approved Les Jeux Mobius outro.', coverageEvidence: [],
       operatorOverride: { reason: 'Use the approved Les Jeux Mobius outro.' },
     },

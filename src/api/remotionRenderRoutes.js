@@ -395,11 +395,13 @@ export async function bindReleaseVisualPlanAssets(scenes, project, { contextualE
     const selectedAssetIds = Array.isArray(visualPlan?.selectedAssetIds) ? visualPlan.selectedAssetIds.filter(Boolean) : [];
     const contextualImagePaths = await resolveContextualReleaseAssets(visualPlan, String(project.id), contextualEvidence);
     const usesContextualEvidence = Array.isArray(contextualImagePaths) && contextualImagePaths.length > 0;
-    const overviewValid = visualPlan?.overviewExceptionAllowed !== true
+    const documentedBrandOutro = isDocumentedBrandOutroOverride(visualPlan);
+    // A channel-branded outro is intentionally an approved generated visual rather
+    // than a per-project image. Its documented override is the required evidence.
+    const overviewValid = documentedBrandOutro || visualPlan?.overviewExceptionAllowed !== true
       || ((visualPlan.selectionMethod === 'brand_asset' || visualPlan.selectionMethod === 'rulebook_reference')
         && visualPlan.overviewSelectionConfirmed === true);
-    const selectedImageUrls = selectedAssetIds.map((assetId) => getProjectImageRenderReference(imagesById.get(assetId)));
-    const documentedBrandOutro = isDocumentedBrandOutroOverride(visualPlan);
+    const selectedImageUrls = selectedAssetIds.map((assetId) => getProjectImageRenderReference(imagesById.get(assetId));
     if (!visualPlan || visualPlan.requiresExplicitVisual !== true
       || !reviewStateIsReleaseReady(visualPlan)
       || !coverageIsReleaseReady(visualPlan)
@@ -426,11 +428,11 @@ export function validateReleaseVisualPlans(scenes, projectMetadata = {}) {
     if (!visualPlan || visualPlan.requiresExplicitVisual !== true) return false;
     const selectedAssetIds = Array.isArray(visualPlan.selectedAssetIds) ? visualPlan.selectedAssetIds.filter(Boolean) : [];
     const imageUrls = Array.isArray(scene.imageUrls) ? scene.imageUrls.filter(Boolean) : [];
-    const overviewValid = visualPlan.overviewExceptionAllowed !== true
+    const documentedBrandOutro = isDocumentedBrandOutroOverride(visualPlan);
+    const overviewValid = documentedBrandOutro || visualPlan.overviewExceptionAllowed !== true
       || ((visualPlan.selectionMethod === 'brand_asset' || visualPlan.selectionMethod === 'rulebook_reference')
         && visualPlan.overviewSelectionConfirmed === true);
     const usesContextualEvidence = contextualPlanClaimIsEligible(visualPlan);
-    const documentedBrandOutro = isDocumentedBrandOutroOverride(visualPlan);
     return !reviewStateIsReleaseReady(visualPlan)
       || !coverageIsReleaseReady(visualPlan)
       || (!usesContextualEvidence && !documentedBrandOutro && selectedAssetIds.length === 0)
