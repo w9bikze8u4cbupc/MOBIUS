@@ -62,20 +62,31 @@ function Get-DeploymentBlockingChanges {
         'coverage/'
     )
     $ignoredRuntimeArtifacts = @()
+    $ignoredLineEndingNormalizations = @()
     $blockingChanges = @()
+    $semanticTrackedPaths = @(
+        Invoke-Git @('diff', '--name-only', '--ignore-space-at-eol')
+        Invoke-Git @('diff', '--cached', '--name-only', '--ignore-space-at-eol')
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim().Replace('\\', '/') } | Select-Object -Unique
     foreach ($line in Invoke-Git @('status', '--porcelain', '--untracked-files=all')) {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
         $status = $line.Substring(0, [Math]::Min(2, $line.Length))
         $relativePath = if ($line.Length -ge 4) { $line.Substring(3).Trim().Replace('\\', '/') } else { '' }
         $isUntrackedRuntimeArtifact = $status -eq '??' -and $runtimePrefixes | Where-Object { $relativePath.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) }
+        $isTrackedNormalizationOnly = $status -ne '??' -and -not ($semanticTrackedPaths -contains $relativePath)
         if ($isUntrackedRuntimeArtifact) {
             $ignoredRuntimeArtifacts += $relativePath
+        } elseif ($isTrackedNormalizationOnly) {
+            $ignoredLineEndingNormalizations += $relativePath
         } else {
             $blockingChanges += $line
         }
     }
     if ($ignoredRuntimeArtifacts.Count -gt 0) {
         Write-AgentLog 'INFO' "Ignoring $($ignoredRuntimeArtifacts.Count) local runtime artifact(s)."
+    }
+    if ($ignoredLineEndingNormalizations.Count -gt 0) {
+        Write-AgentLog 'INFO' "Ignoring $($ignoredLineEndingNormalizations.Count) line-ending-only tracked change(s)."
     }
     return @($blockingChanges)
 }

@@ -23,6 +23,8 @@ const requiredAgentTokens = [
   'Invoke-MobiusDeployment -ForceBuild:$ForceBuild',
   "'status', '--porcelain', '--untracked-files=all'",
   "'src/api/uploads/'",
+  "'diff', '--name-only', '--ignore-space-at-eol'",
+  'line-ending-only tracked change(s)',
   "$status -eq '??'",
   'Local source changes detected; automatic deployment is paused to protect them.',
 ];
