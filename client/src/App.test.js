@@ -10,7 +10,7 @@ jest.mock('axios', () => ({
 
 import axios from 'axios';
 import { getDocument } from 'pdfjs-dist';
-import App, { buildRemotionScenes, createProjectIdFromFilename, hasRenderVisualEvidence, hasValidComponentInventory, extractPdfPageText } from './App';
+import App, { buildRemotionScenes, createProjectIdFromFilename, hasRenderVisualEvidence, hasValidComponentInventory, isRenderVisualPlanComplete, extractPdfPageText } from './App';
 import { TextEncoder } from 'util';
 import { webcrypto } from 'crypto';
 import {
@@ -831,6 +831,13 @@ test('recognizes confirmed contextual evidence and a documented brand outro as r
   })).toBe(true);
   expect(hasRenderVisualEvidence({ imageUrls: [], visualPlan: { schematicComponentEvidence: [{ componentId: 'key-tokens', symbol: 'key', label: '2 Keys' }] } })).toBe(false);
   expect(hasRenderVisualEvidence({ imageUrls: [], visualPlan: { requiresExplicitVisual: true } })).toBe(false);
+});
+
+test('uses the canonical coverage status as the final pre-render authority', () => {
+  expect(isRenderVisualPlanComplete({ visualPlan: { requiresExplicitVisual: true, coverageStatus: 'resolved' } })).toBe(true);
+  expect(isRenderVisualPlanComplete({ visualPlan: { requiresExplicitVisual: true, coverageStatus: 'operator_override' } })).toBe(true);
+  expect(isRenderVisualPlanComplete({ visualPlan: { requiresExplicitVisual: true, coverageStatus: 'partial' } })).toBe(false);
+  expect(isRenderVisualPlanComplete({ visualPlan: { requiresExplicitVisual: true, coverageStatus: 'unresolved' } })).toBe(false);
 });
 
 test('never rotates arbitrary project images into an unresolved canonical storyboard scene', () => {

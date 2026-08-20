@@ -252,6 +252,12 @@ export function hasRenderVisualEvidence(scene) {
     && Boolean(String(plan.operatorOverride?.reason || '').trim());
 }
 
+export function isRenderVisualPlanComplete(scene) {
+  const plan = normalizeRenderVisualPlan(scene);
+  if (!plan.requiresExplicitVisual) return true;
+  return plan.coverageStatus === 'resolved' || plan.coverageStatus === 'operator_override';
+}
+
 export function buildRemotionScenes({ script, scriptPackage, storyboardManifest, gameName, images, componentImageLinks, previewMode = false }) {
   const canonicalStoryboardScenes = storyboardManifest?.version === '1.2.0' && Array.isArray(storyboardManifest.scenes)
     ? storyboardManifest.scenes.filter((scene) => String(scene.spokenText || '').trim())
@@ -1226,7 +1232,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       if (scenes.length === 0) {
         throw new Error("The tutorial script does not contain renderable scenes.");
       }
-      if (scenes.some((scene) => scene.visualPlan?.requiresExplicitVisual && !hasRenderVisualEvidence(scene))) {
+      if (scenes.some((scene) => !isRenderVisualPlanComplete(scene))) {
         throw new Error('VISUAL_PLAN_INCOMPLETE');
       }
 
