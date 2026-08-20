@@ -51,6 +51,35 @@ function Invoke-Git {
     return @($output)
 }
 
+function Get-DeploymentBlockingChanges {
+    $runtimePrefixes = @(
+        'data/',
+        'src/api/uploads/',
+        'client/build/',
+        'out/',
+        'output/',
+        'exports/',
+        'coverage/'
+    )
+    $ignoredRuntimeArtifacts = @()
+    $blockingChanges = @()
+    foreach ($line in Invoke-Git @('status', '--porcelain', '--untracked-files=all')) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        $status = $line.Substring(0, [Math]::Min(2, $line.Length))
+        $relativePath = if ($line.Length -ge 4) { $line.Substring(3).Trim().Replace('\\', '/') } else { '' }
+        $isUntrackedRuntimeArtifact = $status -eq '??' -and $runtimePrefixes | Where-Object { $relativePath.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) }
+        if ($isUntrackedRuntimeArtifact) {
+            $ignoredRuntimeArtifacts += $relativePath
+        } else {
+            $blockingChanges += $line
+        }
+    }
+    if ($ignoredRuntimeArtifacts.Count -gt 0) {
+        Write-AgentLog 'INFO' "Ignoring $($ignoredRuntimeArtifacts.Count) local runtime artifact(s)."
+    }
+    return @($blockingChanges)
+}
+
 function Get-MobiusApiProcesses {
     return @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
         Where-Object { $_.CommandLine -match '(^|\s)src[\\/]api[\\/]index\.js(\s|$)' })
@@ -112,10 +141,11 @@ function Invoke-MobiusDeployment {
         throw 'Node.js is required but was not found in PATH.'
     }
 
-    $dirty = Invoke-Git @('status', '--porcelain')
-    if ($dirty.Count -gt 0) {
-        Write-AgentStatus 'waiting_for_clean_tree' 'Local source changes detected; automatic deployment is paused to protect them.'
-        Write-AgentLog 'WARN' 'Local source changes detected; skipping automatic deployment to protect them.'
+    $blockingChanges = Get-DeploymentBlockingChanges
+    if ($blockingChanges.Count -gt 0) {
+        $summary = ($blockingChanges | Select-Object -First 3) -join '; '
+        Write-AgentStatus 'waiting_for_clean_tree' "Local source changes detected; automatic deployment is paused to protect them. $summary"
+        Write-AgentLog 'WARN' "Local source changes detected; skipping automatic deployment to protect them. $summary"
         return $false
     }
 

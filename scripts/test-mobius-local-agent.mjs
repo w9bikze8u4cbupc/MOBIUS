@@ -21,6 +21,10 @@ const requiredAgentTokens = [
   "'ready'",
   '[switch]$ForceBuild',
   'Invoke-MobiusDeployment -ForceBuild:$ForceBuild',
+  "'status', '--porcelain', '--untracked-files=all'",
+  "'src/api/uploads/'",
+  "$status -eq '??'",
+  'Local source changes detected; automatic deployment is paused to protect them.',
 ];
 for (const token of requiredAgentTokens) {
   if (!agent.includes(token)) throw new Error(`Missing agent safety contract: ${token}`);
