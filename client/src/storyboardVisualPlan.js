@@ -602,6 +602,7 @@ function fillEmptySceneFromVerifiedComponentConsensus(scene, assetByComponent) {
   return {
     ...scene,
     imageAssetIds: assignments.map((assignment) => assignment.assetId),
+    visualReviewState: 'matched',
     visualPlan: {
       ...plan,
       selectedAssetIds: assignments.map((assignment) => assignment.assetId),

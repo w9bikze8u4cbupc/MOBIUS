@@ -511,3 +511,22 @@ test('completes an empty sourced three-Key scene only from unambiguous resolved 
     ]),
   });
 });
+
+
+test('marks a consensus-completed scene as matched for the central storyboard-review gate', () => {
+  const components = [
+    { id: 'lords', name: 'Lords' },
+    { id: 'locations', name: 'Locations' },
+    { id: 'key-tokens', name: 'Key tokens' },
+  ];
+  const images = [{ id: 'lord-image' }, { id: 'location-image' }];
+  const sourceVisualPlan = { selectedAssetIds: ['lord-image', 'location-image'], selectionMethod: 'operator_selected', assetAssignments: [
+    { assetId: 'lord-image', role: 'primary', componentId: 'lords' },
+    { assetId: 'location-image', role: 'primary', componentId: 'locations' },
+  ] };
+  const sourceA = requiredScene({ id: 'source-a', order: 1, title: 'Recruit and Control', visualDirections: [{ instruction: 'Show Lords and Locations together.', componentRefs: ['lords', 'locations'] }], visualReviewState: 'matched', visualPlan: sourceVisualPlan });
+  const sourceB = requiredScene({ id: 'source-b', order: 2, title: 'Repeated verified component proof', visualDirections: [{ instruction: 'Show Lords and Locations together.', componentRefs: ['lords', 'locations'] }], visualReviewState: 'matched', visualPlan: sourceVisualPlan });
+  const target = requiredScene({ id: 'target-control', order: 3, title: 'Controlling Locations', visualDirections: [{ instruction: 'Animate three Keys combining into a Location, then slide the contributing Lords beneath it.', componentRefs: ['lords', 'locations', 'key-tokens'] }], visualReviewState: 'needs_visual_review', visualPlan: { selectedAssetIds: [], assetAssignments: [] } });
+  const reconciled = reconcileStoryboardVisualPlans({ version: '1.2.0', scenes: [sourceA, sourceB, target] }, { images, components });
+  expect(reconciled.scenes.find((scene) => scene.id === 'target-control')).toMatchObject({ visualReviewState: 'matched', visualPlan: { coverageStatus: 'resolved' } });
+});
