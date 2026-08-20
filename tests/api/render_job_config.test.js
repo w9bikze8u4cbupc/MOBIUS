@@ -1,6 +1,7 @@
 process.env.NODE_ENV = 'test';
 
 const http = require('http');
+const path = require('path');
 const {
   buildRenderJobConfig,
   registerRenderJobConfigRoute,
@@ -85,6 +86,33 @@ describe('buildRenderJobConfig', () => {
     expect(config.video.fps).toBe(24);
     expect(config.assets.images.length).toBe(3);
     expect(config.timing.totalDurationSec).toBeCloseTo(8.5);
+  });
+
+  it('preserves selected local storyboard images and overlays for the renderer', () => {
+    const config = buildRenderJobConfig({
+      projectId: 'p-image',
+      ingestionManifest,
+      storyboardManifest: {
+        ...storyboardManifest,
+        scenes: [{
+          id: 'setup',
+          type: 'setup',
+          durationSec: 5,
+          index: 0,
+          visualPlan: { selectedAssetIds: ['heph-card'] },
+          overlay: { onScreenText: ['Setup: place the cards'] },
+        }],
+      },
+      projectImages: [{ id: 'heph-card', fileKey: 'data/demo/heph-card.png', classification: 'card' }],
+    });
+
+    expect(config.assets.images).toContainEqual(expect.objectContaining({
+      id: 'heph-card', renderPath: path.resolve('data/demo/heph-card.png'),
+    }));
+    expect(config.assets.storyboardScenes[0]).toMatchObject({
+      imageId: 'heph-card',
+      overlays: [{ text: 'Setup: place the cards' }],
+    });
   });
 
   it('throws when prerequisites are missing', () => {

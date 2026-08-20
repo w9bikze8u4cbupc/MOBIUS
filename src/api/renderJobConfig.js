@@ -156,7 +156,7 @@ function parseResolution(input) {
   return { width: Number(width), height: Number(height) };
 }
 
-function normalizeStoryboardScenes(storyboardManifest) {
+function normalizeStoryboardScenes(storyboardManifest, renderableImageIds = new Set()) {
   if (!storyboardManifest || !Array.isArray(storyboardManifest.scenes)) {
     return { scenes: [], totalDurationSec: 0 };
   }
@@ -167,19 +167,28 @@ function normalizeStoryboardScenes(storyboardManifest) {
     return aIdx - bIdx;
   });
 
-  const scenes = orderedScenes.map((scene, idx) => ({
-    id: scene.id || `scene-${idx + 1}`,
-    segmentId: scene.segmentId || null,
-    type: scene.type || "unknown",
-    durationSec: safeNumber(scene.durationSec ?? scene.durationMs / 1000, 0),
-    overlays: Array.isArray(scene.overlays)
-      ? scene.overlays.map((overlay) => ({
-          id: overlay.id,
-          role: overlay.role,
-          text: overlay.text,
-        }))
-      : [],
-  }));
+  const scenes = orderedScenes.map((scene, idx) => {
+    const selectedAssetIds = [
+      ...(Array.isArray(scene.visualPlan?.selectedAssetIds) ? scene.visualPlan.selectedAssetIds : []),
+      ...(Array.isArray(scene.imageAssetIds) ? scene.imageAssetIds : []),
+    ].filter(Boolean);
+    const imageId = selectedAssetIds.find((assetId) => renderableImageIds.has(assetId)) || null;
+    const overlayText = Array.isArray(scene.overlay?.onScreenText) ? scene.overlay.onScreenText : [];
+    return {
+      id: scene.id || `scene-${idx + 1}`,
+      segmentId: scene.segmentId || null,
+      type: scene.type || "unknown",
+      durationSec: safeNumber(scene.durationSec ?? scene.durationMs / 1000, 0),
+      imageId,
+      overlays: Array.isArray(scene.overlays) && scene.overlays.length > 0
+        ? scene.overlays.map((overlay) => ({
+            id: overlay.id,
+            role: overlay.role,
+            text: overlay.text,
+          }))
+        : overlayText.map((text, overlayIndex) => ({ id: `overlay-${overlayIndex + 1}`, role: 'title', text })),
+    };
+  });
 
   const totalDurationSec = scenes.reduce(
     (sum, scene) => sum + safeNumber(scene.durationSec, 0),
@@ -200,6 +209,7 @@ export function buildRenderJobConfig({
   mode = "preview",
   captionLocales = [],
   burnInCaptions = false,
+  projectImages = [],
 } = {}) {
   if (!projectId) {
     throw new Error("RENDER_JOB_PROJECT_ID_REQUIRED");
@@ -211,8 +221,18 @@ export function buildRenderJobConfig({
     throw new Error("RENDER_JOB_MISSING_STORYBOARD");
   }
 
+  const rendererImages = (Array.isArray(projectImages) ? projectImages : [])
+    .filter((image) => image?.id && typeof image?.fileKey === 'string' && image.fileKey.trim())
+    .map((image) => ({
+      id: image.id,
+      hash: image.hash || image.sha256 || null,
+      type: image.type || image.classification || 'image',
+      renderPath: path.resolve(image.fileKey),
+    }));
+  const renderableImageIds = new Set(rendererImages.map((image) => image.id));
   const { scenes, totalDurationSec } = normalizeStoryboardScenes(
     storyboardManifest,
+    renderableImageIds,
   );
 
   const storyboardResolution = storyboardManifest.resolution || {};
@@ -266,28 +286,29 @@ export function buildRenderJobConfig({
     burnInCaptions: effectiveBurnIn,
   });
 
-  const imageAssets =
-    ingestionManifest.assets?.components?.map((component) => ({
+  const manifestImageAssets = [
+    ...(ingestionManifest.assets?.components?.map((component) => ({
       id: component.id,
       hash: component.hash,
       type: "component",
-    })) || [];
-
-  const pageAssets =
-    ingestionManifest.assets?.pages?.map((page) => ({
+    })) || []),
+    ...(ingestionManifest.assets?.pages?.map((page) => ({
       id: `page-${page.page}`,
       hash: page.hash,
       type: "page",
-    })) || [];
+    })) || []),
+  ].filter((asset) => !renderableImageIds.has(asset.id));
 
   const assets = {
-    images: [...imageAssets, ...pageAssets],
+    images: [...rendererImages, ...manifestImageAssets],
     audio: [],
     captions: captionTracks,
     storyboardScenes: scenes.map((scene) => ({
       id: scene.id,
       type: scene.type,
       durationSec: scene.durationSec,
+      imageId: scene.imageId,
+      overlays: scene.overlays,
     })),
   };
 
@@ -400,6 +421,7 @@ export function registerRenderJobConfigRoute(app, { loadProjectById } = {}) {
         mode: mode || "preview",
         captionLocales,
         burnInCaptions,
+        projectImages: project.images || [],
       });
 
       return res.json({ ok: true, config });

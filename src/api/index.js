@@ -501,6 +501,7 @@ app.post('/api/render', async (req, res) => {
           mode,
           captionLocales,
           burnInCaptions,
+          projectImages: project.images || [],
         });
       })();
 

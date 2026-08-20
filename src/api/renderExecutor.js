@@ -173,7 +173,10 @@ export async function runRenderJob(job, options = {}) {
   // Write the renderer-appropriate config
   let configToWrite = job.config;
   if (useStoryboard) {
-    configToWrite = adaptConfigForStoryboardRenderer(job.config, { outputPath: outputFilePath });
+    configToWrite = adaptConfigForStoryboardRenderer(job.config, {
+      outputPath: outputFilePath,
+      imageAssets: job.config?.assets?.images,
+    });
   }
 
   const configPath = await writeConfig(jobOutputDir, job.id, configToWrite);
