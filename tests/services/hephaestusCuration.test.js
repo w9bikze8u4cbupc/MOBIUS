@@ -28,6 +28,19 @@ describe('HEPHAESTUS deterministic curation', () => {
   });
 });
 
+  test('marks a large near-blank raster as low-information even when its geometry resembles a board', () => {
+    const result = curateHephaestusAssets([{
+      id: 'blank-board-mask',
+      type: 'board',
+      is_component: true,
+      dimensions: { width: 4605, height: 4605 },
+      visual_metrics: { nearBlank: true, brightPixelRatio: 0.98, contrast: 0.01, edgeDensity: 0.002 },
+    }]);
+
+    expect(result.assets[0].curation).toMatchObject({ candidate: false, lowInformation: true });
+    expect(result.assets[0].curation.reasons).toContain('near-blank raster');
+  });
+
   test('groups repeated native placements by xref embedded in actual HEPHAESTUS IDs', () => {
     const result = curateHephaestusAssets([
       { id: 'p1_img0_xref77', type: 'card', is_component: true, dimensions: { width: 600, height: 900 }, file_path: 'missing/a.png' },

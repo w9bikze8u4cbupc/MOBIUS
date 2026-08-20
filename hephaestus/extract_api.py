@@ -146,6 +146,39 @@ def classify_image(img: Dict[str, Any]) -> Dict[str, Any]:
     return {'label': 'unknown', 'is_component': True, 'confidence': 0.5}
 
 
+def visual_information_metrics(image_path: Path) -> Dict[str, Any]:
+    """Return conservative visual-information metrics for review curation.
+
+    This rejects only large, nearly uniform rasters (for example blank PDF masks),
+    never small physical components that may legitimately have a plain background.
+    """
+    try:
+        if np is None:
+            return {}
+        with Image.open(image_path) as source:
+            rgb = source.convert('RGB')
+            width, height = rgb.size
+            if width < 100 or height < 100:
+                return {}
+            sample = np.asarray(rgb.resize((96, 96), Image.Resampling.LANCZOS), dtype=np.float32)
+        gray = sample.mean(axis=2)
+        bright_ratio = float(np.mean(np.all(sample >= 245, axis=2)))
+        contrast = float(gray.std() / 255.0)
+        horizontal = float(np.abs(np.diff(gray, axis=1)).mean() / 255.0)
+        vertical = float(np.abs(np.diff(gray, axis=0)).mean() / 255.0)
+        edge_density = (horizontal + vertical) / 2.0
+        near_blank = bright_ratio >= 0.94 and contrast <= 0.055 and edge_density <= 0.018
+        return {
+            'brightPixelRatio': round(bright_ratio, 4),
+            'contrast': round(contrast, 4),
+            'edgeDensity': round(edge_density, 4),
+            'nearBlank': near_blank,
+        }
+    except Exception as error:
+        print(f"Warning: Visual-information analysis failed: {error}", file=sys.stderr)
+        return {}
+
+
 def compute_phash(pil_image: Image.Image) -> str:
     """Compute perceptual hash for deduplication."""
     try:
@@ -703,7 +736,8 @@ def extract_components(pdf_path, output_dir, min_width: int = 16, min_height: in
                     "dimensions": {
                         "width": img['width'],
                         "height": img['height']
-                    }
+                    },
+                    "visual_metrics": visual_information_metrics(filepath)
                 })
         
         unique_count = len([i for i in result["images"]])

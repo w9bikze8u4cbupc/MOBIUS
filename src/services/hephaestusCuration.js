@@ -49,6 +49,8 @@ function classifyLowInformation(asset) {
   const height = number(asset.height || asset.dimensions?.height || asset.original_dimensions?.height || metadata.originalDimensions?.height);
   const area = width * height;
   const reasons = LOW_INFORMATION_TERMS.filter((term) => label.includes(term));
+  const visualMetrics = asset.visual_metrics || asset.visualMetrics || metadata.visualMetrics || {};
+  if (visualMetrics.nearBlank === true) reasons.push('near-blank raster');
   if (width > 0 && height > 0 && (width < 48 || height < 48 || area < 4096)) reasons.push('tiny native dimensions');
   if ((asset.type === 'other' || asset.classification === 'other') && !asset.is_component && metadata.classification !== 'component') reasons.push('unclassified native asset');
   return { lowInformation: reasons.length > 0, reasons };
