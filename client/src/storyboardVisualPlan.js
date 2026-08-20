@@ -360,7 +360,10 @@ function coverageFor(requirements, assignments, contextualAssignments, priorPlan
   if (priorBlocked) {
     coverageStatus = 'blocked';
     coverageReason = priorPlan.reviewReason || 'Operator blocked this visual plan.';
-  } else if (operatorReason && hasAnyEvidence) {
+  } else if (operatorReason && (hasAnyEvidence || requirements.primaryIntent === 'brand_outro')) {
+    // A generated, approved channel outro is a legitimate explicit visual for a brand-outro
+    // scene even when it is not represented by a per-project rulebook asset. This exception
+    // never applies to gameplay, rules, component, setup, or scoring scenes.
     coverageStatus = 'operator_override';
     coverageReason = `Operator override: ${operatorReason}`;
   } else if (intentSatisfied === true || allPrimarySatisfied || operatorDefinedSatisfied) {

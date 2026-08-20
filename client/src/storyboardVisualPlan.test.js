@@ -364,3 +364,30 @@ test('reconciliation preserves scene edits and valid assets while dropping only 
   });
   expect(reconciled.visualPlan.reviewReason).toMatch(/not present in the current project inventory.*incompatible with the corrected visual intent/i);
 });
+
+
+test('permits a documented generated brand outro without a project asset, but never uses that exception for rules scenes', () => {
+  const brandOutro = requiredScene({
+    id: 'brand-outro',
+    title: 'Game title outro',
+    visualDirections: [{ instruction: 'Show the game title outro.', componentRefs: [] }],
+    visualPlan: { operatorOverride: { reason: 'Use the approved channel outro template with the game title.' } },
+  });
+  expect(resolveSceneVisualPlan(brandOutro, { images: inventory })).toMatchObject({
+    primaryIntent: 'brand_outro', coverageStatus: 'operator_override', reviewState: 'resolved',
+  });
+  expect(validateStoryboardVisualPlans({ version: '1.2.0', scenes: [brandOutro] }, { images: inventory })).toMatchObject({
+    valid: true, summary: { overrides: 1 },
+  });
+
+  const rulesScene = requiredScene({
+    id: 'rules-scene',
+    visualPlan: { operatorOverride: { reason: 'Do not bypass missing component evidence.' } },
+  });
+  expect(resolveSceneVisualPlan(rulesScene, { images: inventory })).toMatchObject({
+    coverageStatus: 'unresolved', reviewState: 'needs_visual_review',
+  });
+  expect(validateStoryboardVisualPlans({ version: '1.2.0', scenes: [rulesScene] }, { images: inventory })).toMatchObject({
+    valid: false, code: 'VISUAL_PLAN_INCOMPLETE',
+  });
+});
