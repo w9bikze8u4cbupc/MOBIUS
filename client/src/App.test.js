@@ -712,6 +712,34 @@ test('hydrates a matching persisted manifest and sends it with the validated scr
   ));
 });
 
+test('sends a confirmed manual translation package to storyboard instead of fragmenting the rulebook', async () => {
+  const context = {
+    projectId: 'abyss-french-manual-storyboard', gameName: 'Abyss', language: 'french',
+    rulebookText: 'Setup\nPlace the board.', components: [{ id: 'board', name: 'Board' }],
+    script: 'Bienvenue à Abyss.', scriptProvenance: 'manual', generatedScript: false,
+    scriptPackage: { contractVersion: '1.0', legacy: true, sections: [{ id: 'section-01', order: 1, title: 'Introduction et présentation', spokenText: 'Bienvenue à Abyss.', visualDirections: [], sources: [] }] },
+    activeStepId: 'storyboard', completedStepIds: ['project', 'metadata', 'ingestion', 'images', 'script'],
+  };
+  const ingestionManifest = await createStoryboardIngestionManifest(context);
+  saveProjectContext(window.localStorage, { ...context, ingestionManifest });
+  axios.post.mockImplementation((url) => {
+    if (url.endsWith('/api/storyboard')) return Promise.resolve({ data: { ok: true, manifest: { scenes: [] } } });
+    return Promise.resolve({ data: {} });
+  });
+
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Generate storyboard' }));
+
+  await waitFor(() => expect(axios.post).toHaveBeenCalledWith(
+    expect.stringContaining('/api/storyboard'),
+    expect.objectContaining({
+      ingestionManifest,
+      scriptPackage: context.scriptPackage,
+      options: { includeOverlayHashes: true, language: 'french' },
+    }),
+  ));
+});
+
 
 test('recovers a legacy browser context by project ID, migrates it, and sends the recovered manifest to storyboard', async () => {
   const context = {

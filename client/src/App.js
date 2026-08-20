@@ -32,6 +32,7 @@ import {
   getScriptInputReadiness,
   getSpokenSections,
   isSourceCompleteScriptPackage,
+  isScriptPackage,
   isCanonicalRecoveryProjectId,
   isTrustedScriptProvenance,
   loadLatestProjectContext,
@@ -1169,7 +1170,10 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     try {
       const { data } = await axios.post(`${BACKEND_URL}/api/storyboard`, {
         ingestionManifest: manifest,
-        scriptPackage: isSourceCompleteScriptPackage(scriptPackage) ? scriptPackage : null,
+        // A confirmed manual script, such as an operator-approved translation,
+        // still defines the tutorial's section structure. Its evidence remains
+        // explicitly marked as manual rather than being invented or inferred.
+        scriptPackage: isScriptPackage(scriptPackage) ? scriptPackage : null,
         options: { includeOverlayHashes: true, language }
       });
       setStoryboardManifest(reconcileStoryboardVisualPlans(data.manifest, {
