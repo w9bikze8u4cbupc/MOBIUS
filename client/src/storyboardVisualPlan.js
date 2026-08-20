@@ -170,13 +170,13 @@ function hasVisualPhrase(text, expression) {
   return expression.test(String(text || ''));
 }
 
-const BRAND_OUTRO_CUES = /\b(game title|title card|brand|outro|conclusion|wrap[-\s]?up)\b/i;
-const ASSEMBLED_TABLEAU_CUES = /\b(assembled game|completed tableau|full game table|player tableau)\b/i;
-const OVERVIEW_CUES = /\b(opening shot|game overview|overview|introduction|intro)\b/i;
-const BOARD_SETUP_CUES = /\b(setup|set\s+up|place\s+(?:the\s+)?board|board\s+in\s+the\s+center|overhead\s+table|arrange|layout|player\s+areas?|treasury|starting\s+position|ordered\s+setup|step\s+by\s+step)\b/i;
-const CARD_OBJECT_CUES = /\b(cards?|exploration|council|lords?|locations?)\b/i;
-const TOKEN_OBJECT_CUES = /\b(tokens?|keys?|pearls?|monsters?)\b/i;
-const ACTION_CUES = /\b(reveal|draw|play|discard|rotate|pay|fight|recruit|take)\b/i;
+const BRAND_OUTRO_CUES = /\b(game title|title card|brand|outro|conclusion|wrap[-\s]?up|générique|marque)\b/i;
+const ASSEMBLED_TABLEAU_CUES = /\b(assembled game|completed tableau|full game table|player tableau|jeu assemblé|plateau complet|tableau de jeu)\b/i;
+const OVERVIEW_CUES = /\b(opening shot|game overview|overview|introduction|intro|présentation|aperçu)\b/i;
+const BOARD_SETUP_CUES = /\b(setup|set\s+up|place\s+(?:the\s+)?board|board\s+in\s+the\s+center|overhead\s+table|arrange|layout|player\s+areas?|treasury|starting\s+position|ordered\s+setup|step\s+by\s+step|mise\s+en\s+place|placez\s+(?:le\s+)?plateau|plateau\s+au\s+centre|installation|trésor|position\s+de\s+départ)\b/i;
+const CARD_OBJECT_CUES = /\b(cards?|exploration|council|lords?|locations?|cartes?|conseil|seigneurs?|lieux)\b/i;
+const TOKEN_OBJECT_CUES = /\b(tokens?|keys?|pearls?|monsters?|jetons?|clés?|perles?|monstres?)\b/i;
+const ACTION_CUES = /\b(reveal|draw|play|discard|rotate|pay|fight|recruit|take|rév[ée]lez|piochez|jouez|défaussez|tournez|payez|combattez|recrutez|prenez)\b/i;
 
 function isBoardReference(componentId, match) {
   return /\b(board|layout|tableau)\b/i.test(`${componentId || ''} ${match?.matchedToken || ''}`);

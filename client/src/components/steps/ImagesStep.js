@@ -26,6 +26,24 @@ const getImageThumbnailUrl = (projectId, image) => {
   return getImageUrl(projectId, image);
 };
 
+const normalizeVisualType = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  const aliases = {
+    boards: 'board', cards: 'card', tiles: 'tile', tokens: 'token',
+    markers: 'marker', dice: 'dice', currencies: 'currency', pearls: 'currency',
+  };
+  return aliases[normalized] || normalized;
+};
+
+const imageMatchesComponentVisualType = (component, image) => {
+  const componentType = normalizeVisualType(component?.category);
+  const imageType = normalizeVisualType(image?.metadata?.classification || image?.type);
+  // Do not filter free-form or unknown component classes; all choices still require
+  // explicit operator confirmation before they become a component link.
+  if (!componentType || componentType === 'other' || !imageType || imageType === 'other') return true;
+  return componentType === imageType;
+};
+
 const isMatchableComponent = (component) => {
   const name = String(component?.name || '').trim();
   const folded = name.toLowerCase();
@@ -1603,12 +1621,29 @@ export function ImagesStep({
                     <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>
                       Select an image to inspect it, then explicitly confirm a link for this component:
                     </div>
+                    {(() => {
+                      const compatibleCandidates = curatedImages.filter((img) => imageMatchesComponentVisualType(component, img));
+                      const visibleCandidates = showAllCandidates[component.id] || compatibleCandidates.length === 0
+                        ? curatedImages
+                        : compatibleCandidates;
+                      return <>
+                    {compatibleCandidates.length > 0 && compatibleCandidates.length < curatedImages.length && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllCandidates((previous) => ({ ...previous, [component.id]: !previous[component.id] }))}
+                        style={{ marginBottom: 8, fontSize: 12 }}
+                      >
+                        {showAllCandidates[component.id]
+                          ? `Show ${compatibleCandidates.length} type-compatible candidates`
+                          : `Show all ${curatedImages.length} candidates`}
+                      </button>
+                    )}
                     <div style={{ 
                       display: 'grid', 
                       gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', 
                       gap: 8 
                     }}>
-                      {[...curatedImages]
+                      {[...visibleCandidates]
                         .sort((a, b) => {
                           // Prioritize HEPHAESTUS images
                           if (a.source === 'hephaestus' && b.source !== 'hephaestus') return -1;
@@ -1674,6 +1709,8 @@ export function ImagesStep({
                         );
                       })}
                     </div>
+                    </>;
+                    })()}
                   </div>
                   </>
                 )}

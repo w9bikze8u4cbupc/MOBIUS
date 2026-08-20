@@ -328,6 +328,21 @@ test('keeps tableau, overview, outro, and setup semantic precedence distinct fro
   expect(intentFor('Exploration action', 'Reveal and take an Exploration card in close-up.')).toBe('card_action');
 });
 
+test('classifies French visual directions with the same semantic precedence as English', () => {
+  const components = [
+    { id: 'game-board', name: 'game board', aliases: ['plateau'] },
+    { id: 'exploration-cards', name: 'Exploration cards', aliases: ['cartes Exploration'] },
+  ];
+  const intentFor = (title, instruction, refs) => resolveSceneVisualPlan(requiredScene({
+    title,
+    visualDirections: [{ instruction, componentRefs: refs }],
+  }), { components }).primaryIntent;
+
+  expect(intentFor('Présentation', 'Ouvrir sur une présentation du jeu, puis montrer les cartes Exploration.', ['exploration-cards'])).toBe('game_overview');
+  expect(intentFor('Mise en place', 'Placez le plateau au centre et organisez la mise en place.', ['game-board'])).toBe('board_setup');
+  expect(intentFor('Explorer', 'Révélez puis prenez une carte Exploration en gros plan.', ['exploration-cards'])).toBe('card_action');
+});
+
 test('rejects contextual evidence for a true card action while preserving strict action coverage', () => {
   const provenance = { documentSha256: 'a'.repeat(64), pageRasterSha256: 'b'.repeat(64), renderProfile: 'pdf-to-img-review-144dpi-png-v1' };
   const scene = requiredScene({
