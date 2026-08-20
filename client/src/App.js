@@ -558,7 +558,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               candidateCountsByScene: scenes.map((scene) => ({ sceneId: scene.id, count: (scene.visualPlan?.assetCandidates || []).length })),
             });
           }
-          return reconciled;
+          return applyVerifiedAbyssCurationProfile(reconciled, projectId);
         });
       })
       .catch((error) => {
@@ -1176,12 +1176,13 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         scriptPackage: isScriptPackage(scriptPackage) ? scriptPackage : null,
         options: { includeOverlayHashes: true, language }
       });
-      setStoryboardManifest(reconcileStoryboardVisualPlans(data.manifest, {
+      const reconciledManifest = reconcileStoryboardVisualPlans(data.manifest, {
         images: projectImages,
         componentImageLinks,
         componentImageLinkDetails,
         components: gameComponents,
-      }));
+      });
+      setStoryboardManifest(applyVerifiedAbyssCurationProfile(reconciledManifest, projectId));
     } catch (err) {
       const apiError = err.response?.data?.code || err.response?.data?.error || err.message;
       setStoryboardError(apiError);
@@ -1806,6 +1807,11 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           return;
         }
         const profiledStoryboardManifest = applyVerifiedAbyssCurationProfile(storyboardManifest, projectId);
+        // Persist deterministic, operator-reviewed migrations before the final gate.
+        // A partially reviewed storyboard must retain valid proof assignments while
+        // the operator resolves the remaining scenes; otherwise a failed attempt
+        // discards actionable review work and forces a stale re-review.
+        setStoryboardManifest(profiledStoryboardManifest);
         const storyboardReview = validateStoryboardReview(profiledStoryboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails, components: gameComponents });
         if (!storyboardReview.valid) {
           setError(storyboardReview.code);
