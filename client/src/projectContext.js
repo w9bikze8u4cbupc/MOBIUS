@@ -507,8 +507,12 @@ export function validateStoryboardReview(manifest, projectImages = null, visualC
   const failures = manifest.scenes.filter((scene) => {
     const imageAssetIds = Array.isArray(scene.imageAssetIds) ? scene.imageAssetIds.filter(Boolean) : [];
     const hasConfirmedContextualEvidence = (scene.visualPlan?.contextualEvidenceAssignments || []).some((assignment) => contextualEvidenceAssignmentIsAllowed(scene.visualPlan?.primaryIntent, assignment));
+    const hasDocumentedBrandOutro = scene.visualPlan?.primaryIntent === 'brand_outro'
+      && scene.visualPlan?.coverageStatus === 'operator_override'
+      && Boolean(String(scene.visualPlan?.operatorOverride?.reason || '').trim());
     const hasResolvedMatchedAsset = scene.visualReviewState !== 'matched'
       || hasConfirmedContextualEvidence
+      || hasDocumentedBrandOutro
       || (imageAssetIds.length > 0 && (!knownImageAssetIds || imageAssetIds.some((id) => knownImageAssetIds.has(id))));
     return !String(scene.spokenText || '').trim()
       || !Array.isArray(scene.sources) || scene.sources.length === 0

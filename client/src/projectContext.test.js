@@ -417,7 +417,7 @@ test('emits one safe recovery diagnostic for a legacy context and preserves its 
 test('persists storyboard operator edits and blocks incomplete storyboard confirmation', () => {
   const manifest = {
     version: '1.2.0',
-    scenes: [{ id: 'scene-1', index: 0, order: 1, sectionId: 'section-01', title: 'Setup', spokenText: 'Place the board.', wordCount: 3, estimatedDurationMs: 1600, durationMs: 1600, durationSec: 1.6, transition: 'fade-in', visualDirections: [], sources: [{ section: 1, startOffset: 0, endOffset: 10 }], imageAssetIds: [], visualReviewState: 'needs_visual_review', status: 'draft', reviewNotes: '', timing: { startMs: 0, endMs: 1600 } }],
+    scenes: [{ id: 'scene-1', index: 0, order: 1, sectionId: 'section-01', title: 'Preview', spokenText: 'Place the board.', wordCount: 3, estimatedDurationMs: 1600, durationMs: 1600, durationSec: 1.6, transition: 'fade-in', visualDirections: [], sources: [{ section: 1, startOffset: 0, endOffset: 10 }], imageAssetIds: [], visualReviewState: 'needs_visual_review', status: 'draft', reviewNotes: '', timing: { startMs: 0, endMs: 1600 }, visualPlan: { selectedAssetIds: ['board-image'], assetAssignments: [{ assetId: 'board-image', role: 'primary', componentId: null }], selectionMethod: 'operator_selected' } }],
     totalEstimatedDurationMs: 1600,
   };
   const edited = applyStoryboardSceneEdit(manifest, 'scene-1', { spokenText: 'Place the board between every player.', durationMs: 2200, transition: 'slide-left', imageAssetIds: ['board-image'], reviewNotes: 'Use the top-down image.' });
@@ -534,4 +534,25 @@ test('persists only a browser-safe durable source descriptor through reload', ()
 
   saveProjectContext(window.localStorage, { projectId: 'source-reload-project', gameName: 'Abyss', sourcePdf: { ...sourcePdf, filename: '../private.pdf' } });
   expect(loadLatestProjectContext(window.localStorage).sourcePdf).toBeNull();
+});
+
+
+test('accepts only a documented brand outro as assetless storyboard evidence', () => {
+  const base = {
+    id: 'outro', index: 0, order: 1, sectionId: 'section-01', title: 'Outro',
+    spokenText: 'Thanks for watching.', durationMs: 1200, transition: 'fade-in',
+    visualDirections: [{ instruction: 'Use the approved branded outro.', componentRefs: [] }],
+    sources: [{ section: 1, startOffset: 0, endOffset: 20 }], imageAssetIds: [],
+    visualReviewState: 'matched', status: 'draft',
+    visualPlan: {
+      primaryIntent: 'brand_outro', primaryComponentRefs: [], supportingComponentRefs: [], componentRefs: [],
+      selectedAssetIds: [], assetAssignments: [], coverageStatus: 'operator_override', reviewState: 'resolved',
+      selectionMethod: 'operator_override', overviewExceptionAllowed: true,
+      operatorOverride: { reason: 'Use approved Les Jeux Mobius branded outro.' },
+    },
+  };
+  const manifest = { version: '1.2.0', scenes: [base] };
+  expect(validateStoryboardReview(manifest, [])).toMatchObject({ valid: true });
+  const rulesScene = { ...base, id: 'rules', title: 'Rules', visualPlan: { ...base.visualPlan, primaryIntent: 'component_closeup', overviewExceptionAllowed: false } };
+  expect(validateStoryboardReview({ version: '1.2.0', scenes: [rulesScene] }, [])).toMatchObject({ valid: false });
 });
