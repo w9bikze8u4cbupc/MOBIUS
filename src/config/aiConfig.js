@@ -38,6 +38,10 @@ const GENERATION_OPERATION_DEFAULTS = Object.freeze({
     max_completion_tokens: 4096,
     temperature: 0.7,
   }),
+  summary_translation: Object.freeze({
+    max_completion_tokens: 4096,
+    temperature: 0.3,
+  }),
 });
 
 // Model-owned generation capabilities keep provider-specific controls out of route callers.
@@ -52,6 +56,9 @@ const MODEL_GENERATION_PROFILES = Object.freeze({
         max_completion_tokens: 2400,
       }),
       summary_final: Object.freeze({
+        max_completion_tokens: 6400,
+      }),
+      summary_translation: Object.freeze({
         max_completion_tokens: 6400,
       }),
     }),

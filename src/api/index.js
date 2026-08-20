@@ -2678,14 +2678,15 @@ console.log('Generating final English script using OpenAI...')
     generationStatus.tutorialLengthProfile = finalScriptPackage.lengthProfile;
     console.log('Generated English narration length:', finalOutputSummary.length);
     
-    // If French is requested, use GPT-4 to translate  
-    if (language === 'french') {  
-      console.log('Translation to French requested. Using GPT-4 for translation...');  
+    // Translate with the configured, verified model. The translation remains a
+    // source-preserving package transformation rather than a second rules pass.
+    if (language === 'french') {
+      console.log(`Translation to French requested. Using configured model ${summaryAiConfig.model}...`);
       try {  
         const translationPrompt = `Translate this script package to French. Return only the same JSON package shape. Translate title, spokenText, and visualDirections into natural French; preserve every sources entry and its offsets exactly. Keep spokenText narration-only: no brackets, citations, Markdown labels, or production notes.\n\n${JSON.stringify(englishPackage)}`;
         
         const translationResponse = await getAiClient().chat.completions.create({
-          model: getAiModel(),
+          model: summaryAiConfig.model,
           messages: [
             {
               role: 'system',
@@ -2693,10 +2694,7 @@ console.log('Generating final English script using OpenAI...')
             },
             { role: 'user', content: translationPrompt },
           ],
-          ...getGenerationOptions(summaryAiConfig, {
-            max_completion_tokens: 4096,
-            temperature: 0.3,
-          }, 'summary_translation'),
+          ...getGenerationOptions(summaryAiConfig, {}, 'summary_translation'),
         });  
         
         try {
