@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import {
   assetCompatibility,
+  componentRequirementLabel,
   filterAndSortVisualAssets,
   roleIsValidForIntent,
   VisualAssetBrowser,
@@ -145,6 +146,11 @@ test('lets an operator map a manually reviewed asset to one explicit primary com
     primaryIntent: 'component_closeup',
     primaryComponentRefs: ['lords', 'locations'],
     supportingComponentRefs: ['monster-tokens'],
+    componentRefMatches: [
+      { componentId: 'lords', matchedToken: 'Lords' },
+      { componentId: 'locations', matchedToken: 'Locations' },
+      { componentId: 'monster-tokens', matchedToken: 'Monster tokens' },
+    ],
     assetCandidates: [],
   };
   render(<VisualAssetBrowser
@@ -158,6 +164,8 @@ test('lets an operator map a manually reviewed asset to one explicit primary com
   />);
 
   fireEvent.click(screen.getByLabelText('Only compatible assets for scene-objective'));
+  expect(componentRequirementLabel(multiComponentPlan, 'locations')).toBe('Locations (locations)');
+  expect(screen.getByRole('option', { name: 'Locations (locations)' })).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Component requirement for scene-objective'), { target: { value: 'locations' } });
   fireEvent.click(screen.getByRole('button', { name: 'Select Native card — page 5, image 42 for scene-objective as primary' }));
 

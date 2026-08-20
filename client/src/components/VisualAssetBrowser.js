@@ -149,6 +149,14 @@ function defaultComponentIdForRole(plan, role) {
   return options.length === 1 ? options[0] : '';
 }
 
+/** Formats a canonical component ID with its existing, explainable matched token when available. */
+export function componentRequirementLabel(plan = {}, componentRef) {
+  const match = (Array.isArray(plan.componentRefMatches) ? plan.componentRefMatches : [])
+    .find((entry) => entry?.componentId === componentRef && typeof entry?.matchedToken === 'string' && entry.matchedToken.trim());
+  const label = match?.matchedToken?.trim();
+  return label && label !== componentRef ? `${label} (${componentRef})` : componentRef;
+}
+
 export function VisualAssetBrowser({
   isOpen,
   onClose,
@@ -210,7 +218,7 @@ export function VisualAssetBrowser({
         <label>Minimum quality <input aria-label={`Minimum quality for ${sceneId}`} type="number" step="0.01" value={filters.qualityThreshold} onChange={(event) => updateFilter('qualityThreshold', event.target.value)} /></label>
         <label><input aria-label={`Only compatible assets for ${sceneId}`} type="checkbox" checked={filters.compatibleOnly} onChange={(event) => updateFilter('compatibleOnly', event.target.checked)} /> Only compatible with this scene</label>
         <label>Role <select aria-label={`Selected asset role for ${sceneId}`} value={role} onChange={(event) => setRole(event.target.value)}>{roleOptions.map((option) => <option key={option} value={option}>{option.replace('_', ' ')}</option>)}</select></label>
-        {componentOptions.length > 0 && <label>Component requirement <select aria-label={`Component requirement for ${sceneId}`} value={componentId} onChange={(event) => setComponentId(event.target.value)}><option value="">choose explicitly</option>{componentOptions.map((componentRef) => <option key={componentRef} value={componentRef}>{componentRef}</option>)}</select></label>}
+        {componentOptions.length > 0 && <label>Component requirement <select aria-label={`Component requirement for ${sceneId}`} value={componentId} onChange={(event) => setComponentId(event.target.value)}><option value="">choose explicitly</option>{componentOptions.map((componentRef) => <option key={componentRef} value={componentRef}>{componentRequirementLabel(plan, componentRef)}</option>)}</select></label>}
       </div>
       <p aria-live="polite">{assets.length} current-project assets · sorted by compatibility, approval/link provenance, quality, then source page. Selection does not create an override. {failedPreviewCount > 0 && <><strong>{failedPreviewCount} preview{failedPreviewCount === 1 ? '' : 's'} unavailable.</strong> <button type="button" onClick={() => setThumbnailStates({})}>Retry unavailable previews</button></>}</p>
       {assets.length === 0 ? <p role="status">No current-project assets match these filters. Clear the compatibility filter to review all available metadata.</p> : <>

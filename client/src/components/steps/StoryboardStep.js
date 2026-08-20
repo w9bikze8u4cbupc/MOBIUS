@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { VisualAssetBrowser, roleIsValidForIntent, validRolesForIntent } from '../VisualAssetBrowser';
+import { VisualAssetBrowser, componentRequirementLabel, roleIsValidForIntent, validRolesForIntent } from '../VisualAssetBrowser';
 import { ContextualEvidenceBrowser, canBrowseContextualEvidence, contextualAssetThumbnailUrl } from '../ContextualEvidenceBrowser';
 
 const TRANSITIONS = ['fade-in', 'slide-left', 'slide-right', 'zoom-on-component', 'highlight-pulse'];
@@ -171,8 +171,8 @@ export function StoryboardStep({
           <label>Visual directions<textarea aria-label={`Visual directions for ${scene.id}`} value={(scene.visualDirections || []).map((direction) => direction.instruction).filter(Boolean).join('\n')} onChange={(event) => onUpdateScene(scene.id, { visualDirections: preserveVisualDirectionMetadata(scene.visualDirections, event.target.value) })} rows={2} style={{ width: '100%' }} /></label>
           <section aria-label={`Visual coverage for ${scene.id}`} style={{ borderLeft: '4px solid #1976d2', paddingLeft: 10, margin: '10px 0' }}>
             <p><strong>Primary visual intent:</strong> {(plan.primaryIntent || 'operator_defined').replace(/_/g, ' ')}</p>
-            <p><strong>Primary requirements:</strong> {(plan.primaryComponentRefs || []).length ? plan.primaryComponentRefs.join(', ') : 'explicit overview/brand/rulebook evidence'}</p>
-            <p><strong>Supporting requirements:</strong> {(plan.supportingComponentRefs || []).length ? plan.supportingComponentRefs.join(', ') : 'none'}</p>
+            <p><strong>Primary requirements:</strong> {(plan.primaryComponentRefs || []).length ? plan.primaryComponentRefs.map((componentRef) => componentRequirementLabel(plan, componentRef)).join(', ') : 'explicit overview/brand/rulebook evidence'}</p>
+            <p><strong>Supporting requirements:</strong> {(plan.supportingComponentRefs || []).length ? plan.supportingComponentRefs.map((componentRef) => componentRequirementLabel(plan, componentRef)).join(', ') : 'none'}</p>
             <p><strong>Coverage:</strong> {plan.coverageStatus === 'resolved' ? 'Resolved by primary evidence' : plan.coverageStatus === 'partial' ? 'Partial — primary visual still missing' : plan.coverageStatus === 'operator_override' ? 'Resolved by documented operator override' : plan.coverageStatus || 'Unresolved'} · {plan.coverageReason || plan.reviewReason}</p>
             {plan.operatorOverride?.reason && <p style={{ color: '#9c6500' }}><strong>Operator override:</strong> {plan.operatorOverride.reason}</p>}
             <p><strong>Primary/intent assets:</strong> {satisfyingAssets.length ? satisfyingAssets.map((assetId) => imageById.get(assetId)?.name || assetId).join(', ') : 'none'}</p>
@@ -180,7 +180,7 @@ export function StoryboardStep({
             <button type="button" aria-label={`Browse project assets for ${scene.id}`} onClick={() => setBrowserSceneId(scene.id)}>Browse current-project visuals</button>
             {canBrowseContextualEvidence(plan.primaryIntent) && <button type="button" aria-label={`Browse rulebook pages for ${scene.id}`} onClick={() => setContextualBrowserSceneId(scene.id)}>Browse rulebook pages</button>}
           </section>
-          <p><strong>Referenced components:</strong> {(plan.componentRefs || []).length ? plan.componentRefs.join(', ') : 'none'}</p>
+          <p><strong>Referenced components:</strong> {(plan.componentRefs || []).length ? plan.componentRefs.map((componentRef) => componentRequirementLabel(plan, componentRef)).join(', ') : 'none'}</p>
           <p><strong>Source references:</strong> {(plan.sourceReferences || scene.sources || []).length ? (plan.sourceReferences || scene.sources).map(sourceLabel).join('; ') : 'None'}</p>
           <p><strong>Visual plan:</strong> {plan.reviewState} · {plan.selectionMethod} · {plan.reviewReason}</p>
           <div><strong>Selected visual assets:</strong> {selectedIds.length ? selectedIds.map((assetId) => {
