@@ -32,6 +32,8 @@ const requiredBootstrapTokens = [
   "robocopy $primaryData $deploymentData",
   "Copy-Item -Force -Path $primaryEnv -Destination $runtimeEnv",
   "Stop-ScheduledTask -TaskName 'MOBIUS Local Agent'",
+  "Get-CimInstance Win32_Process -Filter \"Name = 'node.exe'\"",
+  "Start-Sleep -Seconds 3",
   'Primary checkout preserved:',
   '-DeploymentRoot $deployment',
 ];

@@ -20,6 +20,15 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw 'Node.js is r
 & git -C $repo fetch origin main
 if ($LASTEXITCODE -ne 0) { throw 'Unable to fetch origin/main for isolated deployment.' }
 
+# Stop every MOBIUS API and agent before cleaning the isolated worktree.
+# Native Sharp DLLs remain locked until their owning Node process exits.
+Stop-ScheduledTask -TaskName 'MOBIUS Local Agent' -ErrorAction SilentlyContinue
+Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match '(^|\s)src[\\/]api[\\/]index\.js(\s|$)' } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+Start-Sleep -Seconds 3
+
 if (-not (Test-Path (Join-Path $deployment '.git'))) {
     if (Test-Path $deployment) {
         $contents = Get-ChildItem -Force -Path $deployment -ErrorAction SilentlyContinue
@@ -50,9 +59,7 @@ if (Test-Path $primaryEnv) {
 
 if (-not (Test-Path $agentPath)) { throw "Isolated agent script not found: $agentPath" }
 
-Stop-ScheduledTask -TaskName 'MOBIUS Local Agent' -ErrorAction SilentlyContinue
 Unregister-ScheduledTask -TaskName 'MOBIUS Local Agent' -Confirm:$false -ErrorAction SilentlyContinue
-Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$agentPath`" -Mode Watch -RepoRoot `"$repo`" -DeploymentRoot `"$deployment`" -IntervalSeconds $IntervalSeconds"
