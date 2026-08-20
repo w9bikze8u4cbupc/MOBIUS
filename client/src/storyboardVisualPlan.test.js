@@ -417,3 +417,29 @@ test('counts reuse by contiguous pedagogical sequence while retaining the cross-
   }, coverageContext);
   expect(disjoint).toMatchObject({ valid: false, code: 'VISUAL_ASSET_REUSE_EXCEEDED' });
 });
+
+
+test('repairs a redundant selected component assignment from unambiguous resolved-scene consensus', () => {
+  const components = [{ id: 'exploration-cards', name: 'Exploration cards' }, { id: 'lords', name: 'Lords' }];
+  const images = [{ id: 'card-image' }, { id: 'lord-image' }];
+  const directions = [{ instruction: 'Show Exploration cards and Lords in close-up.', componentRefs: ['exploration-cards', 'lords'] }];
+  const resolvedSource = requiredScene({
+    id: 'resolved-source', order: 1, title: 'Endgame and Final Scoring', visualDirections: directions,
+    visualPlan: { selectedAssetIds: ['card-image', 'lord-image'], selectionMethod: 'operator_selected', assetAssignments: [
+      { assetId: 'card-image', role: 'primary', componentId: 'exploration-cards' },
+      { assetId: 'lord-image', role: 'primary', componentId: 'lords' },
+    ] },
+  });
+  const incompleteTarget = requiredScene({
+    id: 'incomplete-target', order: 2, title: 'Endgame and Final Scoring', visualDirections: directions,
+    visualPlan: { selectedAssetIds: ['card-image', 'lord-image'], selectionMethod: 'operator_selected', assetAssignments: [
+      { assetId: 'card-image', role: 'primary', componentId: 'exploration-cards' },
+      { assetId: 'lord-image', role: 'primary', componentId: 'exploration-cards' },
+    ] },
+  });
+  const reconciled = reconcileStoryboardVisualPlans({ version: '1.2.0', scenes: [resolvedSource, incompleteTarget] }, { images, components });
+  const target = reconciled.scenes.find((scene) => scene.id === 'incomplete-target');
+  expect(target.visualPlan).toMatchObject({ coverageStatus: 'resolved', assetAssignments: expect.arrayContaining([
+    expect.objectContaining({ assetId: 'lord-image', componentId: 'lords', role: 'primary' }),
+  ]) });
+});

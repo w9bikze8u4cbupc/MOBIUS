@@ -527,20 +527,68 @@ function annotateAssetReuse(scenes, policy = {}) {
   });
 }
 
+function consensusPrimaryComponentsByAsset(scenes = []) {
+  const componentIdsByAsset = new Map();
+  scenes.filter((scene) => scene?.visualPlan?.coverageStatus === 'resolved').forEach((scene) => {
+    const primaryRequirements = new Set(scene.visualPlan?.primaryComponentRefs || []);
+    (scene.visualPlan?.assetAssignments || []).forEach((assignment) => {
+      if (assignment?.role !== 'primary' || !primaryRequirements.has(assignment.componentId) || !assignment.assetId) return;
+      const components = componentIdsByAsset.get(assignment.assetId) || new Set();
+      components.add(assignment.componentId);
+      componentIdsByAsset.set(assignment.assetId, components);
+    });
+  });
+  return new Map([...componentIdsByAsset].filter(([, componentIds]) => componentIds.size === 1)
+    .map(([assetId, componentIds]) => [assetId, [...componentIds][0]]));
+}
+
+function repairRedundantComponentAssignments(scene, consensusByAsset) {
+  const plan = scene?.visualPlan || {};
+  if (plan.coverageStatus === 'resolved' || plan.coverageStatus === 'operator_override') return scene;
+  const primaryRequirements = new Set(plan.primaryComponentRefs || []);
+  if (!primaryRequirements.size) return scene;
+  const assignments = (plan.assetAssignments || []).map((assignment) => ({ ...assignment }));
+  const evidenceCount = new Map();
+  assignments.forEach((assignment) => {
+    if (assignment.role === 'primary' && primaryRequirements.has(assignment.componentId)) {
+      evidenceCount.set(assignment.componentId, (evidenceCount.get(assignment.componentId) || 0) + 1);
+    }
+  });
+  let repaired = false;
+  assignments.forEach((assignment) => {
+    const consensusComponent = consensusByAsset.get(assignment.assetId);
+    if (assignment.role !== 'primary' || !consensusComponent || !primaryRequirements.has(consensusComponent)
+      || assignment.componentId === consensusComponent || (evidenceCount.get(consensusComponent) || 0) > 0
+      || (evidenceCount.get(assignment.componentId) || 0) < 2) return;
+    evidenceCount.set(assignment.componentId, evidenceCount.get(assignment.componentId) - 1);
+    evidenceCount.set(consensusComponent, 1);
+    assignment.componentId = consensusComponent;
+    repaired = true;
+  });
+  return repaired ? { ...scene, visualPlan: { ...plan, assetAssignments: assignments } } : scene;
+}
+
+function withResolvedVisualPlan(scene, context) {
+  const visualPlan = resolveSceneVisualPlan(scene, context);
+  return {
+    ...scene,
+    componentRefs: visualPlan.componentRefs,
+    visualPlan,
+    imageAssetIds: visualPlan.selectedAssetIds,
+    visualReviewState: visualPlan.reviewState === 'resolved' ? 'matched' : visualPlan.reviewState,
+    status: visualPlan.reviewState === 'blocked' ? 'blocked' : (scene.status === 'blocked' ? 'draft' : scene.status || 'draft'),
+  };
+}
+
 export function reconcileStoryboardVisualPlans(manifest, context = {}) {
   if (!manifest || manifest.version !== '1.2.0' || !Array.isArray(manifest.scenes)) return manifest;
-  const resolvedScenes = manifest.scenes.map((scene) => {
-    const visualPlan = resolveSceneVisualPlan(scene, context);
-    return {
-      ...scene,
-      componentRefs: visualPlan.componentRefs,
-      visualPlan,
-      imageAssetIds: visualPlan.selectedAssetIds,
-      visualReviewState: visualPlan.reviewState === 'resolved' ? 'matched' : visualPlan.reviewState,
-      status: visualPlan.reviewState === 'blocked' ? 'blocked' : (scene.status === 'blocked' ? 'draft' : scene.status || 'draft'),
-    };
+  const initiallyResolvedScenes = manifest.scenes.map((scene) => withResolvedVisualPlan(scene, context));
+  const consensusByAsset = consensusPrimaryComponentsByAsset(initiallyResolvedScenes);
+  const repairedScenes = initiallyResolvedScenes.map((scene) => {
+    const repaired = repairRedundantComponentAssignments(scene, consensusByAsset);
+    return repaired === scene ? scene : withResolvedVisualPlan(repaired, context);
   });
-  return { ...manifest, scenes: annotateAssetReuse(resolvedScenes, context.policy) };
+  return { ...manifest, scenes: annotateAssetReuse(repairedScenes, context.policy) };
 }
 
 export function validateStoryboardVisualPlans(manifest, context = {}) {
