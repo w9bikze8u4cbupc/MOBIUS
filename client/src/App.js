@@ -1217,7 +1217,10 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         components: gameComponents,
       });
       if (!releaseVisualPlans.valid) {
-        throw new Error(releaseVisualPlans.code);
+        const sceneIds = Array.isArray(releaseVisualPlans.sceneIds) && releaseVisualPlans.sceneIds.length > 0
+          ? `: ${releaseVisualPlans.sceneIds.join(', ')}`
+          : '';
+        throw new Error(`${releaseVisualPlans.code}${sceneIds}`);
       }
       const releaseStoryboardManifest = releaseVisualPlans.manifest || storyboardManifest;
       setStoryboardManifest(releaseStoryboardManifest);
