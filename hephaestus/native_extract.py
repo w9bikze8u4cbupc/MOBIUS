@@ -51,7 +51,11 @@ def visual_information_metrics(image: Image.Image) -> Dict[str, Any]:
     horizontal_delta = sum(abs(values[row * size + column] - values[row * size + column + 1]) for row in range(size) for column in range(size - 1))
     vertical_delta = sum(abs(values[row * size + column] - values[(row + 1) * size + column]) for row in range(size - 1) for column in range(size))
     edge_density = ((horizontal_delta / (size * (size - 1))) + (vertical_delta / ((size - 1) * size))) / (2 * 255.0)
-    near_blank = bright_ratio >= 0.94 and contrast <= 0.055 and edge_density <= 0.018
+    # Some PDF background layers are very pale but not pure white; their faint
+    # tint keeps the bright-pixel ratio low even though they are unusable in a video.
+    # Low global contrast plus low edge density is sufficient to suppress that class
+    # while preserving real cards and diagrams with meaningful outlines.
+    near_blank = (bright_ratio >= 0.94 and contrast <= 0.055 and edge_density <= 0.018) or (contrast <= 0.05 and edge_density <= 0.008)
     return {
         "brightPixelRatio": round(bright_ratio, 4),
         "contrast": round(contrast, 4),
