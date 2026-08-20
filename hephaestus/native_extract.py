@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import fitz  # PyMuPDF
-from PIL import Image
+from PIL import Image, ImageStat
 
 UPSCALE_FACTOR = 3
 THUMBNAIL_SIZE = (360, 360)
@@ -34,6 +34,30 @@ def detect_image_type(width: int, height: int) -> str:
     if 0.75 <= aspect <= 1.33 and max(width, height) <= 600:
         return "token"
     return "other"
+
+
+def visual_information_metrics(image: Image.Image) -> Dict[str, Any]:
+    """Measure only obvious near-blank native rasters for safe review suppression."""
+    width, height = image.size
+    if width < 100 or height < 100:
+        return {}
+    sample = image.convert("RGB").resize((96, 96), Image.Resampling.LANCZOS)
+    pixels = list(sample.getdata())
+    bright_ratio = sum(1 for red, green, blue in pixels if red >= 245 and green >= 245 and blue >= 245) / len(pixels)
+    grayscale = sample.convert("L")
+    contrast = ImageStat.Stat(grayscale).stddev[0] / 255.0
+    values = list(grayscale.getdata())
+    size = 96
+    horizontal_delta = sum(abs(values[row * size + column] - values[row * size + column + 1]) for row in range(size) for column in range(size - 1))
+    vertical_delta = sum(abs(values[row * size + column] - values[(row + 1) * size + column]) for row in range(size - 1) for column in range(size))
+    edge_density = ((horizontal_delta / (size * (size - 1))) + (vertical_delta / ((size - 1) * size))) / (2 * 255.0)
+    near_blank = bright_ratio >= 0.94 and contrast <= 0.055 and edge_density <= 0.018
+    return {
+        "brightPixelRatio": round(bright_ratio, 4),
+        "contrast": round(contrast, 4),
+        "edgeDensity": round(edge_density, 4),
+        "nearBlank": near_blank,
+    }
 
 
 def pixmap_to_image(pixmap: fitz.Pixmap) -> Image.Image:
@@ -122,6 +146,7 @@ def extract_all_native_images(pdf_path: str, output_dir: str) -> Dict[str, Any]:
                             "width": upscaled.width,
                             "height": upscaled.height,
                         },
+                        "visual_metrics": visual_information_metrics(upscaled),
                     })
                     type_counts[image_type] += 1
                 except Exception as error:
