@@ -340,17 +340,37 @@ function intentEvidenceSatisfied(intent, assignments, contextualAssignments, pri
   return null;
 }
 
-function coverageFor(requirements, assignments, contextualAssignments, priorPlan, priorBlocked) {
+function derivedSchematicComponentEvidence(scene, requirements) {
+  const visualText = visualRequirementText(scene);
+  if (!/\b(?:3|three)\s+keys?\b/i.test(visualText) || sourceReferences(scene).length === 0) return [];
+  return requirements.primaryComponentRefs.flatMap((componentId) => {
+    const label = requirements.componentLabels?.[componentId] || componentId;
+    if (!/\bkey\s*tokens?\b/i.test(label)) return [];
+    return [{
+      componentId,
+      kind: 'counted_symbol_overlay',
+      symbol: 'key',
+      count: 3,
+      label: '3 Keys',
+      source: 'explicit_scene_visual_direction',
+    }];
+  });
+}
+
+function coverageFor(requirements, assignments, contextualAssignments, priorPlan, priorBlocked, schematicComponentEvidence = []) {
   const primaryEvidence = requirements.primaryComponentRefs.map((componentId) => ({
     requirement: 'primary_component', componentId,
     assetIds: assignments.filter((assignment) => assignment.role === 'primary' && assignment.componentId === componentId).map((assignment) => assignment.assetId),
+    schematicEvidence: schematicComponentEvidence.filter((evidence) => evidence.componentId === componentId),
   }));
   const supportingEvidence = requirements.supportingComponentRefs.map((componentId) => ({
     requirement: 'supporting_component', componentId,
     assetIds: assignments.filter((assignment) => assignment.role === 'supporting' && assignment.componentId === componentId).map((assignment) => assignment.assetId),
   }));
   const intentSatisfied = intentEvidenceSatisfied(requirements.primaryIntent, assignments, contextualAssignments, priorPlan, requirements);
-  const allPrimarySatisfied = primaryEvidence.length > 0 && primaryEvidence.every((evidence) => evidence.assetIds.length > 0);
+  const allPrimarySatisfied = primaryEvidence.length > 0 && primaryEvidence.every((evidence) => (
+    evidence.assetIds.length > 0 || evidence.schematicEvidence.length > 0
+  ));
   const operatorDefinedSatisfied = requirements.primaryIntent === 'operator_defined' && assignments.some((assignment) => assignment.role === 'primary');
   const operatorReason = operatorOverrideReason(priorPlan);
   const hasAnyEvidence = assignments.length > 0 || contextualAssignments.length > 0;
@@ -372,7 +392,9 @@ function coverageFor(requirements, assignments, contextualAssignments, priorPlan
       ? `Resolved with explicit ${requirements.primaryIntent.replace(/_/g, ' ')} evidence.`
       : operatorDefinedSatisfied
         ? 'Resolved by an explicit operator-defined primary visual.'
-        : 'Resolved by primary component evidence.';
+        : schematicComponentEvidence.length
+          ? 'Resolved by primary component and explicit schematic visual evidence.'
+          : 'Resolved by primary component evidence.';
   } else if (hasAnyEvidence || hasSupportingEvidence) {
     coverageStatus = 'partial';
     coverageReason = requirements.primaryComponentRefs.length
@@ -380,7 +402,7 @@ function coverageFor(requirements, assignments, contextualAssignments, priorPlan
       : `Partial — ${requirements.primaryIntent.replace(/_/g, ' ')} evidence is still missing.`;
   }
   const coverageEvidence = [
-    ...primaryEvidence.map((evidence) => ({ ...evidence, satisfied: evidence.assetIds.length > 0 })),
+    ...primaryEvidence.map((evidence) => ({ ...evidence, satisfied: evidence.assetIds.length > 0 || evidence.schematicEvidence.length > 0 })),
     ...supportingEvidence.map((evidence) => ({ ...evidence, satisfied: evidence.assetIds.length > 0 })),
     ...(assignments.length ? [{ requirement: 'intent_role', intent: requirements.primaryIntent, assetIds: assignments.map((assignment) => assignment.assetId), satisfied: intentSatisfied === true || allPrimarySatisfied }] : []),
     ...(contextualAssignments.length ? [{ requirement: 'contextual_evidence', intent: requirements.primaryIntent, assetIds: contextualAssignments.map((assignment) => assignment.assetId), satisfied: intentSatisfied === true, contextual: true }] : []),
@@ -439,7 +461,8 @@ export function resolveSceneVisualPlan(scene, {
   const contextualEvidenceAssignments = normaliseContextualEvidenceAssignments(priorContextualEvidenceAssignments, requirements.primaryIntent);
   const incompatibleContextualEvidence = contextualEvidenceAssignments.length < priorContextualEvidenceAssignments.length;
   const priorBlocked = priorPlan.reviewState === 'blocked' || priorPlan.coverageStatus === 'blocked' || scene?.visualReviewState === 'blocked';
-  const coverage = coverageFor(requirements, assetAssignments, contextualEvidenceAssignments, priorPlan, priorBlocked);
+  const schematicComponentEvidence = derivedSchematicComponentEvidence(scene, requirements);
+  const coverage = coverageFor(requirements, assetAssignments, contextualEvidenceAssignments, priorPlan, priorBlocked, schematicComponentEvidence);
   const releaseResolved = coverage.coverageStatus === 'resolved' || coverage.coverageStatus === 'operator_override';
   const reviewState = priorBlocked ? 'blocked' : (releaseResolved ? 'resolved' : 'needs_visual_review');
   const invalidationReasons = [
@@ -462,6 +485,7 @@ export function resolveSceneVisualPlan(scene, {
     coverageEvidence: coverage.coverageEvidence,
     assetAssignments,
     contextualEvidenceAssignments,
+    schematicComponentEvidence,
     assetReuse: Array.isArray(priorPlan.assetReuse) ? priorPlan.assetReuse : [],
     operatorOverride: operatorOverrideReason(priorPlan) ? { reason: operatorOverrideReason(priorPlan) } : null,
     sourceReferences: sourceReferences(scene),

@@ -443,3 +443,35 @@ test('repairs a redundant selected component assignment from unambiguous resolve
     expect.objectContaining({ assetId: 'lord-image', componentId: 'lords', role: 'primary' }),
   ]) });
 });
+
+
+test('permits a sourced three-Key schematic only when explicit directions require it and real Lord and Location evidence remains present', () => {
+  const components = [
+    { id: 'lords', name: 'Lords' },
+    { id: 'locations', name: 'Locations' },
+    { id: 'key-tokens', name: 'Key tokens' },
+  ];
+  const images = [{ id: 'lord-image' }, { id: 'location-image' }];
+  const scene = requiredScene({
+    id: 'control-location',
+    title: 'Controlling Locations',
+    visualDirections: [{
+      instruction: 'Animate three Keys combining into a Location, then slide the contributing Lords beneath it.',
+      componentRefs: ['lords', 'locations', 'key-tokens'],
+    }],
+    visualPlan: {
+      selectedAssetIds: ['lord-image', 'location-image'], selectionMethod: 'operator_selected', assetAssignments: [
+        { assetId: 'lord-image', role: 'primary', componentId: 'lords' },
+        { assetId: 'location-image', role: 'primary', componentId: 'locations' },
+      ],
+    },
+  });
+  const plan = resolveSceneVisualPlan(scene, { images, components });
+  expect(plan).toMatchObject({
+    coverageStatus: 'resolved',
+    schematicComponentEvidence: [expect.objectContaining({ componentId: 'key-tokens', kind: 'counted_symbol_overlay', count: 3 })],
+  });
+
+  const insufficient = resolveSceneVisualPlan({ ...scene, sources: [] }, { images, components });
+  expect(insufficient).toMatchObject({ coverageStatus: 'partial', schematicComponentEvidence: [] });
+});
