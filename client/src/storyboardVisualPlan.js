@@ -90,6 +90,20 @@ function componentCatalog(components = []) {
   return aliases;
 }
 
+function canonicalComponentLabels(components = [], componentIds = []) {
+  const byId = new Map((Array.isArray(components) ? components : [])
+    .filter((component) => typeof component?.id === 'string' && component.id.trim())
+    .map((component) => [component.id.trim(), component]));
+  return uniqueStrings(componentIds).reduce((labels, componentId) => {
+    const component = byId.get(componentId);
+    const label = [component?.name, component?.nameEn, component?.name_en, component?.nameFr,
+      component?.name_fr, component?.translatedName, component?.frenchName]
+      .find((value) => typeof value === 'string' && value.trim());
+    if (label) labels[componentId] = label.trim();
+    return labels;
+  }, {});
+}
+
 function recordMatch(matches, componentId, matchedToken, sourceField) {
   if (!componentId || matches.some((match) => match.componentId === componentId)) return;
   matches.push({ componentId, matchedToken, sourceField });
@@ -197,10 +211,12 @@ export function deriveSceneVisualRequirements(scene, components = []) {
   }
   primaryComponentRefs = uniqueStrings(primaryComponentRefs);
   const supportingComponentRefs = visualComponentRefs.filter((componentId) => !primaryComponentRefs.includes(componentId));
+  const componentLabels = canonicalComponentLabels(components, [...primaryComponentRefs, ...supportingComponentRefs, ...visualComponentRefs]);
   return {
     primaryIntent,
     primaryComponentRefs,
     supportingComponentRefs,
+    componentLabels,
     componentRefMatches,
   };
 }
@@ -437,6 +453,7 @@ export function resolveSceneVisualPlan(scene, {
     primaryIntent: PRIMARY_INTENTS.has(requirements.primaryIntent) ? requirements.primaryIntent : 'operator_defined',
     primaryComponentRefs: requirements.primaryComponentRefs,
     supportingComponentRefs: requirements.supportingComponentRefs,
+    componentLabels: requirements.componentLabels,
     coverageStatus: COVERAGE_STATUSES.has(coverage.coverageStatus) ? coverage.coverageStatus : 'unresolved',
     coverageReason: coverage.coverageReason,
     coverageEvidence: coverage.coverageEvidence,

@@ -151,6 +151,7 @@ test('lets an operator map a manually reviewed asset to one explicit primary com
       { componentId: 'locations', matchedToken: 'Locations' },
       { componentId: 'monster-tokens', matchedToken: 'Monster tokens' },
     ],
+    componentLabels: { lords: 'Court Lords', locations: 'Locations', 'monster-tokens': 'Monster tokens' },
     assetCandidates: [],
   };
   render(<VisualAssetBrowser
@@ -164,6 +165,7 @@ test('lets an operator map a manually reviewed asset to one explicit primary com
   />);
 
   fireEvent.click(screen.getByLabelText('Only compatible assets for scene-objective'));
+  expect(componentRequirementLabel(multiComponentPlan, 'lords')).toBe('Court Lords (lords)');
   expect(componentRequirementLabel(multiComponentPlan, 'locations')).toBe('Locations (locations)');
   expect(screen.getByRole('option', { name: 'Locations (locations)' })).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Component requirement for scene-objective'), { target: { value: 'locations' } });

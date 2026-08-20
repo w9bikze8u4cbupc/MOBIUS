@@ -151,9 +151,11 @@ function defaultComponentIdForRole(plan, role) {
 
 /** Formats a canonical component ID with its existing, explainable matched token when available. */
 export function componentRequirementLabel(plan = {}, componentRef) {
+  const canonicalLabel = typeof plan.componentLabels?.[componentRef] === 'string' && plan.componentLabels[componentRef].trim()
+    ? plan.componentLabels[componentRef].trim() : '';
   const match = (Array.isArray(plan.componentRefMatches) ? plan.componentRefMatches : [])
     .find((entry) => entry?.componentId === componentRef && typeof entry?.matchedToken === 'string' && entry.matchedToken.trim());
-  const label = match?.matchedToken?.trim();
+  const label = canonicalLabel || match?.matchedToken?.trim();
   return label && label !== componentRef ? `${label} (${componentRef})` : componentRef;
 }
 
