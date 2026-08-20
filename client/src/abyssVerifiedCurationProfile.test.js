@@ -79,3 +79,27 @@ test('Abyss profile maps only the reviewed French setup, materials, and explorat
   expect(byId['scene-section-07-1'].visualPlan.contextualEvidenceAssignments[0]).toMatchObject({ role: 'verified_mechanic_rulebook', confirmed: true });
   expect(byId['scene-section-10-1'].visualPlan.contextualEvidenceAssignments).toBeUndefined();
 });
+
+
+test('Abyss profile applies inspected French objective assets only when the exact project inventory is present', () => {
+  const manifest = {
+    version: '1.2.0',
+    scenes: [{
+      id: 'scene-section-02-3', title: 'Objectif du jeu', spokenText: 'Marquez des points.',
+      visualDirections: [{
+        instruction: 'Afficher les cartes Exploration, les Seigneurs, les Lieux et les jetons Monstre.',
+        componentRefs: ['Exploration cards', 'Lords', 'Locations', 'Monster tokens'],
+      }],
+      visualPlan: { requiresExplicitVisual: true },
+    }],
+  };
+  const inventoryIds = [
+    'heph_p1_img3_xref338', 'heph_p2_img5_xref729', 'heph_p2_img12_xref745', 'heph_p2_img28_xref775',
+  ];
+  const images = inventoryIds.map((id) => ({ id, curation: { candidate: true, isDuplicate: false, lowInformation: false } }));
+  const profiled = applyVerifiedAbyssCurationProfile(manifest, 'abyss-mt0qh495-ih5w');
+  expect(profiled.scenes[0].visualPlan.selectedAssetIds).toEqual(inventoryIds);
+  const reconciled = reconcileStoryboardVisualPlans(profiled, { images, components });
+  expect(reconciled.scenes[0].visualPlan.coverageStatus).toBe('resolved');
+  expect(validateStoryboardVisualPlans(profiled, { images, components }).valid).toBe(true);
+});

@@ -34,6 +34,60 @@ const setupCrop = {
   pageRasterSha256: pages.components.pageRasterSha256,
 };
 
+// These assets were inspected in the operator UI for this exact persisted Abyss project.
+// They are never inferred by filename or used for another project.
+const reviewedAssets = {
+  cover: 'manual-1787267082043-h1vohx',
+  fullSetup: 'manual-1787268683125-4r63ee',
+  boardOverview: 'manual-1787268705041-gxku89',
+  exploration: 'heph_p1_img3_xref338',
+  lords: 'heph_p2_img5_xref729',
+  locations: 'heph_p2_img12_xref745',
+  monsters: 'heph_p2_img28_xref775',
+};
+
+const objectiveAssetAssignments = [
+  { assetId: reviewedAssets.exploration, componentId: 'comp-2' },
+  { assetId: reviewedAssets.lords, componentId: 'comp-4' },
+  { assetId: reviewedAssets.locations, componentId: 'comp-6' },
+  { assetId: reviewedAssets.monsters, componentId: 'comp-8' },
+];
+
+function reviewedAssetSelection(assignments, { selectionMethod = 'operator_selected', overviewSelectionConfirmed = false } = {}) {
+  return {
+    selectedAssetIds: assignments.map((assignment) => assignment.assetId),
+    assetAssignments: assignments.map((assignment) => ({
+      assetId: assignment.assetId,
+      componentId: assignment.componentId || null,
+      role: assignment.role || 'primary',
+    })),
+    selectionMethod,
+    manualSelectionReviewed: true,
+    ...(overviewSelectionConfirmed ? { overviewSelectionConfirmed: true } : {}),
+  };
+}
+
+function reviewedAssetsForFrenchScene(scene) {
+  const text = normalizedSceneText(scene);
+  if (/objectif du jeu/.test(text)) return reviewedAssetSelection(objectiveAssetAssignments);
+  if (/mise en place|installation|pause avant de jouer/.test(text)) {
+    return reviewedAssetSelection([{ assetId: reviewedAssets.fullSetup, role: 'primary' }]);
+  }
+  if (/deroulement d.?un tour|explorer les profondeurs|conseil et recrutement/.test(text)) {
+    return reviewedAssetSelection([{ assetId: reviewedAssets.boardOverview, role: 'primary' }]);
+  }
+  if (/controler un lieu/.test(text)) {
+    return reviewedAssetSelection([{ assetId: reviewedAssets.boardOverview, componentId: 'comp-6' }]);
+  }
+  if (/fin de partie et decompte/.test(text)) return reviewedAssetSelection(objectiveAssetAssignments);
+  if (/conclusion/.test(text)) {
+    return reviewedAssetSelection([{ assetId: reviewedAssets.cover, role: 'brand' }], {
+      selectionMethod: 'brand_asset', overviewSelectionConfirmed: true,
+    });
+  }
+  return null;
+}
+
 function normalizedSceneText(scene) {
   return `${scene?.title || ''} ${(scene?.visualDirections || []).map((direction) => direction?.instruction || '').join(' ')}`
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -79,18 +133,23 @@ export function applyVerifiedAbyssCurationProfile(manifest, projectId) {
       const reviewedEvidence = legacyPage
         ? { page: legacyPage, role: 'verified_mechanic_rulebook', kind: 'contextual_page' }
         : evidenceForReviewedFrenchScene(scene);
-      if (!reviewedEvidence) return scene;
+      const reviewedAssets = reviewedAssetsForFrenchScene(scene);
+      if (!reviewedEvidence && !reviewedAssets) return scene;
       const plan = scene.visualPlan || {};
       const assignments = Array.isArray(plan.contextualEvidenceAssignments) ? plan.contextualEvidenceAssignments : [];
-      const alreadyPresent = assignments.some((assignment) => assignment?.assetId === reviewedEvidence.page.assetId
-        && assignment?.role === reviewedEvidence.role && assignment?.confirmed === true);
-      if (alreadyPresent) return scene;
+      const alreadyPresent = assignments.some((assignment) => assignment?.assetId === reviewedEvidence?.page?.assetId
+        && assignment?.role === reviewedEvidence?.role && assignment?.confirmed === true);
+      const contextualEvidenceAssignments = !reviewedEvidence || alreadyPresent
+        ? assignments
+        : [...assignments, verifiedEvidenceAssignment(reviewedEvidence)];
+      if ((!reviewedEvidence || alreadyPresent) && !reviewedAssets) return scene;
       return {
         ...scene,
         visualPlan: {
           ...plan,
-          contextualEvidenceAssignments: [...assignments, verifiedEvidenceAssignment(reviewedEvidence)],
-          selectionMethod: 'rulebook_reference',
+          ...reviewedAssets,
+          ...(reviewedEvidence || assignments.length ? { contextualEvidenceAssignments } : {}),
+          ...(reviewedEvidence ? { selectionMethod: reviewedAssets?.selectionMethod || 'rulebook_reference' } : {}),
           manualSelectionReviewed: true,
         },
       };
