@@ -231,6 +231,15 @@ function pathIsAbsolute(filePath) {
   return /^([a-zA-Z]:)?\//.test(filePath);
 }
 
+export function hasRenderVisualEvidence(scene) {
+  if ((scene?.imageUrls || []).length > 0) return true;
+  const plan = scene?.visualPlan || {};
+  if ((plan.contextualEvidenceAssignments || []).some((assignment) => assignment?.confirmed === true)) return true;
+  return plan.primaryIntent === 'brand_outro'
+    && plan.coverageStatus === 'operator_override'
+    && Boolean(String(plan.operatorOverride?.reason || '').trim());
+}
+
 export function buildRemotionScenes({ script, scriptPackage, storyboardManifest, gameName, images, componentImageLinks, previewMode = false }) {
   const canonicalStoryboardScenes = storyboardManifest?.version === '1.2.0' && Array.isArray(storyboardManifest.scenes)
     ? storyboardManifest.scenes.filter((scene) => String(scene.spokenText || '').trim())
@@ -1205,7 +1214,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       if (scenes.length === 0) {
         throw new Error("The tutorial script does not contain renderable scenes.");
       }
-      if (scenes.some((scene) => scene.visualPlan?.requiresExplicitVisual && scene.imageUrls.length === 0)) {
+      if (scenes.some((scene) => scene.visualPlan?.requiresExplicitVisual && !hasRenderVisualEvidence(scene))) {
         throw new Error('VISUAL_PLAN_INCOMPLETE');
       }
 

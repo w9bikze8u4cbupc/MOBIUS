@@ -10,7 +10,7 @@ jest.mock('axios', () => ({
 
 import axios from 'axios';
 import { getDocument } from 'pdfjs-dist';
-import App, { buildRemotionScenes, createProjectIdFromFilename, hasValidComponentInventory, extractPdfPageText } from './App';
+import App, { buildRemotionScenes, createProjectIdFromFilename, hasRenderVisualEvidence, hasValidComponentInventory, extractPdfPageText } from './App';
 import { TextEncoder } from 'util';
 import { webcrypto } from 'crypto';
 import {
@@ -810,6 +810,22 @@ test('uses canonical storyboard spokenText and timing for Remotion without leaki
   expect(JSON.stringify(scenes[0].narrationText)).not.toContain('Show board');
 });
 
+
+test('recognizes confirmed contextual evidence and a documented brand outro as renderable without a local image URL', () => {
+  expect(hasRenderVisualEvidence({
+    imageUrls: [],
+    visualPlan: { contextualEvidenceAssignments: [{ assetId: 'page-5', confirmed: true }] },
+  })).toBe(true);
+  expect(hasRenderVisualEvidence({
+    imageUrls: [],
+    visualPlan: {
+      primaryIntent: 'brand_outro',
+      coverageStatus: 'operator_override',
+      operatorOverride: { reason: 'Use the approved branded outro.' },
+    },
+  })).toBe(true);
+  expect(hasRenderVisualEvidence({ imageUrls: [], visualPlan: { requiresExplicitVisual: true } })).toBe(false);
+});
 
 test('never rotates arbitrary project images into an unresolved canonical storyboard scene', () => {
   const scenes = buildRemotionScenes({
