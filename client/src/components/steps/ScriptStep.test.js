@@ -231,3 +231,33 @@ test('labels narration separately from non-spoken visual directions and source p
   expect(screen.getByLabelText('Visual directions and sources')).toHaveTextContent('Visual directions & source provenance (non-spoken)');
   expect(screen.getByLabelText('Visual directions and sources')).toHaveTextContent('Section 1, offsets 0-100');
 });
+
+
+test('lets an imported project switch tutorial language to Canadian French from the Script step', () => {
+  const onLanguageChange = jest.fn();
+  render(
+    <ScriptStep
+      loading={false}
+      projectId="abyss-project"
+      rulebookText="Rulebook text"
+      gameName="Abyss"
+      language="english"
+      onLanguageChange={onLanguageChange}
+      components={[{ id: 'component-1', name: 'Cards' }]}
+      scriptInputReadiness={{ ready: true, message: '' }}
+      onSummarize={jest.fn()}
+      summary=""
+      editedSummary=""
+      onEdit={jest.fn()}
+      onSave={jest.fn()}
+      translationStatus={{ error: null }}
+      summaryWarning=""
+      aiStatus={{ ready: true, message: 'AI model is ready.' }}
+      aiStatusLoading={false}
+      onRefreshAiStatus={jest.fn()}
+    />,
+  );
+
+  fireEvent.change(screen.getByLabelText('Tutorial language'), { target: { value: 'french' } });
+  expect(onLanguageChange).toHaveBeenCalledWith('french');
+});

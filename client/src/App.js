@@ -1970,6 +1970,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               rulebookText={rulebookText}
               gameName={gameName}
               language={language}
+              onLanguageChange={setLanguage}
               components={gameComponents}
               scriptInputReadiness={scriptInputReadiness}
               onSummarize={handleSummarize}

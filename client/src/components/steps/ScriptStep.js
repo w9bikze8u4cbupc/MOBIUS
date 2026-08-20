@@ -8,6 +8,7 @@ export function ScriptStep({
   rulebookText,
   gameName,
   language,
+  onLanguageChange,
   components = [],
   scriptInputReadiness,
   onSummarize,
@@ -54,6 +55,21 @@ export function ScriptStep({
           <div><dt>Validated components</dt><dd>{`${Array.isArray(components) ? components.length : 0} components`}</dd></div>
           <div><dt>Language</dt><dd>{language || 'Missing'}</dd></div>
         </dl>
+        <label style={{ display: 'block', fontWeight: 700, marginTop: 14 }}>
+          Tutorial language
+          <select
+            aria-label="Tutorial language"
+            value={language || 'french'}
+            onChange={(event) => onLanguageChange?.(event.target.value)}
+            style={{ display: 'block', marginTop: 6, maxWidth: 280, width: '100%' }}
+          >
+            <option value="french">French (Canadian)</option>
+            <option value="english">English</option>
+          </select>
+        </label>
+        <p className="pipeline-muted" style={{ marginBottom: 0, marginTop: 8 }}>
+          Changing language selects the matching default narration voice. Generate a new script after changing language so its source evidence remains canonical.
+        </p>
         {!canGenerate && (
           <p className="status-badge status-badge-warning" style={{ display: 'block', padding: '10px 14px', marginBottom: 0 }}>
             {readiness.message}
