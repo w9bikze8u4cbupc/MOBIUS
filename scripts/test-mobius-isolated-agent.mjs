@@ -13,6 +13,8 @@ const requiredAgentTokens = [
   "Invoke-Git $deployment @('reset', '--hard', $target)",
   "Copy-DirectoryContents (Join-Path $repo 'data') (Join-Path $deployment 'data')",
   "Installing isolated server dependencies.",
+  "node_modules\\express\\package.json",
+  "node_modules\\.bin\\react-scripts.cmd",
   "npm ci --ignore-scripts",
   "Sync-LocalConfiguration",
   "Copy-Item -Force -Path $primaryEnv -Destination $runtimeEnv",
