@@ -529,6 +529,6 @@ export function validateStoryboardReview(manifest, projectImages = null, visualC
     ...visualContext,
   });
   return visualValidation.valid
-    ? { valid: true, code: null, visualSummary: visualValidation.summary }
-    : { valid: false, code: visualValidation.code, sceneIds: visualValidation.sceneIds, visualSummary: visualValidation.summary };
+    ? { valid: true, code: null, visualSummary: visualValidation.summary, manifest: visualValidation.manifest }
+    : { valid: false, code: visualValidation.code, sceneIds: visualValidation.sceneIds, visualSummary: visualValidation.summary, manifest: visualValidation.manifest };
 }

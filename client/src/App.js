@@ -1193,6 +1193,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         throw new Error(releaseVisualPlans.code);
       }
       const releaseStoryboardManifest = releaseVisualPlans.manifest || storyboardManifest;
+      setStoryboardManifest(releaseStoryboardManifest);
       const scenes = buildRemotionScenes({
         script,
         scriptPackage,
@@ -1233,7 +1234,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         generatedScript,
         scriptProvenance,
         ingestionManifest,
-        storyboardManifest,
+        storyboardManifest: releaseStoryboardManifest,
         activeStepId,
         completedStepIds,
       });
@@ -1760,6 +1761,9 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         if (!storyboardReview.valid) {
           setError(storyboardReview.code);
           return;
+        }
+        if (storyboardReview.manifest) {
+          setStoryboardManifest(storyboardReview.manifest);
         }
         setError("");
         setAndAdvance();
