@@ -30,7 +30,7 @@ describe('generateNarration', () => {
     }
   });
 
-  test('assembles an HTTP/2 curl request and returns the output path', async () => {
+  test('assembles a portable curl request and returns the output path', async () => {
     const result = await generateNarration('Hello from MOBIUS', 'voice/id', outputPath);
 
     expect(result).toBe(outputPath);
@@ -38,7 +38,6 @@ describe('generateNarration', () => {
     expect(execFile).toHaveBeenCalledWith(
       'curl',
       expect.arrayContaining([
-        '--http2',
         '-s',
         '--fail',
         '-X',
@@ -53,6 +52,7 @@ describe('generateNarration', () => {
       expect.objectContaining({ windowsHide: true }),
       expect.any(Function),
     );
+    expect(execFile.mock.calls[0][1]).not.toContain('--http2');
   });
 
   test('throws a descriptive error when curl exits unsuccessfully', async () => {

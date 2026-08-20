@@ -14,8 +14,10 @@ function requireNonEmptyString(value, fieldName) {
 }
 
 /**
- * Generate one MP3 narration file through ElevenLabs using curl HTTP/2.
+ * Generate one MP3 narration file through ElevenLabs using curl.
  *
+ * The request lets the local cURL installation negotiate its supported HTTP
+ * version. Forcing HTTP/2 is not portable across Windows cURL builds.
  * curl is intentionally invoked with an argument vector rather than a shell
  * command, so narration text, voice identifiers, and output paths are never
  * interpreted as shell syntax.
@@ -33,7 +35,6 @@ export async function generateNarration(narrationText, voiceId, outputPath) {
   await fs.mkdir(path.dirname(targetPath), { recursive: true });
 
   const curlArguments = [
-    '--http2',
     '-s',
     '--fail',
     '-X',
