@@ -131,6 +131,22 @@ function Restore-RuntimeData {
     }
 }
 
+function Install-RootDependenciesIfNeeded {
+    param([string]$PreviousCommit, [string]$TargetCommit)
+    $nodeModules = Join-Path $deployment 'node_modules'
+    $dependencyFilesChanged = $PreviousCommit -and $TargetCommit -and @(
+        Invoke-Git $deployment @('diff', '--name-only', $PreviousCommit, $TargetCommit, '--', 'package.json', 'package-lock.json')
+    ).Count -gt 0
+    if (-not (Test-Path $nodeModules) -or $dependencyFilesChanged) {
+        Write-AgentLog 'INFO' 'Installing isolated server dependencies.'
+        Push-Location $deployment
+        try {
+            & npm ci --ignore-scripts
+            if ($LASTEXITCODE -ne 0) { throw 'Server dependency installation failed.' }
+        } finally { Pop-Location }
+    }
+}
+
 function Install-ClientDependenciesIfNeeded {
     param([string]$PreviousCommit, [string]$TargetCommit)
     $clientDir = Join-Path $deployment 'client'
@@ -175,6 +191,7 @@ function Invoke-IsolatedDeployment {
         Restore-RuntimeData
     }
 
+    Install-RootDependenciesIfNeeded -PreviousCommit $current -TargetCommit $target
     Install-ClientDependenciesIfNeeded -PreviousCommit $current -TargetCommit $target
     $clientDir = Join-Path $deployment 'client'
     Write-AgentLog 'INFO' 'Building the isolated MOBIUS client.'

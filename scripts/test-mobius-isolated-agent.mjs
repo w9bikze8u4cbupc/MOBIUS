@@ -12,6 +12,8 @@ const requiredAgentTokens = [
   "-WorkingDirectory $deployment",
   "Invoke-Git $deployment @('reset', '--hard', $target)",
   "Copy-DirectoryContents (Join-Path $repo 'data') (Join-Path $deployment 'data')",
+  "Installing isolated server dependencies.",
+  "npm ci --ignore-scripts",
   "Preserve-RuntimeData",
   "Restore-RuntimeData",
   'MOBIUS isolated deployment is current and responding on port 5001.',
