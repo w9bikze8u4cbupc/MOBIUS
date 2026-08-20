@@ -626,6 +626,37 @@ test('rejects repeated non-brand assets even if persisted reuse annotations are 
   expect(runRemotionRender).not.toHaveBeenCalled();
 });
 
+test('renders a documented brand outro without inventing a local rulebook image', async () => {
+  const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+  const outputPath = path.join(outputDirectory, 'mobius-tutorial.mp4');
+  const runRemotionRender = jest.fn(async () => ({ outputPaths: [outputPath] }));
+  const app = loadTestApp(outputDirectory, { runRemotionRender });
+  server = await startServer(app);
+  const scene = {
+    id: 'scene-brand-outro', storyboardVersion: '1.2.0', narrationText: 'Thank you for watching.', durationInFrames: 90,
+    imageAssetIds: [], imageUrls: [],
+    visualPlan: {
+      requiresExplicitVisual: true, reviewState: 'resolved', selectedAssetIds: [], assetAssignments: [], assetReuse: [],
+      selectionMethod: 'operator_selected', primaryIntent: 'brand_outro', primaryComponentRefs: [], supportingComponentRefs: [],
+      coverageStatus: 'operator_override', coverageReason: 'Use the approved Les Jeux Mobius outro.', coverageEvidence: [],
+      operatorOverride: { reason: 'Use the approved Les Jeux Mobius outro.' },
+    },
+  };
+  const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Documented brand outro', metadata: {}, components: [], images: [], script: '', audio: '', scenes: [scene] }),
+  });
+  const savedProject = await saveResponse.json();
+  const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: savedProject.projectId }),
+  });
+
+  expect(renderResponse.status).toBe(200);
+  expect(runRemotionRender).toHaveBeenCalledWith(expect.objectContaining({
+    scenes: [expect.objectContaining({ id: 'scene-brand-outro', imageUrls: [] })],
+  }));
+});
+
 test('requires server-resolved contextual provenance before a contextual visual can render', async () => {
   const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
   const runRemotionRender = jest.fn();

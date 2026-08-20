@@ -299,11 +299,19 @@ function reviewStateIsReleaseReady(visualPlan) {
     || visualPlan?.coverageStatus === 'operator_override';
 }
 
+function isDocumentedBrandOutroOverride(visualPlan) {
+  return visualPlan?.primaryIntent === 'brand_outro'
+    && visualPlan?.coverageStatus === 'operator_override'
+    && typeof visualPlan?.operatorOverride?.reason === 'string'
+    && visualPlan.operatorOverride.reason.trim().length >= 3;
+}
+
 function coverageIsReleaseReady(visualPlan) {
   if (!visualPlan || !RELEASE_PRIMARY_INTENTS.has(visualPlan.primaryIntent)
     || (visualPlan.coverageStatus !== 'resolved' && visualPlan.coverageStatus !== 'operator_override')) return false;
   if (visualPlan.coverageStatus === 'operator_override' && typeof visualPlan.operatorOverride?.reason !== 'string') return false;
   if (visualPlan.coverageStatus === 'operator_override' && visualPlan.operatorOverride.reason.trim().length < 3) return false;
+  if (isDocumentedBrandOutroOverride(visualPlan)) return true;
   if (contextualPlanClaimIsEligible(visualPlan)) return true;
   const assignments = selectedAssetAssignments(visualPlan);
   if (!assignments) return false;
@@ -371,12 +379,13 @@ export async function bindReleaseVisualPlanAssets(scenes, project, { contextualE
       || ((visualPlan.selectionMethod === 'brand_asset' || visualPlan.selectionMethod === 'rulebook_reference')
         && visualPlan.overviewSelectionConfirmed === true);
     const selectedImageUrls = selectedAssetIds.map((assetId) => getProjectImageRenderReference(imagesById.get(assetId)));
+    const documentedBrandOutro = isDocumentedBrandOutroOverride(visualPlan);
     if (!visualPlan || visualPlan.requiresExplicitVisual !== true
       || !reviewStateIsReleaseReady(visualPlan)
       || !coverageIsReleaseReady(visualPlan)
-      || (!usesContextualEvidence && selectedAssetIds.length === 0)
+      || (!usesContextualEvidence && !documentedBrandOutro && selectedAssetIds.length === 0)
       || !overviewValid
-      || (!usesContextualEvidence && visualPlan.selectionMethod === 'approved_component_link'
+      || (!usesContextualEvidence && !documentedBrandOutro && visualPlan.selectionMethod === 'approved_component_link'
         && !approvedComponentSelectionIsPersisted(scene, visualPlan, projectMetadata))
       || (!usesContextualEvidence && selectedImageUrls.some((url) => !url))) {
       throw createRemotionError(
@@ -401,10 +410,11 @@ export function validateReleaseVisualPlans(scenes, projectMetadata = {}) {
       || ((visualPlan.selectionMethod === 'brand_asset' || visualPlan.selectionMethod === 'rulebook_reference')
         && visualPlan.overviewSelectionConfirmed === true);
     const usesContextualEvidence = contextualPlanClaimIsEligible(visualPlan);
+    const documentedBrandOutro = isDocumentedBrandOutroOverride(visualPlan);
     return !reviewStateIsReleaseReady(visualPlan)
       || !coverageIsReleaseReady(visualPlan)
-      || (!usesContextualEvidence && selectedAssetIds.length === 0)
-      || imageUrls.length === 0
+      || (!usesContextualEvidence && !documentedBrandOutro && selectedAssetIds.length === 0)
+      || (!documentedBrandOutro && imageUrls.length === 0)
       || !overviewValid
       || imageUrls.some((url) => String(url).includes('placeholder'));
   }).map((scene) => scene.id || 'unknown-scene');
