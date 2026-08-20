@@ -255,6 +255,14 @@ function contextualAssignmentRoleIsAllowedForRelease(intent, assignment) {
   if (intent === 'board_setup') {
     return assignment.kind === 'contextual_crop' && assignment.role === 'board_setup_context' && assignment.confirmed === true;
   }
+  if (COMPONENT_PRIMARY_INTENTS.has(intent) && assignment.role === 'verified_mechanic_rulebook') {
+    // A full rulebook page can serve as an operator-reviewed explanation of a
+    // mechanic when an isolated asset is unavailable. It remains source-bound,
+    // explicit and non-generic: it must be a confirmed, dedicated verification.
+    return assignment.kind === 'contextual_page'
+      && assignment.confirmed === true
+      && assignment.verifiedMechanicEvidence === true;
+  }
   return ['game_overview', 'assembled_tableau', 'rulebook_reference'].includes(intent)
     && assignment.role === 'rulebook_reference';
 }
@@ -278,6 +286,12 @@ function contextualPlanClaimIsEligible(visualPlan) {
     return primaryRefs.length === 0 && assignments.some((assignment) => assignment.kind === 'contextual_crop'
       && assignment.role === 'board_setup_context' && assignment.confirmed === true);
   }
+  if (COMPONENT_PRIMARY_INTENTS.has(visualPlan.primaryIntent)) {
+    return assignments.some((assignment) => assignment.kind === 'contextual_page'
+      && assignment.role === 'verified_mechanic_rulebook'
+      && assignment.confirmed === true
+      && assignment.verifiedMechanicEvidence === true);
+  }
   if (!['game_overview', 'assembled_tableau', 'rulebook_reference'].includes(visualPlan.primaryIntent)) return false;
   return assignments.some((assignment) => assignment.role === 'rulebook_reference');
 }
@@ -286,7 +300,13 @@ async function resolveContextualReleaseAssets(visualPlan, projectId, contextualE
   if (!contextualPlanClaimIsEligible(visualPlan)) return null;
   try {
     const resolved = await Promise.all(visualPlan.contextualEvidenceAssignments.map((assignment) => contextualEvidence.resolveAssignment(projectId, assignment)));
-    if (resolved.some(({ capabilities }, index) => !capabilities.includes(visualPlan.contextualEvidenceAssignments[index].role))) return null;
+    if (resolved.some(({ capabilities }, index) => {
+      const assignment = visualPlan.contextualEvidenceAssignments[index];
+      const requiredCapability = assignment.role === 'verified_mechanic_rulebook'
+        ? 'rulebook_reference'
+        : assignment.role;
+      return !capabilities.includes(requiredCapability);
+    })) return null;
     return resolved.map(({ path: assetPath }) => assetPath);
   } catch {
     return null;

@@ -692,5 +692,47 @@ test('requires server-resolved contextual provenance before a contextual visual 
   expect(runRemotionRender).not.toHaveBeenCalled();
 });
 
+test('renders a confirmed, server-resolved verified mechanic rulebook page for a component explanation', async () => {
+  const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+  const outputPath = path.join(outputDirectory, 'mobius-tutorial.mp4');
+  const runRemotionRender = jest.fn(async () => ({ outputPaths: [outputPath] }));
+  const contextualEvidence = {
+    resolveAssignment: jest.fn(async () => ({
+      path: 'src/api/uploads/verified-mechanic-evidence.png',
+      capabilities: ['rulebook_reference'],
+    })),
+  };
+  const app = loadTestApp(outputDirectory, { runRemotionRender, contextualEvidence });
+  server = await startServer(app);
+  const contextualAssignment = {
+    kind: 'contextual_page', assetId: 'page-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', pageId: 'page-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    documentSha256: 'a'.repeat(64), pageRasterSha256: 'b'.repeat(64), renderProfile: 'pdf-to-img-review-144dpi-png-v1',
+    role: 'verified_mechanic_rulebook', confirmed: true, verifiedMechanicEvidence: true,
+  };
+  const scene = {
+    id: 'scene-verified-mechanic', storyboardVersion: '1.2.0', narrationText: 'Score with locations.', durationInFrames: 90,
+    imageAssetIds: [], imageUrls: [],
+    visualPlan: {
+      requiresExplicitVisual: true, reviewState: 'resolved', selectedAssetIds: [], assetAssignments: [], assetReuse: [],
+      selectionMethod: 'rulebook_reference', primaryIntent: 'component_closeup', primaryComponentRefs: ['locations'], supportingComponentRefs: [],
+      coverageStatus: 'resolved', coverageReason: 'Confirmed verified mechanic rulebook evidence.', coverageEvidence: [],
+      contextualEvidenceAssignments: [contextualAssignment],
+    },
+  };
+  const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Verified mechanic evidence', metadata: {}, components: [], images: [], script: '', audio: '', scenes: [scene] }),
+  });
+  const savedProject = await saveResponse.json();
+  const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: savedProject.projectId }),
+  });
+
+  expect(renderResponse.status).toBe(200);
+  expect(contextualEvidence.resolveAssignment).toHaveBeenCalledWith(String(savedProject.projectId), contextualAssignment);
+  expect(runRemotionRender).toHaveBeenCalledWith(expect.objectContaining({
+    scenes: [expect.objectContaining({ imageUrls: [expect.stringMatching(/verified-mechanic-evidence\.png$/)] })],
+  }));
+});
 
 });
