@@ -42,6 +42,12 @@ if (Test-Path $primaryData) {
     if ($LASTEXITCODE -gt 7) { throw "Unable to copy project runtime data (robocopy exit code $LASTEXITCODE)." }
 }
 
+$primaryEnv = Join-Path $repo '.env'
+$runtimeEnv = Join-Path $deployment '.env'
+if (Test-Path $primaryEnv) {
+    Copy-Item -Force -Path $primaryEnv -Destination $runtimeEnv
+}
+
 if (-not (Test-Path $agentPath)) { throw "Isolated agent script not found: $agentPath" }
 
 Stop-ScheduledTask -TaskName 'MOBIUS Local Agent' -ErrorAction SilentlyContinue

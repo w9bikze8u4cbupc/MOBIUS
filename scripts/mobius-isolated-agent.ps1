@@ -127,6 +127,15 @@ function Ensure-IsolatedWorktree {
     }
 }
 
+function Sync-LocalConfiguration {
+    $primaryEnv = Join-Path $repo '.env'
+    $runtimeEnv = Join-Path $deployment '.env'
+    if (Test-Path $primaryEnv) {
+        Copy-Item -Force -Path $primaryEnv -Destination $runtimeEnv
+        Write-AgentLog 'INFO' 'Copied local MOBIUS runtime configuration into the isolated deployment.'
+    }
+}
+
 function Preserve-RuntimeData {
     if (Test-Path (Join-Path $deployment 'data')) {
         Remove-Item -Recurse -Force $runtimeDataBackup -ErrorAction SilentlyContinue
@@ -196,11 +205,12 @@ function Invoke-IsolatedDeployment {
     Preserve-RuntimeData
     try {
         Invoke-Git $deployment @('reset', '--hard', $target) | Out-Null
-        Invoke-Git $deployment @('clean', '-fdx', '-e', 'data/') | Out-Null
+        Invoke-Git $deployment @('clean', '-fdx', '-e', 'data/', '-e', '.env') | Out-Null
     } finally {
         Restore-RuntimeData
     }
 
+    Sync-LocalConfiguration
     Install-RootDependenciesIfNeeded -PreviousCommit $current -TargetCommit $target
     Install-ClientDependenciesIfNeeded -PreviousCommit $current -TargetCommit $target
     $clientDir = Join-Path $deployment 'client'
