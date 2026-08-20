@@ -45,8 +45,18 @@ function Write-AgentStatus {
 
 function Invoke-Git {
     param([string]$Directory, [string[]]$Arguments)
-    $output = & git -C $Directory @Arguments 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    # Git writes ordinary fetch progress to stderr. Capture it without letting
+    # PowerShell's ErrorActionPreference turn a successful fetch into an exception.
+    $savedErrorActionPreference = $ErrorActionPreference
+    $exitCode = 1
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = & git -C $Directory @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $savedErrorActionPreference
+    }
+    if ($exitCode -ne 0) {
         throw "git -C $Directory $($Arguments -join ' ') failed: $($output -join [Environment]::NewLine)"
     }
     return @($output)

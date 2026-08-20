@@ -25,6 +25,8 @@ for (const token of requiredAgentTokens) {
 const requiredBootstrapTokens = [
   "'MOBIUS Isolated Local Agent'",
   "worktree add --detach $deployment origin/main",
+  "git -C $deployment reset --hard origin/main",
+  "robocopy $primaryData $deploymentData",
   "Stop-ScheduledTask -TaskName 'MOBIUS Local Agent'",
   'Primary checkout preserved:',
   '-DeploymentRoot $deployment',
@@ -37,4 +39,4 @@ if (bootstrap.includes('git -C $repo pull') || bootstrap.includes('git -C $repo 
   throw new Error('Bootstrap must never mutate the primary checkout.');
 }
 
-console.log('MOBIUS isolated-agent contract verified.');
+console.log(  'MOBIUS isolated-agent contract verified.');

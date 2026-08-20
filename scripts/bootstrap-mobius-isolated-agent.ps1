@@ -27,6 +27,19 @@ if (-not (Test-Path (Join-Path $deployment '.git'))) {
     }
     & git -C $repo worktree add --detach $deployment origin/main
     if ($LASTEXITCODE -ne 0) { throw 'Unable to create the isolated MOBIUS worktree.' }
+} else {
+    & git -C $deployment reset --hard origin/main
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to refresh the isolated MOBIUS worktree.' }
+    & git -C $deployment clean -fdx -e data/
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to clean stale build artifacts from the isolated worktree.' }
+}
+
+$primaryData = Join-Path $repo 'data'
+$deploymentData = Join-Path $deployment 'data'
+if (Test-Path $primaryData) {
+    New-Item -ItemType Directory -Force -Path $deploymentData | Out-Null
+    & robocopy $primaryData $deploymentData /E /COPY:DAT /DCOPY:DAT /R:2 /W:1 /NFL /NDL /NJH /NJS | Out-Null
+    if ($LASTEXITCODE -gt 7) { throw "Unable to copy project runtime data (robocopy exit code $LASTEXITCODE)." }
 }
 
 if (-not (Test-Path $agentPath)) { throw "Isolated agent script not found: $agentPath" }
