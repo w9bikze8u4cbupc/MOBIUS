@@ -108,3 +108,6 @@ out/real-input-adhoc-cli-smoke/
 # Canonical local project source PDFs and descriptors
 /data/*/source/
 /data/.source-upload-tmp/
+
+# Local rulebook-library cache, manifests, logs and downloaded publisher PDFs
+/data/rulebook-library/
