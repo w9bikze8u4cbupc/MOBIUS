@@ -174,6 +174,7 @@ export function VisualAssetBrowser({
   const [componentId, setComponentId] = useState(defaultComponentIdForRole(plan, defaultRoleForIntent(plan.primaryIntent)));
   const [pageIndex, setPageIndex] = useState(0);
   const [thumbnailStates, setThumbnailStates] = useState({});
+  const primaryIntent = plan.primaryIntent;
   const assets = useMemo(() => filterAndSortVisualAssets(images, plan, filters), [images, plan, filters]);
   const componentOptions = componentOptionsForRole(plan, role);
   const failedPreviewCount = assets.filter((asset) => thumbnailStates[asset.id] === 'failed').length;
@@ -182,13 +183,12 @@ export function VisualAssetBrowser({
   const roleOptions = validRolesForIntent(plan.primaryIntent);
 
   useEffect(() => {
-    const defaultRole = defaultRoleForIntent(plan.primaryIntent);
+    const defaultRole = defaultRoleForIntent(primaryIntent);
     setRole(defaultRole);
-    setComponentId(defaultComponentIdForRole(plan, defaultRole));
     setFilters((previous) => ({ ...previous, compatibleOnly: true }));
     setPageIndex(0);
     setThumbnailStates({});
-  }, [plan, sceneId, isOpen, images]);
+  }, [sceneId, isOpen, primaryIntent]);
 
   useEffect(() => {
     const options = componentOptionsForRole(plan, role);

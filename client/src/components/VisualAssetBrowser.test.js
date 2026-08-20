@@ -174,3 +174,37 @@ test('lets an operator map a manually reviewed asset to one explicit primary com
   expect(onSelect).toHaveBeenCalledWith(assets[3], { role: 'primary', componentId: 'locations' });
   expect(onSelect.mock.calls[0][1]).not.toHaveProperty('operatorOverride');
 });
+
+test('preserves the reviewed filters and explicit component choice when the scene plan updates without an intent change', () => {
+  const plan = {
+    primaryIntent: 'component_closeup',
+    primaryComponentRefs: ['lords', 'locations'],
+    componentLabels: { lords: 'Court Lords', locations: 'Locations' },
+    assetCandidates: [],
+  };
+  const { rerender } = render(<VisualAssetBrowser
+    isOpen
+    onClose={jest.fn()}
+    onSelect={jest.fn()}
+    sceneId="scene-persisted-review"
+    plan={plan}
+    images={[assets[3]]}
+    thumbnailUrlForAsset={() => '/safe-thumbnail'}
+  />);
+
+  fireEvent.click(screen.getByLabelText('Only compatible assets for scene-persisted-review'));
+  fireEvent.change(screen.getByLabelText('Component requirement for scene-persisted-review'), { target: { value: 'locations' } });
+
+  rerender(<VisualAssetBrowser
+    isOpen
+    onClose={jest.fn()}
+    onSelect={jest.fn()}
+    sceneId="scene-persisted-review"
+    plan={{ ...plan, assetCandidates: [{ assetId: assets[3].id, requirementRole: 'primary', componentId: 'locations' }] }}
+    images={[assets[3]]}
+    thumbnailUrlForAsset={() => '/safe-thumbnail'}
+  />);
+
+  expect(screen.getByLabelText('Only compatible assets for scene-persisted-review')).not.toBeChecked();
+  expect(screen.getByLabelText('Component requirement for scene-persisted-review')).toHaveValue('locations');
+});
