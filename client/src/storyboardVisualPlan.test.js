@@ -500,7 +500,8 @@ test('completes an empty sourced three-Key scene only from unambiguous resolved 
     }],
     visualPlan: { selectedAssetIds: [], assetAssignments: [] },
   });
-  const reconciled = reconcileStoryboardVisualPlans({ version: '1.2.0', scenes: [source, emptyControl] }, { images, components });
+  const repeatedSource = { ...source, id: 'source-repeat', order: 2, title: 'Repeated verified component proof' };
+  const reconciled = reconcileStoryboardVisualPlans({ version: '1.2.0', scenes: [source, repeatedSource, { ...emptyControl, order: 3 }] }, { images, components });
   const completed = reconciled.scenes.find((scene) => scene.id === 'empty-control');
   expect(completed.visualPlan).toMatchObject({
     coverageStatus: 'resolved', selectionMethod: 'verified_cross_scene_reuse', selectedAssetIds: ['lord-image', 'location-image'],

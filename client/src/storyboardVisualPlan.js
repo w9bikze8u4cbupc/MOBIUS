@@ -567,18 +567,24 @@ function consensusPrimaryComponentsByAsset(scenes = []) {
 }
 
 function consensusPrimaryAssetsByComponent(scenes = []) {
-  const assetIdsByComponent = new Map();
+  const countsByComponent = new Map();
   scenes.filter((scene) => scene?.visualPlan?.coverageStatus === 'resolved').forEach((scene) => {
     const primaryRequirements = new Set(scene.visualPlan?.primaryComponentRefs || []);
     (scene.visualPlan?.assetAssignments || []).forEach((assignment) => {
       if (assignment?.role !== 'primary' || !primaryRequirements.has(assignment.componentId) || !assignment.assetId) return;
-      const assets = assetIdsByComponent.get(assignment.componentId) || new Set();
-      assets.add(assignment.assetId);
-      assetIdsByComponent.set(assignment.componentId, assets);
+      const counts = countsByComponent.get(assignment.componentId) || new Map();
+      counts.set(assignment.assetId, (counts.get(assignment.assetId) || 0) + 1);
+      countsByComponent.set(assignment.componentId, counts);
     });
   });
-  return new Map([...assetIdsByComponent].filter(([, assetIds]) => assetIds.size === 1)
-    .map(([componentId, assetIds]) => [componentId, [...assetIds][0]]));
+  return new Map([...countsByComponent].flatMap(([componentId, counts]) => {
+    const ranked = [...counts.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]));
+    const [assetId, count] = ranked[0] || [];
+    const nextCount = ranked[1]?.[1] || 0;
+    // A scene may be auto-completed only from a repeated, strictly more frequent proof.
+    // One-off alternatives remain operator-review candidates rather than automation input.
+    return assetId && count >= 2 && count > nextCount ? [[componentId, assetId]] : [];
+  }));
 }
 
 function fillEmptySceneFromVerifiedComponentConsensus(scene, assetByComponent) {
