@@ -241,7 +241,7 @@ test('explicit primary evidence and documented operator override permit release 
 });
 
 test('over-reused non-brand evidence blocks release while brand evidence is exempt', () => {
-  const primaryScene = (id) => requiredScene({ id, visualPlan: { selectedAssetIds: ['monster-image'], selectionMethod: 'operator_selected', assetAssignments: [{ assetId: 'monster-image', role: 'primary', componentId: 'monster-tokens' }] } });
+  const primaryScene = (id) => requiredScene({ id, sectionId: `section-${id}`, title: `Mechanic ${id}`, visualPlan: { selectedAssetIds: ['monster-image'], selectionMethod: 'operator_selected', assetAssignments: [{ assetId: 'monster-image', role: 'primary', componentId: 'monster-tokens' }] } });
   const reused = validateStoryboardVisualPlans({ version: '1.2.0', scenes: [primaryScene('one'), primaryScene('two'), primaryScene('three')] }, coverageContext);
   expect(reused).toMatchObject({ valid: false, code: 'VISUAL_ASSET_REUSE_EXCEEDED' });
   const brandScene = (id) => requiredScene({ id, title: 'Game title outro', visualDirections: [], visualPlan: { selectedAssetIds: ['monster-image'], selectionMethod: 'brand_asset', overviewSelectionConfirmed: true, assetAssignments: [{ assetId: 'monster-image', role: 'brand' }] } });
@@ -390,4 +390,29 @@ test('permits a documented generated brand outro without a project asset, but ne
   expect(validateStoryboardVisualPlans({ version: '1.2.0', scenes: [rulesScene] }, { images: inventory })).toMatchObject({
     valid: false, code: 'VISUAL_PLAN_INCOMPLETE',
   });
+});
+
+
+test('counts reuse by contiguous pedagogical sequence while retaining the cross-sequence guardrail', () => {
+  const visualPlan = {
+    selectedAssetIds: ['monster-image'], selectionMethod: 'operator_selected',
+    assetAssignments: [{ assetId: 'monster-image', role: 'primary', componentId: 'monster-tokens' }],
+  };
+  const sequenceScene = (id, order, sectionId = 'section-endgame', title = 'Endgame and Final Scoring') => requiredScene({ id, order, sectionId, title, visualPlan });
+  const contiguous = validateStoryboardVisualPlans({
+    version: '1.2.0',
+    scenes: [sequenceScene('endgame-1', 1), sequenceScene('endgame-2', 2), sequenceScene('endgame-3', 3)],
+  }, coverageContext);
+  expect(contiguous).toMatchObject({ valid: true });
+  expect(contiguous.manifest.scenes[0].visualPlan.assetReuse[0]).toMatchObject({ count: 1, rawCount: 3, currentSequenceSceneIds: ['endgame-1', 'endgame-2', 'endgame-3'] });
+
+  const disjoint = validateStoryboardVisualPlans({
+    version: '1.2.0',
+    scenes: [
+      sequenceScene('one', 1, 'section-one', 'First mechanic'),
+      sequenceScene('two', 2, 'section-two', 'Second mechanic'),
+      sequenceScene('three', 3, 'section-three', 'Third mechanic'),
+    ],
+  }, coverageContext);
+  expect(disjoint).toMatchObject({ valid: false, code: 'VISUAL_ASSET_REUSE_EXCEEDED' });
 });

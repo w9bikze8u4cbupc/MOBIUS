@@ -477,19 +477,51 @@ export function resolveSceneVisualPlan(scene, {
   };
 }
 
+function contiguousSequenceGroups(scenes = []) {
+  const ordered = [...scenes].sort((left, right) => (Number(left?.order) || 0) - (Number(right?.order) || 0));
+  const groups = new Map();
+  let priorKey = null;
+  let sequence = 0;
+  ordered.forEach((scene) => {
+    const key = `${scene?.sectionId || scene?.sourceId || ''}::${normalized(scene?.title || '')}`;
+    if (!key || key !== priorKey) sequence += 1;
+    groups.set(scene?.id, `sequence-${sequence}`);
+    priorKey = key;
+  });
+  return groups;
+}
+
 function annotateAssetReuse(scenes, policy = {}) {
   const threshold = Number.isInteger(policy.maxNonBrandAssetReuse) ? policy.maxNonBrandAssetReuse : DEFAULT_NON_BRAND_REUSE_THRESHOLD;
+  const sequenceGroups = contiguousSequenceGroups(scenes);
   const usage = new Map();
   scenes.forEach((scene) => (scene.visualPlan?.assetAssignments || []).forEach((assignment) => {
     const entries = usage.get(assignment.assetId) || [];
-    entries.push({ sceneId: scene.id, role: assignment.role });
+    entries.push({ sceneId: scene.id, sequenceGroup: sequenceGroups.get(scene.id), role: assignment.role });
     usage.set(assignment.assetId, entries);
   }));
   return scenes.map((scene) => {
     const assetReuse = (scene.visualPlan?.assetAssignments || []).map((assignment) => {
       const entries = usage.get(assignment.assetId) || [];
+      const sequenceEntries = new Map();
+      entries.forEach((entry) => {
+        const groupEntries = sequenceEntries.get(entry.sequenceGroup) || [];
+        groupEntries.push(entry);
+        sequenceEntries.set(entry.sequenceGroup, groupEntries);
+      });
+      const count = sequenceEntries.size;
       const exempt = assignment.role === 'brand';
-      return { assetId: assignment.assetId, count: entries.length, threshold, exempt, exceedsThreshold: !exempt && entries.length > threshold, sceneIds: entries.map((entry) => entry.sceneId) };
+      const currentSequenceSceneIds = sequenceEntries.get(sequenceGroups.get(scene.id))?.map((entry) => entry.sceneId) || [];
+      return {
+        assetId: assignment.assetId,
+        count,
+        rawCount: entries.length,
+        threshold,
+        exempt,
+        exceedsThreshold: !exempt && count > threshold,
+        sceneIds: entries.map((entry) => entry.sceneId),
+        currentSequenceSceneIds,
+      };
     });
     return { ...scene, visualPlan: { ...scene.visualPlan, assetReuse } };
   });
