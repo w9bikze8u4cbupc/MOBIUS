@@ -293,6 +293,12 @@ async function resolveContextualReleaseAssets(visualPlan, projectId, contextualE
   }
 }
 
+function reviewStateIsReleaseReady(visualPlan) {
+  return visualPlan?.reviewState === 'resolved'
+    || visualPlan?.coverageStatus === 'resolved'
+    || visualPlan?.coverageStatus === 'operator_override';
+}
+
 function coverageIsReleaseReady(visualPlan) {
   if (!visualPlan || !RELEASE_PRIMARY_INTENTS.has(visualPlan.primaryIntent)
     || (visualPlan.coverageStatus !== 'resolved' && visualPlan.coverageStatus !== 'operator_override')) return false;
@@ -366,7 +372,7 @@ export async function bindReleaseVisualPlanAssets(scenes, project, { contextualE
         && visualPlan.overviewSelectionConfirmed === true);
     const selectedImageUrls = selectedAssetIds.map((assetId) => getProjectImageRenderReference(imagesById.get(assetId)));
     if (!visualPlan || visualPlan.requiresExplicitVisual !== true
-      || visualPlan.reviewState !== 'resolved'
+      || !reviewStateIsReleaseReady(visualPlan)
       || !coverageIsReleaseReady(visualPlan)
       || (!usesContextualEvidence && selectedAssetIds.length === 0)
       || !overviewValid
@@ -395,7 +401,7 @@ export function validateReleaseVisualPlans(scenes, projectMetadata = {}) {
       || ((visualPlan.selectionMethod === 'brand_asset' || visualPlan.selectionMethod === 'rulebook_reference')
         && visualPlan.overviewSelectionConfirmed === true);
     const usesContextualEvidence = contextualPlanClaimIsEligible(visualPlan);
-    return visualPlan.reviewState !== 'resolved'
+    return !reviewStateIsReleaseReady(visualPlan)
       || !coverageIsReleaseReady(visualPlan)
       || (!usesContextualEvidence && selectedAssetIds.length === 0)
       || imageUrls.length === 0

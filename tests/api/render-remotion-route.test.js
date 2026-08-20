@@ -475,7 +475,7 @@ test('requires persisted approved component-link provenance before releasing can
     visualDirections: [{ instruction: 'Show monster token.', componentRefs: ['monster-token'] }],
     imageAssetIds: selectedAssetIds,
     visualPlan: {
-      requiresExplicitVisual: true, reviewState: 'resolved', selectionMethod: 'approved_component_link', selectedAssetIds,
+      requiresExplicitVisual: true, reviewState: undefined, selectionMethod: 'approved_component_link', selectedAssetIds,
       primaryIntent: 'token_action', primaryComponentRefs: ['monster-token'], supportingComponentRefs: [], coverageStatus: 'resolved',
       coverageReason: 'Resolved by primary component evidence.', coverageEvidence: [], assetAssignments: selectedAssetIds.map((assetId) => ({ assetId, role: 'primary', componentId: 'monster-token' })), assetReuse: [],
     },
