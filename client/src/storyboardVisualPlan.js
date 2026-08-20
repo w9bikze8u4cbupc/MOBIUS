@@ -1,5 +1,5 @@
 const AUTO_LINK_CONFIDENCE_THRESHOLD = 0.9;
-export const DEFAULT_NON_BRAND_REUSE_THRESHOLD = 2;
+export const DEFAULT_NON_BRAND_REUSE_THRESHOLD = 3;
 const OVERVIEW_TITLES = /\b(introduction|intro|overview|outro|conclusion|wrap[-\s]?up|opening shot)\b/i;
 const REQUIRED_SCENE_TITLES = /\b(setup|action|turn|score|scoring|endgame|round|phase|gameplay)\b/i;
 const VAGUE_COMPONENT_TERMS = new Set(['game', 'point', 'strategy', 'influence', 'timing']);

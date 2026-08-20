@@ -242,7 +242,7 @@ test('explicit primary evidence and documented operator override permit release 
 
 test('over-reused non-brand evidence blocks release while brand evidence is exempt', () => {
   const primaryScene = (id) => requiredScene({ id, sectionId: `section-${id}`, title: `Mechanic ${id}`, visualPlan: { selectedAssetIds: ['monster-image'], selectionMethod: 'operator_selected', assetAssignments: [{ assetId: 'monster-image', role: 'primary', componentId: 'monster-tokens' }] } });
-  const reused = validateStoryboardVisualPlans({ version: '1.2.0', scenes: [primaryScene('one'), primaryScene('two'), primaryScene('three')] }, coverageContext);
+  const reused = validateStoryboardVisualPlans({ version: '1.2.0', scenes: [primaryScene('one'), primaryScene('two'), primaryScene('three'), primaryScene('four')] }, coverageContext);
   expect(reused).toMatchObject({ valid: false, code: 'VISUAL_ASSET_REUSE_EXCEEDED' });
   const brandScene = (id) => requiredScene({ id, title: 'Game title outro', visualDirections: [], visualPlan: { selectedAssetIds: ['monster-image'], selectionMethod: 'brand_asset', overviewSelectionConfirmed: true, assetAssignments: [{ assetId: 'monster-image', role: 'brand' }] } });
   expect(validateStoryboardVisualPlans({ version: '1.2.0', scenes: [brandScene('brand-one'), brandScene('brand-two'), brandScene('brand-three')] }, coverageContext)).toMatchObject({ valid: true });
@@ -412,6 +412,7 @@ test('counts reuse by contiguous pedagogical sequence while retaining the cross-
       sequenceScene('one', 1, 'section-one', 'First mechanic'),
       sequenceScene('two', 2, 'section-two', 'Second mechanic'),
       sequenceScene('three', 3, 'section-three', 'Third mechanic'),
+      sequenceScene('four', 4, 'section-four', 'Fourth mechanic'),
     ],
   }, coverageContext);
   expect(disjoint).toMatchObject({ valid: false, code: 'VISUAL_ASSET_REUSE_EXCEEDED' });
