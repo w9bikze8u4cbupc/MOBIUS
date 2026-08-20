@@ -721,7 +721,7 @@ test('renders a confirmed, server-resolved verified mechanic rulebook page for a
   };
   const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'Verified mechanic evidence', metadata: {}, components: [], images: [], script: '', audio: '', scenes: [scene] }),
+    body: JSON.stringify({ name: 'Verified mechanic evidence', metadata: { projectContext: { projectId: 'abyss-verified-mechanic' } }, components: [], images: [], script: '', audio: '', scenes: [scene] }),
   });
   const savedProject = await saveResponse.json();
   const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
@@ -729,7 +729,7 @@ test('renders a confirmed, server-resolved verified mechanic rulebook page for a
   });
 
   expect(renderResponse.status).toBe(200);
-  expect(contextualEvidence.resolveAssignment).toHaveBeenCalledWith(String(savedProject.projectId), contextualAssignment);
+  expect(contextualEvidence.resolveAssignment).toHaveBeenCalledWith('abyss-verified-mechanic', contextualAssignment);
   expect(runRemotionRender).toHaveBeenCalledWith(expect.objectContaining({
     scenes: [expect.objectContaining({ imageUrls: [expect.stringMatching(/verified-mechanic-evidence\.png$/)] })],
   }));

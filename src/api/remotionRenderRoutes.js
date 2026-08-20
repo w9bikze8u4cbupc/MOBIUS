@@ -379,6 +379,13 @@ function canonicalStoryboardSceneIds(projectMetadata) {
 export async function bindReleaseVisualPlanAssets(scenes, project, { contextualEvidence = contextualEvidenceService } = {}) {
   const projectMetadata = parseProjectMetadata(project);
   const canonicalSceneIds = canonicalStoryboardSceneIds(projectMetadata);
+  // The render persistence row has a database key, while contextual rulebook
+  // assets are stored under the operator's canonical project identifier.
+  const persistedContextProjectId = projectMetadata?.projectContext?.projectId;
+  const contextualProjectId = typeof persistedContextProjectId === 'string'
+    && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(persistedContextProjectId)
+    ? persistedContextProjectId
+    : String(project.id);
   const imagesById = new Map(parseProjectImages(project).map((image) => [image.id, image]));
   return Promise.all((scenes || []).map(async (scene) => {
     const isCanonicalScene = canonicalSceneIds
@@ -393,7 +400,7 @@ export async function bindReleaseVisualPlanAssets(scenes, project, { contextualE
     if (!isCanonicalScene) return scene;
     const visualPlan = scene.visualPlan;
     const selectedAssetIds = Array.isArray(visualPlan?.selectedAssetIds) ? visualPlan.selectedAssetIds.filter(Boolean) : [];
-    const contextualImagePaths = await resolveContextualReleaseAssets(visualPlan, String(project.id), contextualEvidence);
+    const contextualImagePaths = await resolveContextualReleaseAssets(visualPlan, contextualProjectId, contextualEvidence);
     const usesContextualEvidence = Array.isArray(contextualImagePaths) && contextualImagePaths.length > 0;
     const documentedBrandOutro = isDocumentedBrandOutroOverride(visualPlan);
     // A channel-branded outro is intentionally an approved generated visual rather
