@@ -121,7 +121,11 @@ const execFilePromise = promisify(execFile);
 
 // CORS configuration - MUST be before other middleware/routes
 app.use(createCorsMiddleware(gatewayConfig));
-app.use(express.json());
+// A reviewed render handoff includes a storyboard manifest, curated asset metadata,
+// and contextual rulebook evidence. Keep it bounded while allowing the canonical
+// project payload to be persisted atomically.
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use('/static', express.static(path.join(moduleDirname, 'uploads')));
 app.use('/uploads', express.static(path.join(moduleDirname, 'uploads')));
 
