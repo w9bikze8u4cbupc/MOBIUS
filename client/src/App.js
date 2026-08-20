@@ -1801,7 +1801,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           setError("Generate the storyboard to proceed.");
           return;
         }
-        const storyboardReview = validateStoryboardReview(storyboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails, components: gameComponents });
+        const profiledStoryboardManifest = applyVerifiedAbyssCurationProfile(storyboardManifest, projectId);
+        const storyboardReview = validateStoryboardReview(profiledStoryboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails, components: gameComponents });
         if (!storyboardReview.valid) {
           setError(storyboardReview.code);
           return;
@@ -2023,7 +2024,11 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               className="confirm-step-btn"
               onClick={() => handleConfirmStep(activeStepId)}
               disabled={(activeStepId === 'script' && !canConfirmScript)
-                || (activeStepId === 'storyboard' && !validateStoryboardReview(storyboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails, components: gameComponents }).valid)}
+                || (activeStepId === 'storyboard' && !validateStoryboardReview(
+                  applyVerifiedAbyssCurationProfile(storyboardManifest, projectId),
+                  projectImages,
+                  { componentImageLinks, componentImageLinkDetails, components: gameComponents },
+                ).valid)}
               style={{
                 background: 'linear-gradient(90deg, #1565c0, #1976d2)',
                 color: 'white',
