@@ -14,7 +14,7 @@ export function RenderExportStep({
     <div className="pipeline-section">
       <h3>Render & Export</h3>
       <p className="pipeline-muted">
-        Remotion renders a 1080p tutorial with generated narration and your selected background music.
+        Remotion renders a 1080p tutorial with generated narration and a calm bundled music bed; you may optionally replace it with your own background music.
       </p>
       <div className="pipeline-actions">
         <button onClick={onStartRender} disabled={renderJobLoading}>
@@ -33,7 +33,7 @@ export function RenderExportStep({
           <span className="pipeline-muted" style={{ display: "block", marginTop: 6 }}>
             {backgroundMusicFile
               ? `Selected: ${backgroundMusicFile.name}`
-              : "Required: MP3, M4A, OGG, or WAV (25 MB maximum)."}
+              : "Optional: MP3, M4A, OGG, or WAV (25 MB maximum). MOBIUS uses its bundled underwater music bed when no file is selected."}
           </span>
         </label>
         <label style={{ display: "block" }}>

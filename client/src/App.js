@@ -1183,10 +1183,6 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       if (!voice.trim()) {
         throw new Error("Select a narration voice before rendering.");
       }
-      if (!backgroundMusicFile) {
-        throw new Error("Choose a background-music file before rendering.");
-      }
-
       const releaseVisualPlans = validateStoryboardVisualPlans(storyboardManifest, {
         images: projectImages,
         componentImageLinks,
@@ -1255,17 +1251,27 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         throw new Error("The project could not be persisted for Remotion rendering.");
       }
 
-      const musicFormData = new FormData();
-      musicFormData.append("backgroundMusic", backgroundMusicFile);
-      musicFormData.append("volume", String(backgroundMusicVolume));
-      const { data: uploadedMusic } = await axios.post(
-        `${BACKEND_URL}/api/render-remotion/background-music?projectId=${encodeURIComponent(savedProject.projectId)}`,
-        musicFormData,
-      );
-      if (!uploadedMusic?.backgroundMusicPath) {
-        throw new Error("The background-music file could not be saved for rendering.");
+      let preparedMusic;
+      if (backgroundMusicFile) {
+        const musicFormData = new FormData();
+        musicFormData.append("backgroundMusic", backgroundMusicFile);
+        musicFormData.append("volume", String(backgroundMusicVolume));
+        const { data } = await axios.post(
+          `${BACKEND_URL}/api/render-remotion/background-music?projectId=${encodeURIComponent(savedProject.projectId)}`,
+          musicFormData,
+        );
+        preparedMusic = data;
+        setBackgroundMusicFile(null);
+      } else {
+        const { data } = await axios.post(
+          `${BACKEND_URL}/api/render-remotion/default-background-music?projectId=${encodeURIComponent(savedProject.projectId)}`,
+          { volume: backgroundMusicVolume },
+        );
+        preparedMusic = data;
       }
-      setBackgroundMusicFile(null);
+      if (!preparedMusic?.backgroundMusicPath) {
+        throw new Error("The background music could not be prepared for rendering.");
+      }
 
       const { data } = await axios.post(`${BACKEND_URL}/api/render-remotion`, {
         projectId: savedProject.projectId,

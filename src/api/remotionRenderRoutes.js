@@ -16,6 +16,7 @@ const projectDirectory = path.resolve(moduleDirectory, '..', '..');
 const rendererScript = path.join(projectDirectory, 'scripts', 'render-remotion.mjs');
 const defaultOutputBaseDirectory = path.join(moduleDirectory, 'uploads', 'remotion');
 const defaultBackgroundMusicUploadDirectory = path.join(moduleDirectory, 'uploads');
+const defaultBackgroundMusicAsset = path.join(projectDirectory, 'src', 'assets', 'music', 'mobius-underwater-bed.mp3');
 const supportedMusicExtensions = new Set(['.m4a', '.mp3', '.ogg', '.wav']);
 
 function createRemotionError(code, message, status = 400) {
@@ -530,6 +531,7 @@ export function registerRemotionRenderRoutes(
     generateNarration: generateSceneNarration = generateNarration,
     isNarrationAvailable = () => Boolean(process.env.ELEVENLABS_API_KEY?.trim()),
     backgroundMusicUploadDirectory = defaultBackgroundMusicUploadDirectory,
+    defaultBackgroundMusicFile = defaultBackgroundMusicAsset,
     outputBaseDirectory = defaultOutputBaseDirectory,
     contextualEvidence = contextualEvidenceService,
   } = {},
@@ -538,6 +540,73 @@ export function registerRemotionRenderRoutes(
     throw new Error('registerRemotionRenderRoutes requires a db dependency.');
   }
   const musicUpload = createBackgroundMusicUpload(backgroundMusicUploadDirectory);
+
+  app.post('/api/render-remotion/default-background-music', async (req, res) => {
+    const requestedProjectId = req.query?.projectId;
+    if ((typeof requestedProjectId !== 'string' && typeof requestedProjectId !== 'number')
+      || String(requestedProjectId).trim() === '') {
+      return res.status(400).json({
+        ok: false,
+        code: 'REMOTION_PROJECT_ID_REQUIRED',
+        error: 'A projectId is required to use the default background music.',
+      });
+    }
+
+    try {
+      const project = await loadProject(db, requestedProjectId);
+      if (!project) {
+        return res.status(404).json({
+          ok: false,
+          code: 'REMOTION_PROJECT_NOT_FOUND',
+          error: 'Project not found.',
+        });
+      }
+      if (!existsSync(defaultBackgroundMusicFile)) {
+        throw createRemotionError(
+          'REMOTION_DEFAULT_BACKGROUND_MUSIC_MISSING',
+          'The bundled background music is unavailable.',
+          500,
+        );
+      }
+
+      const projectMusicDirectory = path.join(
+        backgroundMusicUploadDirectory,
+        'remotion-music',
+        String(project.id),
+      );
+      await fs.mkdir(projectMusicDirectory, { recursive: true });
+      const storedFileName = 'mobius-default-underwater-bed.mp3';
+      const storedFilePath = path.join(projectMusicDirectory, storedFileName);
+      await fs.copyFile(defaultBackgroundMusicFile, storedFilePath);
+      const requestedVolume = Number(req.body?.volume);
+      const backgroundMusic = {
+        file: `/uploads/remotion-music/${project.id}/${storedFileName}`,
+        volume: Number.isFinite(requestedVolume) ? Math.min(0.4, Math.max(0, requestedVolume)) : 0.12,
+      };
+      const metadata = parseProjectMetadata(project);
+      metadata.renderState = {
+        ...(metadata.renderState || {}),
+        backgroundMusic,
+      };
+      await updateProjectMetadata(db, project.id, metadata);
+
+      return res.status(201).json({
+        ok: true,
+        backgroundMusicPath: backgroundMusic.file,
+        source: 'bundled-default',
+      });
+    } catch (error) {
+      const status = error.status || 500;
+      if (status >= 500) {
+        console.error('Unable to prepare default background music', error);
+      }
+      return res.status(status).json({
+        ok: false,
+        code: error.code || 'REMOTION_DEFAULT_BACKGROUND_MUSIC_FAILED',
+        error: error.publicMessage || 'Unable to prepare the default background music.',
+      });
+    }
+  });
 
   app.post('/api/render-remotion/background-music', async (req, res) => {
     const requestedProjectId = req.query?.projectId;

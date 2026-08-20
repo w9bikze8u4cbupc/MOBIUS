@@ -163,7 +163,7 @@ describe('POST /api/render-remotion', () => {
     const musicPayload = new FormData();
     musicPayload.append(
       'backgroundMusic',
-      new Blob([fs.readFileSync(path.join(REPOSITORY_ROOT, 'artifacts', 'test_audio.wav'))], { type: 'audio/wav' }),
+      new Blob([Buffer.from('uploaded-music-fixture')], { type: 'audio/wav' }),
       'test-audio.wav',
     );
     musicPayload.append('volume', '0.12');
@@ -206,6 +206,68 @@ describe('POST /api/render-remotion', () => {
         }),
         expect.objectContaining({
           backgroundMusicStartFrom: sampleScenes[0].durationInFrames,
+        }),
+      ]),
+    }));
+  });
+
+  test('prepares a bundled background-music track when the operator does not upload one', async () => {
+    const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+    const outputPath = path.join(outputDirectory, 'mobius-tutorial.mp4');
+    const musicUploadDirectory = path.join(temporaryDirectory, 'uploaded-music');
+    const defaultMusicPath = path.join(temporaryDirectory, 'mobius-default.mp3');
+    fs.writeFileSync(defaultMusicPath, Buffer.from('bundled-music-fixture'));
+    const runRemotionRender = jest.fn(async ({ scenes }) => ({ outputPaths: [outputPath], scenes }));
+    const app = loadTestApp(outputDirectory, {
+      runRemotionRender,
+      backgroundMusicUploadDirectory: musicUploadDirectory,
+      defaultBackgroundMusicFile: defaultMusicPath,
+    });
+    server = await startServer(app);
+    const sampleScenes = JSON.parse(fs.readFileSync(SAMPLE_SCRIPT_PATH, 'utf8'));
+
+    const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Bundled music project', metadata: {}, components: [], images: [], script: '', audio: '', scenes: sampleScenes }),
+    });
+    const savedProject = await saveResponse.json();
+    const prepareResponse = await fetch(
+      `${baseUrl(server)}/api/render-remotion/default-background-music?projectId=${savedProject.projectId}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ volume: 0.2 }) },
+    );
+    const preparedMusic = await prepareResponse.json();
+
+    expect(prepareResponse.status).toBe(201);
+    expect(preparedMusic).toEqual({
+      ok: true,
+      backgroundMusicPath: `/uploads/remotion-music/${savedProject.projectId}/mobius-default-underwater-bed.mp3`,
+      source: 'bundled-default',
+    });
+    expect(fs.existsSync(path.join(
+      musicUploadDirectory,
+      'remotion-music',
+      String(savedProject.projectId),
+      'mobius-default-underwater-bed.mp3',
+    ))).toBe(true);
+
+    const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: savedProject.projectId }),
+    });
+
+    expect(renderResponse.status).toBe(200);
+    expect(runRemotionRender).toHaveBeenCalledWith(expect.objectContaining({
+      scenes: expect.arrayContaining([
+        expect.objectContaining({
+          backgroundMusicFile: path.join(
+            REPOSITORY_ROOT,
+            'src',
+            'api',
+            preparedMusic.backgroundMusicPath.slice(1),
+          ),
+          backgroundMusicVolume: 0.2,
         }),
       ]),
     }));
