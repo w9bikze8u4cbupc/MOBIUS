@@ -36,3 +36,31 @@ describe('HEPHAESTUS deterministic curation', () => {
     expect(result.stats.duplicateCount).toBe(1);
     expect(result.assets[1].curation).toMatchObject({ isDuplicate: true, canonicalAssetId: 'p1_img0_xref77' });
   });
+
+  test('prefers identical pixel content over distinct xrefs when grouping review candidates', () => {
+    const result = curateHephaestusAssets([
+      {
+        id: 'p3_img3_xref338',
+        type: 'token',
+        is_component: true,
+        dimensions: { width: 219, height: 219 },
+        contentHash: 'abyss-blue-race-icon',
+      },
+      {
+        id: 'p3_img35_xref339',
+        type: 'token',
+        is_component: true,
+        dimensions: { width: 219, height: 219 },
+        contentHash: 'abyss-blue-race-icon',
+      },
+    ]);
+
+    expect(result.stats).toMatchObject({ rawCount: 2, duplicateCount: 1, curatedCount: 1 });
+    expect(result.assets[1].curation).toMatchObject({
+      isDuplicate: true,
+      canonicalAssetId: 'p3_img3_xref338',
+      candidate: false,
+    });
+  });
+
+});

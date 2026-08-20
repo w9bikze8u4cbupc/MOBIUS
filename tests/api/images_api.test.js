@@ -520,4 +520,45 @@ test('cleans a private HEPHAESTUS upload even when the project identifier is inv
   expect(projectSource.persistUpload).not.toHaveBeenCalled();
 });
 
+test('re-curates stored HEPHAESTUS assets by identical pixels while preserving manual component links', async () => {
+  const duplicateSourcePath = path.join(fixtureDirectory, 'source-duplicate.png');
+  const duplicateThumbnailPath = path.join(fixtureDirectory, 'thumbnail-duplicate.png');
+  const monsterSourcePath = path.join(fixtureDirectory, 'source-monster.png');
+  const monsterThumbnailPath = path.join(fixtureDirectory, 'thumbnail-monster.png');
+  fs.copyFileSync(sourcePath, duplicateSourcePath);
+  fs.copyFileSync(thumbnailPath, duplicateThumbnailPath);
+  fs.copyFileSync(sourcePath, monsterSourcePath);
+  fs.copyFileSync(thumbnailPath, monsterThumbnailPath);
+  appendImages('demo', [
+    {
+      id: 'whale-icon-a', source: 'hephaestus', type: 'token', fileKey: sourcePath, thumbnailKey: thumbnailPath,
+      width: 219, height: 219, metadata: { contentHash: 'abyss-race-icon' }, curation: { candidate: true, score: 0.9 }, quality: { score: 0.9 },
+    },
+    {
+      id: 'whale-icon-b', source: 'hephaestus', type: 'token', fileKey: duplicateSourcePath, thumbnailKey: duplicateThumbnailPath,
+      width: 219, height: 219, metadata: { contentHash: 'abyss-race-icon' }, curation: { candidate: true, score: 0.9 }, quality: { score: 0.9 },
+    },
+    {
+      id: 'monster-token', source: 'hephaestus', type: 'token', fileKey: monsterSourcePath, thumbnailKey: monsterThumbnailPath,
+      width: 219, height: 219, metadata: { contentHash: 'abyss-monster-token' }, curation: { candidate: true, score: 0.9 }, quality: { score: 0.9 },
+    },
+  ]);
+  linkImagesToComponent('demo', 'monster-token', ['whale-icon-a'], { manualImageIds: ['whale-icon-a'] });
+
+  const response = await fetch(`${baseUrl}/api/projects/demo/images/recurate-hephaestus`, { method: 'POST' });
+  const payload = await response.json();
+
+  expect(response.status).toBe(200);
+  expect(payload).toMatchObject({
+    success: true,
+    mode: 'hephaestus-recuration',
+    stats: { rawCount: 3, duplicateCount: 1, curatedCount: 2 },
+    componentImages: { 'monster-token': ['whale-icon-a'] },
+    componentImageLinkDetails: { 'monster-token': { 'whale-icon-a': { origin: 'manual' } } },
+  });
+  expect(payload.images.find((image) => image.id === 'whale-icon-b').curation).toMatchObject({
+    isDuplicate: true,
+    candidate: false,
+  });
+  });
 });

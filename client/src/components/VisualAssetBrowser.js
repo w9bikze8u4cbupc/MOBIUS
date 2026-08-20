@@ -58,6 +58,10 @@ function qualityScore(asset) {
   return Number.isFinite(Number(score)) ? Number(score) : null;
 }
 
+function isExactDuplicate(asset) {
+  return asset?.curation?.isDuplicate === true || asset?.metadata?.curation?.isDuplicate === true;
+}
+
 function pageNumber(asset) {
   return assetSourcePage(asset) ?? Number.POSITIVE_INFINITY;
 }
@@ -93,6 +97,7 @@ export function filterAndSortVisualAssets(images = [], plan = {}, filters = {}) 
   const page = String(filters.page || '').trim();
   const linkStatus = filters.linkStatus || 'all';
   const compatibleOnly = filters.compatibleOnly === true;
+  const hideDuplicates = filters.hideDuplicates !== false;
   const threshold = filters.qualityThreshold === '' || filters.qualityThreshold === undefined
     ? null
     : Number(filters.qualityThreshold);
@@ -106,6 +111,7 @@ export function filterAndSortVisualAssets(images = [], plan = {}, filters = {}) 
     if (linkStatus === 'linked' && !compatibility.linked) return false;
     if (linkStatus === 'unlinked' && compatibility.linked) return false;
     if (compatibleOnly && !compatibility.compatible) return false;
+    if (hideDuplicates && isExactDuplicate(asset)) return false;
     if (Number.isFinite(threshold) && (qualityScore(asset) === null || qualityScore(asset) < threshold)) return false;
     return true;
   }).sort((left, right) => {
@@ -169,7 +175,7 @@ export function VisualAssetBrowser({
   inventoryStatus = 'ready',
   thumbnailUrlForAsset,
 }) {
-  const [filters, setFilters] = useState({ search: '', type: 'all', page: '', linkStatus: 'all', compatibleOnly: true, qualityThreshold: '' });
+  const [filters, setFilters] = useState({ search: '', type: 'all', page: '', linkStatus: 'all', compatibleOnly: true, hideDuplicates: true, qualityThreshold: '' });
   const [role, setRole] = useState(defaultRoleForIntent(plan.primaryIntent));
   const [componentId, setComponentId] = useState(defaultComponentIdForRole(plan, defaultRoleForIntent(plan.primaryIntent)));
   const [pageIndex, setPageIndex] = useState(0);
@@ -219,10 +225,11 @@ export function VisualAssetBrowser({
         <label>Link status <select aria-label={`Link status for ${sceneId}`} value={filters.linkStatus} onChange={(event) => updateFilter('linkStatus', event.target.value)}><option value="all">all</option><option value="approved">approved</option><option value="linked">linked</option><option value="unlinked">unlinked</option></select></label>
         <label>Minimum quality <input aria-label={`Minimum quality for ${sceneId}`} type="number" step="0.01" value={filters.qualityThreshold} onChange={(event) => updateFilter('qualityThreshold', event.target.value)} /></label>
         <label><input aria-label={`Only compatible assets for ${sceneId}`} type="checkbox" checked={filters.compatibleOnly} onChange={(event) => updateFilter('compatibleOnly', event.target.checked)} /> Only compatible with this scene</label>
+        <label><input aria-label={`Hide exact duplicate assets for ${sceneId}`} type="checkbox" checked={filters.hideDuplicates !== false} onChange={(event) => updateFilter('hideDuplicates', event.target.checked)} /> Hide exact duplicates</label>
         <label>Role <select aria-label={`Selected asset role for ${sceneId}`} value={role} onChange={(event) => setRole(event.target.value)}>{roleOptions.map((option) => <option key={option} value={option}>{option.replace('_', ' ')}</option>)}</select></label>
         {componentOptions.length > 0 && <label>Component requirement <select aria-label={`Component requirement for ${sceneId}`} value={componentId} onChange={(event) => setComponentId(event.target.value)}><option value="">choose explicitly</option>{componentOptions.map((componentRef) => <option key={componentRef} value={componentRef}>{componentRequirementLabel(plan, componentRef)}</option>)}</select></label>}
       </div>
-      <p aria-live="polite">{assets.length} current-project assets · sorted by compatibility, approval/link provenance, quality, then source page. Selection does not create an override. {failedPreviewCount > 0 && <><strong>{failedPreviewCount} preview{failedPreviewCount === 1 ? '' : 's'} unavailable.</strong> <button type="button" onClick={() => setThumbnailStates({})}>Retry unavailable previews</button></>}</p>
+      <p aria-live="polite">{assets.length} current-project assets · sorted by compatibility, approval/link provenance, quality, then source page. {filters.hideDuplicates !== false && 'Exact pixel duplicates are hidden. '}Selection does not create an override. {failedPreviewCount > 0 && <><strong>{failedPreviewCount} preview{failedPreviewCount === 1 ? '' : 's'} unavailable.</strong> <button type="button" onClick={() => setThumbnailStates({})}>Retry unavailable previews</button></>}</p>
       {assets.length === 0 ? <p role="status">No current-project assets match these filters. Clear the compatibility filter to review all available metadata.</p> : <>
         <div role="list" aria-label={`Visual assets for ${sceneId}`} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
           {visibleAssets.map((asset) => {

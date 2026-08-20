@@ -36,7 +36,10 @@ function nativeObjectKey(asset) {
 }
 
 function sourceKey(asset) {
-  return nativeObjectKey(asset) || contentHash(asset) || asset.fileKey || asset.file_path || asset.id;
+  // PDFs frequently embed the same raster under multiple xrefs. Prefer the
+  // content hash so review surfaces one canonical visual instead of repeated
+  // copies; fall back to the native object identity only when hashing is absent.
+  return contentHash(asset) || nativeObjectKey(asset) || asset.fileKey || asset.file_path || asset.id;
 }
 
 function classifyLowInformation(asset) {

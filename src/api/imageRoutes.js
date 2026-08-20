@@ -5,6 +5,7 @@ import {
   linkImagesToComponent,
   listImages,
   reconcileAutomaticLinks,
+  saveImages,
   upsertImage,
   removeImagesBySource,
 } from '../services/imageStore.js';
@@ -182,6 +183,29 @@ async function safeImageListResponse(projectId, state, contextualEvidence, proje
     // Contextual assets are intentionally excluded from component matching but remain in the project inventory.
     contextualAssets: contextualInventory?.assets || [],
   };
+}
+
+function recuratePersistedHephaestusAssets(state = {}) {
+  const hephaestusAssets = (state.images || []).filter((image) => image?.source === 'hephaestus');
+  const recuration = curateHephaestusAssets(hephaestusAssets);
+  const byId = new Map(recuration.assets.map((asset) => [asset.id, asset]));
+  const images = (state.images || []).map((image) => {
+    const curated = byId.get(image?.id);
+    if (!curated) return image;
+    const curation = curated.curation;
+    const reasons = Array.isArray(curation?.reasons) ? curation.reasons.filter(Boolean).join('; ') : '';
+    return {
+      ...image,
+      curation,
+      metadata: { ...(image.metadata || {}), curation },
+      quality: {
+        ...(image.quality || {}),
+        score: curation?.score ?? image?.quality?.score ?? null,
+        notes: reasons || image?.quality?.notes || 'Re-curated native PDF asset',
+      },
+    };
+  });
+  return { images, stats: recuration.stats };
 }
 
 function projectSourceErrorResponse(res, error) {
@@ -421,6 +445,27 @@ export function registerImageRoutes(app, {
       return res.json(await safeImageListResponse(projectId, state, contextualEvidence, projectSource));
     } catch (error) {
       return contextualEvidenceErrorResponse(res, error);
+    }
+  });
+
+  app.post('/api/projects/:projectId/images/recurate-hephaestus', async (req, res) => {
+    const { projectId } = req.params;
+    if (!isValidProjectId(projectId)) {
+      return res.status(400).json({ code: 'PROJECT_ID_INVALID', error: 'Project ID is invalid.' });
+    }
+    try {
+      const recuration = recuratePersistedHephaestusAssets(listImages(projectId));
+      const state = saveImages(projectId, recuration.images);
+      return res.json({
+        success: true,
+        mode: 'hephaestus-recuration',
+        message: `Re-curated ${recuration.stats.rawCount} stored HEPHAESTUS assets.`,
+        stats: recuration.stats,
+        ...await safeImageListResponse(projectId, state, contextualEvidence, projectSource),
+      });
+    } catch (error) {
+      console.error('[HEPHAESTUS] Re-curation failed:', error);
+      return res.status(500).json({ code: 'HEPHAESTUS_RECURATION_FAILED', error: 'Stored HEPHAESTUS assets could not be re-curated.' });
     }
   });
 

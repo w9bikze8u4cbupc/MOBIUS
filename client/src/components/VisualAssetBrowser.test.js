@@ -208,3 +208,18 @@ test('preserves the reviewed filters and explicit component choice when the scen
   expect(screen.getByLabelText('Only compatible assets for scene-persisted-review')).not.toBeChecked();
   expect(screen.getByLabelText('Component requirement for scene-persisted-review')).toHaveValue('locations');
 });
+
+
+test('hides exact pixel duplicates by default while allowing an operator to include them deliberately', () => {
+  const canonical = { ...assets[2], id: 'monster-token-canonical' };
+  const duplicate = {
+    ...assets[2],
+    id: 'monster-token-duplicate',
+    curation: { isDuplicate: true, canonicalAssetId: 'monster-token-canonical' },
+  };
+
+  expect(filterAndSortVisualAssets([canonical, duplicate], { primaryIntent: 'operator_defined', assetCandidates: [] }, { compatibleOnly: false })
+    .map((asset) => asset.id)).toEqual(['monster-token-canonical']);
+  expect(filterAndSortVisualAssets([canonical, duplicate], { primaryIntent: 'operator_defined', assetCandidates: [] }, { compatibleOnly: false, hideDuplicates: false })
+    .map((asset) => asset.id)).toEqual(['monster-token-canonical', 'monster-token-duplicate']);
+});

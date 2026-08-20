@@ -107,6 +107,7 @@ export function ImagesStep({
   const [feedbackMode, setFeedbackMode] = useState(false);
   const [feedbackStatus, setFeedbackStatus] = useState({});
   const [hephaestusStatus, setHephaestusStatus] = useState(null);
+  const [recurationStatus, setRecurationStatus] = useState(null);
   const [readinessError, setReadinessError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [previewImageId, setPreviewImageId] = useState(null);
@@ -526,6 +527,25 @@ export function ImagesStep({
     }
   };
 
+  const handleRecurateHephaestus = async () => {
+    if (!normalizedProjectId || rawHephaestusImages.length === 0 || loading) return;
+    setLoading(true);
+    setRecurationStatus({ status: 'running', message: 'Re-curating stored HEPHAESTUS assets…' });
+    try {
+      const { data } = await axios.post(`${BACKEND_URL}/api/projects/${normalizedProjectId}/images/recurate-hephaestus`);
+      refreshState(data || {});
+      const stats = data?.stats || {};
+      setRecurationStatus({
+        status: 'complete',
+        message: `Re-curated ${stats.rawCount || 0} stored HEPHAESTUS assets. ${stats.curatedCount || 0} canonical candidates remain after ${stats.duplicateCount || 0} exact duplicates were suppressed.`,
+      });
+    } catch (error) {
+      setRecurationStatus({ status: 'error', message: error.response?.data?.error || 'HEPHAESTUS re-curation failed.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRemoveLink = async (componentId, imageId) => {
     if (!projectId || !componentId || !imageId) return;
     const next = new Set(localLinks[componentId] || []);
@@ -730,6 +750,18 @@ export function ImagesStep({
           <p style={{ margin: '10px 0 0', color: '#7a4b00', fontSize: 13 }}>
             Auto-Gather is unavailable until both a Project ID and a verified stored source PDF are available.
           </p>
+        )}
+        {rawHephaestusImages.length > 0 && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #90caf9' }}>
+            <strong>Improve existing HEPHAESTUS review</strong>
+            <p style={{ margin: '6px 0 10px', color: '#555', fontSize: 13 }}>
+              Re-curation groups exact pixel duplicates before storyboard review. It preserves stored files and manual component links; it does not create or approve any association.
+            </p>
+            <button type="button" onClick={handleRecurateHephaestus} disabled={loading}>
+              {loading && recurationStatus?.status === 'running' ? 'Re-curating HEPHAESTUS assets…' : 'Re-curate existing HEPHAESTUS assets'}
+            </button>
+            {recurationStatus && <div role={recurationStatus.status === 'error' ? 'alert' : 'status'} style={{ marginTop: 8, color: recurationStatus.status === 'error' ? '#b71c1c' : '#1b5e20', fontSize: 13 }}>{recurationStatus.message}</div>}
+          </div>
         )}
         {autoGatherStatus && (
           <div style={{ 
