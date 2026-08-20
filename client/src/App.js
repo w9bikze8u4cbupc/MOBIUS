@@ -1210,7 +1210,16 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       if (!voice.trim()) {
         throw new Error("Select a narration voice before rendering.");
       }
-      const releaseVisualPlans = validateStoryboardVisualPlans(storyboardManifest, {
+      // Local storage can contain a pre-reconciliation storyboard after a browser
+      // restart. Reconcile it once at the release boundary before applying the
+      // canonical visual validation and persisting the render handoff.
+      const reconciledStoryboardManifest = reconcileStoryboardVisualPlans(storyboardManifest, {
+        images: projectImages,
+        componentImageLinks,
+        componentImageLinkDetails,
+        components: gameComponents,
+      });
+      const releaseVisualPlans = validateStoryboardVisualPlans(reconciledStoryboardManifest, {
         images: projectImages,
         componentImageLinks,
         componentImageLinkDetails,

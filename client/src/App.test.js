@@ -981,3 +981,30 @@ test('buildRemotionScenes preserves canonical resolved coverage for contextual e
   });
   expect(isRenderVisualPlanComplete(scenes[0])).toBe(true);
 });
+
+test('canonical pre-render validation accepts a manifest after deterministic reconciliation', () => {
+  const staleManifest = {
+    version: '1.2.0',
+    scenes: [{
+      id: 'scene-resolved-after-reconciliation',
+      spokenText: 'Use the validated reference.',
+      visualPlan: {
+        requiresExplicitVisual: true,
+        coverageStatus: 'resolved',
+        reviewState: 'needs_visual_review',
+        contextualEvidenceAssignments: [{ confirmed: true, pageNumber: 6 }],
+      },
+    }],
+  };
+
+  const projected = buildRemotionScenes({
+    script: 'ignored legacy script',
+    gameName: 'Abyss',
+    images: [],
+    componentImageLinks: {},
+    storyboardManifest: staleManifest,
+  });
+
+  expect(projected[0].visualPlan.coverageStatus).toBe('resolved');
+  expect(isRenderVisualPlanComplete(projected[0])).toBe(true);
+});
