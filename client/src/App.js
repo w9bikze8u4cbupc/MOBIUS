@@ -20,6 +20,7 @@ import { ScriptStep } from "./components/steps/ScriptStep";
 import { StoryboardStep } from "./components/steps/StoryboardStep";
 import { VoiceStep } from "./components/steps/VoiceStep";
 import { RenderExportStep } from "./components/steps/RenderExportStep";
+import { applyVerifiedAbyssCurationProfile } from "./abyssVerifiedCurationProfile";
 import {
   applyEditedNarration,
   applyStoryboardSceneEdit,
@@ -1213,7 +1214,8 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       // Local storage can contain a pre-reconciliation storyboard after a browser
       // restart. Reconcile it once at the release boundary before applying the
       // canonical visual validation and persisting the render handoff.
-      const reconciledStoryboardManifest = reconcileStoryboardVisualPlans(storyboardManifest, {
+      const profiledStoryboardManifest = applyVerifiedAbyssCurationProfile(storyboardManifest, projectId);
+      const reconciledStoryboardManifest = reconcileStoryboardVisualPlans(profiledStoryboardManifest, {
         images: projectImages,
         componentImageLinks,
         componentImageLinkDetails,

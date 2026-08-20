@@ -12,6 +12,12 @@ const CONTEXTUAL_EVIDENCE_ROLES = Object.freeze({
   assembled_tableau: new Set(['rulebook_reference']),
   board_setup: new Set(['board_setup_context']),
   rulebook_reference: new Set(['rulebook_reference']),
+  // A confirmed, explicitly reviewed rulebook page may document a mechanic when
+  // no honest isolated component asset is available. Ordinary rulebook references
+  // remain invalid for these intents; only this dedicated provenance role can pass.
+  component_closeup: new Set(['verified_mechanic_rulebook']),
+  card_action: new Set(['verified_mechanic_rulebook']),
+  token_action: new Set(['verified_mechanic_rulebook']),
 });
 const CONTEXTUAL_EVIDENCE_KINDS = new Set(['contextual_page', 'contextual_crop']);
 
@@ -320,6 +326,7 @@ function normaliseContextualEvidenceAssignments(priorAssignments, intent) {
     renderProfile: assignment.renderProfile,
     role: assignment.role,
     confirmed: assignment.confirmed === true,
+    verifiedMechanicEvidence: assignment.verifiedMechanicEvidence === true,
   }));
 }
 
@@ -337,6 +344,10 @@ function intentEvidenceSatisfied(intent, assignments, contextualAssignments, pri
   // A confirmed board-setup crop documents the assembled setup itself. An explicit board
   // requirement remains useful for project-asset matching, but must not block that evidence.
   if (intent === 'board_setup') return contextualAssignments.some((assignment) => assignment.role === 'board_setup_context' && assignment.confirmed === true);
+  if (['component_closeup', 'card_action', 'token_action'].includes(intent)) {
+    return contextualAssignments.some((assignment) => assignment.role === 'verified_mechanic_rulebook'
+      && assignment.confirmed === true && assignment.verifiedMechanicEvidence === true);
+  }
   return null;
 }
 
