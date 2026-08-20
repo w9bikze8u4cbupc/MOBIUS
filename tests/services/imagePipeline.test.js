@@ -18,8 +18,11 @@ jest.mock(
 );
 jest.mock('pdf-to-img', () => ({ pdf: async function* pdf() {} }), { virtual: true });
 
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import axios from 'axios';
-import { createPdfPageRenderer, ContextualPdfRenderError, ensurePdfJsNodeCompatibility, fetchBggImages, normalizeImageAsset } from '../../src/services/imagePipeline.js';
+import { createPdfPageRenderer, ContextualPdfRenderError, ensurePdfJsNodeCompatibility, fetchBggImages, ingestManualImage, normalizeImageAsset } from '../../src/services/imagePipeline.js';
 
 describe('imagePipeline', () => {
   beforeEach(() => {
@@ -43,6 +46,30 @@ describe('imagePipeline', () => {
     expect(assets.length).toBe(2);
     expect(assets[0].source).toBe('bgg');
     expect(assets[0].originalUrl).toBe('http://image.jpg');
+  });
+
+  it('copies manual uploads into canonical project data rather than retaining a staging path', async () => {
+    const storageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-manual-image-'));
+    const stagingDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-upload-stage-'));
+    const stagingPath = path.join(stagingDirectory, 'abyss-cover.jpg');
+    fs.writeFileSync(stagingPath, 'image-bytes');
+    try {
+      const asset = await ingestManualImage('abyss-project', {
+        filePath: stagingPath,
+        originalName: 'abyss-cover.jpg',
+      }, { storageRoot });
+      expect(asset).toMatchObject({
+        source: 'manual', name: 'abyss-cover.jpg', label: 'abyss-cover.jpg',
+        quality: { score: 0.7, notes: 'uploaded-canonical' },
+      });
+      expect(asset.fileKey).toMatch(/data[\\/]abyss-project[\\/]manual-images[\\/]manual-.*\.jpg$/);
+      expect(asset.renderPath).toBe(asset.fileKey);
+      expect(fs.existsSync(asset.fileKey)).toBe(true);
+      expect(fs.existsSync(stagingPath)).toBe(false);
+    } finally {
+      fs.rmSync(storageRoot, { recursive: true, force: true });
+      fs.rmSync(stagingDirectory, { recursive: true, force: true });
+    }
   });
 });
 

@@ -320,19 +320,43 @@ async function extractRulebookImages(projectId, pdfFileKeyOrPath) {
   return images;
 }
 
-async function ingestManualImage(projectId, uploadInfo) {
+async function ingestManualImage(projectId, uploadInfo, { storageRoot = process.cwd() } = {}) {
   if (!uploadInfo?.filePath) {
     throw new Error('filePath is required for manual images');
   }
-  const stats = fs.existsSync(uploadInfo.filePath) ? fs.statSync(uploadInfo.filePath) : null;
+  const safeProjectId = String(projectId || '').trim();
+  if (!safeProjectId || path.basename(safeProjectId) !== safeProjectId) {
+    throw new Error('A safe project ID is required for manual images');
+  }
+  const sourcePath = path.resolve(uploadInfo.filePath);
+  if (!fs.existsSync(sourcePath)) {
+    throw new Error('Uploaded manual image is unavailable');
+  }
+  const originalName = path.basename(uploadInfo.originalName || sourcePath);
+  const extension = path.extname(originalName).toLowerCase();
+  if (!SUPPORTED_IMAGE_EXTENSIONS.includes(extension)) {
+    throw new Error('Uploaded manual image format is not supported');
+  }
+  const id = createImageId('manual');
+  const manualDirectory = path.resolve(storageRoot, 'data', safeProjectId, 'manual-images');
+  const canonicalFilePath = path.join(manualDirectory, `${id}${extension}`);
+  await fsPromises.mkdir(manualDirectory, { recursive: true });
+  await fsPromises.copyFile(sourcePath, canonicalFilePath);
+  const stats = fs.statSync(canonicalFilePath);
+  // Multer staging uploads live under a code directory which isolated deployments clean.
+  // The canonical copy above is the only path referenced by project state and rendering.
+  if (sourcePath !== canonicalFilePath) await fsPromises.rm(sourcePath, { force: true }).catch(() => {});
   return normalizeImageAsset({
-    id: createImageId('manual'),
+    id,
     source: 'manual',
-    fileKey: uploadInfo.filePath,
+    name: originalName,
+    label: originalName,
+    fileKey: canonicalFilePath,
+    renderPath: canonicalFilePath,
     tags: ['manual'],
     width: uploadInfo.width || null,
     height: uploadInfo.height || null,
-    quality: { score: stats ? 0.7 : 0.5, notes: 'uploaded' },
+    quality: { score: stats.size > 0 ? 0.7 : 0.5, notes: 'uploaded-canonical' },
   });
 }
 
