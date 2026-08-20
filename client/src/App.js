@@ -246,6 +246,7 @@ export function hasRenderVisualEvidence(scene) {
   if ((scene?.imageUrls || []).length > 0) return true;
   const plan = normalizeRenderVisualPlan(scene);
   if ((plan.contextualEvidenceAssignments || []).some((assignment) => assignment?.confirmed === true)) return true;
+  if ((plan.schematicComponentEvidence || []).some((evidence) => evidence?.symbol === 'key' && evidence?.label === '3 Keys')) return true;
   return plan.primaryIntent === 'brand_outro'
     && plan.coverageStatus === 'operator_override'
     && Boolean(String(plan.operatorOverride?.reason || '').trim());

@@ -825,6 +825,11 @@ test('recognizes confirmed contextual evidence and a documented brand outro as r
       operatorOverride: { reason: 'Use the approved branded outro.' },
     },
   })).toBe(true);
+  expect(hasRenderVisualEvidence({
+    imageUrls: [],
+    visualPlan: { schematicComponentEvidence: [{ componentId: 'key-tokens', symbol: 'key', label: '3 Keys' }] },
+  })).toBe(true);
+  expect(hasRenderVisualEvidence({ imageUrls: [], visualPlan: { schematicComponentEvidence: [{ componentId: 'key-tokens', symbol: 'key', label: '2 Keys' }] } })).toBe(false);
   expect(hasRenderVisualEvidence({ imageUrls: [], visualPlan: { requiresExplicitVisual: true } })).toBe(false);
 });
 
