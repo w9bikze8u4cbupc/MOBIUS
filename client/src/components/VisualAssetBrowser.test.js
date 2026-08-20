@@ -223,3 +223,29 @@ test('hides exact pixel duplicates by default while allowing an operator to incl
   expect(filterAndSortVisualAssets([canonical, duplicate], { primaryIntent: 'operator_defined', assetCandidates: [] }, { compatibleOnly: false, hideDuplicates: false })
     .map((asset) => asset.id)).toEqual(['monster-token-canonical', 'monster-token-duplicate']);
 });
+
+
+test('offers direct component controls for a multi-component primary requirement', () => {
+  const onSelect = jest.fn();
+  const multiComponentPlan = {
+    primaryIntent: 'component_closeup',
+    primaryComponentRefs: ['lords', 'locations', 'keys'],
+    componentLabels: { lords: 'Court Lords', locations: 'Locations', keys: 'Key tokens' },
+    assetCandidates: [],
+  };
+  render(<VisualAssetBrowser
+    isOpen
+    onClose={jest.fn()}
+    onSelect={onSelect}
+    sceneId="scene-direct-component"
+    plan={multiComponentPlan}
+    images={[assets[3]]}
+    thumbnailUrlForAsset={() => '/safe-thumbnail'}
+  />);
+
+  fireEvent.click(screen.getByLabelText('Only compatible assets for scene-direct-component'));
+  fireEvent.click(screen.getByRole('button', { name: 'Locations (locations)' }));
+  expect(screen.getByRole('button', { name: 'Locations (locations)' })).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(screen.getByRole('button', { name: 'Select Native card — page 5, image 42 for scene-direct-component as primary' }));
+  expect(onSelect).toHaveBeenCalledWith(assets[3], { role: 'primary', componentId: 'locations' });
+});

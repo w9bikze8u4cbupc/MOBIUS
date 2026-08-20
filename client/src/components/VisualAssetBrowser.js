@@ -228,6 +228,10 @@ export function VisualAssetBrowser({
         <label><input aria-label={`Hide exact duplicate assets for ${sceneId}`} type="checkbox" checked={filters.hideDuplicates !== false} onChange={(event) => updateFilter('hideDuplicates', event.target.checked)} /> Hide exact duplicates</label>
         <label>Role <select aria-label={`Selected asset role for ${sceneId}`} value={role} onChange={(event) => setRole(event.target.value)}>{roleOptions.map((option) => <option key={option} value={option}>{option.replace('_', ' ')}</option>)}</select></label>
         {componentOptions.length > 0 && <label>Component requirement <select aria-label={`Component requirement for ${sceneId}`} value={componentId} onChange={(event) => setComponentId(event.target.value)}><option value="">choose explicitly</option>{componentOptions.map((componentRef) => <option key={componentRef} value={componentRef}>{componentRequirementLabel(plan, componentRef)}</option>)}</select></label>}
+        {componentOptions.length > 1 && <div aria-label={`Component quick selection for ${sceneId}`} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+          <span>Quick component selection:</span>
+          {componentOptions.map((componentRef) => <button type="button" key={componentRef} aria-pressed={componentId === componentRef} onClick={() => setComponentId(componentRef)}>{componentRequirementLabel(plan, componentRef)}</button>)}
+        </div>}
       </div>
       <p aria-live="polite">{assets.length} current-project assets · sorted by compatibility, approval/link provenance, quality, then source page. {filters.hideDuplicates !== false && 'Exact pixel duplicates are hidden. '}Selection does not create an override. {failedPreviewCount > 0 && <><strong>{failedPreviewCount} preview{failedPreviewCount === 1 ? '' : 's'} unavailable.</strong> <button type="button" onClick={() => setThumbnailStates({})}>Retry unavailable previews</button></>}</p>
       {assets.length === 0 ? <p role="status">No current-project assets match these filters. Clear the compatibility filter to review all available metadata.</p> : <>
