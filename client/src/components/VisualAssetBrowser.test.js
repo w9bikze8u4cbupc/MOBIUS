@@ -249,3 +249,9 @@ test('offers direct component controls for a multi-component primary requirement
   fireEvent.click(screen.getByRole('button', { name: 'Select Native card — page 5, image 42 for scene-direct-component as primary' }));
   expect(onSelect).toHaveBeenCalledWith(assets[3], { role: 'primary', componentId: 'locations' });
 });
+
+
+test('filters an asset by its stable identifier for reproducible operator selection', () => {
+  expect(filterAndSortVisualAssets(assets, boardPlan, { search: 'native-card', compatibleOnly: false })
+    .map((asset) => asset.id)).toEqual(['native-card']);
+});

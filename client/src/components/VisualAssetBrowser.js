@@ -36,7 +36,7 @@ export function assetDisplayName(asset) {
 function metadataText(asset) {
   const metadata = asset?.metadata && typeof asset.metadata === 'object' ? asset.metadata : {};
   return [
-    asset?.name, asset?.label, asset?.title, asset?.type, asset?.classification, asset?.category,
+    asset?.id, asset?.name, asset?.label, asset?.title, asset?.type, asset?.classification, asset?.category,
     asset?.componentId, asset?.componentRef, metadata.name, metadata.label, metadata.type, metadata.classification,
     metadata.category, metadata.componentId, metadata.componentRef, ...(asset?.aliases || []), ...(metadata.aliases || []), ...(asset?.tags || []), ...(metadata.tags || []),
   ].filter((value) => typeof value === 'string').join(' ').toLowerCase();
