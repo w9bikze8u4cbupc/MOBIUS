@@ -401,7 +401,7 @@ export async function bindReleaseVisualPlanAssets(scenes, project, { contextualE
     const overviewValid = documentedBrandOutro || visualPlan?.overviewExceptionAllowed !== true
       || ((visualPlan.selectionMethod === 'brand_asset' || visualPlan.selectionMethod === 'rulebook_reference')
         && visualPlan.overviewSelectionConfirmed === true);
-    const selectedImageUrls = selectedAssetIds.map((assetId) => getProjectImageRenderReference(imagesById.get(assetId));
+    const selectedImageUrls = selectedAssetIds.map((assetId) => getProjectImageRenderReference(imagesById.get(assetId)));
     if (!visualPlan || visualPlan.requiresExplicitVisual !== true
       || !reviewStateIsReleaseReady(visualPlan)
       || !coverageIsReleaseReady(visualPlan)
