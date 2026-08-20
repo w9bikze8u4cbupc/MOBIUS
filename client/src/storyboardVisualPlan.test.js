@@ -6,7 +6,7 @@ import {
 } from './storyboardVisualPlan';
 
 const requiredScene = (overrides = {}) => ({
-  id: 'scene-1', title: 'Setup', spokenText: 'Place the monster tokens.',
+  id: 'scene-1', title: 'Component demonstration', spokenText: 'Place the monster tokens.',
   visualDirections: [{ instruction: 'Show monster tokens.', componentRefs: ['monster-tokens'] }],
   sources: [{ section: 1, startOffset: 0, endOffset: 20 }], imageAssetIds: [], visualReviewState: 'needs_visual_review',
   ...overrides,
@@ -92,7 +92,7 @@ test('removal remains unresolved and required scenes block release confirmation'
 test('reports an honest 21-scene Abyss-like visual-resolution summary', () => {
   const scenes = Array.from({ length: 21 }, (_, index) => requiredScene({
     id: `abyss-${index + 1}`,
-    title: index === 0 ? 'Setup' : `Action ${index + 1}`,
+    title: index === 0 ? 'Component demonstration' : `Action ${index + 1}`,
     visualDirections: [{ instruction: 'Show component.', componentRefs: [index === 0 ? 'monster-tokens' : `unbound-component-${index}`] }],
   }));
   const manifest = reconcileStoryboardVisualPlans({ version: '1.2.0', scenes }, {
@@ -201,9 +201,9 @@ test('does not let a monster-token link resolve overview, tableau, board, title 
   expect(plans[2].primaryComponentRefs).toEqual(['game-board']);
 });
 
-test('approved primary Monster-token evidence resolves only an explicit Monster-token visual', () => {
+test('approved primary Monster-token evidence resolves an explicit token action', () => {
   const plan = resolveSceneVisualPlan(requiredScene({
-    title: 'Monster tokens', visualDirections: [{ instruction: 'Show a closeup of Monster tokens.', componentRefs: ['monster-tokens'] }],
+    title: 'Monster token action', visualDirections: [{ instruction: 'Reveal and take a Monster token.', componentRefs: ['monster-tokens'] }],
   }), coverageContext);
   expect(plan).toMatchObject({
     primaryIntent: 'token_action', primaryComponentRefs: ['monster-tokens'], selectedAssetIds: ['monster-image'],
@@ -277,8 +277,90 @@ test('contextual evidence is provenance-bound, cannot satisfy component closeups
   const closeup = requiredScene({ title: 'Monster tokens', visualPlan: { contextualEvidenceAssignments: [contextualPage] } });
   expect(resolveSceneVisualPlan(closeup, { images: inventory, components: coverageComponents })).toMatchObject({ coverageStatus: 'unresolved', contextualEvidenceAssignments: [] });
 
-  const unconfirmedBoardContext = requiredScene({ title: 'Board setup', visualDirections: [{ instruction: 'Show board setup context.', componentRefs: [] }], visualPlan: { contextualEvidenceAssignments: [{ kind: 'contextual_crop', assetId: 'crop-1', cropId: 'crop-1', pageId: 'page-1', role: 'board_setup_context', confirmed: false, ...provenance }] } });
+  const unconfirmedBoardContext = requiredScene({ title: 'Board setup', visualDirections: [{ instruction: 'Show board setup context.', componentRefs: ['game-board'] }], visualPlan: { contextualEvidenceAssignments: [{ kind: 'contextual_crop', assetId: 'crop-1', cropId: 'crop-1', pageId: 'page-1', role: 'board_setup_context', confirmed: false, ...provenance }] } });
   expect(resolveSceneVisualPlan(unconfirmedBoardContext, coverageContext).contextualEvidenceAssignments).toEqual([]);
   const confirmedBoardContext = { ...unconfirmedBoardContext, visualPlan: { contextualEvidenceAssignments: [{ kind: 'contextual_crop', assetId: 'crop-1', cropId: 'crop-1', pageId: 'page-1', role: 'board_setup_context', confirmed: true, ...provenance }] } };
-  expect(resolveSceneVisualPlan(confirmedBoardContext, coverageContext).contextualEvidenceAssignments).toEqual([expect.objectContaining({ role: 'board_setup_context', confirmed: true })]);
+  expect(resolveSceneVisualPlan(confirmedBoardContext, coverageContext)).toMatchObject({
+    primaryIntent: 'board_setup', primaryComponentRefs: ['game-board'], coverageStatus: 'resolved', reviewState: 'resolved',
+    contextualEvidenceAssignments: [expect.objectContaining({ role: 'board_setup_context', confirmed: true })],
+  });
+});
+
+
+test('prioritizes the exact Numbered Setup visual direction over setup-material component overlap', () => {
+  const components = [
+    { id: 'game-board', name: 'Game board', aliases: ['board'] },
+    { id: 'exploration-cards', name: 'Exploration cards', aliases: ['exploration cards'] },
+    { id: 'monster-tokens', name: 'Monster tokens', aliases: ['monster tokens'] },
+    { id: 'lords', name: 'Lords', aliases: ['lords'] },
+    { id: 'player-pearls', name: 'Player Pearls', aliases: ['player pearls'] },
+    { id: 'treasury', name: 'Treasury', aliases: ['treasury'] },
+  ];
+  const plan = resolveSceneVisualPlan(requiredScene({
+    id: 'scene-section-04-5',
+    title: 'Numbered Setup',
+    spokenText: 'Here’s the setup. One: place the board in the center of the table, then prepare cards, tokens, and Lords.',
+    visualDirections: [{
+      instruction: 'Build the setup step by step from a clean overhead table. Continue with tokens, player Pearls, and the Treasury.',
+      componentRefs: ['game-board', 'exploration-cards', 'monster-tokens', 'lords', 'player-pearls', 'treasury'],
+    }],
+  }), { components });
+
+  expect(plan.primaryIntent).toBe('board_setup');
+  expect(plan.primaryComponentRefs).toEqual(['game-board']);
+  expect(plan.supportingComponentRefs).toEqual(expect.arrayContaining([
+    'exploration-cards', 'monster-tokens', 'lords', 'player-pearls', 'treasury',
+  ]));
+  expect(plan.primaryComponentRefs).not.toEqual(expect.arrayContaining(['exploration-cards', 'monster-tokens', 'lords']));
+});
+
+test('keeps tableau, overview, outro, and setup semantic precedence distinct from component action vocabulary', () => {
+  const components = [{ id: 'exploration-cards', name: 'Exploration cards', aliases: ['exploration cards'] }];
+  const intentFor = (title, instruction) => resolveSceneVisualPlan(requiredScene({
+    title,
+    visualDirections: [{ instruction, componentRefs: ['exploration-cards'] }],
+  }), { components }).primaryIntent;
+
+  expect(intentFor('Opening shot setup', 'Show an opening shot overview, then reveal exploration cards.')).toBe('game_overview');
+  expect(intentFor('Completed tableau setup', 'Show the completed tableau before players draw exploration cards.')).toBe('assembled_tableau');
+  expect(intentFor('Game title outro', 'End on the game title after players reveal exploration cards.')).toBe('brand_outro');
+  expect(intentFor('Numbered Setup', 'Arrange the setup before players reveal exploration cards.')).toBe('board_setup');
+  expect(intentFor('Exploration action', 'Reveal and take an Exploration card in close-up.')).toBe('card_action');
+});
+
+test('rejects contextual evidence for a true card action while preserving strict action coverage', () => {
+  const provenance = { documentSha256: 'a'.repeat(64), pageRasterSha256: 'b'.repeat(64), renderProfile: 'pdf-to-img-review-144dpi-png-v1' };
+  const scene = requiredScene({
+    title: 'Exploration action',
+    visualDirections: [{ instruction: 'Reveal and take an Exploration card in close-up.', componentRefs: ['exploration-cards'] }],
+    visualPlan: { contextualEvidenceAssignments: [{ kind: 'contextual_page', assetId: 'page-1', pageId: 'page-1', role: 'rulebook_reference', confirmed: true, ...provenance }] },
+  });
+  const plan = resolveSceneVisualPlan(scene, { components: [{ id: 'exploration-cards', name: 'Exploration cards' }] });
+  expect(plan).toMatchObject({ primaryIntent: 'card_action', coverageStatus: 'unresolved', contextualEvidenceAssignments: [] });
+  expect(plan.reviewReason).toMatch(/incompatible with the corrected visual intent/i);
+});
+
+test('reconciliation preserves scene edits and valid assets while dropping only stale or incompatible evidence', () => {
+  const provenance = { documentSha256: 'a'.repeat(64), pageRasterSha256: 'b'.repeat(64), renderProfile: 'pdf-to-img-review-144dpi-png-v1' };
+  const scene = requiredScene({
+    id: 'scene-section-04-5', title: 'Numbered Setup', spokenText: 'Keep this narration.', durationMs: 4200,
+    transition: 'slide-left', reviewNotes: 'Keep this review note.',
+    visualDirections: [{ instruction: 'Build the setup step by step from an overhead table with Monster tokens.', componentRefs: ['game-board', 'monster-tokens'] }],
+    visualPlan: {
+      selectedAssetIds: ['monster-image', 'foreign-image'], selectionMethod: 'operator_selected',
+      assetAssignments: [
+        { assetId: 'monster-image', role: 'primary', componentId: 'monster-tokens' },
+        { assetId: 'foreign-image', role: 'primary', componentId: 'monster-tokens' },
+      ],
+      contextualEvidenceAssignments: [{ kind: 'contextual_page', assetId: 'page-1', pageId: 'page-1', role: 'rulebook_reference', confirmed: true, ...provenance }],
+    },
+  });
+  const reconciled = reconcileStoryboardVisualPlans({ version: '1.2.0', scenes: [scene] }, coverageContext).scenes[0];
+
+  expect(reconciled).toMatchObject({ spokenText: 'Keep this narration.', durationMs: 4200, transition: 'slide-left', reviewNotes: 'Keep this review note.' });
+  expect(reconciled.visualPlan).toMatchObject({
+    primaryIntent: 'board_setup', selectedAssetIds: ['monster-image'], contextualEvidenceAssignments: [],
+    assetAssignments: [expect.objectContaining({ assetId: 'monster-image', role: 'supporting', componentId: 'monster-tokens' })],
+  });
+  expect(reconciled.visualPlan.reviewReason).toMatch(/not present in the current project inventory.*incompatible with the corrected visual intent/i);
 });

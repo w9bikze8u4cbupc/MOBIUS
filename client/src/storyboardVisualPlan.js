@@ -150,8 +150,29 @@ function hasVisualPhrase(text, expression) {
   return expression.test(String(text || ''));
 }
 
+const BRAND_OUTRO_CUES = /\b(game title|title card|brand|outro|conclusion|wrap[-\s]?up)\b/i;
+const ASSEMBLED_TABLEAU_CUES = /\b(assembled game|completed tableau|full game table|player tableau)\b/i;
+const OVERVIEW_CUES = /\b(opening shot|game overview|overview|introduction|intro)\b/i;
+const BOARD_SETUP_CUES = /\b(setup|set\s+up|place\s+(?:the\s+)?board|board\s+in\s+the\s+center|overhead\s+table|arrange|layout|player\s+areas?|treasury|starting\s+position|ordered\s+setup|step\s+by\s+step)\b/i;
+const CARD_OBJECT_CUES = /\b(cards?|exploration|council|lords?|locations?)\b/i;
+const TOKEN_OBJECT_CUES = /\b(tokens?|keys?|pearls?|monsters?)\b/i;
+const ACTION_CUES = /\b(reveal|draw|play|discard|rotate|pay|fight|recruit|take)\b/i;
+
 function isBoardReference(componentId, match) {
   return /\b(board|layout|tableau)\b/i.test(`${componentId || ''} ${match?.matchedToken || ''}`);
+}
+
+function primaryIntentForVisualText(text, visualComponentRefs) {
+  // Explicit pedagogical scene semantics always precede component/action vocabulary.
+  // `text` deliberately excludes spoken narration so narration cannot manufacture visual intent.
+  if (hasVisualPhrase(text, /\b(rulebook|page|reference)\b/i)) return 'rulebook_reference';
+  if (hasVisualPhrase(text, BRAND_OUTRO_CUES)) return 'brand_outro';
+  if (hasVisualPhrase(text, ASSEMBLED_TABLEAU_CUES)) return 'assembled_tableau';
+  if (hasVisualPhrase(text, OVERVIEW_CUES)) return 'game_overview';
+  if (hasVisualPhrase(text, BOARD_SETUP_CUES)) return 'board_setup';
+  if (visualComponentRefs.length && hasVisualPhrase(text, CARD_OBJECT_CUES) && hasVisualPhrase(text, ACTION_CUES)) return 'card_action';
+  if (visualComponentRefs.length && hasVisualPhrase(text, TOKEN_OBJECT_CUES) && hasVisualPhrase(text, ACTION_CUES)) return 'token_action';
+  return visualComponentRefs.length ? 'component_closeup' : 'operator_defined';
 }
 
 /**
@@ -164,19 +185,12 @@ export function deriveSceneVisualRequirements(scene, components = []) {
   const directMatches = visualMatches.filter((match) => match.sourceField.endsWith('.componentRefs'));
   const visualComponentRefs = uniqueStrings(visualMatches.map((match) => match.componentId));
   const directComponentRefs = uniqueStrings(directMatches.map((match) => match.componentId));
-  const text = visualRequirementText(scene);
-  let primaryIntent = 'operator_defined';
-  if (hasVisualPhrase(text, /\b(rulebook|page|reference)\b/i)) primaryIntent = 'rulebook_reference';
-  else if (hasVisualPhrase(text, /\b(game title|title card|brand|outro|conclusion|wrap[-\s]?up)\b/i)) primaryIntent = 'brand_outro';
-  else if (hasVisualPhrase(text, /\b(assembled game|completed tableau|player tableau)\b/i)) primaryIntent = 'assembled_tableau';
-  else if (hasVisualPhrase(text, /\b(board in the center|board setup|setup[^.]{0,60}\bboard\b|lay out[^.]{0,60}\bboard\b)\b/i)) primaryIntent = 'board_setup';
-  else if (hasVisualPhrase(text, /\b(opening shot|game overview|overview|introduction|intro)\b/i)) primaryIntent = 'game_overview';
-  else if (hasVisualPhrase(text, /\b(cards?|exploration|council|lords?|locations?)\b/i) && visualComponentRefs.length) primaryIntent = 'card_action';
-  else if (hasVisualPhrase(text, /\b(tokens?|keys?|pearls?|monsters?)\b/i) && visualComponentRefs.length) primaryIntent = 'token_action';
-  else if (visualComponentRefs.length) primaryIntent = 'component_closeup';
+  const primaryIntent = primaryIntentForVisualText(visualRequirementText(scene), visualComponentRefs);
 
   let primaryComponentRefs = [];
   if (primaryIntent === 'board_setup') {
+    // Setup materials remain supporting context. Only an explicitly identified board/layout
+    // can remain primary; confirmed contextual board evidence can satisfy setup regardless.
     primaryComponentRefs = visualMatches.filter((match) => isBoardReference(match.componentId, match)).map((match) => match.componentId);
   } else if (['component_closeup', 'card_action', 'token_action'].includes(primaryIntent)) {
     primaryComponentRefs = directComponentRefs.length ? directComponentRefs : visualComponentRefs;
@@ -259,6 +273,9 @@ function normaliseAssignments(priorAssignments, selectedAssetIds, requirements, 
       else if (requirements.primaryIntent === 'operator_defined' && selectionMethod === 'operator_selected') role = 'primary';
       else if (requirements.primaryComponentRefs.length === 1 && selectionMethod === 'operator_selected') role = 'primary';
     }
+    if (prior && role === 'primary' && componentId
+      && !requirements.primaryComponentRefs.includes(componentId)
+      && requirements.supportingComponentRefs.includes(componentId)) role = 'supporting';
     if (role === 'primary' && !componentId) {
       componentId = candidate?.requirementRole === 'primary'
         ? candidate.componentId
@@ -301,8 +318,9 @@ function intentEvidenceSatisfied(intent, assignments, contextualAssignments, pri
   if (intent === 'brand_outro') return priorPlan?.overviewSelectionConfirmed === true && (roles.has('brand') || roles.has('rulebook_reference'));
   if (intent === 'rulebook_reference') return roles.has('rulebook_reference');
   if (intent === 'game_overview' || intent === 'assembled_tableau') return priorPlan?.overviewSelectionConfirmed === true && (roles.has('overview') || roles.has('brand') || roles.has('rulebook_reference'));
-  // Contextual evidence may document a board setup only when no component-primary proof is required.
-  if (intent === 'board_setup') return requirements.primaryComponentRefs.length === 0 && contextualAssignments.some((assignment) => assignment.role === 'board_setup_context' && assignment.confirmed === true);
+  // A confirmed board-setup crop documents the assembled setup itself. An explicit board
+  // requirement remains useful for project-asset matching, but must not block that evidence.
+  if (intent === 'board_setup') return contextualAssignments.some((assignment) => assignment.role === 'board_setup_context' && assignment.confirmed === true);
   return null;
 }
 
@@ -397,16 +415,21 @@ export function resolveSceneVisualPlan(scene, {
   if (selectedAssetIds.length > 0 && (selectionMethod === 'unresolved' || (selectionMethod === 'approved_component_link' && !selectedIdsAreApprovedPrimary))) selectionMethod = 'operator_selected';
 
   const assetAssignments = normaliseAssignments(priorPlan.assetAssignments, selectedAssetIds, requirements, assetCandidates, selectionMethod);
-  const contextualEvidenceAssignments = normaliseContextualEvidenceAssignments(priorPlan.contextualEvidenceAssignments, requirements.primaryIntent);
+  const priorContextualEvidenceAssignments = Array.isArray(priorPlan.contextualEvidenceAssignments)
+    ? priorPlan.contextualEvidenceAssignments : [];
+  const contextualEvidenceAssignments = normaliseContextualEvidenceAssignments(priorContextualEvidenceAssignments, requirements.primaryIntent);
+  const incompatibleContextualEvidence = contextualEvidenceAssignments.length < priorContextualEvidenceAssignments.length;
   const priorBlocked = priorPlan.reviewState === 'blocked' || priorPlan.coverageStatus === 'blocked' || scene?.visualReviewState === 'blocked';
   const coverage = coverageFor(requirements, assetAssignments, contextualEvidenceAssignments, priorPlan, priorBlocked);
   const releaseResolved = coverage.coverageStatus === 'resolved' || coverage.coverageStatus === 'operator_override';
   const reviewState = priorBlocked ? 'blocked' : (releaseResolved ? 'resolved' : 'needs_visual_review');
+  const invalidationReasons = [
+    invalidSelection ? 'One or more selected assets are not present in the current project inventory.' : null,
+    incompatibleContextualEvidence ? 'One or more contextual evidence assignments are incompatible with the corrected visual intent or provenance policy.' : null,
+  ].filter(Boolean);
   const reviewReason = priorBlocked
     ? (priorPlan.reviewReason || coverage.coverageReason)
-    : invalidSelection
-      ? 'One or more selected assets are not present in the current project inventory.'
-      : coverage.coverageReason;
+    : invalidationReasons.join(' ') || coverage.coverageReason;
 
   return {
     componentRefs,

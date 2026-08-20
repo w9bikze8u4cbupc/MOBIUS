@@ -71,7 +71,7 @@ test('keeps semantic coverage and requires a reason to apply an operator overrid
     }],
   };
   render(<StoryboardStep onGenerateStoryboard={jest.fn()} onUpdateScene={onUpdateScene} images={assets} storyboardManifest={coverageManifest} storyboarding={false} />);
-  expect(screen.getByText('assembled_tableau')).toBeInTheDocument();
+  expect(screen.getByText('assembled tableau')).toBeInTheDocument();
   expect(screen.getAllByText(/Partial — primary visual still missing/).length).toBeGreaterThan(0);
   const apply = screen.getByRole('button', { name: 'Apply override for scene-section-01-1' });
   expect(apply).toBeDisabled();
@@ -125,4 +125,23 @@ test('does not show rulebook browsing for closeup, card, or token intents', () =
     expect(screen.queryByRole('button', { name: 'Browse rulebook pages for scene-section-01-1' })).not.toBeInTheDocument();
     unmount();
   });
+});
+
+
+test('shows the human-readable board setup intent and contextual browse action', () => {
+  const boardSetupManifest = {
+    ...manifest,
+    scenes: [{
+      ...manifest.scenes[0],
+      title: 'Numbered Setup',
+      visualPlan: {
+        primaryIntent: 'board_setup', primaryComponentRefs: ['game-board'], supportingComponentRefs: ['monster-tokens'],
+        selectedAssetIds: [], assetAssignments: [], contextualEvidenceAssignments: [], coverageStatus: 'unresolved',
+        assetCandidates: [], assetReuse: [], reviewState: 'needs_visual_review', selectionMethod: 'unresolved', requiresExplicitVisual: true,
+      },
+    }],
+  };
+  render(<StoryboardStep onGenerateStoryboard={jest.fn()} onUpdateScene={jest.fn()} projectId="abyss-project" images={assets} storyboardManifest={boardSetupManifest} storyboarding={false} />);
+  expect(screen.getByText('board setup')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Browse rulebook pages for scene-section-01-1' })).toBeInTheDocument();
 });

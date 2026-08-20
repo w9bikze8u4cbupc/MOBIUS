@@ -170,7 +170,7 @@ export function StoryboardStep({
           </div>
           <label>Visual directions<textarea aria-label={`Visual directions for ${scene.id}`} value={(scene.visualDirections || []).map((direction) => direction.instruction).filter(Boolean).join('\n')} onChange={(event) => onUpdateScene(scene.id, { visualDirections: preserveVisualDirectionMetadata(scene.visualDirections, event.target.value) })} rows={2} style={{ width: '100%' }} /></label>
           <section aria-label={`Visual coverage for ${scene.id}`} style={{ borderLeft: '4px solid #1976d2', paddingLeft: 10, margin: '10px 0' }}>
-            <p><strong>Primary visual intent:</strong> {plan.primaryIntent || 'operator_defined'}</p>
+            <p><strong>Primary visual intent:</strong> {(plan.primaryIntent || 'operator_defined').replace(/_/g, ' ')}</p>
             <p><strong>Primary requirements:</strong> {(plan.primaryComponentRefs || []).length ? plan.primaryComponentRefs.join(', ') : 'explicit overview/brand/rulebook evidence'}</p>
             <p><strong>Supporting requirements:</strong> {(plan.supportingComponentRefs || []).length ? plan.supportingComponentRefs.join(', ') : 'none'}</p>
             <p><strong>Coverage:</strong> {plan.coverageStatus === 'resolved' ? 'Resolved by primary evidence' : plan.coverageStatus === 'partial' ? 'Partial — primary visual still missing' : plan.coverageStatus === 'operator_override' ? 'Resolved by documented operator override' : plan.coverageStatus || 'Unresolved'} · {plan.coverageReason || plan.reviewReason}</p>
