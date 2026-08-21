@@ -12,9 +12,9 @@
  *
  * `imageUrls` is the preferred gallery input. `imageUrl` remains supported for
  * existing callers and is normalized to a one-item imageUrls array. Multi-scene
- * renders without audio use the transition-enabled timeline. Multi-scene renders
- * with narration must use `--concat`, which renders one isolated MP4 per scene
- * before FFmpeg joins the compatible H.264/AAC segments.
+ * renders use the transition-enabled timeline, including narration and music.
+ * `--concat` remains available for explicit offline segment rendering where
+ * FFmpeg joins compatible H.264/AAC segments.
  */
 
 import { bundle } from '@remotion/bundler';
@@ -429,12 +429,6 @@ async function main() {
         : {}),
     };
   });
-  const containsMultipleSceneAudio = scenes.length > 1
-    && scenes.some((scene) => Boolean(scene.audioFile || scene.backgroundMusicFile));
-  if (containsMultipleSceneAudio && !concat) {
-    fail('Multi-scene configs with narration or background music require --concat so audio is rendered sequentially without transition overlap.');
-  }
-
   const isTimeline = scenes.length > 1 && !concat;
   const inputProps = isTimeline ? { scenes } : scenes[0];
   const compositionId = isTimeline ? TIMELINE_COMPOSITION_ID : SCENE_COMPOSITION_ID;

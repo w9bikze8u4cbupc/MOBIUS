@@ -587,12 +587,10 @@ export async function runRemotionRender({
     );
     await fs.mkdir(outputDirectory, { recursive: true });
     await fs.writeFile(configurationPath, JSON.stringify(scenesWithNarration, null, 2), 'utf8');
-    const shouldConcatenate = scenesWithNarration.length > 1
-      && scenesWithNarration.some((scene) => Boolean(scene.audioFile || scene.backgroundMusicFile));
+    // The transition-enabled Remotion timeline embeds all narration and music in
+    // one MP4. Reserve the optional FFmpeg concat mode for explicit offline use,
+    // so a local tutorial render remains portable when no FFmpeg binary exists.
     const rendererArgs = [rendererScript, configurationPath, '--out-dir', outputDirectory];
-    if (shouldConcatenate) {
-      rendererArgs.push('--concat');
-    }
     await execFileAsync(
       process.execPath,
       rendererArgs,
