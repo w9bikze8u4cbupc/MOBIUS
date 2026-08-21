@@ -1,19 +1,21 @@
-#!/usr/bin/env node
-
 /**
  * MOBIUS end-to-end orchestrator
  *
- * This script stitches together the deterministic ingestion + storyboard generators,
- * builds a render job config, simulates a render/package step, and finally runs the
- * checklist validator. It is intentionally dependency-light so it can run in CI and
- * local smoke tests without requiring the full renderer stack.
+ * Runs the deterministic ingestion and storyboard fixtures through the same
+ * render-job contract used by the operator flow, produces a real FFmpeg MP4,
+ * emits a timed caption sidecar, packages checksummed artifacts, and then
+ * validates the resulting release checklist.
  */
 
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
+const { execFileSync, spawnSync } = require('child_process');
+const { pathToFileURL } = require('url');
 const { runIngestionPipeline } = require('../src/ingestion/pipeline');
 const { generateStoryboardFromIngestion } = require('../src/storyboard/storyboard_from_ingestion');
+
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+const STORYBOARD_RENDERER = path.join(PROJECT_ROOT, 'scripts', 'render-storyboard-ffmpeg.mjs');
 
 function parseArgs(argv) {
   const args = {};
@@ -37,11 +39,6 @@ function ensureDir(targetPath) {
   fs.mkdirSync(targetPath, { recursive: true });
 }
 
-function sha256File(filePath) {
-  const content = fs.readFileSync(filePath);
-  return crypto.createHash('sha256').update(content).digest('hex');
-}
-
 function loadJson(filePath) {
   const raw = fs.readFileSync(filePath, 'utf8');
   return JSON.parse(raw);
@@ -54,102 +51,181 @@ function parseResolution(input) {
   return { width: Number(match[1]), height: Number(match[2]) };
 }
 
-function buildRenderJobConfig({ projectId, lang, resolution, mode, ingestionManifest, storyboardManifest }) {
-  const { width, height } = parseResolution(resolution);
-  const fps = storyboardManifest?.resolution?.fps || storyboardManifest?.fps || 30;
-  const scenes = Array.isArray(storyboardManifest?.scenes) ? storyboardManifest.scenes : [];
-  const totalDurationSec = scenes.reduce((sum, scene) => sum + Number(scene.durationSec || 0), 0);
-
-  const imageAssets = ingestionManifest?.assets?.components || [];
-  const pageAssets = ingestionManifest?.assets?.pages || [];
-
-  return {
-    projectId,
-    lang,
-    video: {
-      resolution: { width, height },
-      fps,
-      mode: mode || 'preview',
-    },
-    assets: {
-      images: [...imageAssets, ...pageAssets].map((asset) => ({
-        id: asset.id || asset.hash || asset.page || 'asset',
-        hash: asset.hash,
-        type: asset.type || 'image',
-      })),
-      audio: [],
-      captions: [],
-    },
-    timing: {
-      totalDurationSec,
-      scenes: scenes.map((scene, idx) => ({ id: scene.id || `scene-${idx + 1}`, durationSec: scene.durationSec || 0 })),
-    },
-    metadata: {
-      ingestionVersion: ingestionManifest?.ingestionContractVersion || ingestionManifest?.version || '1.0.0',
-      storyboardContractVersion: storyboardManifest?.storyboardContractVersion || storyboardManifest?.version || '1.0.0',
-      seed: storyboardManifest?.seed || null,
-    },
-    deterministic: true,
-  };
+function xmlEscape(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
-function writePlaceholderArtifacts(outputDir, { lang, resolution, timing }) {
-  ensureDir(outputDir);
-  const videoName = 'preview.mp4';
-  const captionName = `captions_${lang || 'en'}.vtt`;
+function writePhysicalRenderJUnit(junitPath, { projectId, durationSec, captionCount }) {
+  const cases = [
+    ['renderer_exit', 'FFmpeg storyboard renderer completed successfully'],
+    ['video_probe', `MP4 is readable (${Number(durationSec).toFixed(3)}s)`],
+    ['captions', `${captionCount} timed caption cue(s) generated`],
+    ['packaging', 'Checksummed container manifest generated'],
+  ];
 
-  const videoPath = path.join(outputDir, videoName);
-  const captionPath = path.join(outputDir, captionName);
-
-  if (!fs.existsSync(videoPath)) {
-    fs.writeFileSync(videoPath, 'placeholder video content');
-  }
-
-  if (!fs.existsSync(captionPath)) {
-    fs.writeFileSync(captionPath, 'WEBVTT\n\n00:00:00.000 --> 00:00:02.000\nPlaceholder caption');
-  }
-
-  const referenceDuration = Number((timing.totalDurationSec || 6).toFixed(2)) || 6;
-
-  const container = {
-    referenceDuration,
-    videos: [
-      {
-        id: 'preview',
-        path: videoName,
-        duration: referenceDuration,
-        resolution: resolution?.width && resolution?.height ? { width: resolution.width, height: resolution.height } : undefined,
-        format: 'mp4',
-        sha256: sha256File(videoPath),
-      },
-    ],
-    captions: [
-      {
-        id: 'captions',
-        path: captionName,
-        language: lang || 'en',
-        format: 'vtt',
-        sha256: sha256File(captionPath),
-      },
-    ],
-    manifest: {
-      assets: timing.scenes || [],
-    },
-  };
-
-  const containerPath = path.join(outputDir, 'container.json');
-  fs.writeFileSync(containerPath, JSON.stringify(container, null, 2), 'utf8');
-
-  const junit = [
-    '<testsuite name="mobius-render" tests="1" failures="0" errors="0" time="0">',
-    '  <testcase classname="render" name="preview" time="0"/>',
+  const content = [
+    `<testsuite name="mobius-real-render" tests="${cases.length}" failures="0" errors="0" time="0">`,
+    ...cases.map(([name, message]) => `  <testcase classname="${xmlEscape(projectId)}" name="${name}"><system-out>${xmlEscape(message)}</system-out></testcase>`),
     '</testsuite>',
     '',
   ].join('\n');
-  const junitPath = path.join(outputDir, 'golden.junit.xml');
-  fs.writeFileSync(junitPath, junit, 'utf8');
+  fs.writeFileSync(junitPath, content, 'utf8');
+}
 
-  return { containerPath, junitPath, videoPath, captionPath };
+async function loadCanonicalRenderModules() {
+  const [
+    renderJobConfigModule,
+    renderExecutorModule,
+    packagingModule,
+    captionTimingModule,
+    srtWriterModule,
+  ] = await Promise.all([
+    import(pathToFileURL(path.join(PROJECT_ROOT, 'src', 'api', 'renderJobConfig.js')).href),
+    import(pathToFileURL(path.join(PROJECT_ROOT, 'src', 'api', 'renderExecutor.js')).href),
+    import(pathToFileURL(path.join(PROJECT_ROOT, 'src', 'api', 'packaging.js')).href),
+    import(pathToFileURL(path.join(PROJECT_ROOT, 'src', 'services', 'captionTiming.js')).href),
+    import(pathToFileURL(path.join(PROJECT_ROOT, 'src', 'services', 'srtWriter.js')).href),
+  ]);
+
+  return {
+    buildRenderJobConfig: renderJobConfigModule.buildRenderJobConfig,
+    adaptConfigForStoryboardRenderer: renderExecutorModule.adaptConfigForStoryboardRenderer,
+    packageRenderJob: packagingModule.packageRenderJob,
+    generateCaptionCues: captionTimingModule.generateCaptionCues,
+    validateCaptionCues: captionTimingModule.validateCaptionCues,
+    generateSrtContent: srtWriterModule.generateSrtContent,
+  };
+}
+
+async function buildCanonicalRenderConfig({
+  projectId,
+  lang,
+  resolution,
+  mode,
+  ingestionManifest,
+  storyboardManifest,
+}) {
+  const { buildRenderJobConfig } = await loadCanonicalRenderModules();
+  return buildRenderJobConfig({
+    projectId,
+    metadata: {
+      gameName: storyboardManifest?.game?.name || ingestionManifest?.document?.title || projectId,
+      captionLocales: [lang],
+    },
+    ingestionManifest,
+    storyboardManifest,
+    lang,
+    resolution: parseResolution(resolution),
+    fps: storyboardManifest?.resolution?.fps || storyboardManifest?.fps || 30,
+    mode,
+  });
+}
+
+async function renderRealPreview({ game, lang, outputDir, renderConfig }) {
+  const {
+    adaptConfigForStoryboardRenderer,
+    packageRenderJob,
+    generateCaptionCues,
+    validateCaptionCues,
+    generateSrtContent,
+  } = await loadCanonicalRenderModules();
+
+  const renderDir = path.join(outputDir, `${renderConfig.video?.mode || 'preview'}-render`);
+  ensureDir(renderDir);
+
+  const outputPath = path.join(renderDir, 'preview.mp4');
+  const sceneConfig = adaptConfigForStoryboardRenderer(renderConfig, { outputPath });
+  const configPath = path.join(renderDir, 'render-config.json');
+  fs.writeFileSync(configPath, JSON.stringify(sceneConfig, null, 2), 'utf8');
+
+  const renderer = spawnSync(
+    process.execPath,
+    [STORYBOARD_RENDERER, '--config', configPath, '--out', outputPath],
+    {
+      cwd: PROJECT_ROOT,
+      encoding: 'utf8',
+      timeout: 240000,
+      maxBuffer: 4 * 1024 * 1024,
+    },
+  );
+
+  if (renderer.error) {
+    throw new Error(`REAL_RENDER_EXECUTION_ERROR: ${renderer.error.message}`);
+  }
+  if (renderer.status !== 0) {
+    const details = [renderer.stdout, renderer.stderr].filter(Boolean).join('\n').trim();
+    throw new Error(`REAL_RENDER_FAILED (exit ${renderer.status}): ${details || 'No renderer diagnostics available'}`);
+  }
+  if (!fs.existsSync(outputPath) || fs.statSync(outputPath).size <= 10240) {
+    throw new Error('REAL_RENDER_OUTPUT_INVALID: FFmpeg did not produce a non-empty MP4 preview.');
+  }
+
+  let probe;
+  try {
+    probe = JSON.parse(execFileSync('ffprobe', [
+      '-hide_banner', '-loglevel', 'error', '-print_format', 'json',
+      '-show_format', '-show_streams', outputPath,
+    ], {
+      cwd: PROJECT_ROOT,
+      encoding: 'utf8',
+      timeout: 15000,
+    }));
+  } catch (error) {
+    throw new Error(`REAL_RENDER_OUTPUT_UNREADABLE: ${error.message}`);
+  }
+
+  const videoStream = (probe.streams || []).find((stream) => stream.codec_type === 'video');
+  if (!videoStream || videoStream.codec_name !== 'h264') {
+    throw new Error('REAL_RENDER_OUTPUT_INVALID: expected an H.264 video stream.');
+  }
+
+  const captionScenes = sceneConfig.scenes.map((scene) => ({
+    ...scene,
+    narrationText: (scene.overlays || [])
+      .map((overlay) => overlay.text)
+      .filter(Boolean)
+      .join(' '),
+  }));
+  const captionResult = generateCaptionCues(captionScenes, { language: lang });
+  const captionValidation = validateCaptionCues(captionResult.cues);
+  if (captionResult.cues.length === 0 || !captionValidation.valid) {
+    throw new Error(`REAL_RENDER_CAPTIONS_INVALID: ${captionValidation.warnings.join('; ') || 'no caption cues generated'}`);
+  }
+
+  const captionPath = path.join(renderDir, `captions_${lang}.srt`);
+  fs.writeFileSync(captionPath, generateSrtContent(captionResult.cues), 'utf8');
+
+  const packagingResult = await packageRenderJob({
+    jobId: game,
+    outputDir: renderDir,
+    jobConfig: renderConfig,
+  });
+
+  const durationSec = Number(packagingResult.manifest?.media?.video?.[0]?.durationSec);
+  if (!Number.isFinite(durationSec) || durationSec <= 0) {
+    throw new Error('REAL_RENDER_PACKAGE_INVALID: packaged manifest has no readable video duration.');
+  }
+
+  const junitPath = path.join(renderDir, 'golden.junit.xml');
+  writePhysicalRenderJUnit(junitPath, {
+    projectId: game,
+    durationSec,
+    captionCount: captionResult.cues.length,
+  });
+
+  return {
+    containerPath: packagingResult.manifestPath,
+    junitPath,
+    videoPath: outputPath,
+    captionPath,
+    configPath,
+    rendererOutput: renderer.stdout,
+  };
 }
 
 function runChecklist({ game, containerPath, junitPath, format = 'text' }) {
@@ -215,7 +291,7 @@ async function runMobiusE2E(options = {}, deps = {}) {
   }));
 
   const buildConfig = deps.buildConfig || ((ingestionManifest, storyboardManifest) =>
-    buildRenderJobConfig({
+    buildCanonicalRenderConfig({
       projectId: game,
       lang,
       resolution,
@@ -225,12 +301,12 @@ async function runMobiusE2E(options = {}, deps = {}) {
     })
   );
 
-  const renderJob = deps.renderJob || ((renderConfig) => {
-    const renderDir = path.join(outputDir, `${mode}-render`);
-    ensureDir(renderDir);
-    fs.writeFileSync(path.join(renderDir, 'render-config.json'), JSON.stringify(renderConfig, null, 2), 'utf8');
-    return writePlaceholderArtifacts(renderDir, { lang, resolution: renderConfig.video.resolution, timing: renderConfig.timing });
-  });
+  const renderJob = deps.renderJob || ((renderConfig) => renderRealPreview({
+    game,
+    lang,
+    outputDir,
+    renderConfig,
+  }));
 
   const runChecklistFn = deps.runChecklist || ((containerPath, junitPath) =>
     runChecklist({ game, containerPath, junitPath })
@@ -259,15 +335,16 @@ async function runMobiusE2E(options = {}, deps = {}) {
     summary.steps.push({ name: 'storyboard', durationMs: Date.now() - storyboardStart });
 
     const configStart = Date.now();
-    const renderConfig = buildConfig(ingestionManifest, storyboardManifest);
+    const renderConfig = await buildConfig(ingestionManifest, storyboardManifest);
+    fs.writeFileSync(path.join(outputDir, 'render-job-config.json'), JSON.stringify(renderConfig, null, 2), 'utf8');
     summary.steps.push({ name: 'render-config', durationMs: Date.now() - configStart });
 
     const renderStart = Date.now();
-    const artifacts = renderJob(renderConfig);
+    const artifacts = await renderJob(renderConfig);
     summary.steps.push({ name: 'render', durationMs: Date.now() - renderStart });
 
     const checklistStart = Date.now();
-    const checklistResult = runChecklistFn(artifacts.containerPath, artifacts.junitPath);
+    const checklistResult = await runChecklistFn(artifacts.containerPath, artifacts.junitPath);
     summary.steps.push({ name: 'checklist', durationMs: Date.now() - checklistStart });
 
     summary.success = checklistResult.status === 0;
@@ -275,6 +352,13 @@ async function runMobiusE2E(options = {}, deps = {}) {
       exitCode: checklistResult.status,
       stdout: checklistResult.stdout,
       stderr: checklistResult.stderr,
+    };
+    summary.artifacts = {
+      containerPath: artifacts.containerPath,
+      junitPath: artifacts.junitPath,
+      videoPath: artifacts.videoPath,
+      captionPath: artifacts.captionPath,
+      configPath: artifacts.configPath,
     };
 
     return summary;
@@ -301,7 +385,9 @@ async function runCli() {
   }
 
   if (summary.success) {
-    console.log('E2E PASS');
+    console.log('E2E PASS (real MP4 rendered and checklist validated)');
+    if (summary.artifacts?.videoPath) console.log(`- video: ${summary.artifacts.videoPath}`);
+    if (summary.artifacts?.containerPath) console.log(`- manifest: ${summary.artifacts.containerPath}`);
     process.exit(0);
   }
 
@@ -324,6 +410,6 @@ if (require.main === module) {
 module.exports = {
   parseArgs,
   runMobiusE2E,
-  buildRenderJobConfig,
   runChecklist,
+  renderRealPreview,
 };

@@ -1,38 +1,115 @@
-// Storyboard expansion from ingestion manifests (Phase E3).
 // This module consumes contract-driven ingestion output to build governed
 // storyboard scenes. It is intentionally separate from the ingestion pipeline
 // and lives under the storyboard namespace to avoid namespace confusion.
 
 const {
   computeTextDuration,
-  computeTitleDuration
+  computeTitleDuration,
 } = require('./storyboard_timing');
 
 const {
   buildIntroOverlay,
   buildStepOverlay,
-  buildComponentVisuals
+  buildComponentVisuals,
 } = require('./storyboard_layout');
 
 const { applyFadeIn, buildFocusZoom } = require('./storyboard_motion');
 
+const SETUP_HEADING_PATTERN = /\b(setup|set[ -]?up|mise en place|préparation)\b/i;
+
+function slugify(value) {
+  return String(value || 'unknown-game')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'unknown-game';
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
- * @typedef {Object} StoryboardOptions
- * @property {number} [width]
- * @property {number} [height]
- * @property {number} [fps]
+ * Resolve game identity from either the governed storyboard-ingestion DTO or
+ * the current deterministic ingestion manifest. The latter exposes identity
+ * through document metadata and is the canonical output of runIngestionPipeline.
  */
+function resolveGameIdentity(ingestion) {
+  const document = ingestion.document || {};
+  const bgg = document.bgg || {};
+  const name = ingestion.game?.name || bgg.name || document.title || 'Unknown Game';
+  const slug = ingestion.game?.slug || document.gameId || document.slug || slugify(name || document.id);
+  return { slug: slugify(slug), name };
+}
+
+function cleanSetupText(text, headingTitle) {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!normalized || !headingTitle) return normalized;
+
+  // Ingestion components can include the document title before the heading.
+  // Retain the operator-reviewable source text while removing that repeated
+  // heading prefix from the spoken/on-screen setup instruction.
+  const headingPattern = new RegExp(`^.*?\\b${escapeRegExp(headingTitle)}\\b\\s*`, 'i');
+  return normalized.replace(headingPattern, '').trim() || normalized;
+}
+
+/**
+ * Prefer explicitly reviewed setup steps. For the deterministic ingestion
+ * contract, derive setup steps only from components whose source heading is a
+ * setup-equivalent heading; never relabel gameplay or scoring content as setup.
+ */
+function resolveSetupSteps(ingestion) {
+  const reviewedSteps = ingestion.structure?.setupSteps;
+  if (Array.isArray(reviewedSteps) && reviewedSteps.length > 0) {
+    return reviewedSteps;
+  }
+
+  const headingById = new Map(
+    (Array.isArray(ingestion.outline) ? ingestion.outline : [])
+      .filter((heading) => heading?.id)
+      .map((heading) => [heading.id, heading]),
+  );
+
+  return (Array.isArray(ingestion.components) ? ingestion.components : [])
+    .map((component, index) => {
+      const heading = headingById.get(component.sourceHeading);
+      const headingTitle = heading?.title || '';
+      if (!SETUP_HEADING_PATTERN.test(headingTitle)) return null;
+
+      const text = cleanSetupText(component.text, headingTitle);
+      if (!text) return null;
+
+      const pageRefs = [];
+      const firstPage = Number(component.pageStart);
+      const lastPage = Number(component.pageEnd);
+      if (Number.isFinite(firstPage) && firstPage > 0) {
+        pageRefs.push(firstPage);
+        if (Number.isFinite(lastPage) && lastPage > firstPage) pageRefs.push(lastPage);
+      }
+
+      return {
+        id: component.id || `setup-${index + 1}`,
+        order: index + 1,
+        text,
+        componentRefs: component.id ? [component.id] : [],
+        pageRefs,
+        pauseCue: true,
+        source: 'ingestion-component',
+      };
+    })
+    .filter(Boolean);
+}
 
 /**
  * Generate a governed storyboard from an ingestion result.
  *
  * Scenes:
  *  - intro          (always present)
- *  - setup_step[*]  (from ingestion.structure.setupSteps[])
+ *  - setup_step[*]  (from reviewed or canonical-ingestion setup structure)
  *  - end_card       (always present)
  *
  * @param {object} ingestion
- * @param {StoryboardOptions} [options]
+ * @param {object} [options]
  * @returns {object} Storyboard matching storyboard_contract_v1.1.0.json
  */
 function generateStoryboardFromIngestion(ingestion, options = {}) {
@@ -43,22 +120,19 @@ function generateStoryboardFromIngestion(ingestion, options = {}) {
   const width = options.width ?? 1920;
   const height = options.height ?? 1080;
   const fps = options.fps ?? 30;
-
-  const gameSlug = ingestion.game?.slug || 'unknown-game';
-  const gameName = ingestion.game?.name || 'Unknown Game';
+  const game = resolveGameIdentity(ingestion);
 
   const scenes = [];
   let sceneIndex = 0;
 
   // --- Intro scene ------------------------------------------------------
-  const introTitle = `How to play: ${gameName}`;
+  const introTitle = `How to play: ${game.name}`;
   const introDuration = computeTitleDuration(introTitle);
 
   const introOverlay = buildIntroOverlay(introTitle);
   introOverlay.endSec = introDuration;
 
   const introSceneId = 'scene-intro-0';
-
   const introScene = {
     id: introSceneId,
     index: sceneIndex,
@@ -68,31 +142,23 @@ function generateStoryboardFromIngestion(ingestion, options = {}) {
     nextSceneId: null, // filled later
     durationSec: introDuration,
     visuals: [],
-    overlays: [introOverlay]
+    overlays: [introOverlay],
   };
 
   scenes.push(introScene);
   sceneIndex += 1;
 
-  // --- Setup_step scenes ------------------------------------------------
-  const setupSteps = Array.isArray(ingestion.structure?.setupSteps)
-    ? ingestion.structure.setupSteps
-    : [];
-
+  // --- Setup-step scenes ------------------------------------------------
+  const setupSteps = resolveSetupSteps(ingestion);
   for (const step of setupSteps) {
     const stepId = step.id || `setup-${sceneIndex}`;
     const text = step.text || '';
     const componentRefs = Array.isArray(step.componentRefs) ? step.componentRefs : [];
-
     const durationSec = computeTextDuration(text);
-
     const overlays = [buildStepOverlay(stepId, text, durationSec)];
+    const visualsBase = buildComponentVisuals(componentRefs).map((visual) => applyFadeIn(visual, 0.5));
 
-    const visualsBase = buildComponentVisuals(componentRefs).map((v) =>
-      applyFadeIn(v, 0.5)
-    );
-
-    const scene = {
+    scenes.push({
       id: `scene-setup-${stepId}`,
       index: sceneIndex,
       segmentId: stepId,
@@ -101,10 +167,8 @@ function generateStoryboardFromIngestion(ingestion, options = {}) {
       nextSceneId: null, // filled later
       durationSec,
       visuals: visualsBase,
-      overlays
-    };
-
-    scenes.push(scene);
+      overlays,
+    });
     sceneIndex += 1;
   }
 
@@ -115,17 +179,16 @@ function generateStoryboardFromIngestion(ingestion, options = {}) {
   endOverlay.id = 'overlay-end-title';
   endOverlay.endSec = endDuration;
 
-  const endSceneId = `scene-end-card-${sceneIndex}`;
   const endScene = {
-    id: endSceneId,
+    id: `scene-end-card-${sceneIndex}`,
     index: sceneIndex,
     segmentId: 'end-card-0',
     type: 'end_card',
-    prevSceneId: null, // filled later
+    prevSceneId: null,
     nextSceneId: null,
     durationSec: endDuration,
     visuals: [],
-    overlays: [endOverlay]
+    overlays: [endOverlay],
   };
 
   scenes.push(endScene);
@@ -137,33 +200,23 @@ function generateStoryboardFromIngestion(ingestion, options = {}) {
     scene.nextSceneId = i === scenes.length - 1 ? null : scenes[i + 1].id;
   }
 
-  // OPTIONAL: Add a focus_zoom motion for intro overlay (non-critical)
+  // Optional motion metadata remains intentionally non-blocking.
   const firstScene = scenes[0];
-  if (firstScene && firstScene.overlays && firstScene.overlays[0]) {
+  if (firstScene?.overlays?.[0]) {
     const focus = buildFocusZoom(0.5, 0.5, Math.min(2, firstScene.durationSec));
-    // Not attached to a visual asset, but render side can choose to use it
-    // or we can leave it as soft metadata later. For now, we ignore it
-    // to keep contract simple.
     void focus;
   }
 
-  const storyboard = {
+  return {
     storyboardContractVersion: '1.1.0',
-    game: {
-      slug: gameSlug,
-      name: gameName
-    },
-    resolution: {
-      width,
-      height,
-      fps
-    },
-    scenes
+    game,
+    resolution: { width, height, fps },
+    scenes,
   };
-
-  return storyboard;
 }
 
 module.exports = {
-  generateStoryboardFromIngestion
+  generateStoryboardFromIngestion,
+  resolveGameIdentity,
+  resolveSetupSteps,
 };

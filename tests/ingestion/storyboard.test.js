@@ -62,4 +62,45 @@ describe('generateStoryboardFromIngestion', () => {
       expect(scene.nextSceneId).toBe(index === list.length - 1 ? null : list[index + 1].id);
     });
   });
+
+  it('derives game identity and setup scenes from the canonical deterministic ingestion manifest', () => {
+    const ingestion = {
+      document: {
+        id: 'hanamikoji-rulebook',
+        gameId: 'hanamikoji',
+        title: 'Hanamikoji',
+        bgg: { name: 'Hanamikoji' },
+      },
+      outline: [
+        { id: 'heading-title', title: 'HANAMIKOJI', page: 1 },
+        { id: 'heading-setup', title: 'Setup', page: 1 },
+        { id: 'heading-gameplay', title: 'Gameplay', page: 2 },
+      ],
+      components: [
+        {
+          id: 'comp-setup',
+          sourceHeading: 'heading-setup',
+          text: 'HANAMIKOJI Setup Shuffle the favor cards and place them face down.',
+          pageStart: 1,
+          pageEnd: 1,
+        },
+        {
+          id: 'comp-gameplay',
+          sourceHeading: 'heading-gameplay',
+          text: 'Each round players perform four actions.',
+          pageStart: 2,
+          pageEnd: 2,
+        },
+      ],
+    };
+
+    const storyboard = generateStoryboardFromIngestion(ingestion);
+
+    expect(storyboard.game).toEqual({ slug: 'hanamikoji', name: 'Hanamikoji' });
+    expect(storyboard.scenes.map((scene) => scene.type)).toEqual([
+      'intro', 'setup_step', 'end_card',
+    ]);
+    expect(storyboard.scenes[1].overlays[0].text).toContain('Shuffle the favor cards');
+    expect(storyboard.scenes[1].overlays[0].text).not.toContain('Each round players');
+  });
 });
