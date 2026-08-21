@@ -24,6 +24,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import { tmpdir } from 'node:os';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -33,20 +34,41 @@ const TIMELINE_OUTPUT_NAME = 'mobius-tutorial.mp4';
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const projectDirectory = resolve(scriptDirectory, '..');
 const entryPoint = resolve(projectDirectory, 'src', 'remotion', 'index.jsx');
-const ffmpegExecutable = resolve(
+const moduleRequire = createRequire(import.meta.url);
+const legacyFfmpegExecutable = resolve(
   projectDirectory,
   'ffmpeg-bin',
   'ffmpeg-master-latest-win64-gpl',
   'bin',
   'ffmpeg.exe',
 );
-const ffprobeExecutable = resolve(
+const legacyFfprobeExecutable = resolve(
   projectDirectory,
   'ffmpeg-bin',
   'ffmpeg-master-latest-win64-gpl',
   'bin',
   'ffprobe.exe',
 );
+
+function portableBinary(packageName, property = null) {
+  try {
+    const dependency = moduleRequire(packageName);
+    const candidate = property ? dependency?.[property] : dependency;
+    return typeof candidate === 'string' && existsSync(candidate) ? candidate : null;
+  } catch {
+    return null;
+  }
+}
+
+// npm packages select the appropriate executable for the operating system during
+// installation. The legacy directory remains a compatible fallback for existing
+// developer workstations that already contain it.
+const ffmpegExecutable = process.env.MOBIUS_FFMPEG_PATH
+  || portableBinary('ffmpeg-static')
+  || legacyFfmpegExecutable;
+const ffprobeExecutable = process.env.MOBIUS_FFPROBE_PATH
+  || portableBinary('ffprobe-static', 'path')
+  || legacyFfprobeExecutable;
 
 const args = process.argv.slice(2);
 const usage = 'Usage: node scripts/render-remotion.mjs <scenes.json> [--out-dir <directory>] [--concat] | --input <scenes.json> --output <file.mp4> [--concat]';
@@ -256,7 +278,7 @@ function safeOutputName(sceneId) {
 
 function assertFfmpegBinaries() {
   if (!existsSync(ffmpegExecutable) || !existsSync(ffprobeExecutable)) {
-    fail('The bundled FFmpeg and FFprobe binaries are required for --concat rendering.');
+    fail('FFmpeg and FFprobe are required for --concat rendering. Install the portable project dependencies or configure MOBIUS_FFMPEG_PATH and MOBIUS_FFPROBE_PATH.');
   }
 }
 
