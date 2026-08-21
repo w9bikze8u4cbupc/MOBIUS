@@ -736,3 +736,38 @@ test('renders a confirmed, server-resolved verified mechanic rulebook page for a
 });
 
 });
+
+
+test('allows an explicitly reviewed cross-sequence reference while retaining the ordinary reuse guard', () => {
+  const { validateReleaseVisualPlans } = require('../../src/api/remotionRenderRoutes.js');
+  const sharedVisualPlan = {
+    requiresExplicitVisual: true,
+    reviewState: 'resolved',
+    selectedAssetIds: ['reviewed-board'],
+    selectionMethod: 'operator_selected',
+    manualSelectionReviewed: true,
+    primaryIntent: 'operator_defined',
+    primaryComponentRefs: [],
+    supportingComponentRefs: [],
+    coverageStatus: 'resolved',
+    coverageReason: 'Reviewed assembled-game reference.',
+    coverageEvidence: [],
+    assetAssignments: [{
+      assetId: 'reviewed-board',
+      role: 'primary',
+      componentId: null,
+      reuseExempt: true,
+      reuseReason: 'Reviewed assembled-game reference shows the mechanic areas used in this tutorial.',
+    }],
+    overviewSelectionConfirmed: false,
+  };
+  const scenes = ['one', 'two', 'three'].map((suffix) => ({
+    id: `scene-reviewed-reference-${suffix}`,
+    storyboardVersion: '1.2.0',
+    narrationText: 'Show the reviewed game overview.',
+    imageUrls: ['src/api/uploads/reviewed-board.png'],
+    visualPlan: sharedVisualPlan,
+  }));
+
+  expect(() => validateReleaseVisualPlans(scenes)).not.toThrow();
+});

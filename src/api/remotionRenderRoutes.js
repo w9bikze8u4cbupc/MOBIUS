@@ -347,6 +347,14 @@ function coverageIsReleaseReady(visualPlan) {
   return primaryComponentRefs.every((componentId) => assignments.some((assignment) => assignment?.role === 'primary' && assignment.componentId === componentId));
 }
 
+function hasReviewedReuseReferenceExemption(assignment, visualPlan) {
+  return visualPlan?.selectionMethod === 'operator_selected'
+    && visualPlan?.manualSelectionReviewed === true
+    && assignment?.reuseExempt === true
+    && typeof assignment.reuseReason === 'string'
+    && assignment.reuseReason.trim().length >= 12;
+}
+
 function releaseReuseExceeded(scenes, projectMetadata = {}) {
   const threshold = Number.isInteger(projectMetadata?.projectContext?.visualPlanPolicy?.maxNonBrandAssetReuse)
     ? projectMetadata.projectContext.visualPlanPolicy.maxNonBrandAssetReuse
@@ -361,7 +369,7 @@ function releaseReuseExceeded(scenes, projectMetadata = {}) {
       const explicitBrandAsset = assignment.role === 'brand'
         && visualPlan.primaryIntent === 'brand_outro'
         && visualPlan.overviewSelectionConfirmed === true;
-      if (explicitBrandAsset) return;
+      if (explicitBrandAsset || hasReviewedReuseReferenceExemption(assignment, visualPlan)) return;
       const scenesUsingAsset = nonBrandUsage.get(assignment.assetId) || new Set();
       scenesUsingAsset.add(scene.id || 'unknown-scene');
       nonBrandUsage.set(assignment.assetId, scenesUsingAsset);
