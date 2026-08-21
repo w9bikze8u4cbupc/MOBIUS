@@ -230,7 +230,10 @@ function approvedComponentSelectionIsPersisted(scene, visualPlan, projectMetadat
     && isApprovedComponentLinkDetail(componentImageLinkDetails[assignment.componentId]?.[assetId], policy)));
 }
 
-const DEFAULT_NON_BRAND_REUSE_THRESHOLD = 2;
+// Keep the release gate aligned with the canonical storyboard policy. A project
+// may use one reviewed visual across up to three distinct pedagogical sequences;
+// any further reuse remains blocked unless a specific reviewed exemption exists.
+const DEFAULT_NON_BRAND_REUSE_THRESHOLD = 3;
 const COMPONENT_PRIMARY_INTENTS = new Set(['board_setup', 'component_closeup', 'card_action', 'token_action']);
 const RELEASE_PRIMARY_INTENTS = new Set([
   'game_overview', 'assembled_tableau', 'board_setup', 'component_closeup', 'card_action',

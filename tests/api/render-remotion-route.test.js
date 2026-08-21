@@ -609,7 +609,7 @@ test('rejects repeated non-brand assets even if persisted reuse annotations are 
     primaryIntent: 'operator_defined', primaryComponentRefs: [], supportingComponentRefs: [], coverageStatus: 'resolved', coverageReason: 'forged', coverageEvidence: [],
     assetAssignments: [{ assetId: 'shared-image', role: 'primary', componentId: null }], overviewSelectionConfirmed: false,
   };
-  const scenes = ['one', 'two', 'three'].map((suffix) => ({
+  const scenes = ['one', 'two', 'three', 'four'].map((suffix) => ({
     id: `scene-reuse-${suffix}`, storyboardVersion: '1.2.0', narrationText: 'Show the component.', durationInFrames: 90,
     imageAssetIds: ['shared-image'], imageUrls: ['src/api/uploads/shared.png'], visualPlan: sharedVisualPlan,
   }));
