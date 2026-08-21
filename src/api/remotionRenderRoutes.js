@@ -72,29 +72,30 @@ function loadProject(db, projectId) {
   });
 }
 
-function parseProjectScenes(project) {
-  if (project.scenes === undefined) {
-    const error = new Error('REMOTION_SCENES_MISSING');
-    error.status = 400;
-    throw error;
-  }
+export function parseProjectScenes(project) {
+  const parseSceneArray = (value) => {
+    if (value === undefined || value === null) return null;
+    try {
+      const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
 
-  let scenes;
-  try {
-    scenes = typeof project.scenes === 'string' ? JSON.parse(project.scenes) : project.scenes;
-  } catch {
-    const error = new Error('REMOTION_SCENES_INVALID');
-    error.status = 400;
-    throw error;
-  }
+  const storedScenes = parseSceneArray(project?.scenes);
+  if (storedScenes) return storedScenes;
 
-  if (!Array.isArray(scenes) || scenes.length === 0) {
-    const error = new Error('REMOTION_SCENES_INVALID');
-    error.status = 400;
-    throw error;
-  }
+  // Store the canonical handoff redundantly in render metadata. The DB row is the
+  // primary location, while this fallback keeps a completed operator review
+  // renderable if a legacy file-store record omitted its `scenes` column.
+  const metadata = parseProjectMetadata(project);
+  const metadataScenes = parseSceneArray(metadata?.renderState?.remotionScenes);
+  if (metadataScenes) return metadataScenes;
 
-  return scenes;
+  const error = new Error(project?.scenes === undefined ? 'REMOTION_SCENES_MISSING' : 'REMOTION_SCENES_INVALID');
+  error.status = 400;
+  throw error;
 }
 
 function isExternalAssetReference(value) {

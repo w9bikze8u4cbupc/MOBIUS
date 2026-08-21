@@ -802,3 +802,12 @@ test('counts contiguous render scenes from one canonical section as one visual r
 
   expect(() => validateReleaseVisualPlans(scenes)).not.toThrow();
 });
+
+
+test('recovers a canonical Remotion scene array from persisted render metadata when a legacy row omits scenes', () => {
+  const { parseProjectScenes } = require('../../src/api/remotionRenderRoutes.js');
+  const expectedScenes = [{ id: 'scene-section-01-1', narrationText: 'Bienvenue dans Abyss.' }];
+  expect(parseProjectScenes({
+    metadata: JSON.stringify({ renderState: { remotionScenes: expectedScenes } }),
+  })).toEqual(expectedScenes);
+});

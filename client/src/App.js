@@ -1277,6 +1277,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           ...(metadata.renderState || {}),
           ingestionManifest,
           storyboardManifest: releaseStoryboardManifest,
+          remotionScenes: scenes,
         },
       };
       const projectContext = createPersistedProjectContext({
