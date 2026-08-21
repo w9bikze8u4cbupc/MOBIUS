@@ -317,7 +317,15 @@ function buildSceneCommand(scene, index) {
 
   if (scene.background?.image && existsSync(scene.background.image)) {
     inputArgs.push('-loop', '1', '-i', scene.background.image);
-    filterBase = `[0:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1`;
+    // Create a full-frame, softened version of the source asset behind a
+    // readable foreground page or component. This avoids letterboxed slides
+    // while retaining the original visual as an honest, inspectable source.
+    const foregroundWidth = Math.round(width * 0.84);
+    const foregroundHeight = Math.round(height * 0.84);
+    filterBase = `[0:v]split=2[bgsrc][fgsrc];`
+      + `[bgsrc]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},boxblur=20:10,eq=brightness=-0.22:saturation=0.75[bg];`
+      + `[fgsrc]scale=${foregroundWidth}:${foregroundHeight}:force_original_aspect_ratio=decrease[fg];`
+      + `[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1`;
   } else {
     const color = scene.background?.color || '#1a1a2e';
     inputArgs.push('-f', 'lavfi', '-i', `color=c=${color}:s=${width}x${height}:d=${scene.durationSec}:r=${fps}`);
@@ -466,7 +474,14 @@ try {
   execFileSync('ffmpeg', [
     '-hide_banner', '-loglevel', verbose ? 'info' : 'error', '-y',
     '-f', 'concat', '-safe', '0', '-i', concatListPath,
-    '-c', 'copy',
+    // Video segments share a codec and may be stream-copied. Re-encode audio
+    // after concatenation so AAC frame boundaries and timestamps remain valid
+    // when narration segments have different non-frame-aligned durations.
+    '-c:v', 'copy',
+    // Normalize the assembled narration after resampling so the final program,
+    // not merely individual scene files, targets the release loudness standard.
+    '-af', 'aresample=async=1:first_pts=0,loudnorm=I=-14:TP=-1.0:LRA=11',
+    '-c:a', 'aac', '-b:a', '192k',
     finalOutput,
   ], { stdio: verbose ? 'inherit' : 'pipe' });
 } catch (err) {

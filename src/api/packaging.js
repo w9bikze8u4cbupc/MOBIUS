@@ -45,10 +45,14 @@ function loadLocalizationConfig() {
   try {
     const raw = fs.readFileSync(pathToUse, 'utf8');
     const parsed = JSON.parse(raw);
-    return {
-      subtitleLocaleCodes:
-        parsed.subtitleLocaleCodes || parsed.subtitle_locale_codes || parsed.locales || {},
-    };
+    const rawCodes = parsed.subtitleLocaleCodes || parsed.subtitle_locale_codes || {};
+    const subtitleLocaleCodes = {};
+    for (const [locale, code] of Object.entries(rawCodes)) {
+      // Rich `locales` metadata is not a subtitle code map. Retain only string
+      // language codes so objects can never leak into manifest fields.
+      if (typeof code === 'string') subtitleLocaleCodes[locale] = code;
+    }
+    return { subtitleLocaleCodes };
   } catch (err) {
     return {};
   }
@@ -163,7 +167,9 @@ async function describeMediaEntries({ files, outputDir, kind }) {
 }
 
 function inferLanguage(filename) {
-  const match = filename.match(/\.([a-z]{2})(?:-[A-Z]{2})?\.(srt|vtt)$/i);
+  // Support conventional sidecar names such as `game.en.srt`,
+  // `game-en.srt`, and `game_en.srt` when no locale map is available.
+  const match = filename.match(/(?:^|[-_.])([a-z]{2})(?:-[A-Z]{2})?\.(srt|vtt)$/i);
   return match ? match[1] : undefined;
 }
 

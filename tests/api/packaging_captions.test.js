@@ -42,7 +42,25 @@ describe('packageRenderJob captions', () => {
     cleanup(tempDir);
   });
 
+  it('does not serialize locale metadata objects as caption language codes', async () => {
+    fs.writeFileSync(LOCALIZATION_GENERATED_PATH, JSON.stringify({
+      locales: { 'en-US': { tone: 'warm, beginner-friendly, no slang' } },
+    }));
+    const captionEn = path.join(tempDir, 'demo-en.srt');
+    fs.writeFileSync(captionEn, '1\n00:00:00,000 --> 00:00:01,000\nHello');
+
+    const result = await packageRenderJob({ jobId: 'job-locale-object', outputDir: tempDir, jobConfig: {} });
+    const manifest = JSON.parse(fs.readFileSync(result.manifestPath, 'utf8'));
+
+    expect(manifest.media.captions[0]).toMatchObject({
+      language: 'en',
+      languageCode: 'en',
+    });
+    expect(typeof manifest.media.captions[0].languageCode).toBe('string');
+  });
+
   it('captures caption metadata and checksums in container.json', async () => {
+    fs.writeFileSync(LOCALIZATION_GENERATED_PATH, JSON.stringify(localizationConfig));
     const captionEn = path.join(tempDir, 'demo-en.srt');
     const captionFr = path.join(tempDir, 'demo-fr.srt');
     fs.writeFileSync(captionEn, '1\n00:00:00,000 --> 00:00:01,000\nHello');

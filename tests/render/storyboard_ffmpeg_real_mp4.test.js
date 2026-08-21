@@ -142,6 +142,14 @@ describe('Real MP4 render smoke (requires FFmpeg)', () => {
     expect(audioStream).toBeDefined();
   });
 
+  test('output audio decodes without packet errors after scene concatenation', () => {
+    expect(() => execFileSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-xerror',
+      '-i', outputPath,
+      '-map', '0:a:0', '-f', 'null', '-',
+    ], { stdio: 'pipe', timeout: 30000 })).not.toThrow();
+  });
+
   test('output duration approximately matches fixture total (7s)', () => {
     const probe = probeVideo(outputPath);
     const duration = Number(probe.format.duration);

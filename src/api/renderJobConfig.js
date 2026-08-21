@@ -156,7 +156,41 @@ function parseResolution(input) {
   return { width: Number(width), height: Number(height) };
 }
 
-function normalizeStoryboardScenes(storyboardManifest, renderableImageIds = new Set()) {
+function normalizeNarrationAssets(narrationAssets = []) {
+  return (Array.isArray(narrationAssets) ? narrationAssets : [])
+    .filter((asset) => asset?.id && asset.status === 'ready' && typeof asset.filePath === 'string' && asset.filePath.trim())
+    .map((asset) => ({
+      id: asset.id,
+      sceneId: asset.sceneId || null,
+      segmentId: asset.segmentId || null,
+      provider: asset.provider || 'manual',
+      language: asset.language || null,
+      durationMs: safeNumber(asset.durationMs, 0) || null,
+      renderPath: path.resolve(asset.filePath),
+    }));
+}
+
+function resolveSceneAudio(scene, rendererAudioAssets) {
+  if (scene?.audio?.file) {
+    return scene.audio;
+  }
+
+  const sceneId = scene?.id;
+  const segmentId = scene?.segmentId || sceneId;
+  const asset = rendererAudioAssets.find((candidate) => candidate.sceneId === sceneId)
+    || rendererAudioAssets.find((candidate) => candidate.segmentId === segmentId);
+
+  if (!asset) return undefined;
+
+  return {
+    assetId: asset.id,
+    file: asset.renderPath,
+    provider: asset.provider,
+    language: asset.language,
+  };
+}
+
+function normalizeStoryboardScenes(storyboardManifest, renderableImageIds = new Set(), rendererAudioAssets = []) {
   if (!storyboardManifest || !Array.isArray(storyboardManifest.scenes)) {
     return { scenes: [], totalDurationSec: 0 };
   }
@@ -180,6 +214,7 @@ function normalizeStoryboardScenes(storyboardManifest, renderableImageIds = new 
       type: scene.type || "unknown",
       durationSec: safeNumber(scene.durationSec ?? scene.durationMs / 1000, 0),
       imageId,
+      audio: resolveSceneAudio(scene, rendererAudioAssets),
       overlays: Array.isArray(scene.overlays) && scene.overlays.length > 0
         ? scene.overlays.map((overlay) => ({
             id: overlay.id,
@@ -210,6 +245,7 @@ export function buildRenderJobConfig({
   captionLocales = [],
   burnInCaptions = false,
   projectImages = [],
+  narrationAssets = [],
 } = {}) {
   if (!projectId) {
     throw new Error("RENDER_JOB_PROJECT_ID_REQUIRED");
@@ -230,9 +266,11 @@ export function buildRenderJobConfig({
       renderPath: path.resolve(image.fileKey),
     }));
   const renderableImageIds = new Set(rendererImages.map((image) => image.id));
+  const rendererAudioAssets = normalizeNarrationAssets(narrationAssets);
   const { scenes, totalDurationSec } = normalizeStoryboardScenes(
     storyboardManifest,
     renderableImageIds,
+    rendererAudioAssets,
   );
 
   const storyboardResolution = storyboardManifest.resolution || {};
@@ -301,13 +339,14 @@ export function buildRenderJobConfig({
 
   const assets = {
     images: [...rendererImages, ...manifestImageAssets],
-    audio: [],
+    audio: rendererAudioAssets,
     captions: captionTracks,
     storyboardScenes: scenes.map((scene) => ({
       id: scene.id,
       type: scene.type,
       durationSec: scene.durationSec,
       imageId: scene.imageId,
+      audio: scene.audio,
       overlays: scene.overlays,
     })),
   };
@@ -422,6 +461,7 @@ export function registerRenderJobConfigRoute(app, { loadProjectById } = {}) {
         captionLocales,
         burnInCaptions,
         projectImages: project.images || [],
+        narrationAssets: project.narrationAssets || project.audioAssets || [],
       });
 
       return res.json({ ok: true, config });

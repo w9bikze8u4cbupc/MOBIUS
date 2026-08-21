@@ -115,6 +115,35 @@ describe('buildRenderJobConfig', () => {
     });
   });
 
+  it('maps ready narration assets onto their matching storyboard scenes', () => {
+    const config = buildRenderJobConfig({
+      projectId: 'p-audio',
+      ingestionManifest,
+      storyboardManifest,
+      narrationAssets: [{
+        id: 'voice-setup',
+        sceneId: 'setup',
+        provider: 'elevenlabs',
+        filePath: 'data/demo/voice-setup.wav',
+        status: 'ready',
+        language: 'en',
+      }],
+    });
+
+    expect(config.assets.audio).toContainEqual(expect.objectContaining({
+      id: 'voice-setup',
+      sceneId: 'setup',
+      provider: 'elevenlabs',
+      renderPath: path.resolve('data/demo/voice-setup.wav'),
+    }));
+    expect(config.assets.storyboardScenes.find((scene) => scene.id === 'setup')).toMatchObject({
+      audio: {
+        file: path.resolve('data/demo/voice-setup.wav'),
+        assetId: 'voice-setup',
+      },
+    });
+  });
+
   it('throws when prerequisites are missing', () => {
     expect(() => buildRenderJobConfig({})).toThrow('RENDER_JOB_PROJECT_ID_REQUIRED');
     expect(() =>
