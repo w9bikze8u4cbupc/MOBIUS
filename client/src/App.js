@@ -1816,12 +1816,21 @@ const fileInputRef = useRef(); // Ref for the hidden file input
           return;
         }
         const profiledStoryboardManifest = applyVerifiedAbyssCurationProfile(storyboardManifest, projectId);
+        // Reconcile the project-specific, already-reviewed profile before validating.
+        // This must exactly match the button’s enabled-state calculation, otherwise
+        // a visually resolved storyboard cannot advance after a regenerated session.
+        const reconciledProfiledStoryboardManifest = reconcileStoryboardVisualPlans(profiledStoryboardManifest, {
+          images: projectImages,
+          componentImageLinks,
+          componentImageLinkDetails,
+          components: gameComponents,
+        });
         // Persist deterministic, operator-reviewed migrations before the final gate.
         // A partially reviewed storyboard must retain valid proof assignments while
         // the operator resolves the remaining scenes; otherwise a failed attempt
         // discards actionable review work and forces a stale re-review.
-        setStoryboardManifest(profiledStoryboardManifest);
-        const storyboardReview = validateStoryboardReview(profiledStoryboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails, components: gameComponents });
+        setStoryboardManifest(reconciledProfiledStoryboardManifest);
+        const storyboardReview = validateStoryboardReview(reconciledProfiledStoryboardManifest, projectImages, { componentImageLinks, componentImageLinkDetails, components: gameComponents });
         if (!storyboardReview.valid) {
           setError(storyboardReview.code);
           return;
