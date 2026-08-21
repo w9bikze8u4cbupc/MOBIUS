@@ -60,6 +60,9 @@ function reviewedAssetSelection(assignments, { selectionMethod = 'operator_selec
       assetId: assignment.assetId,
       componentId: assignment.componentId || null,
       role: assignment.role || 'primary',
+      ...(assignment.reuseExempt === true && typeof assignment.reuseReason === 'string'
+        ? { reuseExempt: true, reuseReason: assignment.reuseReason }
+        : {}),
     })),
     selectionMethod,
     manualSelectionReviewed: true,
@@ -79,10 +82,20 @@ function reviewedAssetsForFrenchScene(scene) {
     return reviewedAssetSelection([{ assetId: reviewedAssets.fullSetup, role: 'primary' }]);
   }
   if (/deroulement d.?un tour|explorer les profondeurs|conseil et recrutement/.test(text)) {
-    return reviewedAssetSelection([{ assetId: reviewedAssets.boardOverview, role: 'primary' }]);
+    return reviewedAssetSelection([{
+      assetId: reviewedAssets.boardOverview,
+      role: 'primary',
+      reuseExempt: true,
+      reuseReason: 'Vue de plateau Abyss révisée : zones Exploration, Conseil, Cour, Menace et Lieu visibles.',
+    }]);
   }
   if (/controler un lieu/.test(text)) {
-    return reviewedAssetSelection([{ assetId: reviewedAssets.boardOverview, componentId: 'comp-6' }]);
+    return reviewedAssetSelection([{
+      assetId: reviewedAssets.boardOverview,
+      componentId: 'comp-6',
+      reuseExempt: true,
+      reuseReason: 'Vue de plateau Abyss révisée : Lieu et jetons Clé visibles pour cette mécanique.',
+    }]);
   }
   if (/fin de partie et decompte/.test(text)) return reviewedAssetSelection(objectiveAssetAssignments);
   if (/conclusion/.test(text)) {

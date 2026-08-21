@@ -545,3 +545,33 @@ test('marks a consensus-completed scene as matched for the central storyboard-re
   const reconciled = reconcileStoryboardVisualPlans({ version: '1.2.0', scenes: [sourceA, sourceB, target] }, { images, components });
   expect(reconciled.scenes.find((scene) => scene.id === 'target-control')).toMatchObject({ visualReviewState: 'matched', visualPlan: { coverageStatus: 'resolved' } });
 });
+
+
+test('reviewed operator reuse exemption requires a durable rationale and does not weaken the default threshold', () => {
+  const scene = (id, assignment = {}) => requiredScene({
+    id,
+    sectionId: `section-${id}`,
+    title: `Mechanic ${id}`,
+    visualPlan: {
+      selectedAssetIds: ['monster-image'],
+      selectionMethod: 'operator_selected',
+      manualSelectionReviewed: true,
+      assetAssignments: [{ assetId: 'monster-image', role: 'primary', componentId: 'monster-tokens', ...assignment }],
+    },
+  });
+  const missingReason = validateStoryboardVisualPlans({
+    version: '1.2.0', scenes: [scene('one', { reuseExempt: true }), scene('two', { reuseExempt: true }), scene('three', { reuseExempt: true }), scene('four', { reuseExempt: true })],
+  }, coverageContext);
+  expect(missingReason).toMatchObject({ valid: false, code: 'VISUAL_ASSET_REUSE_EXCEEDED' });
+
+  const reviewedReference = validateStoryboardVisualPlans({
+    version: '1.2.0', scenes: [
+      scene('one', { reuseExempt: true, reuseReason: 'Reviewed assembled-game reference shows every required mechanic area.' }),
+      scene('two', { reuseExempt: true, reuseReason: 'Reviewed assembled-game reference shows every required mechanic area.' }),
+      scene('three', { reuseExempt: true, reuseReason: 'Reviewed assembled-game reference shows every required mechanic area.' }),
+      scene('four', { reuseExempt: true, reuseReason: 'Reviewed assembled-game reference shows every required mechanic area.' }),
+    ],
+  }, coverageContext);
+  expect(reviewedReference).toMatchObject({ valid: true });
+  expect(reviewedReference.manifest.scenes[0].visualPlan.assetReuse[0]).toMatchObject({ exempt: true, exemptionReason: 'Reviewed assembled-game reference shows every required mechanic area.' });
+});

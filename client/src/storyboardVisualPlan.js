@@ -304,7 +304,13 @@ function normaliseAssignments(priorAssignments, selectedAssetIds, requirements, 
         : (requirements.primaryComponentRefs.length === 1 ? requirements.primaryComponentRefs[0] : null);
     }
     if (role === 'supporting' && !componentId && candidate?.requirementRole === 'supporting') componentId = candidate.componentId;
-    return { assetId, role, componentId };
+    // Cross-sequence reuse remains blocked by default. It can be exempted only for
+    // an explicit, reviewed operator selection with a durable rationale; arbitrary
+    // browser selections and automatic matches can never set this flag.
+    const reuseReason = typeof prior?.reuseReason === 'string' ? prior.reuseReason.trim() : '';
+    const reuseExempt = selectionMethod === 'operator_selected'
+      && prior?.reuseExempt === true && reuseReason.length >= 12;
+    return { assetId, role, componentId, ...(reuseExempt ? { reuseExempt: true, reuseReason } : {}) };
   });
 }
 
@@ -545,7 +551,7 @@ function annotateAssetReuse(scenes, policy = {}) {
         sequenceEntries.set(entry.sequenceGroup, groupEntries);
       });
       const count = sequenceEntries.size;
-      const exempt = assignment.role === 'brand';
+      const exempt = assignment.role === 'brand' || assignment.reuseExempt === true;
       const currentSequenceSceneIds = sequenceEntries.get(sequenceGroups.get(scene.id))?.map((entry) => entry.sceneId) || [];
       return {
         assetId: assignment.assetId,
@@ -553,6 +559,7 @@ function annotateAssetReuse(scenes, policy = {}) {
         rawCount: entries.length,
         threshold,
         exempt,
+        exemptionReason: assignment.reuseExempt === true ? assignment.reuseReason : null,
         exceedsThreshold: !exempt && count > threshold,
         sceneIds: entries.map((entry) => entry.sceneId),
         currentSequenceSceneIds,
