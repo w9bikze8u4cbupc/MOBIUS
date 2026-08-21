@@ -1356,8 +1356,9 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         renderer: "remotion",
       });
     } catch (err) {
-      const apiError = err.response?.data?.error || err.response?.data?.code || err.message;
-      setRenderJobError(apiError);
+      const apiCode = err.response?.data?.code;
+      const apiMessage = err.response?.data?.error || err.message;
+      setRenderJobError(apiCode && apiMessage ? `${apiCode}: ${apiMessage}` : (apiMessage || apiCode || 'Remotion rendering failed.'));
     } finally {
       setRenderJobLoading(false);
     }
