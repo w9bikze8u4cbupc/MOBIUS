@@ -835,3 +835,13 @@ test('recovers a canonical Remotion scene array from persisted render metadata w
     metadata: JSON.stringify({ renderState: { remotionScenes: expectedScenes } }),
   })).toEqual(expectedScenes);
 });
+
+
+test('prefers a canonical render path over a browser preview URL for a reviewed image asset', () => {
+  const { getProjectImageRenderReference } = require('../../src/api/remotionRenderRoutes.js');
+  expect(getProjectImageRenderReference({
+    renderPath: '/canonical/data/abyss/manual-images/cover.jpg',
+    fileKey: '/legacy/file.jpg',
+    localUrl: '/api/projects/abyss/images/manual-cover/file',
+  })).toBe('/canonical/data/abyss/manual-images/cover.jpg');
+});

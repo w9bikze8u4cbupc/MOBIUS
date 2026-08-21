@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import { generateNarration } from '../services/elevenLabsService.js';
 import { sanitizeSpokenText } from '../services/scriptPackage.js';
 import { contextualEvidenceService } from '../services/contextualEvidenceService.js';
+import { listImages } from '../services/imageStore.js';
 
 const execFileAsync = promisify(execFile);
 // Keep this compatible with the repository's Jest CommonJS transform.
@@ -189,12 +190,16 @@ function parseProjectImages(project) {
   }
 }
 
-function getProjectImageRenderReference(image) {
-  const reference = typeof image?.fileKey === 'string' && image.fileKey.trim()
-    ? image.fileKey
-    : typeof image?.localUrl === 'string' && image.localUrl.trim()
-      ? image.localUrl
-      : null;
+export function getProjectImageRenderReference(image) {
+  // Browser review DTOs deliberately expose an /api/... preview URL. Rendering
+  // must prefer the canonical local path retained by the image store instead.
+  const reference = typeof image?.renderPath === 'string' && image.renderPath.trim()
+    ? image.renderPath
+    : typeof image?.fileKey === 'string' && image.fileKey.trim()
+      ? image.fileKey
+      : typeof image?.localUrl === 'string' && image.localUrl.trim()
+        ? image.localUrl
+        : null;
   return reference || null;
 }
 
@@ -420,6 +425,18 @@ export async function bindReleaseVisualPlanAssets(scenes, project, { contextualE
     ? persistedContextProjectId
     : String(project.id);
   const imagesById = new Map(parseProjectImages(project).map((image) => [image.id, image]));
+  // Rehydrate renderer-only fields from the canonical image store. The project
+  // row intentionally contains the browser-safe review DTO, whose localUrl is
+  // an HTTP preview endpoint rather than a filesystem path.
+  try {
+    const canonicalImages = listImages(contextualProjectId).images || [];
+    canonicalImages.forEach((image) => {
+      if (image?.id) imagesById.set(image.id, image);
+    });
+  } catch {
+    // Keep legacy rows renderable when their canonical image store is absent;
+    // the subsequent asset validation will fail closed for any unsafe URL.
+  }
   return Promise.all((scenes || []).map(async (scene) => {
     const isCanonicalScene = canonicalSceneIds
       ? canonicalSceneIds.has(scene?.id)
