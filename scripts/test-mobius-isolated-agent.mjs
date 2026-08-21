@@ -33,7 +33,7 @@ const requiredBootstrapTokens = [
   "'MOBIUS Isolated Local Agent'",
   "worktree add --detach $deployment origin/main",
   "git -C $deployment reset --hard origin/main",
-  "robocopy $primaryData $deploymentData",
+  "Copy-DirectoryContents $primaryData $deploymentData",
   "Copy-Item -Force -Path $primaryEnv -Destination $runtimeEnv",
   "Stop-ScheduledTask -TaskName 'MOBIUS Local Agent'",
   "Get-CimInstance Win32_Process -Filter \"Name = 'node.exe'\"",
@@ -47,6 +47,24 @@ for (const token of requiredBootstrapTokens) {
 
 if (bootstrap.includes('git -C $repo pull') || bootstrap.includes('git -C $repo reset')) {
   throw new Error('Bootstrap must never mutate the primary checkout.');
+}
+
+const bootstrapDataSeed = /if \(\$createdDeployment -and \(Test-Path \$primaryData\)\) \{\s+Copy-DirectoryContents \$primaryData \$deploymentData\s+\}/s;
+if (!bootstrapDataSeed.test(bootstrap)) {
+  throw new Error('Bootstrap must seed primary data only when creating a new isolated worktree.');
+}
+if (bootstrap.includes('& robocopy $primaryData $deploymentData')) {
+  throw new Error('Bootstrap must not directly overlay primary project data onto an existing runtime.');
+}
+const bootstrapRuntimePreservation = /Preserve-RuntimeData\s+try \{\s+& git -C \$deployment reset --hard origin\/main[\s\S]*?\} finally \{\s+Restore-RuntimeData\s+\}/;
+if (!bootstrapRuntimePreservation.test(bootstrap)) {
+  throw new Error('Bootstrap must preserve canonical runtime data across reset and cleanup.');
+}
+if (!bootstrap.includes('git -C $deployment clean -fdx -e data/ -e src/api/uploads/')) {
+  throw new Error('Bootstrap must preserve canonical runtime data and legacy local assets while cleaning builds.');
+}
+if (!agent.includes("Invoke-Git $deployment @('clean', '-fdx', '-e', 'data/', '-e', 'src/api/uploads/', '-e', '.env')")) {
+  throw new Error('Normal isolated updates must preserve canonical runtime data and legacy local assets.');
 }
 
 console.log(  'MOBIUS isolated-agent contract verified.');

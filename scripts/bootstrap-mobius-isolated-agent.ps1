@@ -29,6 +29,33 @@ Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyC
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 3
 
+$primaryData = Join-Path $repo 'data'
+$deploymentData = Join-Path $deployment 'data'
+$runtimeDataBackup = Join-Path (Split-Path $deployment -Parent) 'mobius-games-tutorial-generator-runtime-bootstrap-data'
+
+function Copy-DirectoryContents {
+    param([string]$Source, [string]$Destination)
+    if (-not (Test-Path $Source)) { return }
+    New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+    & robocopy $Source $Destination /E /COPY:DAT /DCOPY:DAT /R:2 /W:1 /NFL /NDL /NJH /NJS | Out-Null
+    if ($LASTEXITCODE -gt 7) { throw "Unable to copy runtime project data (robocopy exit code $LASTEXITCODE)." }
+}
+
+function Preserve-RuntimeData {
+    if (Test-Path $deploymentData) {
+        Remove-Item -Recurse -Force $runtimeDataBackup -ErrorAction SilentlyContinue
+        Copy-DirectoryContents $deploymentData $runtimeDataBackup
+    }
+}
+
+function Restore-RuntimeData {
+    if (Test-Path $runtimeDataBackup) {
+        Copy-DirectoryContents $runtimeDataBackup $deploymentData
+        Remove-Item -Recurse -Force $runtimeDataBackup -ErrorAction SilentlyContinue
+    }
+}
+
+$createdDeployment = $false
 if (-not (Test-Path (Join-Path $deployment '.git'))) {
     if (Test-Path $deployment) {
         $contents = Get-ChildItem -Force -Path $deployment -ErrorAction SilentlyContinue
@@ -36,19 +63,25 @@ if (-not (Test-Path (Join-Path $deployment '.git'))) {
     }
     & git -C $repo worktree add --detach $deployment origin/main
     if ($LASTEXITCODE -ne 0) { throw 'Unable to create the isolated MOBIUS worktree.' }
+    $createdDeployment = $true
 } else {
-    & git -C $deployment reset --hard origin/main
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to refresh the isolated MOBIUS worktree.' }
-    & git -C $deployment clean -fdx -e data/
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to clean stale build artifacts from the isolated worktree.' }
+    # A runtime can modify tracked metadata such as data/images.json. Preserve the
+    # full canonical data tree before reset so no primary or Git copy can replace it.
+    Preserve-RuntimeData
+    try {
+        & git -C $deployment reset --hard origin/main
+        if ($LASTEXITCODE -ne 0) { throw 'Unable to refresh the isolated MOBIUS worktree.' }
+        & git -C $deployment clean -fdx -e data/ -e src/api/uploads/
+        if ($LASTEXITCODE -ne 0) { throw 'Unable to clean stale build artifacts from the isolated worktree.' }
+    } finally {
+        Restore-RuntimeData
+    }
 }
 
-$primaryData = Join-Path $repo 'data'
-$deploymentData = Join-Path $deployment 'data'
-if (Test-Path $primaryData) {
-    New-Item -ItemType Directory -Force -Path $deploymentData | Out-Null
-    & robocopy $primaryData $deploymentData /E /COPY:DAT /DCOPY:DAT /R:2 /W:1 /NFL /NDL /NJH /NJS | Out-Null
-    if ($LASTEXITCODE -gt 7) { throw "Unable to copy project runtime data (robocopy exit code $LASTEXITCODE)." }
+# Runtime data is canonical after initialization. Seed it from the primary checkout
+# only when creating a brand-new isolated worktree; never overlay an existing runtime.
+if ($createdDeployment -and (Test-Path $primaryData)) {
+    Copy-DirectoryContents $primaryData $deploymentData
 }
 
 $primaryEnv = Join-Path $repo '.env'
