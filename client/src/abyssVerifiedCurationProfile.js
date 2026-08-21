@@ -151,9 +151,24 @@ export function applyVerifiedAbyssCurationProfile(manifest, projectId) {
       const reviewedEvidence = legacyPage
         ? { page: legacyPage, role: 'verified_mechanic_rulebook', kind: 'contextual_page' }
         : evidenceForReviewedFrenchScene(scene);
-      const reviewedAssets = reviewedAssetsForFrenchScene(scene);
-      if (!reviewedEvidence && !reviewedAssets) return scene;
+      const reviewedAssetSelectionForScene = reviewedAssetsForFrenchScene(scene);
       const plan = scene.visualPlan || {};
+      const existingAssetAssignments = Array.isArray(plan.assetAssignments) ? plan.assetAssignments : [];
+      // Regeneration preserves some previously reviewed French scenes whose title
+      // no longer carries a stable intent phrase. If—and only if—they already use
+      // the exact inspected Abyss board reference, carry its documented reuse
+      // rationale forward instead of treating it as an unreviewed generic asset.
+      const usesReviewedBoardReference = existingAssetAssignments.some((assignment) => assignment?.assetId === reviewedAssets.boardOverview);
+      const carriedBoardReferenceAssignments = usesReviewedBoardReference
+        ? existingAssetAssignments.map((assignment) => assignment?.assetId === reviewedAssets.boardOverview
+          ? {
+            ...assignment,
+            reuseExempt: true,
+            reuseReason: 'Vue de plateau Abyss révisée : référence transversale des zones de mécanique visibles.',
+          }
+          : assignment)
+        : existingAssetAssignments;
+      if (!reviewedEvidence && !reviewedAssetSelectionForScene && !usesReviewedBoardReference) return scene;
       const assignments = Array.isArray(plan.contextualEvidenceAssignments) ? plan.contextualEvidenceAssignments : [];
       const alreadyPresent = assignments.some((assignment) => assignment?.assetId === reviewedEvidence?.page?.assetId
         && assignment?.role === reviewedEvidence?.role && assignment?.confirmed === true);
@@ -165,9 +180,14 @@ export function applyVerifiedAbyssCurationProfile(manifest, projectId) {
         ...scene,
         visualPlan: {
           ...plan,
-          ...reviewedAssets,
+          ...reviewedAssetSelectionForScene,
+          ...(!reviewedAssetSelectionForScene && usesReviewedBoardReference ? {
+            selectedAssetIds: [...new Set(carriedBoardReferenceAssignments.map((assignment) => assignment?.assetId).filter(Boolean))],
+            assetAssignments: carriedBoardReferenceAssignments,
+            selectionMethod: 'operator_selected',
+          } : {}),
           ...(reviewedEvidence || assignments.length ? { contextualEvidenceAssignments } : {}),
-          ...(reviewedEvidence ? { selectionMethod: reviewedAssets?.selectionMethod || 'rulebook_reference' } : {}),
+          ...(reviewedEvidence ? { selectionMethod: reviewedAssetSelectionForScene?.selectionMethod || 'rulebook_reference' } : {}),
           manualSelectionReviewed: true,
         },
       };

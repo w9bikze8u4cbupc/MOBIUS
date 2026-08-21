@@ -124,3 +124,29 @@ test('Abyss profile resolves French presentation scenes with the inspected persi
   const reconciled = reconcileStoryboardVisualPlans(profiled, { images, components });
   expect(reconciled.scenes[0].visualPlan.coverageStatus).toBe('resolved');
 });
+
+
+test('Abyss profile carries a reuse rationale only for the exact inspected board reference already selected', () => {
+  const manifest = {
+    version: '1.2.0',
+    scenes: [{
+      id: 'scene-section-07-99',
+      title: 'Résumé du tour',
+      spokenText: 'Choisissez votre action.',
+      visualDirections: [{ instruction: 'Montrez le plateau.', componentRefs: [] }],
+      visualPlan: {
+        requiresExplicitVisual: true,
+        selectedAssetIds: ['manual-1787268705041-gxku89'],
+        selectionMethod: 'operator_selected',
+        assetAssignments: [{ assetId: 'manual-1787268705041-gxku89', role: 'primary', componentId: null }],
+      },
+    }],
+  };
+
+  const profiled = applyVerifiedAbyssCurationProfile(manifest, 'abyss-mt0qh495-ih5w');
+  expect(profiled.scenes[0].visualPlan.assetAssignments[0]).toMatchObject({
+    assetId: 'manual-1787268705041-gxku89',
+    reuseExempt: true,
+    reuseReason: expect.stringContaining('révisée'),
+  });
+});
