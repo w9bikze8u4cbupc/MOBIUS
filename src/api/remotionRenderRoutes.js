@@ -358,11 +358,32 @@ function hasReviewedReuseReferenceExemption(assignment, visualPlan) {
     && assignment.reuseReason.trim().length >= 12;
 }
 
+function normalizedReleaseSequenceText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function releaseContiguousSequenceGroups(scenes = []) {
+  const ordered = [...scenes].sort((left, right) => (Number(left?.order) || 0) - (Number(right?.order) || 0));
+  const groups = new Map();
+  let priorKey = null;
+  let sequence = 0;
+  ordered.forEach((scene) => {
+    const source = scene?.sectionId || scene?.sourceId || scene?.id || '';
+    const title = normalizedReleaseSequenceText(scene?.title || scene?.sectionTitle || '');
+    const key = `${source}::${title}`;
+    if (key !== priorKey) sequence += 1;
+    groups.set(scene?.id, `sequence-${sequence}`);
+    priorKey = key;
+  });
+  return groups;
+}
+
 function releaseReuseExceeded(scenes, projectMetadata = {}) {
   const threshold = Number.isInteger(projectMetadata?.projectContext?.visualPlanPolicy?.maxNonBrandAssetReuse)
     ? projectMetadata.projectContext.visualPlanPolicy.maxNonBrandAssetReuse
     : DEFAULT_NON_BRAND_REUSE_THRESHOLD;
   const nonBrandUsage = new Map();
+  const sequenceGroups = releaseContiguousSequenceGroups(scenes);
   (scenes || []).forEach((scene) => {
     const visualPlan = scene?.visualPlan;
     if (visualPlan?.requiresExplicitVisual !== true) return;
@@ -373,9 +394,9 @@ function releaseReuseExceeded(scenes, projectMetadata = {}) {
         && visualPlan.primaryIntent === 'brand_outro'
         && visualPlan.overviewSelectionConfirmed === true;
       if (explicitBrandAsset || hasReviewedReuseReferenceExemption(assignment, visualPlan)) return;
-      const scenesUsingAsset = nonBrandUsage.get(assignment.assetId) || new Set();
-      scenesUsingAsset.add(scene.id || 'unknown-scene');
-      nonBrandUsage.set(assignment.assetId, scenesUsingAsset);
+      const sequencesUsingAsset = nonBrandUsage.get(assignment.assetId) || new Set();
+      sequencesUsingAsset.add(sequenceGroups.get(scene.id) || `scene-${scene.id || 'unknown-scene'}`);
+      nonBrandUsage.set(assignment.assetId, sequencesUsingAsset);
     });
   });
   return [...nonBrandUsage.values()].some((sceneIds) => sceneIds.size > threshold);

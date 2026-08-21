@@ -268,6 +268,8 @@ export function buildRemotionScenes({ script, scriptPackage, storyboardManifest,
   const sections = canonicalStoryboardScenes
     ? canonicalStoryboardScenes.map((scene) => ({
       id: scene.id,
+      sectionId: scene.sectionId || scene.sourceId || scene.id,
+      title: scene.title || '',
       sectionTitle: cleanRemotionText(scene.title) || 'Tutorial',
       narrationText: cleanRemotionText(scene.spokenText),
       visualDirections: Array.isArray(scene.visualDirections) ? scene.visualDirections : [],
@@ -301,6 +303,8 @@ export function buildRemotionScenes({ script, scriptPackage, storyboardManifest,
       .join(' · ');
     return {
       id: section.id || `scene-${index + 1}`,
+      sectionId: section.sectionId || section.sourceId || section.id || `section-${index + 1}`,
+      title: section.title || section.sectionTitle || '',
       sectionTitle: section.sectionTitle,
       narrationText: section.narrationText,
       visualDirections: section.visualDirections || [],

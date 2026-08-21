@@ -825,14 +825,15 @@ test('uses canonical storyboard spokenText and timing for Remotion without leaki
     scriptPackage: null,
     storyboardManifest: {
       version: '1.2.0',
-      scenes: [{ id: 'scene-section-01-1', title: 'Setup', spokenText: 'Place the board.', durationMs: 3200, visualDirections: [{ instruction: 'Show board.', onScreenText: 'Setup', componentRefs: ['board'] }], sources: [{ section: 1, startOffset: 0, endOffset: 10 }], componentRefs: ['board'], imageAssetIds: ['board-image'], reviewNotes: 'Do not narrate this.' }],
+      scenes: [{     id: 'scene-section-01-1', sectionId: 'section-01', title: 'Setup', spokenText: 'Place the board.', durationMs: 3200, visualDirections: [{ instruction: 'Show board.', onScreenText: 'Setup', componentRefs: ['board'] }], sources: [{ section: 1, startOffset: 0, endOffset: 10 }], componentRefs: ['board'], imageAssetIds: ['board-image'], reviewNotes: 'Do not narrate this.' }],
+
     },
     gameName: 'Abyss',
     images: [{ id: 'board-image', fileKey: 'src/api/uploads/board.png' }],
     componentImageLinks: {},
   });
   expect(scenes).toEqual([expect.objectContaining({
-    id: 'scene-section-01-1', narrationText: 'Place the board.', durationInFrames: 96, imageUrls: ['/uploads/board.png'], storyboardVersion: '1.2.0',
+    id: 'scene-section-01-1', sectionId: 'section-01', title: 'Setup', narrationText: 'Place the board.', durationInFrames: 96, imageUrls: ['/uploads/board.png'], storyboardVersion: '1.2.0',
   })]);
   expect(JSON.stringify(scenes[0].narrationText)).not.toContain('Do not narrate');
   expect(JSON.stringify(scenes[0].narrationText)).not.toContain('Show board');

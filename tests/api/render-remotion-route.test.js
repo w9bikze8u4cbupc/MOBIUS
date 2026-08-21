@@ -771,3 +771,34 @@ test('allows an explicitly reviewed cross-sequence reference while retaining the
 
   expect(() => validateReleaseVisualPlans(scenes)).not.toThrow();
 });
+
+
+test('counts contiguous render scenes from one canonical section as one visual reuse sequence', () => {
+  const { validateReleaseVisualPlans } = require('../../src/api/remotionRenderRoutes.js');
+  const sharedVisualPlan = {
+    requiresExplicitVisual: true,
+    reviewState: 'resolved',
+    selectedAssetIds: ['board-reference'],
+    selectionMethod: 'operator_selected',
+    manualSelectionReviewed: true,
+    primaryIntent: 'operator_defined',
+    primaryComponentRefs: [],
+    supportingComponentRefs: [],
+    coverageStatus: 'resolved',
+    coverageReason: 'Reviewed board reference.',
+    coverageEvidence: [],
+    assetAssignments: [{ assetId: 'board-reference', role: 'primary', componentId: null }],
+    overviewSelectionConfirmed: false,
+  };
+  const scenes = ['one', 'two', 'three', 'four'].map((suffix) => ({
+    id: `scene-section-07-${suffix}`,
+    sectionId: 'section-07',
+    title: 'Explorer les profondeurs',
+    storyboardVersion: '1.2.0',
+    narrationText: 'Explain exploration.',
+    imageUrls: ['src/api/uploads/board-reference.png'],
+    visualPlan: sharedVisualPlan,
+  }));
+
+  expect(() => validateReleaseVisualPlans(scenes)).not.toThrow();
+});
