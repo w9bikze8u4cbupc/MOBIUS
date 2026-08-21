@@ -103,3 +103,24 @@ test('Abyss profile applies inspected French objective assets only when the exac
   expect(reconciled.scenes[0].visualPlan.coverageStatus).toBe('resolved');
   expect(validateStoryboardVisualPlans(profiled, { images, components }).valid).toBe(true);
 });
+
+
+test('Abyss profile resolves French presentation scenes with the inspected persisted cover', () => {
+  const manifest = {
+    version: '1.2.0',
+    scenes: [{
+      id: 'scene-section-01-1', title: 'Présentation', spokenText: 'Bienvenue dans Abyss.',
+      visualDirections: [{ instruction: 'Ouvrir sur une vue cinématique du plateau.', componentRefs: [] }],
+      visualPlan: { requiresExplicitVisual: true },
+    }],
+  };
+  const images = [{ id: 'manual-1787267082043-h1vohx', curation: { candidate: true, isDuplicate: false, lowInformation: false } }];
+  const profiled = applyVerifiedAbyssCurationProfile(manifest, 'abyss-mt0qh495-ih5w');
+  expect(profiled.scenes[0].visualPlan).toMatchObject({
+    selectedAssetIds: ['manual-1787267082043-h1vohx'],
+    selectionMethod: 'brand_asset',
+    overviewSelectionConfirmed: true,
+  });
+  const reconciled = reconcileStoryboardVisualPlans(profiled, { images, components });
+  expect(reconciled.scenes[0].visualPlan.coverageStatus).toBe('resolved');
+});

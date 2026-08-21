@@ -69,6 +69,11 @@ function reviewedAssetSelection(assignments, { selectionMethod = 'operator_selec
 
 function reviewedAssetsForFrenchScene(scene) {
   const text = normalizedSceneText(scene);
+  if (/presentation/.test(text)) {
+    return reviewedAssetSelection([{ assetId: reviewedAssets.cover, role: 'brand' }], {
+      selectionMethod: 'brand_asset', overviewSelectionConfirmed: true,
+    });
+  }
   if (/objectif du jeu/.test(text)) return reviewedAssetSelection(objectiveAssetAssignments);
   if (/mise en place|installation|pause avant de jouer/.test(text)) {
     return reviewedAssetSelection([{ assetId: reviewedAssets.fullSetup, role: 'primary' }]);
