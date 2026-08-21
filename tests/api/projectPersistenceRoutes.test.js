@@ -2,6 +2,7 @@ const {
   INGESTION_MANIFEST_RECOVERY,
   recoverDurableIngestionManifest,
   registerProjectPersistenceRoutes,
+  buildRenderProjectState,
 } = require('../../src/api/projectPersistenceRoutes.js');
 const { runIngestionPipeline } = require('../../src/ingestion/pipeline');
 
@@ -45,6 +46,12 @@ function makeRow(manifest = makeManifest()) {
     components: '[]', images: '[]', script: '', audio: '', name: 'Abyss',
   };
 }
+
+test('buildRenderProjectState retains serialized scenes for a resumed Remotion render', () => {
+  const scenes = JSON.stringify([{ id: 'scene-section-01-1', narrationText: 'Bienvenue dans Abyss.' }]);
+  const state = buildRenderProjectState({ ...makeRow(), scenes });
+  expect(state.scenes).toBe(scenes);
+});
 
 function invokeRecovery(rows, body) {
   const routes = new Map();

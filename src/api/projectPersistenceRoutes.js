@@ -309,6 +309,10 @@ export function buildRenderProjectState(row) {
     images: Array.isArray(images) ? images : [],
     script: row.script || '',
     audio: row.audio || '',
+    // The renderer parses this serialized field after project-state hydration.
+    // Omitting it makes every persisted render project look scene-less after a
+    // server restart, even though /save-project stored a valid scene array.
+    scenes: row.scenes,
     ingestionManifest: metadata.ingestionManifest || renderMetadata.ingestionManifest,
     storyboardManifest: metadata.storyboardManifest || renderMetadata.storyboardManifest,
     resolution: metadata.resolution || renderMetadata.resolution,
