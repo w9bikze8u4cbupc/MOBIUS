@@ -2045,7 +2045,10 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               onClick={() => handleConfirmStep(activeStepId)}
               disabled={(activeStepId === 'script' && !canConfirmScript)
                 || (activeStepId === 'storyboard' && !validateStoryboardReview(
-                  applyVerifiedAbyssCurationProfile(storyboardManifest, projectId),
+                  reconcileStoryboardVisualPlans(
+                    applyVerifiedAbyssCurationProfile(storyboardManifest, projectId),
+                    { images: projectImages, componentImageLinks, componentImageLinkDetails, components: gameComponents },
+                  ),
                   projectImages,
                   { componentImageLinks, componentImageLinkDetails, components: gameComponents },
                 ).valid)}
