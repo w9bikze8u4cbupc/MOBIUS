@@ -836,14 +836,18 @@ export function registerRemotionRenderRoutes(
       if (status >= 500) {
         console.error('Remotion render failed', error);
       }
+      const inferredCode = error.code || (error.message === 'REMOTION_SCENES_MISSING' || error.message === 'REMOTION_SCENES_INVALID'
+        ? error.message
+        : 'REMOTION_RENDER_FAILED');
+      const validationMessage = error.publicMessage || (status === 400
+        ? (inferredCode === 'REMOTION_RENDER_FAILED'
+          ? `Local render validation failed: ${String(error.message || 'unknown error')}`
+          : 'The project does not contain a valid Remotion scenes array.')
+        : 'Unable to render the project with Remotion.');
       return res.status(status).json({
         ok: false,
-        code: error.code || (error.message === 'REMOTION_SCENES_MISSING' || error.message === 'REMOTION_SCENES_INVALID'
-          ? error.message
-          : 'REMOTION_RENDER_FAILED'),
-        error: error.publicMessage || (status === 400
-          ? 'The project does not contain a valid Remotion scenes array.'
-          : 'Unable to render the project with Remotion.'),
+        code: inferredCode,
+        error: validationMessage,
       });
     }
   });
