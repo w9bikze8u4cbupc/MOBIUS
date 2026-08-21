@@ -768,7 +768,7 @@ export function registerRemotionRenderRoutes(
   });
 
   app.post('/api/render-remotion', async (req, res) => {
-    const { projectId, voiceId } = req.body || {};
+    const { projectId, voiceId, scenes: requestScenes } = req.body || {};
     if ((typeof projectId !== 'string' && typeof projectId !== 'number') || String(projectId).trim() === '') {
       return res.status(400).json({
         ok: false,
@@ -794,7 +794,16 @@ export function registerRemotionRenderRoutes(
         );
       }
 
-      const persistedScenes = parseProjectScenes(project);
+      let persistedScenes;
+      try {
+        persistedScenes = parseProjectScenes(project);
+      } catch (sceneError) {
+        // The client has just performed the canonical coverage validation. A
+        // legacy file-store row can still omit its scenes field; accept only the
+        // same validated scene array supplied in this render request, never an
+        // implicit fallback or a remote reference.
+        persistedScenes = parseProjectScenes({ ...project, scenes: requestScenes });
+      }
       const releaseScenes = await bindReleaseVisualPlanAssets(persistedScenes, project, { contextualEvidence });
       validateReleaseVisualPlans(releaseScenes, parseProjectMetadata(project));
       const scenes = prepareScenesForRenderer(

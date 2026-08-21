@@ -735,6 +735,30 @@ test('renders a confirmed, server-resolved verified mechanic rulebook page for a
   }));
 });
 
+  test('renders request-supplied canonical scenes when a legacy saved project omitted its scenes field', async () => {
+    const outputDirectory = path.join(temporaryDirectory, 'rendered-videos');
+    const runRemotionRender = jest.fn(async () => ({ outputPaths: [path.join(outputDirectory, 'mobius-tutorial.mp4')] }));
+    const app = loadTestApp(outputDirectory, { runRemotionRender });
+    server = await startServer(app);
+    const sampleScenes = JSON.parse(fs.readFileSync(SAMPLE_SCRIPT_PATH, 'utf8'));
+
+    const saveResponse = await fetch(`${baseUrl(server)}/save-project`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Legacy scene-less record', metadata: {}, components: [], images: [], script: '', audio: '' }),
+    });
+    const savedProject = await saveResponse.json();
+
+    const renderResponse = await fetch(`${baseUrl(server)}/api/render-remotion`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: savedProject.projectId, scenes: sampleScenes }),
+    });
+
+    expect(renderResponse.status).toBe(200);
+    expect(runRemotionRender).toHaveBeenCalledWith(expect.objectContaining({ scenes: expect.any(Array) }));
+  });
+
 });
 
 

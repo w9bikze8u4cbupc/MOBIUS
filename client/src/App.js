@@ -1340,6 +1340,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       const { data } = await axios.post(`${BACKEND_URL}/api/render-remotion`, {
         projectId: savedProject.projectId,
         voiceId: voice.trim(),
+        scenes,
       });
       if (!data?.ok || !data.outputPath) {
         throw new Error(data?.error || "Remotion did not return an output video.");
