@@ -154,15 +154,25 @@ function Install-RootDependenciesIfNeeded {
     param([string]$PreviousCommit, [string]$TargetCommit)
     $nodeModules = Join-Path $deployment 'node_modules'
     $expressPackage = Join-Path $deployment 'node_modules\express\package.json'
+    # ffmpeg-static downloads its platform-specific executable through its own
+    # package lifecycle. Keep npm ci script-free, then run only that audited
+    # package's installer when the executable is missing.
+    $portableFfmpeg = Join-Path $deployment 'node_modules\ffmpeg-static\ffmpeg.exe'
     $dependencyFilesChanged = $PreviousCommit -and $TargetCommit -and @(
         Invoke-Git $deployment @('diff', '--name-only', $PreviousCommit, $TargetCommit, '--', 'package.json', 'package-lock.json')
     ).Count -gt 0
-    if (-not (Test-Path $nodeModules) -or -not (Test-Path $expressPackage) -or $dependencyFilesChanged) {
+    $needsPortableFfmpeg = -not (Test-Path $portableFfmpeg)
+    if (-not (Test-Path $nodeModules) -or -not (Test-Path $expressPackage) -or $dependencyFilesChanged -or $needsPortableFfmpeg) {
         Write-AgentLog 'INFO' 'Installing isolated server dependencies.'
         Push-Location $deployment
         try {
             & npm ci --ignore-scripts
             if ($LASTEXITCODE -ne 0) { throw 'Server dependency installation failed.' }
+            if (-not (Test-Path $portableFfmpeg)) {
+                Write-AgentLog 'INFO' 'Installing the required portable FFmpeg binary.'
+                & npm rebuild ffmpeg-static --foreground-scripts
+                if ($LASTEXITCODE -ne 0 -or -not (Test-Path $portableFfmpeg)) { throw 'Portable FFmpeg installation failed.' }
+            }
         } finally { Pop-Location }
     }
 }

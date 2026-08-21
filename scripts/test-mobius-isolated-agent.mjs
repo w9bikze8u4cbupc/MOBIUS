@@ -16,6 +16,8 @@ const requiredAgentTokens = [
   "node_modules\\express\\package.json",
   "node_modules\\.bin\\react-scripts.cmd",
   "npm ci --ignore-scripts",
+  "node_modules\\ffmpeg-static\\ffmpeg.exe",
+  "npm rebuild ffmpeg-static --foreground-scripts",
   "Sync-LocalConfiguration",
   "Copy-Item -Force -Path $primaryEnv -Destination $runtimeEnv",
   "-e', '.env'",
