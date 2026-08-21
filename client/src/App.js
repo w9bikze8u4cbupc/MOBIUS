@@ -1182,7 +1182,16 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         componentImageLinkDetails,
         components: gameComponents,
       });
-      setStoryboardManifest(applyVerifiedAbyssCurationProfile(reconciledManifest, projectId));
+      // The profile intentionally writes only reviewed, project-specific selections.
+      // Reconcile again so their coverage is evaluated before the operator sees the
+      // regenerated storyboard; otherwise valid selections display as unresolved.
+      const profiledManifest = applyVerifiedAbyssCurationProfile(reconciledManifest, projectId);
+      setStoryboardManifest(reconcileStoryboardVisualPlans(profiledManifest, {
+        images: projectImages,
+        componentImageLinks,
+        componentImageLinkDetails,
+        components: gameComponents,
+      }));
     } catch (err) {
       const apiError = err.response?.data?.code || err.response?.data?.error || err.message;
       setStoryboardError(apiError);
