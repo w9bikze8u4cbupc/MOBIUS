@@ -34,6 +34,7 @@ const IMAGE_REQUIRED_TYPES = new Set([
   'scoring',
   'gameplay',
   'example',
+  'teaching',
 ]);
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.5;
@@ -59,13 +60,26 @@ function classifyScene(scene, options = {}) {
     };
   }
 
-  // Scene has a resolved background image already (from adapter)
+  // A labelled rulebook-page fallback remains renderable, but it is not a
+  // production-quality substitute for a component visual in a teaching scene.
+  const backgroundKind = scene.background?.kind || scene.visualSelection?.kind;
+  if (hasBackground && backgroundKind === 'rulebook-page-fallback' && IMAGE_REQUIRED_TYPES.has(sceneType)) {
+    return {
+      sceneId: scene.id,
+      classification: 'warn',
+      confidence: confidence || 0.2,
+      reason: 'rulebook-page-fallback',
+      warning: `Scene '${scene.id}': uses a rulebook-page fallback and needs a reviewed component visual`,
+    };
+  }
+
+  // Scene has a resolved component or explicitly approved background image.
   if (hasBackground) {
     return {
       sceneId: scene.id,
       classification: 'covered',
       confidence: confidence || 0.8,
-      reason: 'background-image-present',
+      reason: scene.background?.reason || scene.visualSelection?.reason || 'background-image-present',
       warning: null,
     };
   }

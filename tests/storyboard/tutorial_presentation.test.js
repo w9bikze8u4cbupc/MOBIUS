@@ -3,6 +3,7 @@ const {
   buildBrandIntro,
   buildBrandOutro,
   buildTeachingScene,
+  buildTeachingMotion,
   buildChapters,
 } = require('../../src/storyboard/tutorial_presentation.cjs');
 
@@ -46,6 +47,16 @@ describe('tutorial presentation contract', () => {
       expect.objectContaining({ type: 'reference', position: 'reference-bottom', text: 'Livret p. 7' }),
     ]));
     expect(scene.callouts).toHaveLength(1);
+    expect(scene.layout.visualFocus).toEqual({ x: 0.72, y: 0.48 });
+  });
+
+  test('applies focused motion only to a long-enough component visual', () => {
+    expect(buildTeachingMotion({ visualKind: 'component', durationSec: 12, visualFocus: { x: 0.7, y: 0.4 } }))
+      .toMatchObject({ type: 'focus-zoom', startScale: 1, endScale: 1.08, anchor: { x: 0.7, y: 0.4 } });
+    expect(buildTeachingMotion({ visualKind: 'rulebook-page-fallback', durationSec: 12 }))
+      .toMatchObject({ type: 'hold' });
+    expect(buildTeachingMotion({ visualKind: 'component', durationSec: 2 }))
+      .toMatchObject({ type: 'hold' });
   });
 
   test('alternates visual placement and exports deterministic YouTube chapter starts', () => {

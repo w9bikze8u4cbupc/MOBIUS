@@ -247,6 +247,46 @@ function getSceneLayout(scene, w, h) {
   };
 }
 
+function getVisualMotion(scene = {}) {
+  const motion = scene.motion || {};
+  const type = String(motion.type || 'hold').toLowerCase();
+  const startScale = Number(motion.startScale || 1);
+  const endScale = Number(motion.endScale || startScale);
+  const anchor = motion.anchor || scene.layout?.visualFocus?.anchor || scene.layout?.visualFocus || {};
+  const anchorX = Math.min(0.85, Math.max(0.15, Number(anchor.x) || 0.5));
+  const anchorY = Math.min(0.85, Math.max(0.15, Number(anchor.y) || 0.5));
+  if (!['slow-zoom', 'focus-zoom'].includes(type) || endScale <= startScale || Number(scene.durationSec) < 2.5) {
+    return { enabled: false, type: 'hold', startScale: 1, endScale: 1, anchorX, anchorY };
+  }
+  return { enabled: true, type, startScale, endScale, anchorX, anchorY };
+}
+
+function buildForegroundVisualFilter({ scene, targetWidth, targetHeight }) {
+  const motion = getVisualMotion(scene);
+  if (!motion.enabled) {
+    return `[fgsrc]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease[fg]`;
+  }
+  const frameCount = Math.max(1, Math.round(Number(scene.durationSec) * fps));
+  const increment = ((motion.endScale - motion.startScale) / frameCount).toFixed(8);
+  const start = motion.startScale.toFixed(4);
+  const end = motion.endScale.toFixed(4);
+  return `[fgsrc]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase,crop=${targetWidth}:${targetHeight},zoompan=z='min(${end},${start}+on*${increment})':x='(iw-iw/zoom)*${motion.anchorX.toFixed(4)}':y='(ih-ih/zoom)*${motion.anchorY.toFixed(4)}':d=1:s=${targetWidth}x${targetHeight}:fps=${fps}[fg]`;
+}
+
+function buildFocusHighlight(scene, layout) {
+  const focus = scene.layout?.visualFocus || scene.motion?.focus || null;
+  if (!focus || !layout.isTeaching) return '';
+  const x = Math.min(0.9, Math.max(0.1, Number(focus.x) || 0.5));
+  const y = Math.min(0.9, Math.max(0.1, Number(focus.y) || 0.5));
+  const w = Math.min(0.7, Math.max(0.08, Number(focus.w) || 0.22));
+  const h = Math.min(0.7, Math.max(0.08, Number(focus.h) || 0.22));
+  const boxX = Math.round(layout.imageX + ((x - (w / 2)) * layout.imageWidth));
+  const boxY = Math.round(layout.imageY + ((y - (h / 2)) * layout.imageHeight));
+  const boxW = Math.round(w * layout.imageWidth);
+  const boxH = Math.round(h * layout.imageHeight);
+  return `,drawbox=x=${boxX}:y=${boxY}:w=${boxW}:h=${boxH}:color=0xf5d76e@0.95:t=4:enable='between(t,0,4)'`;
+}
+
 function getOverlaySafeWidth(overlay, fontSize, w, h, scene) {
   const layout = getSceneLayout(scene, w, h);
   if (layout.isTeaching && ['panel-heading', 'panel-body', 'reference-bottom'].includes(overlay.position)) {
@@ -420,9 +460,10 @@ function buildSceneCommand(scene, index) {
     const targetHeight = layout.isTeaching ? layout.imageHeight : foregroundHeight;
     const targetX = layout.isTeaching ? layout.imageX : '(W-w)/2';
     const targetY = layout.isTeaching ? layout.imageY : '(H-h)/2';
+    const foregroundFilter = buildForegroundVisualFilter({ scene, targetWidth, targetHeight });
     filterBase = `[0:v]split=2[bgsrc][fgsrc];`
       + `[bgsrc]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},boxblur=20:10,eq=brightness=-0.28:saturation=0.72[bg];`
-      + `[fgsrc]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease[fg];`
+      + `${foregroundFilter};`
       + `[bg][fg]overlay=${targetX}:${targetY},setsar=1`;
   } else {
     const color = scene.background?.color || '#1a1a2e';
@@ -440,6 +481,7 @@ function buildSceneCommand(scene, index) {
   if (sceneLayout.isTeaching) {
     filterChain += `,drawbox=x=${sceneLayout.panelX}:y=${sceneLayout.panelY}:w=${sceneLayout.panelWidth}:h=${sceneLayout.panelHeight}:color=black@0.74:t=fill`;
   }
+  filterChain += buildFocusHighlight(scene, sceneLayout);
 
   // Pre-compute badge pill background (must come before badge drawtext)
   const badgeOverlay = overlays.find((o) => o.type === 'badge');
@@ -521,8 +563,10 @@ function buildSceneCommand(scene, index) {
       : normalizedY * height);
     const boxSize = Math.round(Math.min(width, height) * 0.06);
     const label = escapeDrawtext(String(callout.label || callout.number || '•'));
-    filterChain += `,drawbox=x=${x - boxSize / 2}:y=${y - boxSize / 2}:w=${boxSize}:h=${boxSize}:color=0xf5d76e@0.95:t=4`;
-    filterChain += `,drawtext=text='${label}':fontsize=${Math.round(boxSize * 0.68)}:fontcolor=0xf5d76e:borderw=2:bordercolor=black:x=${x - Math.round(boxSize * 0.18)}:y=${y - Math.round(boxSize * 0.42)}`;
+    const appearAt = Math.max(0, Number(callout.appearSec ?? callout.appear_sec ?? (index * 0.45)) || 0).toFixed(2);
+    const enabled = `:enable='gte(t,${appearAt})'`;
+    filterChain += `,drawbox=x=${x - boxSize / 2}:y=${y - boxSize / 2}:w=${boxSize}:h=${boxSize}:color=0xf5d76e@0.95:t=4${enabled}`;
+    filterChain += `,drawtext=text='${label}':fontsize=${Math.round(boxSize * 0.68)}:fontcolor=0xf5d76e:borderw=2:bordercolor=black:x=${x - Math.round(boxSize * 0.18)}:y=${y - Math.round(boxSize * 0.42)}${enabled}`;
   }
 
   // Duration trim for image-based inputs

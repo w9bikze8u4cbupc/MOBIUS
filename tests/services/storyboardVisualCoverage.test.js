@@ -25,6 +25,29 @@ describe('storyboardVisualCoverage', () => {
       expect(result.classification).toBe('covered');
     });
 
+    test('teaching scene with a rulebook-page fallback is flagged for review', () => {
+      const scene = {
+        id: 's-rulebook-fallback',
+        type: 'teaching',
+        background: { image: '/path/to/page.png', kind: 'rulebook-page-fallback' },
+      };
+      const result = classifyScene(scene);
+      expect(result.classification).toBe('warn');
+      expect(result.reason).toBe('rulebook-page-fallback');
+      expect(result.warning).toContain('component visual');
+    });
+
+    test('teaching scene with a component visual is covered', () => {
+      const scene = {
+        id: 's-component',
+        type: 'teaching',
+        background: { image: '/path/to/component.png', kind: 'component', reason: 'curated-component:card' },
+      };
+      const result = classifyScene(scene);
+      expect(result.classification).toBe('covered');
+      expect(result.reason).toBe('curated-component:card');
+    });
+
     test('intro scene without image is intentionalFallback', () => {
       const scene = { id: 's1', type: 'intro' };
       const result = classifyScene(scene);

@@ -17,6 +17,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import presentation from '../src/storyboard/tutorial_presentation.cjs';
+import { loadSourceVisualCatalog, selectSourceVisual } from '../src/services/sourceVisualSelection.js';
 
 const {
   DEFAULT_BRAND,
@@ -90,8 +91,7 @@ function assertScene(scene, index) {
   }
 }
 
-function resolveVisualPath(scene, pageDir) {
-  if (scene.visual_asset && existsSync(resolve(scene.visual_asset))) return resolve(scene.visual_asset);
+function resolveRulebookFallback(scene, pageDir) {
   const pagePath = join(pageDir, `page-${scene.source_pages[0]}.png`);
   if (!existsSync(pagePath)) throw new Error(`Scene ${scene.id} references missing page image: ${pagePath}`);
   return pagePath;
@@ -129,6 +129,9 @@ function main() {
   const voiceName = optionalArg('voice-name', DEFAULT_BRAND.narration.voiceName);
   const narrationProvider = optionalArg('narration-provider', DEFAULT_BRAND.narration.provider);
   const bannerPath = optionalArg('brand-banner', null);
+  const assetManifestPath = optionalArg('asset-manifest', null);
+  const visualQualityReportPath = optionalArg('visual-quality-report', null);
+  const semanticVisualReportPath = optionalArg('semantic-visual-report', null);
   const includeBrand = !hasFlag('no-brand');
 
   if (!['fr-CA', 'fr-FR', 'en'].includes(language)) {
@@ -143,6 +146,14 @@ function main() {
   const cursor = { value: 0 };
   const captions = { blocks: [], scene: null };
   const scenes = [];
+  const visualWarnings = [];
+  const visualCatalog = assetManifestPath
+    ? loadSourceVisualCatalog(resolve(assetManifestPath), {
+      qualityReportPath: visualQualityReportPath ? resolve(visualQualityReportPath) : null,
+      semanticReportPath: semanticVisualReportPath ? resolve(semanticVisualReportPath) : null,
+    })
+    : { manifestPath: null, assets: [], warnings: [] };
+  visualWarnings.push(...(visualCatalog.warnings || []));
 
   if (includeBrand) {
     const introAudio = requireAudio(audioDir, 'brand-intro', 'The branded intro');
@@ -160,6 +171,9 @@ function main() {
     assertScene(scene, index);
     const audioPath = requireAudio(audioDir, scene.id, `Scene ${scene.id}`);
     const durationSec = getDurationSeconds(audioPath);
+    const visual = selectSourceVisual(scene, visualCatalog, resolveRulebookFallback(scene, pageDir));
+    if (!visual.path) throw new Error(`Scene ${scene.id} has no renderable visual`);
+    if (visual.warning) visualWarnings.push(visual.warning);
     const teaching = buildTeachingScene({
       id: scene.id,
       index,
@@ -168,7 +182,12 @@ function main() {
       narration: scene.narration,
       onScreenText: scene.on_screen_text,
       sourcePages: scene.source_pages,
-      background: { image: resolveVisualPath(scene, pageDir) },
+      background: {
+        image: visual.path,
+        kind: visual.kind,
+        confidence: visual.confidence,
+        reason: visual.reason,
+      },
       audio: {
         file: audioPath,
         provider: narrationProvider,
@@ -177,8 +196,13 @@ function main() {
       },
       callouts: scene.callouts || scene.visual_callouts || [],
       completedSteps: scene.completed_steps || [],
+      visualKind: visual.kind,
+      visualFocus: scene.visual_focus || null,
+      durationSec,
     });
     teaching.durationSec = durationSec;
+    teaching.visualSelection = visual;
+    teaching.layout.visualFocus = teaching.layout.visualFocus || scene.visual_focus || null;
     captions.scene = teaching;
     addCaption(captions, cursor, teaching.narrationText);
     scenes.push(teaching);
@@ -212,6 +236,10 @@ function main() {
     chapters,
     sourceGrounded: true,
     reviewedScript: scriptPath,
+    sourceVisualManifest: visualCatalog.manifestPath,
+    sourceVisualQualityReport: visualCatalog.qualityReportPath || null,
+    sourceSemanticVisualReport: visualCatalog.semanticReportPath || null,
+    visualWarnings,
   };
 
   mkdirSync(dirname(outputConfigPath), { recursive: true });
@@ -231,6 +259,8 @@ function main() {
     configPath: outputConfigPath,
     captionsPath: outputSrtPath,
     chaptersPath: outputChaptersPath,
+    visualAssetCount: visualCatalog.assets.length,
+    visualWarnings,
   }, null, 2));
 }
 

@@ -1,0 +1,155 @@
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+let loadSourceVisualCatalog;
+let selectSourceVisual;
+let inferVisualTypes;
+
+beforeAll(async () => {
+  const mod = await import('../../src/services/sourceVisualSelection.js');
+  loadSourceVisualCatalog = mod.loadSourceVisualCatalog;
+  selectSourceVisual = mod.selectSourceVisual;
+  inferVisualTypes = mod.inferVisualTypes;
+});
+
+function makeAsset(root, { id, page = 4, classification = 'card', confidence = 0.8, width = 600, height = 800 }) {
+  const fileName = `${id}.png`;
+  fs.writeFileSync(path.join(root, 'images', 'all', fileName), 'fixture');
+  return {
+    id,
+    file_name: fileName,
+    page_index: page,
+    classification,
+    is_component: true,
+    confidence,
+    dimensions: { width, height },
+  };
+}
+
+describe('sourceVisualSelection', () => {
+  let root;
+  let manifestPath;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-source-visuals-'));
+    fs.mkdirSync(path.join(root, 'images', 'all'), { recursive: true });
+    manifestPath = path.join(root, 'manifest.json');
+  });
+
+  afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  test('infers visual intent from a French reviewed scene', () => {
+    const types = inferVisualTypes({
+      section: 'Mise en place du plateau et des jetons',
+      narration: 'Placez les cartes et les ressources sur le plateau.',
+    });
+    expect(types).toEqual(expect.arrayContaining(['board', 'card', 'token']));
+  });
+
+  test('chooses a curated on-page component before falling back to the rulebook page', () => {
+    const card = makeAsset(root, { id: 'page4-card', classification: 'card' });
+    const board = makeAsset(root, { id: 'page4-board', classification: 'board', width: 1200, height: 800 });
+    fs.writeFileSync(manifestPath, JSON.stringify({ images: [card, board] }));
+
+    const catalog = loadSourceVisualCatalog(manifestPath);
+    const selection = selectSourceVisual({
+      id: 'setup-deck',
+      source_pages: [4],
+      section: 'Mise en place des cartes sur le plateau',
+      narration: 'Placez le paquet de cartes dans la rangée.',
+    }, catalog, '/fallback/page-4.png');
+
+    expect(selection.kind).toBe('component');
+    expect(selection.path).toContain('page4-card.png');
+    expect(selection.confidence).toBeGreaterThanOrEqual(0.42);
+  });
+
+  test('prefers a usable component on the cited rulebook page over a stronger generic asset', () => {
+    const generic = makeAsset(root, { id: 'generic-card', page: 0, classification: 'card', width: 1200, height: 900 });
+    const cited = makeAsset(root, { id: 'cited-tile', page: 10, classification: 'tile', width: 520, height: 360 });
+    fs.writeFileSync(manifestPath, JSON.stringify({ images: [generic, cited] }));
+
+    const catalog = loadSourceVisualCatalog(manifestPath);
+    const selection = selectSourceVisual({
+      id: 'explore-site',
+      source_pages: [10],
+      section: 'Exploration et site',
+      narration: 'Explorez le site indiqué.',
+    }, catalog, '/fallback/page-10.png');
+
+    expect(selection.kind).toBe('component');
+    expect(selection.assetId).toBe('cited-tile');
+  });
+
+  test('falls back to the cited rulebook page when vision QA rejects every cited component', () => {
+    const decorative = path.join(root, 'decorative.png');
+    fs.writeFileSync(decorative, 'decorative');
+    const selection = selectSourceVisual({ id: 'clean-up', source_pages: [13] }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      assets: [{
+        id: 'decorative-arrow',
+        page_index: 13,
+        is_component: true,
+        renderPath: decorative,
+        curation: { lowInformation: false, score: 0.8 },
+        visualQuality: { primary_explanatory: false, quality_score: 10 },
+      }],
+    }, '/fallback/page-13.png');
+
+    expect(selection.kind).toBe('rulebook-page-fallback');
+    expect(selection.warning).toContain('cited rule page');
+  });
+
+  test('does not allow an unreviewed asset to bypass an enabled visual QA gate', () => {
+    const unreviewed = path.join(root, 'unreviewed.png');
+    fs.writeFileSync(unreviewed, 'unreviewed');
+    const selection = selectSourceVisual({ id: 'unreviewed', source_pages: [8] }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      assets: [{
+        id: 'unreviewed-card',
+        page_index: 8,
+        is_component: true,
+        renderPath: unreviewed,
+        curation: { lowInformation: false, score: 0.9 },
+        visualQuality: null,
+      }],
+    }, '/fallback/page-8.png');
+
+    expect(selection.kind).toBe('rulebook-page-fallback');
+  });
+
+  test('uses an enabled semantic report to select only the scene-relevant asset', () => {
+    const relevant = path.join(root, 'relevant.png');
+    const other = path.join(root, 'other.png');
+    fs.writeFileSync(relevant, 'relevant');
+    fs.writeFileSync(other, 'other');
+    const catalog = {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      semanticReportPath: '/reviewed/scene-match.json',
+      semanticBySceneId: new Map([['teach-research', { status: 'matched', selected_asset_id: 'research-track', relevance_score: 92 }]]),
+      assets: [
+        { id: 'research-track', page_index: 14, is_component: true, renderPath: relevant, curation: { lowInformation: false, score: 0.8 }, visualQuality: { primary_explanatory: true, quality_score: 85 } },
+        { id: 'other-card', page_index: 14, is_component: true, renderPath: other, curation: { lowInformation: false, score: 0.9 }, visualQuality: { primary_explanatory: true, quality_score: 90 } },
+      ],
+    };
+    const selection = selectSourceVisual({ id: 'teach-research', source_pages: [14] }, catalog, '/fallback/page-14.png');
+    expect(selection.kind).toBe('component');
+    expect(selection.assetId).toBe('research-track');
+    expect(selection.semanticMatch.relevance_score).toBe(92);
+  });
+
+  test('preserves an explicit reviewed visual assignment', () => {
+    const explicit = path.join(root, 'reviewed.png');
+    fs.writeFileSync(explicit, 'reviewed');
+    const selection = selectSourceVisual({ id: 'reviewed', visual_asset: explicit }, { assets: [] }, '/fallback.png');
+    expect(selection.kind).toBe('explicit-asset');
+    expect(selection.path).toBe(explicit);
+  });
+
+  test('labels a rulebook page fallback when no usable component exists', () => {
+    const selection = selectSourceVisual({ id: 'missing', source_pages: [9] }, { assets: [] }, '/fallback/page-9.png');
+    expect(selection.kind).toBe('rulebook-page-fallback');
+    expect(selection.warning).toContain('fell back');
+  });
+});

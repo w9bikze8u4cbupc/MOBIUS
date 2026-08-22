@@ -56,6 +56,23 @@ function buildBrandOutro({ bannerPath = null, audio = null, brand = DEFAULT_BRAN
   };
 }
 
+function buildTeachingMotion({ visualKind = '', visualFocus = null, durationSec = 0 } = {}) {
+  const rawAnchor = visualFocus?.anchor || visualFocus || {};
+  const anchor = {
+    x: Math.min(0.85, Math.max(0.15, Number(rawAnchor.x) || 0.5)),
+    y: Math.min(0.85, Math.max(0.15, Number(rawAnchor.y) || 0.5)),
+  };
+  const canMove = Number(durationSec) >= 2.5;
+  const isComponent = ['component', 'explicit-asset'].includes(visualKind);
+  if (!canMove || !isComponent) return { type: 'hold', anchor };
+  return {
+    type: visualFocus ? 'focus-zoom' : 'slow-zoom',
+    anchor,
+    startScale: 1,
+    endScale: visualFocus ? 1.08 : 1.045,
+  };
+}
+
 function buildTeachingScene({
   id,
   index,
@@ -68,6 +85,9 @@ function buildTeachingScene({
   audio = null,
   callouts = [],
   completedSteps = [],
+  visualKind = '',
+  visualFocus = null,
+  durationSec = 0,
 }) {
   const current = Number(index) + 1;
   const normalizedSection = cleanText(section) || `Étape ${current}`;
@@ -75,6 +95,8 @@ function buildTeachingScene({
   const imageSide = current % 2 === 1 ? 'right' : 'left';
   const textSide = imageSide === 'right' ? 'left' : 'right';
   const reference = sourceReference(sourcePages);
+  const normalizedCallouts = Array.isArray(callouts) ? callouts : [];
+  const derivedFocus = visualFocus || normalizedCallouts.find((callout) => callout?.target)?.target || null;
 
   return {
     id,
@@ -89,8 +111,10 @@ function buildTeachingScene({
       textSide,
       panelWidthRatio: 0.34,
       completedSteps: completedSteps.map(Number).filter((step) => Number.isInteger(step) && step > 0),
+      visualFocus: derivedFocus,
     },
-    callouts: Array.isArray(callouts) ? callouts : [],
+    callouts: normalizedCallouts,
+    motion: buildTeachingMotion({ visualKind, visualFocus: derivedFocus, durationSec }),
     overlays: [
       { type: 'badge', text: stepLabel, position: 'top', fontColor: '#f5d76e' },
       { type: 'heading', text: normalizedSection, position: 'panel-heading', fontColor: '#ffffff' },
@@ -121,5 +145,6 @@ module.exports = {
   buildBrandIntro,
   buildBrandOutro,
   buildTeachingScene,
+  buildTeachingMotion,
   buildChapters,
 };
