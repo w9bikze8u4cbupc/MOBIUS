@@ -26,10 +26,12 @@ describe('packageRenderJob', () => {
     const videoPath = path.join(tempDir, 'video.mp4');
     const captionPath = path.join(tempDir, 'subtitles.en.srt');
     const imagePath = path.join(tempDir, 'poster.png');
+    const chaptersPath = path.join(tempDir, 'youtube-chapters.json');
 
     fs.writeFileSync(videoPath, 'video-content');
     fs.writeFileSync(captionPath, '1\n00:00:00,000 --> 00:00:01,000\nCaption');
     fs.writeFileSync(imagePath, 'fake-image');
+    fs.writeFileSync(chaptersPath, JSON.stringify({ chapters: [{ startSec: 0, title: 'Bienvenue' }] }));
 
     const jobConfig = { timing: { totalDurationSec: 12.5 } };
 
@@ -41,10 +43,15 @@ describe('packageRenderJob', () => {
     expect(manifestOnDisk.media.video).toHaveLength(1);
     expect(manifestOnDisk.media.captions).toHaveLength(1);
     expect(manifestOnDisk.media.images).toHaveLength(1);
+    expect(manifestOnDisk.media.metadata).toContainEqual(expect.objectContaining({
+      kind: 'metadata',
+      path: 'youtube-chapters.json',
+      sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    }));
     expect(manifestOnDisk.referenceDurationSec).toBeCloseTo(12.5);
     expect(manifestOnDisk.media.video[0].sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(manifestOnDisk.media.captions[0].sha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(manifestOnDisk.checksums.length).toBeGreaterThanOrEqual(3);
+    expect(manifestOnDisk.checksums.length).toBeGreaterThanOrEqual(4);
   });
 
   const zipAvailable = fs.existsSync('/usr/bin/zip');

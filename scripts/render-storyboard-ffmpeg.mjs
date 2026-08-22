@@ -65,6 +65,19 @@ if (!existsSync(configPath)) {
 
 const config = JSON.parse(readFileSync(configPath, 'utf8'));
 
+function getAudioDurationSec(filePath) {
+  try {
+    const output = execFileSync('ffprobe', [
+      '-v', 'error', '-show_entries', 'format=duration',
+      '-of', 'default=noprint_wrappers=1:nokey=1', filePath,
+    ], { encoding: 'utf8', stdio: 'pipe' }).trim();
+    const duration = Number(output);
+    return Number.isFinite(duration) && duration > 0 ? duration : null;
+  } catch {
+    return null;
+  }
+}
+
 function validateConfig(cfg) {
   const errors = [];
   if (!cfg.projectId) errors.push('Missing projectId');
@@ -83,6 +96,19 @@ function validateConfig(cfg) {
       }
       if (!scene.background) {
         errors.push(`Scene ${i} (${scene.id || '?'}): missing background (color or image)`);
+      }
+      if (scene.narrationText) {
+        const audioPath = scene.audio?.file;
+        if (!audioPath || !existsSync(audioPath)) {
+          errors.push(`Scene ${i} (${scene.id || '?'}): narrationText requires a readable audio.file`);
+        } else {
+          const audioDurationSec = getAudioDurationSec(audioPath);
+          if (audioDurationSec === null) {
+            errors.push(`Scene ${i} (${scene.id || '?'}): unable to measure narration audio duration`);
+          } else if (audioDurationSec + 0.08 < Number(scene.durationSec)) {
+            errors.push(`Scene ${i} (${scene.id || '?'}): narration audio (${audioDurationSec.toFixed(2)}s) is shorter than scene duration (${Number(scene.durationSec).toFixed(2)}s)`);
+          }
+        }
       }
     });
   }
@@ -192,6 +218,43 @@ function getSafeMargins(w, h) {
   };
 }
 
+function getSceneLayout(scene, w, h) {
+  const layout = scene?.layout || {};
+  const margins = getSafeMargins(w, h);
+  const isTeaching = layout.mode === 'split-teaching';
+  const panelWidth = Math.round(w * Math.min(0.42, Math.max(0.28, Number(layout.panelWidthRatio) || 0.34)));
+  const textSide = layout.textSide === 'right' ? 'right' : 'left';
+  const imageSide = layout.imageSide === 'left' ? 'left' : 'right';
+  const panelX = textSide === 'left' ? margins.x : w - margins.x - panelWidth;
+  const imageWidth = Math.round(w * 0.56);
+  const imageHeight = Math.round(h * 0.82);
+  const imageX = imageSide === 'left' ? margins.x : w - margins.x - imageWidth;
+  const imageY = Math.round((h - imageHeight) / 2);
+  return {
+    mode: layout.mode || 'default',
+    isTeaching,
+    panelWidth,
+    panelX,
+    panelY: Math.round(h * 0.15),
+    panelHeight: Math.round(h * 0.73),
+    textSide,
+    imageSide,
+    imageX,
+    imageY,
+    imageWidth,
+    imageHeight,
+    margins,
+  };
+}
+
+function getOverlaySafeWidth(overlay, fontSize, w, h, scene) {
+  const layout = getSceneLayout(scene, w, h);
+  if (layout.isTeaching && ['panel-heading', 'panel-body', 'reference-bottom'].includes(overlay.position)) {
+    return Math.max(20, layout.panelWidth - (layout.margins.x * 0.55));
+  }
+  return w - (layout.margins.x * 2);
+}
+
 /**
  * Count how many lines a wrapped body text will occupy.
  */
@@ -210,9 +273,33 @@ function getWrappedLineCount(text, maxCharsPerLine) {
  *
  * Bookend scenes (title/bottom) remain centered/bottom as before.
  */
-function resolveOverlayPosition(overlay, fontSize, lineCount, w, h) {
-  const margins = getSafeMargins(w, h);
+function resolveOverlayPosition(overlay, fontSize, lineCount, w, h, scene = {}) {
+  const layout = getSceneLayout(scene, w, h);
+  const margins = layout.margins;
   const lineHeight = Math.round(fontSize * 1.4);
+
+  if (overlay.position === 'brand-title') {
+    return { x: '(w-text_w)/2', y: `${Math.round(h * 0.34)}` };
+  }
+
+  if (overlay.position === 'brand-subtitle') {
+    return { x: '(w-text_w)/2', y: `${Math.round(h * 0.63)}` };
+  }
+
+  if (layout.isTeaching && overlay.position === 'panel-heading') {
+    return { x: `${layout.panelX + Math.round(layout.panelWidth * 0.08)}`, y: `${Math.round(h * 0.27)}` };
+  }
+
+  if (layout.isTeaching && overlay.position === 'panel-body') {
+    const bodyBlockHeight = lineCount * lineHeight;
+    const availableHeight = Math.round(h * 0.33);
+    const bodyY = Math.round(h * 0.48) + Math.round((availableHeight - bodyBlockHeight) / 2);
+    return { x: `${layout.panelX + Math.round(layout.panelWidth * 0.08)}`, y: `${Math.max(Math.round(h * 0.48), bodyY)}` };
+  }
+
+  if (layout.isTeaching && overlay.position === 'reference-bottom') {
+    return { x: `${layout.panelX + Math.round(layout.panelWidth * 0.08)}`, y: `${Math.round(h * 0.82)}` };
+  }
 
   // Badge: top-left in safe area
   if (overlay.position === 'top') {
@@ -251,18 +338,19 @@ function resolveOverlayPosition(overlay, fontSize, lineCount, w, h) {
  * Build a drawbox filter string for the body text translucent background bar.
  * The bar spans the full safe width and covers the body text region with padding.
  */
-function buildBodyBackgroundBox(bodyY, lineCount, fontSize, w, h) {
-  const margins = getSafeMargins(w, h);
+function buildBodyBackgroundBox(bodyY, lineCount, fontSize, w, h, scene = {}) {
+  const layout = getSceneLayout(scene, w, h);
+  const margins = layout.margins;
   const lineHeight = Math.round(fontSize * 1.4);
   const padding = Math.round(fontSize * 0.6);
 
-  const boxX = margins.x - padding;
+  const boxX = layout.isTeaching ? layout.panelX + Math.round(layout.panelWidth * 0.05) : margins.x - padding;
   const boxY = parseInt(bodyY, 10) - padding;
-  const boxW = (w - 2 * margins.x) + 2 * padding;
+  const boxW = layout.isTeaching ? Math.round(layout.panelWidth * 0.9) : (w - 2 * margins.x) + 2 * padding;
   const boxH = (lineCount * lineHeight) + 2 * padding;
 
-  // Translucent dark background (60% opacity black)
-  return `drawbox=x=${boxX}:y=${boxY}:w=${boxW}:h=${boxH}:color=black@0.6:t=fill`;
+  // Translucent dark background, constrained to the text panel for teaching scenes.
+  return `drawbox=x=${boxX}:y=${boxY}:w=${boxW}:h=${boxH}:color=black@0.7:t=fill`;
 }
 
 /**
@@ -289,17 +377,22 @@ function buildBadgePillBox(badgeX, badgeY, text, fontSize, w, h) {
  * Build a drawbox filter string for the heading underline.
  * A thin accent-colored line beneath the heading text.
  */
-function buildHeadingUnderline(headingY, fontSize, accentColor, w, h) {
-  const margins = getSafeMargins(w, h);
+function buildHeadingUnderline(headingY, fontSize, accentColor, w, h, scene = {}) {
+  const layout = getSceneLayout(scene, w, h);
+  const margins = layout.margins;
   const lineHeight = Math.round(fontSize * 1.4);
   const underlineThickness = Math.max(2, Math.round(fontSize * 0.06));
   const gap = Math.round(fontSize * 0.3);
 
   // Underline positioned below heading text with a small gap
   const underlineY = parseInt(headingY, 10) + lineHeight + gap;
-  // Centered underline spanning 40% of safe width for visual elegance
-  const underlineW = Math.round((w - 2 * margins.x) * 0.4);
-  const underlineX = Math.round((w - underlineW) / 2);
+  // Align the underline with the text panel in split-teaching scenes.
+  const underlineW = layout.isTeaching
+    ? Math.round(layout.panelWidth * 0.72)
+    : Math.round((w - 2 * margins.x) * 0.4);
+  const underlineX = layout.isTeaching
+    ? layout.panelX + Math.round((layout.panelWidth - underlineW) / 2)
+    : Math.round((w - underlineW) / 2);
 
   // Use the accent color from the overlay palette
   const color = accentColor.replace('#', '0x');
@@ -322,10 +415,15 @@ function buildSceneCommand(scene, index) {
     // while retaining the original visual as an honest, inspectable source.
     const foregroundWidth = Math.round(width * 0.84);
     const foregroundHeight = Math.round(height * 0.84);
+    const layout = getSceneLayout(scene, width, height);
+    const targetWidth = layout.isTeaching ? layout.imageWidth : foregroundWidth;
+    const targetHeight = layout.isTeaching ? layout.imageHeight : foregroundHeight;
+    const targetX = layout.isTeaching ? layout.imageX : '(W-w)/2';
+    const targetY = layout.isTeaching ? layout.imageY : '(H-h)/2';
     filterBase = `[0:v]split=2[bgsrc][fgsrc];`
-      + `[bgsrc]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},boxblur=20:10,eq=brightness=-0.22:saturation=0.75[bg];`
-      + `[fgsrc]scale=${foregroundWidth}:${foregroundHeight}:force_original_aspect_ratio=decrease[fg];`
-      + `[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1`;
+      + `[bgsrc]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},boxblur=20:10,eq=brightness=-0.28:saturation=0.72[bg];`
+      + `[fgsrc]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease[fg];`
+      + `[bg][fg]overlay=${targetX}:${targetY},setsar=1`;
   } else {
     const color = scene.background?.color || '#1a1a2e';
     inputArgs.push('-f', 'lavfi', '-i', `color=c=${color}:s=${width}x${height}:d=${scene.durationSec}:r=${fps}`);
@@ -336,15 +434,18 @@ function buildSceneCommand(scene, index) {
   let filterChain = filterBase;
   const overlays = scene.overlays || [];
 
-  // Determine if this scene has a body overlay that needs a background box
-  // (content scenes only, not bookends with position=bottom)
-  const bodyOverlay = overlays.find((o) => o.type === 'body' && o.position === 'center');
+  // Determine if this scene has a body overlay that needs a background box.
+  const bodyOverlay = overlays.find((o) => o.type === 'body' && ['center', 'panel-body'].includes(o.position));
+  const sceneLayout = getSceneLayout(scene, width, height);
+  if (sceneLayout.isTeaching) {
+    filterChain += `,drawbox=x=${sceneLayout.panelX}:y=${sceneLayout.panelY}:w=${sceneLayout.panelWidth}:h=${sceneLayout.panelHeight}:color=black@0.74:t=fill`;
+  }
 
   // Pre-compute badge pill background (must come before badge drawtext)
   const badgeOverlay = overlays.find((o) => o.type === 'badge');
   if (badgeOverlay) {
     const badgeFontSize = Math.round(height / 30);
-    const badgePos = resolveOverlayPosition(badgeOverlay, badgeFontSize, 1, width, height);
+    const badgePos = resolveOverlayPosition(badgeOverlay, badgeFontSize, 1, width, height, scene);
     const pillFilter = buildBadgePillBox(badgePos.x, badgePos.y, badgeOverlay.text || '', badgeFontSize, width, height);
     filterChain += `,${pillFilter}`;
   }
@@ -353,11 +454,11 @@ function buildSceneCommand(scene, index) {
   const headingOverlay = overlays.find((o) => o.type === 'heading');
   if (headingOverlay) {
     const headingFontSize = Math.round(height / 18);
-    const headingPos = resolveOverlayPosition(headingOverlay, headingFontSize, 1, width, height);
+    const headingPos = resolveOverlayPosition(headingOverlay, headingFontSize, 1, width, height, scene);
     // Use accent color from the badge overlay (same scene palette) for the underline
     const accentSource = badgeOverlay?.fontColor || headingOverlay.fontColor || 'white';
     const underlineColor = accentSource.startsWith('#') ? accentSource : '#ffffff';
-    const underlineFilter = buildHeadingUnderline(headingPos.y, headingFontSize, underlineColor, width, height);
+    const underlineFilter = buildHeadingUnderline(headingPos.y, headingFontSize, underlineColor, width, height, scene);
     filterChain += `,${underlineFilter}`;
   }
 
@@ -365,11 +466,11 @@ function buildSceneCommand(scene, index) {
   if (bodyOverlay) {
     const bodyFontSize = Math.round(height / 25);
     const margins = getSafeMargins(width, height);
-    const safeWidth = width - (margins.x * 2);
+    const safeWidth = getOverlaySafeWidth(bodyOverlay, bodyFontSize, width, height, scene);
     const maxCharsPerLine = Math.max(20, Math.floor(safeWidth / (bodyFontSize * 0.6)));
     const lineCount = getWrappedLineCount(bodyOverlay.text || '', maxCharsPerLine);
-    const pos = resolveOverlayPosition(bodyOverlay, bodyFontSize, lineCount, width, height);
-    const boxFilter = buildBodyBackgroundBox(pos.y, lineCount, bodyFontSize, width, height);
+    const pos = resolveOverlayPosition(bodyOverlay, bodyFontSize, lineCount, width, height, scene);
+    const boxFilter = buildBodyBackgroundBox(pos.y, lineCount, bodyFontSize, width, height, scene);
     filterChain += `,${boxFilter}`;
   }
 
@@ -380,17 +481,17 @@ function buildSceneCommand(scene, index) {
     // Cookbook-style font sizing by overlay type
     let fontSize;
     switch (overlay.type) {
-      case 'title':   fontSize = Math.round(height / 12); break;  // Large titles
-      case 'heading': fontSize = Math.round(height / 18); break;  // Section headings
-      case 'badge':   fontSize = Math.round(height / 30); break;  // Small step badges
-      case 'body':    fontSize = Math.round(height / 25); break;  // Body text
-      default:        fontSize = Math.round(height / 25); break;
+      case 'title':     fontSize = Math.round(height / 12); break;
+      case 'heading':   fontSize = Math.round(height / 24); break;
+      case 'badge':     fontSize = Math.round(height / 34); break;
+      case 'reference': fontSize = Math.round(height / 42); break;
+      case 'body':      fontSize = Math.round(height / 31); break;
+      default:          fontSize = Math.round(height / 30); break;
     }
 
-    const margins = getSafeMargins(width, height);
-    const safeWidth = width - (margins.x * 2);
+    const safeWidth = getOverlaySafeWidth(overlay, fontSize, width, height, scene);
     const maxCharsPerLine = Math.max(20, Math.floor(safeWidth / (fontSize * 0.6)));
-    const wrappedText = overlay.type === 'body'
+    const wrappedText = (overlay.type === 'body' || (sceneLayout.isTeaching && overlay.position === 'panel-heading'))
       ? wrapTextToSafeWidth(rawText, maxCharsPerLine)
       : rawText;
     const text = escapeDrawtext(wrappedText);
@@ -401,10 +502,28 @@ function buildSceneCommand(scene, index) {
 
     // Structured layout positioning
     const lineCount = wrappedText.split('\n').length;
-    const pos = resolveOverlayPosition(overlay, fontSize, lineCount, width, height);
+    const pos = resolveOverlayPosition(overlay, fontSize, lineCount, width, height, scene);
 
     filterChain += `,drawtext=text='${text}':fontsize=${fontSize}:fontcolor=${fontColor}:borderw=${borderW}:bordercolor=${borderColor}:x=${pos.x}:y=${pos.y}`;
   });
+
+  // Add simple numbered target markers. These are intentionally modest: they
+  // reveal exactly what the narration refers to without covering the component.
+  for (const callout of (Array.isArray(scene.callouts) ? scene.callouts : [])) {
+    const target = callout?.target || {};
+    const normalizedX = Math.min(0.96, Math.max(0.04, Number(target.x) || 0.5));
+    const normalizedY = Math.min(0.94, Math.max(0.06, Number(target.y) || 0.5));
+    const x = Math.round(sceneLayout.isTeaching
+      ? sceneLayout.imageX + (normalizedX * sceneLayout.imageWidth)
+      : normalizedX * width);
+    const y = Math.round(sceneLayout.isTeaching
+      ? sceneLayout.imageY + (normalizedY * sceneLayout.imageHeight)
+      : normalizedY * height);
+    const boxSize = Math.round(Math.min(width, height) * 0.06);
+    const label = escapeDrawtext(String(callout.label || callout.number || '•'));
+    filterChain += `,drawbox=x=${x - boxSize / 2}:y=${y - boxSize / 2}:w=${boxSize}:h=${boxSize}:color=0xf5d76e@0.95:t=4`;
+    filterChain += `,drawtext=text='${label}':fontsize=${Math.round(boxSize * 0.68)}:fontcolor=0xf5d76e:borderw=2:bordercolor=black:x=${x - Math.round(boxSize * 0.18)}:y=${y - Math.round(boxSize * 0.42)}`;
+  }
 
   // Duration trim for image-based inputs
   if (scene.background?.image) {
@@ -417,11 +536,11 @@ function buildSceneCommand(scene, index) {
   const audioArgs = [];
   if (scene.audio?.file && existsSync(scene.audio.file)) {
     audioArgs.push('-i', scene.audio.file);
-    filterChain += `;[1:a]atrim=duration=${scene.durationSec},asetpts=PTS-STARTPTS[aout]`;
+    filterChain += `;[1:a]atrim=duration=${scene.durationSec},asetpts=PTS-STARTPTS,aresample=44100,aformat=sample_rates=44100:channel_layouts=stereo[aout]`;
   } else {
     // Generate silent audio
     audioArgs.push('-f', 'lavfi', '-i', `anullsrc=r=44100:cl=stereo`);
-    filterChain += `;[1:a]atrim=duration=${scene.durationSec},asetpts=PTS-STARTPTS[aout]`;
+    filterChain += `;[1:a]atrim=duration=${scene.durationSec},asetpts=PTS-STARTPTS,aresample=44100,aformat=sample_rates=44100:channel_layouts=stereo[aout]`;
   }
 
   const ffmpegArgs = [
@@ -480,8 +599,10 @@ try {
     '-c:v', 'copy',
     // Normalize the assembled narration after resampling so the final program,
     // not merely individual scene files, targets the release loudness standard.
-    '-af', 'aresample=async=1:first_pts=0,loudnorm=I=-14:TP=-1.0:LRA=11',
-    '-c:a', 'aac', '-b:a', '192k',
+    // A final limiter leaves a margin below the loudness pass’s theoretical
+    // true-peak target, protecting the encoded AAC output from overshoots.
+    '-af', 'aresample=48000:async=1:first_pts=0,loudnorm=I=-14:TP=-1.5:LRA=11,alimiter=limit=0.84:level=0',
+    '-c:a', 'aac', '-ar', '48000', '-b:a', '192k',
     finalOutput,
   ], { stdio: verbose ? 'inherit' : 'pipe' });
 } catch (err) {

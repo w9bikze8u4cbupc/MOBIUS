@@ -1,32 +1,46 @@
 #!/usr/bin/env node
 
 /**
- * Build an FFmpeg storyboard-renderer config and SRT sidecar from a reviewed,
- * source-grounded tutorial script. This deliberately does not generate rules,
- * images, or audio: those remain reviewable upstream artifacts. Its only job is
- * to preserve the reviewed scene-to-page and scene-to-narration contracts.
+ * Assemble a reviewed source-grounded script into the renderer contract used by
+ * MOBIUS. The default is French Canadian with Les Jeux Mobius branded bookends.
+ * Rules, visuals, and narration remain upstream reviewable artifacts; this
+ * script validates and preserves their scene-level relationship for rendering.
  *
  * Usage:
  *   node scripts/build-source-grounded-preview.mjs \
  *     --script work/tutorial.json --page-dir work/pages --audio-dir work/audio \
- *     --out-config work/render-config.json --out-srt work/captions_en.srt
+ *     --out-config work/render-config.json --out-srt work/captions_fr.srt \
+ *     --out-chapters work/youtube-chapters.json
  */
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, extname, join, resolve } from 'node:path';
+import presentation from '../src/storyboard/tutorial_presentation.cjs';
+
+const {
+  DEFAULT_BRAND,
+  buildBrandIntro,
+  buildBrandOutro,
+  buildTeachingScene,
+  buildChapters,
+} = presentation;
+
+const AUDIO_EXTENSIONS = ['.wav', '.mp3', '.m4a', '.aac'];
 
 function requiredArg(name) {
   const index = process.argv.indexOf(`--${name}`);
-  if (index < 0 || !process.argv[index + 1]) {
-    throw new Error(`Missing required argument: --${name}`);
-  }
+  if (index < 0 || !process.argv[index + 1]) throw new Error(`Missing required argument: --${name}`);
   return process.argv[index + 1];
 }
 
 function optionalArg(name, fallback) {
   const index = process.argv.indexOf(`--${name}`);
   return index >= 0 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
+}
+
+function hasFlag(name) {
+  return process.argv.includes(`--${name}`);
 }
 
 function escapeSrt(text) {
@@ -46,16 +60,22 @@ function formatSrtTime(seconds) {
 
 function getDurationSeconds(audioPath) {
   const output = execFileSync('ffprobe', [
-    '-v', 'error',
-    '-show_entries', 'format=duration',
-    '-of', 'default=noprint_wrappers=1:nokey=1',
-    audioPath,
+    '-v', 'error', '-show_entries', 'format=duration',
+    '-of', 'default=noprint_wrappers=1:nokey=1', audioPath,
   ], { encoding: 'utf8' }).trim();
   const duration = Number(output);
   if (!Number.isFinite(duration) || duration <= 0) {
     throw new Error(`Unable to determine audio duration for ${audioPath}`);
   }
   return duration;
+}
+
+function findAudioFile(audioDir, sceneId) {
+  for (const extension of AUDIO_EXTENSIONS) {
+    const path = join(audioDir, `${sceneId}${extension}`);
+    if (existsSync(path)) return path;
+  }
+  return null;
 }
 
 function assertScene(scene, index) {
@@ -70,79 +90,147 @@ function assertScene(scene, index) {
   }
 }
 
+function resolveVisualPath(scene, pageDir) {
+  if (scene.visual_asset && existsSync(resolve(scene.visual_asset))) return resolve(scene.visual_asset);
+  const pagePath = join(pageDir, `page-${scene.source_pages[0]}.png`);
+  if (!existsSync(pagePath)) throw new Error(`Scene ${scene.id} references missing page image: ${pagePath}`);
+  return pagePath;
+}
+
+function addCaption(captions, cursor, text) {
+  const durationSec = Number(captions.scene.durationSec || 0);
+  const start = cursor.value;
+  cursor.value += durationSec;
+  captions.blocks.push([
+    String(captions.blocks.length + 1),
+    `${formatSrtTime(start)} --> ${formatSrtTime(cursor.value)}`,
+    escapeSrt(text),
+  ].join('\n'));
+}
+
+function requireAudio(audioDir, id, label) {
+  const path = findAudioFile(audioDir, id);
+  if (!path) throw new Error(`${label} requires narration audio named '${id}.wav', '.mp3', '.m4a', or '.aac' in ${audioDir}`);
+  return path;
+}
+
 function main() {
   const scriptPath = resolve(requiredArg('script'));
   const pageDir = resolve(requiredArg('page-dir'));
   const audioDir = resolve(requiredArg('audio-dir'));
   const outputConfigPath = resolve(requiredArg('out-config'));
   const outputSrtPath = resolve(requiredArg('out-srt'));
+  const outputChaptersPath = resolve(optionalArg('out-chapters', join(dirname(outputConfigPath), 'youtube-chapters.json')));
   const projectId = optionalArg('project-id', 'source-grounded-tutorial');
   const width = Number(optionalArg('width', '1920'));
   const height = Number(optionalArg('height', '1080'));
   const fps = Number(optionalArg('fps', '30'));
+  const language = optionalArg('language', DEFAULT_BRAND.language);
+  const voiceName = optionalArg('voice-name', DEFAULT_BRAND.narration.voiceName);
+  const narrationProvider = optionalArg('narration-provider', DEFAULT_BRAND.narration.provider);
+  const bannerPath = optionalArg('brand-banner', null);
+  const includeBrand = !hasFlag('no-brand');
+
+  if (!['fr-CA', 'fr-FR', 'en'].includes(language)) {
+    throw new Error(`Unsupported tutorial language '${language}'. Use fr-CA, fr-FR, or en.`);
+  }
 
   const script = JSON.parse(readFileSync(scriptPath, 'utf8'));
   if (!Array.isArray(script.scenes) || script.scenes.length === 0) {
     throw new Error('The reviewed script must contain a non-empty scenes array');
   }
 
-  let cursor = 0;
-  const captionBlocks = [];
-  const scenes = script.scenes.map((scene, index) => {
+  const cursor = { value: 0 };
+  const captions = { blocks: [], scene: null };
+  const scenes = [];
+
+  if (includeBrand) {
+    const introAudio = requireAudio(audioDir, 'brand-intro', 'The branded intro');
+    const intro = buildBrandIntro({
+      bannerPath: bannerPath && existsSync(resolve(bannerPath)) ? resolve(bannerPath) : null,
+      audio: { file: introAudio, provider: narrationProvider },
+    });
+    intro.durationSec = getDurationSeconds(introAudio);
+    captions.scene = intro;
+    addCaption(captions, cursor, intro.narrationText);
+    scenes.push(intro);
+  }
+
+  for (const [index, scene] of script.scenes.entries()) {
     assertScene(scene, index);
-    const primaryPage = scene.source_pages[0];
-    const pagePath = join(pageDir, `page-${primaryPage}.png`);
-    const audioPath = join(audioDir, `${scene.id}.wav`);
-    if (!existsSync(pagePath)) throw new Error(`Scene ${scene.id} references missing page image: ${pagePath}`);
-    if (!existsSync(audioPath)) throw new Error(`Scene ${scene.id} references missing narration: ${audioPath}`);
-
+    const audioPath = requireAudio(audioDir, scene.id, `Scene ${scene.id}`);
     const durationSec = getDurationSeconds(audioPath);
-    const start = cursor;
-    cursor += durationSec;
-    captionBlocks.push([
-      String(index + 1),
-      `${formatSrtTime(start)} --> ${formatSrtTime(cursor)}`,
-      escapeSrt(scene.narration),
-    ].join('\n'));
-
-    const pageLabel = scene.source_pages.length > 1
-      ? `Official rulebook • pp. ${scene.source_pages.join(', ')}`
-      : `Official rulebook • p. ${primaryPage}`;
-
-    return {
+    const teaching = buildTeachingScene({
       id: scene.id,
-      durationSec,
-      background: { image: pagePath },
-      audio: { file: audioPath, provider: 'reviewed-narration' },
-      overlays: [
-        { type: 'badge', text: `STEP ${String(index + 1).padStart(2, '0')}`, position: 'top', fontColor: '#f5d76e' },
-        { type: 'heading', text: scene.section, position: 'upper', fontColor: '#ffffff' },
-        { type: 'body', text: scene.on_screen_text, position: 'center', fontColor: '#ffffff' },
-        { type: 'title', text: pageLabel, position: 'bottom', fontColor: '#d9e2ec' },
-      ],
-    };
-  });
+      index,
+      total: script.scenes.length,
+      section: scene.section,
+      narration: scene.narration,
+      onScreenText: scene.on_screen_text,
+      sourcePages: scene.source_pages,
+      background: { image: resolveVisualPath(scene, pageDir) },
+      audio: {
+        file: audioPath,
+        provider: narrationProvider,
+        providerVoiceId: process.env[DEFAULT_BRAND.narration.voiceIdEnv] || null,
+        language,
+      },
+      callouts: scene.callouts || scene.visual_callouts || [],
+      completedSteps: scene.completed_steps || [],
+    });
+    teaching.durationSec = durationSec;
+    captions.scene = teaching;
+    addCaption(captions, cursor, teaching.narrationText);
+    scenes.push(teaching);
+  }
 
+  if (includeBrand) {
+    const outroAudio = requireAudio(audioDir, 'brand-outro', 'The branded outro');
+    const outro = buildBrandOutro({
+      bannerPath: bannerPath && existsSync(resolve(bannerPath)) ? resolve(bannerPath) : null,
+      audio: { file: outroAudio, provider: narrationProvider },
+    });
+    outro.durationSec = getDurationSeconds(outroAudio);
+    captions.scene = outro;
+    addCaption(captions, cursor, outro.narrationText);
+    scenes.push(outro);
+  }
+
+  const chapters = buildChapters(scenes);
   const renderConfig = {
     projectId,
     gameName: script.game || projectId,
+    language,
     video: { resolution: { width, height }, fps },
+    narration: {
+      provider: narrationProvider,
+      voiceName,
+      providerVoiceId: process.env[DEFAULT_BRAND.narration.voiceIdEnv] || null,
+      language,
+    },
     scenes,
+    chapters,
     sourceGrounded: true,
     reviewedScript: scriptPath,
   };
 
   mkdirSync(dirname(outputConfigPath), { recursive: true });
   mkdirSync(dirname(outputSrtPath), { recursive: true });
+  mkdirSync(dirname(outputChaptersPath), { recursive: true });
   writeFileSync(outputConfigPath, `${JSON.stringify(renderConfig, null, 2)}\n`, 'utf8');
-  writeFileSync(outputSrtPath, `${captionBlocks.join('\n\n')}\n`, 'utf8');
+  writeFileSync(outputSrtPath, `${captions.blocks.join('\n\n')}\n`, 'utf8');
+  writeFileSync(outputChaptersPath, `${JSON.stringify({ version: 1, language, chapters }, null, 2)}\n`, 'utf8');
 
   console.log(JSON.stringify({
     projectId,
+    language,
+    voiceName,
+    narrationProvider,
     sceneCount: scenes.length,
-    totalDurationSec: Number(cursor.toFixed(3)),
+    totalDurationSec: Number(cursor.value.toFixed(3)),
     configPath: outputConfigPath,
     captionsPath: outputSrtPath,
+    chaptersPath: outputChaptersPath,
   }, null, 2));
 }
 

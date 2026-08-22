@@ -27,6 +27,10 @@ function isImageFile(filename) {
   return /\.(png|jpg|jpeg|webp)$/i.test(filename);
 }
 
+function isMetadataFile(filename) {
+  return /\.(json|txt|md)$/i.test(filename) && path.basename(filename) !== 'container.json';
+}
+
 async function computeSha256(filePath) {
   return new Promise((resolve, reject) => {
     const hash = crypto.createHash('sha256');
@@ -123,8 +127,9 @@ async function collectArtifacts(outputDir) {
   const audios = files.filter((file) => isAudioFile(file));
   const captions = files.filter((file) => isCaptionFile(file));
   const images = files.filter((file) => isImageFile(file));
+  const metadata = files.filter((file) => isMetadataFile(file));
 
-  return { files, videos, audios, captions, images };
+  return { files, videos, audios, captions, images, metadata };
 }
 
 function buildEnvSection() {
@@ -169,13 +174,16 @@ async function describeMediaEntries({ files, outputDir, kind }) {
 function inferLanguage(filename) {
   // Support conventional sidecar names such as `game.en.srt`,
   // `game-en.srt`, and `game_en.srt` when no locale map is available.
-  const match = filename.match(/(?:^|[-_.])([a-z]{2})(?:-[A-Z]{2})?\.(srt|vtt)$/i);
+  const match = filename.match(/(?:^|[-_.])([a-z]{2}(?:-[A-Z]{2})?)\.(srt|vtt)$/i);
   return match ? match[1] : undefined;
 }
 
 function inferCaptionFromFilename(filename, localizationConfig) {
   const base = path.basename(filename);
-  const entries = Object.entries(localizationConfig.subtitleLocaleCodes || {});
+  const entries = Object.entries(localizationConfig.subtitleLocaleCodes || {})
+    // Match regional identifiers before their base-language prefix: `fr-CA`
+    // must not be consumed prematurely by a generic `fr` mapping.
+    .sort(([, leftCode], [, rightCode]) => String(rightCode).length - String(leftCode).length);
   for (const [locale, code] of entries) {
     const regex = new RegExp(`(^|[-_\.])${code}(?=\.)`, 'i');
     if (regex.test(base)) {
@@ -196,10 +204,11 @@ async function buildMediaSection({
   audios,
   captions,
   images,
+  metadata,
   outputDir,
   localizationConfig,
 }) {
-  const [videoEntries, audioEntries, captionEntries, imageEntries] = await Promise.all([
+  const [videoEntries, audioEntries, captionEntries, imageEntries, metadataEntries] = await Promise.all([
     describeMediaEntries({ files: videos, outputDir, kind: 'video' }),
     describeMediaEntries({ files: audios, outputDir, kind: 'audio' }),
     (async () => {
@@ -223,6 +232,7 @@ async function buildMediaSection({
       return entries;
     })(),
     describeMediaEntries({ files: images, outputDir, kind: 'image' }),
+    describeMediaEntries({ files: metadata, outputDir, kind: 'metadata' }),
   ]);
 
   return {
@@ -230,6 +240,7 @@ async function buildMediaSection({
     audio: audioEntries,
     captions: captionEntries,
     images: imageEntries,
+    metadata: metadataEntries,
     referenceDurationSec: videoEntries[0]?.durationSec,
   };
 }
@@ -240,6 +251,7 @@ function buildChecksums(media) {
     ...(media.audio || []),
     ...(media.captions || []),
     ...(media.images || []),
+    ...(media.metadata || []),
   ];
 
   return allEntries
@@ -249,7 +261,15 @@ function buildChecksums(media) {
 
 export async function packageRenderJob({ jobId, outputDir, jobConfig }) {
   const artifactGroups = await collectArtifacts(outputDir);
-  const localizationConfig = loadLocalizationConfig();
+  const loadedLocalization = loadLocalizationConfig();
+  const jobLocalization = jobConfig?.localization || {};
+  const localizationConfig = {
+    ...loadedLocalization,
+    subtitleLocaleCodes: {
+      ...(loadedLocalization.subtitleLocaleCodes || {}),
+      ...(jobLocalization.subtitleLocaleCodes || jobLocalization.subtitleCodes || {}),
+    },
+  };
   const media = await buildMediaSection({
     ...artifactGroups,
     outputDir,

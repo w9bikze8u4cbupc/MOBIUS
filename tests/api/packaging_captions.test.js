@@ -79,4 +79,25 @@ describe('packageRenderJob captions', () => {
     expect(frEntry.sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(manifest.localization.subtitleLocaleCodes['en-US']).toBe('en');
   });
+
+  it('preserves a regional caption code provided by the render job', async () => {
+    const captionPath = path.join(tempDir, 'tutorial.fr-CA.srt');
+    fs.writeFileSync(captionPath, '1\n00:00:00,000 --> 00:00:01,000\nBonjour');
+
+    const result = await packageRenderJob({
+      jobId: 'regional-caption-job',
+      outputDir: tempDir,
+      jobConfig: {
+        localization: { subtitleLocaleCodes: { 'fr-CA': 'fr-CA' } },
+      },
+    });
+    const manifest = JSON.parse(fs.readFileSync(result.manifestPath, 'utf8'));
+
+    expect(manifest.media.captions).toContainEqual(expect.objectContaining({
+      path: 'tutorial.fr-CA.srt',
+      language: 'fr-CA',
+      languageCode: 'fr-CA',
+      locale: 'fr-CA',
+    }));
+  });
 });
