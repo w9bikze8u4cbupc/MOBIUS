@@ -72,10 +72,22 @@ function headers(apiKey) {
   return { 'content-type': 'application/json', ...(apiKey ? { 'x-api-key': apiKey } : {}) };
 }
 async function apiJson(baseUrl, route, options = {}) {
-  const response = await fetch(`${baseUrl.replace(/\/$/, '')}${route}`, {
-    ...options,
-    headers: { ...headers(options.apiKey || process.env.API_KEY), ...(options.headers || {}) },
-  });
+  const url = `${baseUrl.replace(/\/$/, '')}${route}`;
+  let response;
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers: { ...headers(options.apiKey || process.env.API_KEY), ...(options.headers || {}) },
+      });
+      break;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 250));
+    }
+  }
+  if (!response) throw new Error(`${options.method || 'GET'} ${route} network request failed after 3 attempts: ${lastError?.message || 'unknown error'}`);
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`${options.method || 'GET'} ${route} failed (${response.status}): ${body.error || body.code || 'unknown error'}`);
   return body;
