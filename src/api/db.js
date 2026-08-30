@@ -58,6 +58,27 @@ function run(sql, params = [], callback) {
       return { changes: 1 };
     }
 
+    if (/^\s*UPDATE\s+projects\s+SET\s+name\s*=\s*\?,\s*metadata\s*=\s*\?,\s*components\s*=\s*\?,\s*images\s*=\s*\?,\s*script\s*=\s*\?,\s*audio\s*=\s*\?,\s*scenes\s*=\s*\?\s+WHERE\s+id\s*=\s*\?/i.test(sql)) {
+      const [name, metadata, components, images, script, audio, scenes, id] = params;
+      const record = projects.find((project) => project.id === Number(id));
+      if (!record) {
+        if (callback) callback.call({ changes: 0 }, null);
+        return { changes: 0 };
+      }
+      Object.assign(record, {
+        name: name || '',
+        metadata: metadata || '{}',
+        components: components || '[]',
+        images: images || '[]',
+        script: script || '',
+        audio: audio || '',
+        scenes,
+      });
+      persist();
+      if (callback) callback.call({ changes: 1 }, null);
+      return { changes: 1 };
+    }
+
     const [name, metadata, components, images, script, audio, scenes] = params;
     const record = {
       id: nextId++,
