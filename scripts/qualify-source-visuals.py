@@ -16,7 +16,7 @@ from pathlib import Path
 
 from openai import OpenAI
 
-MODEL = "gpt-5-mini"
+MODEL = os.getenv("MOBIUS_VISUAL_QA_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5-mini"
 MAX_PER_PAGE = 3
 
 SCHEMA = {

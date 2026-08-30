@@ -9,12 +9,13 @@ from __future__ import annotations
 import base64
 import concurrent.futures
 import json
+import os
 import sys
 from pathlib import Path
 
 from openai import OpenAI
 
-MODEL = "gpt-5"
+MODEL = os.getenv("MOBIUS_VISUAL_MATCH_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5"
 MIN_RELEVANCE = 70
 SCHEMA = {
     "type": "json_schema",

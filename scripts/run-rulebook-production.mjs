@@ -306,14 +306,15 @@ async function runZeroState(options = {}) {
   const visualReviewDir = path.join(productionDir, 'source-visual-review');
   const qualityPath = path.join(visualReviewDir, 'source-visual-quality.json');
   const semanticPath = path.join(visualReviewDir, 'source-visual-semantic-matches.json');
-  if (!stageReady(checkpoint, 'visual-review', hashValue({ visualScriptHash, hephHash }), [qualityPath, semanticPath])) {
+  const visualReviewHash = hashValue({ visualScriptHash, hephHash, qualityModel: process.env.MOBIUS_VISUAL_QA_MODEL || process.env.OPENAI_MODEL || 'gpt-5-mini', matchModel: process.env.MOBIUS_VISUAL_MATCH_MODEL || process.env.OPENAI_MODEL || 'gpt-5' });
+  if (!stageReady(checkpoint, 'visual-review', visualReviewHash, [qualityPath, semanticPath])) {
     const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
     const result = spawnSync(process.execPath, [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--output-dir', visualReviewDir], {
       cwd: root, env: { ...process.env, PYTHON: python }, stdio: 'inherit', windowsHide: true,
     });
     if (result.status !== 0) throw new Error(`prepare-source-visuals exited with code ${result.status}`);
   }
-  markStage(checkpoint, 'visual-review', hashValue({ visualScriptHash, hephHash }), [qualityPath, semanticPath]);
+  markStage(checkpoint, 'visual-review', visualReviewHash, [qualityPath, semanticPath]);
 
   const catalog = loadSourceVisualCatalog(hephManifestPath, { qualityReportPath: qualityPath, semanticReportPath: semanticPath });
   const boundScenes = storyboardManifest.scenes.map((scene) => {
