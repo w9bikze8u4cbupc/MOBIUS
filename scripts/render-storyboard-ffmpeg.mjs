@@ -304,6 +304,23 @@ function getWrappedLineCount(text, maxCharsPerLine) {
 }
 
 /**
+ * Fit long teaching summaries inside the panel while keeping enough room for
+ * the source citation below them. The same size is used by the background
+ * box and drawtext pass so the two layers cannot drift apart.
+ */
+function getTeachingBodyFontSize(overlay, w, h, scene = {}) {
+  const baseFontSize = Math.round(h / 31);
+  const maxBodyHeight = Math.round(h * 0.30);
+  for (let fontSize = baseFontSize; fontSize >= Math.round(h / 50); fontSize -= 1) {
+    const safeWidth = getOverlaySafeWidth(overlay, fontSize, w, h, scene);
+    const maxCharsPerLine = Math.max(20, Math.floor(safeWidth / (fontSize * 0.6)));
+    const lineCount = getWrappedLineCount(overlay.text || '', maxCharsPerLine);
+    if (lineCount * Math.round(fontSize * 1.4) <= maxBodyHeight) return fontSize;
+  }
+  return Math.round(h / 50);
+}
+
+/**
  * Resolve deterministic Y positions for the structured cookbook layout.
  *
  * Content scenes use explicit stacking:
@@ -506,7 +523,9 @@ function buildSceneCommand(scene, index) {
 
   // Pre-compute body layout for the background box (must come before drawtext)
   if (bodyOverlay) {
-    const bodyFontSize = Math.round(height / 25);
+    const bodyFontSize = bodyOverlay.position === 'panel-body' && sceneLayout.isTeaching
+      ? getTeachingBodyFontSize(bodyOverlay, width, height, scene)
+      : Math.round(height / 31);
     const margins = getSafeMargins(width, height);
     const safeWidth = getOverlaySafeWidth(bodyOverlay, bodyFontSize, width, height, scene);
     const maxCharsPerLine = Math.max(20, Math.floor(safeWidth / (bodyFontSize * 0.6)));
@@ -529,6 +548,10 @@ function buildSceneCommand(scene, index) {
       case 'reference': fontSize = Math.round(height / 42); break;
       case 'body':      fontSize = Math.round(height / 31); break;
       default:          fontSize = Math.round(height / 30); break;
+    }
+
+    if (overlay.type === 'body' && overlay.position === 'panel-body' && sceneLayout.isTeaching) {
+      fontSize = getTeachingBodyFontSize(overlay, width, height, scene);
     }
 
     const safeWidth = getOverlaySafeWidth(overlay, fontSize, width, height, scene);
