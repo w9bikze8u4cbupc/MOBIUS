@@ -84,6 +84,38 @@ test('load-project resolves the canonical project identifier after a runtime res
   expect(result.payload).toMatchObject({ id: 1, projectContext: { projectId } });
 });
 
+test('load-project chooses the newest durable row when recovery created duplicates', () => {
+  const routes = new Map();
+  const older = makeRow();
+  const newer = { ...makeRow(), id: 2, created_at: '2026-08-30 16:14:47' };
+  registerProjectPersistenceRoutes({
+    post: () => {},
+    get: (route, handler) => routes.set(route, handler),
+  }, {
+    db: {
+      get: (_sql, _params, callback) => callback(null, null),
+      all: (_sql, _params, callback) => callback(null, [older, newer]),
+    },
+  });
+
+  const previousApiKey = process.env.API_KEY;
+  process.env.API_KEY = 'test-api-key';
+  const result = { statusCode: 200, payload: null };
+  const res = {
+    status(code) { result.statusCode = code; return this; },
+    json(payload) { result.payload = payload; return this; },
+  };
+  routes.get('/load-project/:id')({
+    params: { id: projectId },
+    headers: { 'x-api-key': 'test-api-key' },
+  }, res);
+  if (previousApiKey === undefined) delete process.env.API_KEY;
+  else process.env.API_KEY = previousApiKey;
+
+  expect(result.statusCode).toBe(200);
+  expect(result.payload.id).toBe(2);
+});
+
 function invokeRecovery(rows, body) {
   const routes = new Map();
   registerProjectPersistenceRoutes({

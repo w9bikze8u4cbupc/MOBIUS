@@ -570,10 +570,14 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
             const metadata = parseRecoveryMetadata(candidate?.metadata);
             return metadata?.projectContext?.projectId === req.params.id;
           });
-          if (matches.length > 1) {
-            return res.status(409).json({ error: 'Project identifier is ambiguous' });
-          }
-          return respondWithProject(null, matches[0]);
+          // `/save-project` is append-only, so a browser recovery can leave
+          // several rows for one canonical project ID. The newest row is the
+          // durable current state; retain older rows for audit/recovery rather
+          // than forcing callers to know a numeric row ID.
+          const current = matches
+            .slice()
+            .sort((left, right) => Number(right?.id || 0) - Number(left?.id || 0))[0];
+          return respondWithProject(null, current);
         });
       },
     );
