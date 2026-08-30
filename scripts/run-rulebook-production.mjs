@@ -29,6 +29,7 @@ const { generateStoryboard } = require('../src/storyboard/generator.js');
 const VOICE_ID = process.env.ELEVENLABS_VOICE_ID_AMELIE || 'UJCi4DDncuo0VJDSIegj';
 const VOICE_NAME = 'Amélie';
 const MODEL_ID = 'eleven_multilingual_v2';
+const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v2';
 const DEFAULT_BASE_URL = process.env.MOBIUS_BASE_URL || 'http://127.0.0.1:5001';
 
 function argsToObject(argv = process.argv.slice(2)) {
@@ -337,17 +338,26 @@ async function runZeroState(options = {}) {
   const visualReviewDir = path.join(productionDir, 'source-visual-review');
   const qualityPath = path.join(visualReviewDir, 'source-visual-quality.json');
   const semanticPath = path.join(visualReviewDir, 'source-visual-semantic-matches.json');
-  const visualReviewHash = hashValue({ visualScriptHash, hephHash, qualityModel: process.env.MOBIUS_VISUAL_QA_MODEL || process.env.OPENAI_MODEL || 'gpt-5-mini', matchModel: process.env.MOBIUS_VISUAL_MATCH_MODEL || process.env.OPENAI_MODEL || 'gpt-5' });
-  if (!stageReady(checkpoint, 'visual-review', visualReviewHash, [qualityPath, semanticPath])) {
+  const focusedCropManifestPath = path.join(visualReviewDir, 'focused-page-crops.json');
+  const combinedVisualManifestPath = path.join(visualReviewDir, 'source-visual-manifest.json');
+  const visualReviewHash = hashValue({
+    pipeline: VISUAL_PIPELINE_VERSION,
+    visualScriptHash,
+    hephHash,
+    sourceSha256: identity.sha256,
+    qualityModel: process.env.MOBIUS_VISUAL_QA_MODEL || process.env.OPENAI_MODEL || 'gpt-5-mini',
+    matchModel: process.env.MOBIUS_VISUAL_MATCH_MODEL || process.env.OPENAI_MODEL || 'gpt-5',
+  });
+  if (!stageReady(checkpoint, 'visual-review', visualReviewHash, [qualityPath, semanticPath, combinedVisualManifestPath, focusedCropManifestPath])) {
     const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
-    const result = spawnSync(process.execPath, [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--output-dir', visualReviewDir], {
+    const result = spawnSync(process.execPath, [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--output-dir', visualReviewDir, '--page-dir', pageDir, '--extraction', path.join(productionDir, 'zero-state-extraction.json'), '--source-sha256', identity.sha256], {
       cwd: root, env: { ...process.env, PYTHON: python }, stdio: 'inherit', windowsHide: true,
     });
     if (result.status !== 0) throw new Error(`prepare-source-visuals exited with code ${result.status}`);
   }
-  markStage(checkpoint, 'visual-review', visualReviewHash, [qualityPath, semanticPath]);
+  markStage(checkpoint, 'visual-review', visualReviewHash, [qualityPath, semanticPath, combinedVisualManifestPath, focusedCropManifestPath]);
 
-  const catalog = loadSourceVisualCatalog(hephManifestPath, { qualityReportPath: qualityPath, semanticReportPath: semanticPath });
+  const catalog = loadSourceVisualCatalog(combinedVisualManifestPath, { qualityReportPath: qualityPath, semanticReportPath: semanticPath });
   const boundScenes = storyboardManifest.scenes.map((scene) => {
     const productionScene = sceneForProduction(scene, extraction.pageRanges, extraction.pages);
     const selection = selectSourceVisual(productionScene, catalog, sourcePageFallback(root, projectId, productionScene.source_pages[0]));
@@ -355,25 +365,29 @@ async function runZeroState(options = {}) {
     return {
       ...scene,
       renderVisual: {
-        path: selection.path, assetId: selection.assetId || null, kind: selection.kind === 'component' ? 'automatic-asset' : 'rulebook-page-fallback',
+        path: selection.path, assetId: selection.assetId || null,
+        kind: selection.kind === 'component' ? 'automatic-component' : selection.kind,
         confidence: selection.confidence, reason: selection.reason, sourcePage: selection.sourcePage || productionScene.source_pages[0],
         semanticMatch: selection.semanticMatch || null,
+        provenance: selection.provenance || null,
       },
     };
   });
   const visualCounts = boundScenes.reduce((counts, scene) => {
     const kind = scene.renderVisual.kind;
-    if (kind === 'automatic-asset') counts.automatic += 1;
-    else if (kind === 'explicit-asset' || kind === 'component') counts.explicit += 1;
+    if (kind === 'automatic-component' || kind === 'automatic-asset' || kind === 'component') counts.automaticComponent += 1;
+    else if (kind === 'focused-page-crop') counts.automaticFocusedCrop += 1;
+    else if (kind === 'explicit-asset') counts.explicit += 1;
+    else if (kind === 'missing') counts.missing += 1;
     else counts.fallback += 1;
     return counts;
-  }, { explicit: 0, automatic: 0, fallback: 0, missing: 0 });
+  }, { explicit: 0, automaticComponent: 0, automaticFocusedCrop: 0, fallback: 0, missing: 0 });
   if (visualCounts.missing) throw new Error('Zero-state visual contract has missing bindings.');
   markStage(checkpoint, 'visual-bindings', hashValue({ visualScriptHash, semantic: jsonIf(semanticPath) }), [hephManifestPath, qualityPath, semanticPath], { counts: visualCounts });
 
   const imagesResponse = await apiJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/images`, { apiKey });
   const initialStateHash = hashValue({ identity: identity.sha256, scriptHash, storyboardHash, visualCounts });
-  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], production: { status: 'ready_for_production', sourceVisualManifest: hephManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, inputHash: initialStateHash } });
+  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], production: { status: 'ready_for_production', sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, inputHash: initialStateHash } });
   markStage(checkpoint, 'canonical-state', initialStateHash, [storyboardPath], { reused: false, visualCounts });
   await saveJson(checkpointPath, checkpoint);
   if (await stopIfRequested(options, checkpoint, 'canonical-state', checkpointPath, { projectId, visualCounts })) return { status: 'stopped', stage: 'canonical-state' };
@@ -381,7 +395,21 @@ async function runZeroState(options = {}) {
   const production = await runProduction({ projectId, language, root, baseUrl, apiKey, forceRender: Boolean(options.forceRender) });
   const audioSidecar = jsonIf(path.join(productionDir, 'narration-assets.json'), {});
   const report = jsonIf(path.join(productionDir, 'production-report.json'), production);
-  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], audioAssets: audioSidecar.assets || [], production: { status: 'complete', sourceVisualManifest: hephManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, reportPath: path.join(productionDir, 'production-report.json'), report }, });
+  const qualityReport = jsonIf(qualityPath, {});
+  const semanticReport = jsonIf(semanticPath, {});
+  report.visuals = {
+    ...(report.visuals || {}),
+    explicit: visualCounts.explicit,
+    automatic: visualCounts.automaticComponent + visualCounts.automaticFocusedCrop,
+    automaticComponent: visualCounts.automaticComponent,
+    automaticFocusedCrop: visualCounts.automaticFocusedCrop,
+    fallback: visualCounts.fallback,
+    missing: visualCounts.missing,
+    rejectedForQuality: Number(qualityReport.summary?.rejected || 0),
+    rejectedForSemantic: (semanticReport.scenes || []).filter((scene) => ['no-qualified-source-asset', 'no-semantic-match'].includes(scene.status)).length,
+  };
+  await saveJson(path.join(productionDir, 'production-report.json'), report);
+  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], audioAssets: audioSidecar.assets || [], production: { status: 'complete', sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, reportPath: path.join(productionDir, 'production-report.json'), report }, });
   checkpoint.stages.production = { inputHash: hashValue({ initialStateHash, report: report.render?.outputSha256 || null }), reused: report.render?.reused === true, reportPath: path.join(productionDir, 'production-report.json'), ttsReused: report.narration?.reused || 0, ttsGenerated: report.narration?.generated || 0 };
   checkpoint.stages.qa = { status: report.status, output: report.render?.outputPath, media: report.media, visuals: visualCounts };
   delete checkpoint.stoppedAfter;

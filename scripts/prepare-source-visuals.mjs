@@ -6,11 +6,12 @@
  * scene-to-asset semantic report, both of which can be inspected or edited by
  * an operator before being supplied to build-source-grounded-preview.mjs.
  */
-import { existsSync } from 'fs';
-import { mkdir } from 'fs/promises';
+import { existsSync, readFileSync } from 'fs';
+import { mkdir, writeFile } from 'fs/promises';
 import { dirname, resolve } from 'path';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
+import { generateFocusedPageCrops } from '../src/services/sourcePageVisuals.js';
 
 function arg(name) {
   const index = process.argv.indexOf(`--${name}`);
@@ -49,13 +50,42 @@ async function main() {
   const qualityScript = resolve(scriptDir, 'qualify-source-visuals.py');
   const semanticScript = resolve(scriptDir, 'match-scene-visuals.py');
 
+  // A vision model can identify tighter regions, but a two-column spread has
+  // enough authoritative layout evidence to produce useful, repeatable crops
+  // locally. These candidates remain subject to the same quality and semantic
+  // gates as extracted components.
+  let visualManifestPath = manifestPath;
+  const pageDir = arg('page-dir');
+  const extractionPath = arg('extraction');
+  if (pageDir && extractionPath && existsSync(resolve(extractionPath))) {
+    const extraction = JSON.parse(readFileSync(resolve(extractionPath), 'utf8'));
+    const cropManifestPath = resolve(outputDir, 'focused-page-crops.json');
+    const cropDir = resolve(outputDir, 'focused-crops');
+    const sourceSha256 = arg('source-sha256') || extraction.source?.sha256 || null;
+    const cropManifest = await generateFocusedPageCrops({
+      pageDir: resolve(pageDir),
+      pages: extraction.pages || [],
+      outputDir: cropDir,
+      sourceSha256,
+    });
+    await writeFile(cropManifestPath, `${JSON.stringify(cropManifest, null, 2)}\n`, 'utf8');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    visualManifestPath = resolve(outputDir, 'source-visual-manifest.json');
+    await writeFile(visualManifestPath, `${JSON.stringify({
+      ...manifest,
+      images: [...(manifest.images || []), ...(cropManifest.assets || [])],
+      focusedCropManifest: cropManifestPath,
+    }, null, 2)}\n`, 'utf8');
+  }
+
   console.log('[prepare-source-visuals] Qualifying source components…');
-  await run(python, [qualityScript, scriptPath, manifestPath, qualityPath]);
+  await run(python, [qualityScript, scriptPath, visualManifestPath, qualityPath]);
   console.log('[prepare-source-visuals] Matching approved components to tutorial scenes…');
   await run(python, [semanticScript, scriptPath, qualityPath, semanticPath]);
   console.log(JSON.stringify({
     script: scriptPath,
-    assetManifest: manifestPath,
+    assetManifest: visualManifestPath,
+    focusedCropManifest: pageDir && extractionPath ? resolve(outputDir, 'focused-page-crops.json') : null,
     visualQualityReport: qualityPath,
     semanticVisualReport: semanticPath,
   }, null, 2));

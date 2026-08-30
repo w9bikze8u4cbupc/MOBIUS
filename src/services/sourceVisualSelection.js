@@ -22,7 +22,7 @@ function normalize(value) {
 }
 
 function assetType(asset) {
-  return String(asset.type || asset.classification || asset.label || 'unknown').toLowerCase();
+  return String(asset.visual_kind || asset.type || asset.classification || asset.label || 'unknown').toLowerCase();
 }
 
 function resolveAssetPath(asset, manifestPath) {
@@ -180,16 +180,26 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
   if (best && best.score >= 0.42) {
     return {
       path: best.asset.renderPath,
-      kind: 'component',
+      kind: best.asset.visual_kind === 'focused-page-crop' || best.asset.type === 'focused-crop'
+        ? 'focused-page-crop'
+        : 'component',
       confidence: best.score,
       reason: `curated-component:${assetType(best.asset)}`,
       assetId: best.asset.id || null,
-      sourcePage: Number.isFinite(Number(best.asset.page_index ?? best.asset.pageIndex))
-        ? Number(best.asset.page_index ?? best.asset.pageIndex)
+      sourcePage: Number.isFinite(Number(best.asset.source_page ?? best.asset.sourcePage))
+        ? Number(best.asset.source_page ?? best.asset.sourcePage)
+        : Number.isFinite(Number(best.asset.page_index ?? best.asset.pageIndex))
+          ? Number(best.asset.page_index ?? best.asset.pageIndex) + 1
         : null,
       visualTypes: desiredTypes,
       visualQuality: best.asset.visualQuality || null,
       semanticMatch: semanticMatch || null,
+      provenance: best.asset.provenance || {
+        sourcePdfSha256: best.asset.sourcePdfSha256 || null,
+        sourcePage: best.asset.source_page || (Number(best.asset.page_index) + 1) || null,
+        bbox: best.asset.bbox || best.asset.normalized_bbox || null,
+        assetHash: best.asset.contentHash || null,
+      },
     };
   }
 

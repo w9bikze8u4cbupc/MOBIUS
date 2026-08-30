@@ -139,6 +139,39 @@ describe('sourceVisualSelection', () => {
     expect(selection.semanticMatch.relevance_score).toBe(92);
   });
 
+  test('preserves focused-page-crop kind, one-based source page, and provenance', () => {
+    const crop = path.join(root, 'focused.png');
+    fs.writeFileSync(crop, 'focused');
+    const selection = selectSourceVisual({ id: 'teach-sell', source_pages: [3] }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      semanticReportPath: '/reviewed/scene-match.json',
+      semanticBySceneId: new Map([['teach-sell', { status: 'matched', selected_asset_id: 'sell-panel', relevance_score: 96 }]]),
+      assets: [{
+        id: 'sell-panel', source_page: 3, page_index: 2, visual_kind: 'focused-page-crop', type: 'focused-crop',
+        is_component: true, renderPath: crop, curation: { lowInformation: false, score: 0.92 },
+        visualQuality: { primary_explanatory: true, quality_score: 91 },
+        provenance: { sourcePdfSha256: 'pdf-sha', sourcePage: 3, bbox: { x: 10, y: 20, width: 100, height: 200 }, assetHash: 'asset-sha' },
+      }],
+    }, '/fallback/page-3.png');
+
+    expect(selection).toMatchObject({ kind: 'focused-page-crop', assetId: 'sell-panel', sourcePage: 3 });
+    expect(selection.provenance).toMatchObject({ sourcePdfSha256: 'pdf-sha', sourcePage: 3, assetHash: 'asset-sha' });
+  });
+
+  test('keeps a truthful fallback when a high-quality candidate has no semantic match', () => {
+    const unrelated = path.join(root, 'unrelated.png');
+    fs.writeFileSync(unrelated, 'unrelated');
+    const selection = selectSourceVisual({ id: 'teach-scoring', source_pages: [4] }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      semanticReportPath: '/reviewed/scene-match.json',
+      semanticBySceneId: new Map([['teach-scoring', { status: 'no-semantic-match', selected_asset_id: null, relevance_score: 28 }]]),
+      assets: [{ id: 'unrelated-card', page_index: 3, is_component: true, renderPath: unrelated, type: 'card', curation: { lowInformation: false, score: 0.98 }, visualQuality: { primary_explanatory: true, quality_score: 98 } }],
+    }, '/fallback/page-4.png');
+
+    expect(selection.kind).toBe('rulebook-page-fallback');
+    expect(selection.path).toBe('/fallback/page-4.png');
+  });
+
   test('preserves an explicit reviewed visual assignment', () => {
     const explicit = path.join(root, 'reviewed.png');
     fs.writeFileSync(explicit, 'reviewed');

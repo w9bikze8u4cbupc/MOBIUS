@@ -193,7 +193,7 @@ function scriptSceneFromCanonical(scene, index) {
   const onScreenText = Array.isArray(overlay.onScreenText) && overlay.onScreenText.length
     ? overlay.onScreenText.join(' ')
     : firstDirection.onScreenText || scene.title;
-  const explicit = ['explicit-asset', 'component', 'automatic-asset'].includes(scene.renderVisual?.kind)
+  const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop'].includes(scene.renderVisual?.kind)
     && scene.renderVisual?.path
     && existsSync(scene.renderVisual.path);
   return {
@@ -228,13 +228,13 @@ function canonicalInput(normalized) {
 }
 
 function inspectVisuals(normalized) {
-  const counts = { explicit: 0, automatic: 0, fallback: 0, missing: 0 };
+  const counts = { explicit: 0, automatic: 0, automaticComponent: 0, automaticFocusedCrop: 0, fallback: 0, missing: 0 };
   const warnings = [];
   const bindings = [];
   for (const [index, scene] of normalized.scenes.entries()) {
     const pages = sourcePagesForScene(scene);
     const fallback = join(normalized.pageDir, `page-${pages[0]}.png`);
-    const explicit = ['explicit-asset', 'component', 'automatic-asset'].includes(scene.renderVisual?.kind) && scene.renderVisual?.path;
+    const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop'].includes(scene.renderVisual?.kind) && scene.renderVisual?.path;
     const selection = selectSourceVisual(
       explicit ? { visual_asset: scene.renderVisual.path, visual_asset_id: scene.renderVisual.assetId, visual_asset_kind: scene.renderVisual.kind } : {},
       { assets: [] },
@@ -245,13 +245,17 @@ function inspectVisuals(normalized) {
       warnings.push(`Scene ${scene.id || index + 1} has no readable visual.`);
     } else if (selection.kind === 'explicit-asset') {
       counts.explicit += 1;
-    } else if (selection.kind === 'automatic-asset') {
+    } else if (selection.kind === 'automatic-asset' || selection.kind === 'automatic-component' || selection.kind === 'component') {
       counts.automatic += 1;
+      counts.automaticComponent += 1;
+    } else if (selection.kind === 'focused-page-crop') {
+      counts.automatic += 1;
+      counts.automaticFocusedCrop += 1;
     } else {
       counts.fallback += 1;
       warnings.push(`Scene '${scene.id}' uses labelled rulebook fallback page ${pages[0]}.`);
     }
-    bindings.push({ sceneId: scene.id, kind: selection.kind, path: selection.path, sourcePage: pages[0] });
+    bindings.push({ sceneId: scene.id, kind: selection.kind, path: selection.path, sourcePage: selection.sourcePage || pages[0], provenance: selection.provenance || null });
   }
   if (counts.missing) throw new Error(`Visual contract failed: ${counts.missing} scene(s) have no readable visual.`);
   return { counts, warnings, bindings };
