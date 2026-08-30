@@ -519,10 +519,7 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
       return res.status(401).json({ error: 'Unauthorized: Invalid API key' });
     }
 
-    db.get(
-      'SELECT * FROM projects WHERE id = ?',
-      [req.params.id],
-      (error, row) => {
+    const respondWithProject = (error, row) => {
         if (error) {
           console.error(error);
           return res.status(500).json({ error: 'Failed to load project' });
@@ -552,6 +549,32 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
           console.error('Failed to parse project data:', parseError);
           return res.status(500).json({ error: 'Failed to parse project data' });
         }
+    };
+
+    db.get(
+      'SELECT * FROM projects WHERE id = ?',
+      [req.params.id],
+      (error, row) => {
+        if (error || row || /^\d+$/.test(String(req.params.id))) {
+          return respondWithProject(error, row);
+        }
+
+        // The durable API historically exposed the SQLite/file-storage row ID,
+        // while the rest of MOBIUS identifies a project by
+        // metadata.projectContext.projectId. Resolve that canonical identifier
+        // through the same persisted store so production CLIs do not need to
+        // know an implementation-specific numeric row ID.
+        return db.all('SELECT * FROM projects', [], (lookupError, rows = []) => {
+          if (lookupError) return respondWithProject(lookupError, null);
+          const matches = rows.filter((candidate) => {
+            const metadata = parseRecoveryMetadata(candidate?.metadata);
+            return metadata?.projectContext?.projectId === req.params.id;
+          });
+          if (matches.length > 1) {
+            return res.status(409).json({ error: 'Project identifier is ambiguous' });
+          }
+          return respondWithProject(null, matches[0]);
+        });
       },
     );
   });

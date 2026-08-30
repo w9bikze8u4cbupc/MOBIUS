@@ -53,6 +53,37 @@ test('buildRenderProjectState retains serialized scenes for a resumed Remotion r
   expect(state.scenes).toBe(scenes);
 });
 
+test('load-project resolves the canonical project identifier after a runtime restart', () => {
+  const routes = new Map();
+  const row = makeRow();
+  registerProjectPersistenceRoutes({
+    post: () => {},
+    get: (route, handler) => routes.set(route, handler),
+  }, {
+    db: {
+      get: (_sql, _params, callback) => callback(null, null),
+      all: (_sql, _params, callback) => callback(null, [row]),
+    },
+  });
+
+  const previousApiKey = process.env.API_KEY;
+  process.env.API_KEY = 'test-api-key';
+  const result = { statusCode: 200, payload: null };
+  const res = {
+    status(code) { result.statusCode = code; return this; },
+    json(payload) { result.payload = payload; return this; },
+  };
+  routes.get('/load-project/:id')({
+    params: { id: projectId },
+    headers: { 'x-api-key': 'test-api-key' },
+  }, res);
+  if (previousApiKey === undefined) delete process.env.API_KEY;
+  else process.env.API_KEY = previousApiKey;
+
+  expect(result.statusCode).toBe(200);
+  expect(result.payload).toMatchObject({ id: 1, projectContext: { projectId } });
+});
+
 function invokeRecovery(rows, body) {
   const routes = new Map();
   registerProjectPersistenceRoutes({
