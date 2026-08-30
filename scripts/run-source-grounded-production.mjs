@@ -208,6 +208,8 @@ function scriptSceneFromCanonical(scene, index) {
       visual_asset: resolve(scene.renderVisual.path),
       visual_asset_id: scene.renderVisual.assetId || null,
       visual_asset_kind: scene.renderVisual.kind,
+      visual_source_page: scene.renderVisual.sourcePage || null,
+      visual_provenance: scene.renderVisual.provenance || null,
     } : {}),
   };
 }

@@ -139,6 +139,8 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
         ? 'automatic-semantic-assignment'
         : 'reviewed-explicit-assignment',
       assetId: scene.visual_asset_id || null,
+      sourcePage: scene.visual_source_page || scene.source_page || null,
+      provenance: scene.visual_provenance || scene.provenance || null,
     };
   }
 
