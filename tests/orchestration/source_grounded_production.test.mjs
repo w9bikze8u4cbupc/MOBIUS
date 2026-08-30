@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildStagePlan } from '../../scripts/run-source-grounded-production.mjs';
+import { buildStagePlan, canReuseRenderedMedia } from '../../scripts/run-source-grounded-production.mjs';
 
 test('completed stages are reused only when the stable input hash and outputs match', () => {
   const dir = mkdtempSync(join(tmpdir(), 'mobius-production-plan-'));
@@ -39,4 +39,19 @@ test('missing checkpoint outputs force recovery instead of false reuse', () => {
     outputsByStage: { narration: ['missing.mp3'] },
   });
   assert.equal(plan[0].reuse, false);
+});
+
+test('render reuse requires the current input contract and matching output hash', () => {
+  const checkpoint = {
+    stages: {
+      render: {
+        inputHash: 'render-input',
+        output: 'production.mp4',
+        outputSha256: 'output-a',
+      },
+    },
+  };
+  assert.equal(canReuseRenderedMedia({ checkpoint, renderHash: 'render-input', outputPath: 'production.mp4', outputSha256: 'output-a' }), true);
+  assert.equal(canReuseRenderedMedia({ checkpoint, renderHash: 'changed-input', outputPath: 'production.mp4', outputSha256: 'output-a' }), false);
+  assert.equal(canReuseRenderedMedia({ checkpoint, renderHash: 'render-input', outputPath: 'production.mp4', outputSha256: 'changed-output' }), false);
 });

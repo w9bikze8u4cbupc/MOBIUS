@@ -412,6 +412,15 @@ export function buildStagePlan({ checkpoint = {}, stages = [], inputHash, output
   }));
 }
 
+export function canReuseRenderedMedia({ checkpoint = {}, renderHash, outputPath, outputSha256 }) {
+  const render = checkpoint.stages?.render;
+  return Boolean(render
+    && render.inputHash === renderHash
+    && render.output === outputPath
+    && render.outputSha256
+    && render.outputSha256 === outputSha256);
+}
+
 function stopAfter(options, stage, checkpoint, partial) {
   if (options.stopAfter !== stage) return false;
   checkpoint.stoppedAfter = stage;
@@ -472,7 +481,10 @@ export async function runProduction(options = {}) {
   const renderHash = hashValue({ handoffHash, configHash: hashFile(configPath) });
   let renderReused = false;
   if (!options.forceRender && existsSync(outputPath)) {
-    try { probeMedia(tools, outputPath, expectedDuration); renderReused = true; } catch { renderReused = false; }
+    const outputSha256 = hashFile(outputPath);
+    if (canReuseRenderedMedia({ checkpoint, renderHash, outputPath, outputSha256 })) {
+      try { probeMedia(tools, outputPath, expectedDuration); renderReused = true; } catch { renderReused = false; }
+    }
   }
   if (!renderReused) {
     runNodeScript(root, 'scripts/render-storyboard-ffmpeg.mjs', ['--config', configPath, '--out', outputPath], tools.env);
@@ -507,6 +519,7 @@ export async function runProduction(options = {}) {
     generatedAt: new Date().toISOString(),
   };
   checkpoint.stages.qa = { inputHash: renderHash, media, captions, chapterCount: chapterList.length, loudness };
+  delete checkpoint.stoppedAfter;
   jsonFile(checkpointPath, checkpoint);
   jsonFile(join(normalized.productionDir, REPORT_NAME), report);
   console.log(JSON.stringify(report, null, 2));
