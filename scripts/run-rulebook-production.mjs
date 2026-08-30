@@ -134,7 +134,26 @@ function pagesForSources(sources, ranges) {
   }
   return selected.size ? [...selected].sort((a, b) => a - b) : [1];
 }
-function sceneForProduction(scene, ranges) {
+function teachingSourcePages(scene, ranges, pages = []) {
+  const available = new Set(pages.map((page) => Number(page.number)).filter(Number.isFinite));
+  const title = String(scene.title || '').toLocaleLowerCase('fr-CA');
+  const preferred = title.includes('présentation') || title.includes('introduction')
+    ? [1, 2]
+    : title.includes('objectif') || title.includes('matériel') || title.includes('mise en place') || title.includes('pause')
+      ? [2, 3]
+      : title.includes('tour') || title.includes('action')
+        ? [3, 2]
+        : title.includes('fin') || title.includes('décompte') || title.includes('conclusion')
+          ? [4, 3]
+          : [];
+  const selected = preferred.filter((page) => available.size === 0 || available.has(page));
+  if (selected.length) return selected;
+  const cited = pagesForSources(scene.sources, ranges);
+  const nonCover = cited.filter((page) => page > 1 && (available.size === 0 || available.has(page)));
+  return nonCover.length ? [nonCover[0]] : cited;
+}
+
+function sceneForProduction(scene, ranges, pages = []) {
   const directions = Array.isArray(scene.visualDirections) ? scene.visualDirections : [];
   const overlayText = directions.map((direction) => direction.onScreenText).filter(Boolean).join(' ');
   return {
@@ -142,7 +161,7 @@ function sceneForProduction(scene, ranges) {
     section: scene.title,
     narration: scene.spokenText,
     on_screen_text: overlayText || scene.title,
-    source_pages: pagesForSources(scene.sources, ranges),
+    source_pages: teachingSourcePages(scene, ranges, pages),
     callouts: directions.flatMap((direction) => direction.callouts || []),
     visual_focus: null,
   };
@@ -309,7 +328,7 @@ async function runZeroState(options = {}) {
 
   const visualScriptPath = path.join(productionDir, 'zero-state-visual-review-script.json');
   const visualScript = {
-    version: 1, game: gameName, language, scenes: storyboardManifest.scenes.map((scene) => sceneForProduction(scene, extraction.pageRanges)),
+    version: 1, game: gameName, language, scenes: storyboardManifest.scenes.map((scene) => sceneForProduction(scene, extraction.pageRanges, extraction.pages)),
   };
   const visualScriptHash = hashValue({ storyboardHash, pages: extraction.pageRanges });
   if (!stageReady(checkpoint, 'visual-script', visualScriptHash, [visualScriptPath])) await saveJson(visualScriptPath, visualScript);
@@ -330,7 +349,7 @@ async function runZeroState(options = {}) {
 
   const catalog = loadSourceVisualCatalog(hephManifestPath, { qualityReportPath: qualityPath, semanticReportPath: semanticPath });
   const boundScenes = storyboardManifest.scenes.map((scene) => {
-    const productionScene = sceneForProduction(scene, extraction.pageRanges);
+    const productionScene = sceneForProduction(scene, extraction.pageRanges, extraction.pages);
     const selection = selectSourceVisual(productionScene, catalog, sourcePageFallback(root, projectId, productionScene.source_pages[0]));
     if (!selection.path || !exists(selection.path)) throw new Error(`No renderable visual for ${scene.id}`);
     return {
