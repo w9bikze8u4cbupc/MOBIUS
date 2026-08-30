@@ -10,6 +10,7 @@ import { existsSync } from 'fs';
 import { mkdir } from 'fs/promises';
 import { dirname, resolve } from 'path';
 import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
 
 function arg(name) {
   const index = process.argv.indexOf(`--${name}`);
@@ -44,7 +45,7 @@ async function main() {
   await mkdir(outputDir, { recursive: true });
   const qualityPath = resolve(outputDir, 'source-visual-quality.json');
   const semanticPath = resolve(outputDir, 'source-visual-semantic-matches.json');
-  const scriptDir = dirname(new URL(import.meta.url).pathname);
+  const scriptDir = dirname(fileURLToPath(import.meta.url));
   const qualityScript = resolve(scriptDir, 'qualify-source-visuals.py');
   const semanticScript = resolve(scriptDir, 'match-scene-visuals.py');
 
