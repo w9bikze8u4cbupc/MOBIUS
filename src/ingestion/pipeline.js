@@ -38,13 +38,39 @@ function normalizeBggMetadata(raw = {}) {
 }
 
 function extractOutline(pages) {
-  const headings = pages.flatMap((page) =>
+  const detected = pages.flatMap((page) =>
     detectHeadings(hashBlocks(page.blocks)).map((heading) => ({
       ...heading,
       page: page.number,
       slug: slugify(heading.title)
     }))
   );
+
+  // pdf-parse on Node 20 can expose usable text blocks without reliable font
+  // sizes. Preserve the normal font-based detector, then use a conservative
+  // text-only fallback for real rulebooks whose section labels are short,
+  // uppercase headings.
+  const headings = detected.length ? detected : pages.flatMap((page) => {
+    const candidates = [];
+    page.blocks.forEach((block, blockIndex) => {
+      const title = String(block.text || '').replace(/\s+/g, ' ').trim();
+      const letters = title.replace(/[^A-Za-zÀ-ÿ]/g, '');
+      const isUppercase = letters.length >= 4 && letters === letters.toUpperCase();
+      const isShort = title.length >= 5 && title.length <= 64 && title.split(/\s+/).length <= 8;
+      const isHeadingLabel = /^[A-ZÀ-Ý][A-ZÀ-Ý0-9 -]*$/.test(title);
+      if (!isUppercase || !isShort || !isHeadingLabel || /[.!?]$/.test(title)) return;
+      candidates.push({
+        id: crypto.createHash(contract.hashing.algorithm).update(`${title}-${page.number}-${blockIndex}`).digest('hex'),
+        title,
+        level: 1,
+        fontSize: Number(block.fontSize) || contract.headingRules.fontSizeThreshold,
+        bbox: { x: Number(block.x) || 0, y: Number(block.y) || blockIndex, width: Number(block.width) || 0, height: Number(block.height) || 0 },
+        page: page.number,
+        slug: slugify(title),
+      });
+    });
+    return candidates;
+  });
 
   return headings.sort((a, b) => (a.page === b.page ? a.bbox.y - b.bbox.y : a.page - b.page));
 }
@@ -57,7 +83,7 @@ function extractComponents(pages, outline) {
     const text = sourcePages.flatMap((page) => page.blocks.map((block) => block.text)).join(' ');
     const hash = crypto.createHash(contract.hashing.algorithm).update(text).digest('hex');
     components.push({
-      id: `comp-${heading.slug}`,
+      id: `comp-${heading.slug}-${index + 1}`,
       type: 'phase',
       sourceHeading: heading.id,
       text,

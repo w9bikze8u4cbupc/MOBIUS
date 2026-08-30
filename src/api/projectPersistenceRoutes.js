@@ -513,6 +513,72 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
     );
   });
 
+  // Idempotent canonical-state boundary used by unattended production. Unlike
+  // the historical browser /save-project endpoint, this route updates the
+  // newest row for a canonical project ID and therefore cannot create a
+  // duplicate project on retry. The immutable source descriptor is checked
+  // against project-owned storage before any state is written.
+  app.post('/api/projects/:projectId/production-state', async (req, res) => {
+    const projectId = normalizeRecoveryProjectId(req.params.projectId);
+    if (!projectId) return res.status(400).json({ code: 'PROJECT_ID_INVALID', error: 'Project ID is invalid.' });
+
+    const body = req.body || {};
+    const context = body.projectContext && typeof body.projectContext === 'object' && !Array.isArray(body.projectContext)
+      ? body.projectContext : {};
+    if (context.projectId && context.projectId !== projectId) {
+      return res.status(400).json({ code: 'PROJECT_ID_MISMATCH', error: 'Project context does not match the route project ID.' });
+    }
+    if (context.sourcePdf) {
+      const source = await resolvePersistedProjectSource(context.sourcePdf, projectId, projectSource);
+      if (!source.valid) return res.status(409).json({ code: 'SOURCE_PDF_INVALID', error: 'The canonical source descriptor is invalid or does not match project storage.' });
+    }
+
+    return db.all('SELECT * FROM projects', [], (lookupError, rows = []) => {
+      if (lookupError) return res.status(500).json({ code: 'PROJECT_STATE_LOOKUP_FAILED', error: 'Unable to locate canonical project state.' });
+      const matches = rows.filter((row) => parseRecoveryMetadata(row?.metadata)?.projectContext?.projectId === projectId)
+        .sort((left, right) => Number(right?.id || 0) - Number(left?.id || 0));
+      if (matches.length > 1) console.warn(`[production-state] retaining ${matches.length - 1} historical row(s) for ${projectId}`);
+
+      const metadata = {
+        ...(body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {}),
+        projectContext: { ...context, projectId },
+      };
+      const values = [
+        body.name || context.gameName || projectId,
+        JSON.stringify(metadata),
+        JSON.stringify(Array.isArray(body.components) ? body.components : []),
+        JSON.stringify(Array.isArray(body.images) ? body.images : []),
+        typeof body.script === 'string' ? body.script : JSON.stringify(body.script || ''),
+        typeof body.audio === 'string' ? body.audio : JSON.stringify(body.audio || ''),
+        body.scenes === undefined ? undefined : JSON.stringify(body.scenes),
+      ];
+      const current = matches[0];
+      const finish = (error, rowId, created) => {
+        if (error) {
+          console.error('Unable to persist canonical production state', error);
+          return res.status(500).json({ code: 'PROJECT_STATE_PERSIST_FAILED', error: 'Unable to persist canonical production state.' });
+        }
+        db.get('SELECT * FROM projects WHERE id = ?', [rowId], (loadError, row) => {
+          if (!loadError && row) setProjectState(row.id, buildRenderProjectState(row));
+          return res.json({ ok: true, projectId, rowId, created, updated: !created, historicalRows: Math.max(0, matches.length - 1) });
+        });
+      };
+
+      if (current) {
+        return db.run(
+          `UPDATE projects SET name = ?, metadata = ?, components = ?, images = ?, script = ?, audio = ?, scenes = ? WHERE id = ?`,
+          [...values, current.id],
+          function updateComplete(error) { finish(error, current.id, false); },
+        );
+      }
+      return db.run(
+        `INSERT INTO projects (name, metadata, components, images, script, audio, scenes) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        values,
+        function insertComplete(error) { finish(error, this.lastID, true); },
+      );
+    });
+  });
+
   app.get('/load-project/:id', (req, res) => {
     const apiKey = req.headers['x-api-key'];
     if (!apiKey || apiKey !== process.env.API_KEY) {

@@ -55,7 +55,9 @@
     "validate:tutorial-preview-frame-fingerprints": "node scripts/validate-tutorial-preview-frame-fingerprints.mjs",
     "validate:tutorial-preview-mp4-fingerprint": "node scripts/validate-tutorial-preview-mp4-fingerprint.mjs",
     "score:tutorial-preview-quality": "node scripts/score-tutorial-preview-quality.mjs",
-    "tutorial:production": "node scripts/run-source-grounded-production.mjs"
+    "tutorial:production": "node scripts/run-source-grounded-production.mjs",
+    "tutorial:from-pdf": "node scripts/run-rulebook-production.mjs",
+    "tutorial:next": "node scripts/run-rulebook-production.mjs --next"
   },
   "keywords": [
     "game",

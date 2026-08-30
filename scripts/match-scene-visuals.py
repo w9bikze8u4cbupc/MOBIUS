@@ -89,7 +89,9 @@ def main() -> None:
             continue
         candidates = []
         for page in scene.get("source_pages", []):
-            candidates.extend(usable_by_page.get(int(page), []))
+            page_number = int(page)
+            candidates.extend(usable_by_page.get(page_number, []))
+            candidates.extend(usable_by_page.get(page_number - 1, []))
         if not candidates:
             scene_rows.append({"scene_id": scene_id, "status": "no-qualified-source-asset", "selected_asset_id": None, "relevance_score": 0, "reason": "no vision-qualified component available on cited source pages", "candidates": []})
             continue

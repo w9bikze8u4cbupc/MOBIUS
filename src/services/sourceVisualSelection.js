@@ -55,7 +55,9 @@ function inferVisualTypes(scene = {}) {
 function sourcePageScore(asset, sourcePages) {
   const pages = new Set((Array.isArray(sourcePages) ? sourcePages : []).map(Number));
   const assetPage = Number(asset.page_index ?? asset.pageIndex ?? asset.source_page);
-  return pages.has(assetPage) ? 0.32 : 0;
+  // HEPHAESTUS records zero-based PDF pages while storyboard source evidence
+  // is one-based. Accept both representations without weakening other gates.
+  return pages.has(assetPage) || pages.has(assetPage + 1) ? 0.32 : 0;
 }
 
 function typeScore(asset, desiredTypes) {
@@ -131,9 +133,11 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
   if (scene.visual_asset && fs.existsSync(scene.visual_asset)) {
     return {
       path: path.resolve(scene.visual_asset),
-      kind: 'explicit-asset',
+      kind: scene.visual_asset_kind || 'explicit-asset',
       confidence: 1,
-      reason: 'reviewed-explicit-assignment',
+      reason: scene.visual_asset_kind === 'automatic-asset'
+        ? 'automatic-semantic-assignment'
+        : 'reviewed-explicit-assignment',
       assetId: scene.visual_asset_id || null,
     };
   }

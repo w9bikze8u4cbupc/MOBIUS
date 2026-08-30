@@ -112,7 +112,9 @@ def main() -> None:
         if not asset.get("is_component", False):
             continue
         page = int(asset.get("page_index", -1))
-        if page not in cited_pages:
+        # HEPHAESTUS page_index is zero-based; storyboard source_pages are
+        # canonical one-based rulebook pages.
+        if page not in cited_pages and page + 1 not in cited_pages:
             continue
         resolved = asset_path(asset, manifest_path)
         width, height = dimensions(asset)

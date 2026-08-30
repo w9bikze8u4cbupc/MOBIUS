@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
+import crypto from 'node:crypto';
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const DEFAULT_ROOT = path.resolve(process.cwd(), 'data', 'rulebook-library');
 const schemaVersion = 1;
@@ -49,6 +51,49 @@ function libraryFiles(root) {
 
 async function exists(file) {
   try { await fs.access(file); return true; } catch { return false; }
+}
+
+export async function computePdfIdentity(filePath) {
+  const resolved = path.resolve(filePath);
+  const [buffer, stat] = await Promise.all([fs.readFile(resolved), fs.stat(resolved)]);
+  return {
+    path: resolved,
+    filename: path.basename(resolved),
+    bytes: stat.size,
+    sha256: crypto.createHash('sha256').update(buffer).digest('hex'),
+  };
+}
+
+async function walk(directory, output = []) {
+  if (!(await exists(directory))) return output;
+  for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
+    const candidate = path.join(directory, entry.name);
+    if (entry.isDirectory()) await walk(candidate, output);
+    else if (entry.isFile() && path.extname(entry.name).toLowerCase() === '.pdf') output.push(candidate);
+  }
+  return output;
+}
+
+export async function discoverRulebooks(roots = []) {
+  const files = (await Promise.all(roots.map((root) => walk(path.resolve(root))))).flat();
+  const identities = await Promise.all(files.map(computePdfIdentity));
+  return identities.sort((left, right) => left.bytes - right.bytes || left.path.localeCompare(right.path));
+}
+
+export async function findProcessedBySha(dataRoot, sha256) {
+  const root = path.resolve(dataRoot);
+  if (!(await exists(root))) return [];
+  const matches = [];
+  for (const entry of await fs.readdir(root, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const descriptorPath = path.join(root, entry.name, 'source', 'source.json');
+    if (!(await exists(descriptorPath))) continue;
+    try {
+      const descriptor = JSON.parse(await fs.readFile(descriptorPath, 'utf8'));
+      if (descriptor?.sha256 === sha256) matches.push({ ...descriptor, descriptorPath });
+    } catch { /* Ignore incomplete runtime records during discovery. */ }
+  }
+  return matches;
 }
 
 async function initialize(root) {
@@ -175,4 +220,6 @@ async function main() {
   throw new Error(`Unknown command: ${command}`);
 }
 
-main().catch((error) => { console.error(`rulebook-library: ${error.message}`); process.exitCode = 1; });
+if (pathToFileURL(path.resolve(process.argv[1] || '')).href === import.meta.url) {
+  main().catch((error) => { console.error(`rulebook-library: ${error.message}`); process.exitCode = 1; });
+}
