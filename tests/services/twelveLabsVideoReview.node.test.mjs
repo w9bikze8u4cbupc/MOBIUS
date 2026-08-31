@@ -69,9 +69,20 @@ test('analysis uploads once and cached video/rubric/model reuse avoids another u
   const calls = [];
   const fetchImpl = async (url, init) => {
     calls.push({ url, method: init.method });
-    if (url.endsWith('/assets')) return response({ id: 'asset-1' });
+    if (url.endsWith('/assets')) {
+      assert.equal(init.body.get('method'), 'direct');
+      assert.ok(init.body.get('file'));
+      return response({ _id: 'asset-1' }, 201);
+    }
     if (url.endsWith('/assets/asset-1')) return response({ status: 'ready' });
-    if (url.endsWith('/analyze')) return response({ data: JSON.stringify(reviewFixture()) });
+    if (url.endsWith('/analyze')) {
+      const request = JSON.parse(init.body);
+      assert.deepEqual(request.video, { type: 'asset_id', asset_id: 'asset-1' });
+      const schemaText = JSON.stringify(request.response_format.json_schema);
+      assert.equal(schemaText.includes('"minimum"'), false);
+      assert.equal(schemaText.includes('"maximum"'), false);
+      return response({ data: JSON.stringify(reviewFixture()) });
+    }
     throw new Error(`unexpected URL ${url}`);
   };
   const first = await analyzeProductionVideo({ videoPath, cachePath, env: { TWELVELABS_API_KEY: 'secret' }, fetchImpl, pollMs: 0 });

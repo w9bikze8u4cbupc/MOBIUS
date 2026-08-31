@@ -79,13 +79,13 @@ function buildTeachingMotion({ visualKind = '', visualFocus = null, durationSec 
     y: Math.min(0.85, Math.max(0.15, Number(rawAnchor.y) || 0.5)),
   };
   const canMove = Number(durationSec) >= 2.5;
-  const isComponent = ['component', 'explicit-asset'].includes(visualKind);
-  if (!canMove || !isComponent) return { type: 'hold', anchor };
+  const isDemonstration = ['component', 'explicit-asset', 'focused-page-crop'].includes(visualKind);
+  if (!canMove || !isDemonstration) return { type: 'hold', anchor };
   return {
     type: visualFocus ? 'focus-zoom' : 'slow-zoom',
     anchor,
     startScale: 1,
-    endScale: visualFocus ? 1.08 : 1.045,
+    endScale: visualFocus ? 1.08 : (visualKind === 'focused-page-crop' ? 1.035 : 1.045),
   };
 }
 
