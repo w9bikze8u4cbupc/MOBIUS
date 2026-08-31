@@ -111,3 +111,6 @@ out/real-input-adhoc-cli-smoke/
 
 # Local rulebook-library cache, manifests, logs and downloaded publisher PDFs
 /data/rulebook-library/
+
+# Persistent operator inbox, leases, quarantines and release packages are local runtime state.
+/data/rulebook-inbox/

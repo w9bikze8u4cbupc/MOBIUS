@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { PDFDocument } from 'pdf-lib';
 
 const DEFAULT_ROOT = path.resolve(process.cwd(), 'data', 'rulebook-library');
 const schemaVersion = 1;
@@ -56,11 +57,16 @@ async function exists(file) {
 export async function computePdfIdentity(filePath) {
   const resolved = path.resolve(filePath);
   const [buffer, stat] = await Promise.all([fs.readFile(resolved), fs.stat(resolved)]);
+  let pageCount = null;
+  try {
+    pageCount = (await PDFDocument.load(buffer, { ignoreEncryption: true })).getPageCount();
+  } catch { /* Keep identity usable for malformed/quarantined sources. */ }
   return {
     path: resolved,
     filename: path.basename(resolved),
     bytes: stat.size,
     sha256: crypto.createHash('sha256').update(buffer).digest('hex'),
+    pageCount,
   };
 }
 

@@ -57,7 +57,10 @@
     "score:tutorial-preview-quality": "node scripts/score-tutorial-preview-quality.mjs",
     "tutorial:production": "node scripts/run-source-grounded-production.mjs",
     "tutorial:from-pdf": "node scripts/run-rulebook-production.mjs",
-    "tutorial:next": "node scripts/run-rulebook-production.mjs --next"
+    "tutorial:next": "node scripts/run-rulebook-production.mjs --next",
+    "tutorial:inbox:once": "node scripts/run-rulebook-inbox.mjs once",
+    "tutorial:inbox:watch": "node scripts/run-rulebook-inbox.mjs watch",
+    "tutorial:inbox:status": "node scripts/run-rulebook-inbox.mjs status"
   },
   "keywords": [
     "game",
