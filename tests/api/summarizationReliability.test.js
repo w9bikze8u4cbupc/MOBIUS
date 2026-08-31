@@ -49,7 +49,8 @@ describe('summarization reliability', () => {
     });
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await fs.rm(path.join(process.cwd(), 'data', 'abyss-reliability'), { recursive: true, force: true });
     process.env.OPENAI_API_KEY = 'test-key';
     process.env.OPENAI_MODEL = 'test-model';
     mockRetrieve.mockReset().mockResolvedValue({ id: 'test-model' });
@@ -134,7 +135,8 @@ describe('summarization reliability', () => {
 describe('gpt-5.6-sol completion diagnostics', () => {
   const source = 'Rules: choose cards, resolve effects, and score points.';
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await fs.rm(path.join(process.cwd(), 'data', 'abyss-reliability'), { recursive: true, force: true });
     process.env.OPENAI_API_KEY = 'test-key';
     process.env.OPENAI_MODEL = 'gpt-5.6-sol';
     mockRetrieve.mockReset().mockResolvedValue({ id: 'gpt-5.6-sol' });

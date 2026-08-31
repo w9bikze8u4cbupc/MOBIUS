@@ -21,6 +21,7 @@ import { projectSourceService } from '../src/services/projectSourceService.js';
 import { loadSourceVisualCatalog, selectSourceVisual } from '../src/services/sourceVisualSelection.js';
 import { runProduction } from './run-source-grounded-production.mjs';
 import editorialStandard from '../src/services/editorialStandard.cjs';
+import { listConfiguredProviders } from '../src/services/aiProviderExecutor.js';
 
 const require = createRequire(import.meta.url);
 const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor.js');
@@ -92,7 +93,14 @@ async function apiJson(baseUrl, route, options = {}) {
   }
   if (!response) throw new Error(`${options.method || 'GET'} ${route} network request failed after 3 attempts: ${lastError?.message || 'unknown error'}`);
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`${options.method || 'GET'} ${route} failed (${response.status}): ${body.error || body.code || 'unknown error'}`);
+  if (!response.ok) {
+    const error = new Error(`${options.method || 'GET'} ${route} failed (${response.status}): ${body.error || body.code || 'unknown error'}`);
+    error.status = response.status;
+    error.code = body.code || null;
+    error.classification = body.classification || null;
+    error.providerAttempts = body.providerAttempts || [];
+    throw error;
+  }
   return body;
 }
 async function postJson(baseUrl, route, body, apiKey) {
@@ -279,7 +287,8 @@ async function runZeroState(options = {}) {
   if (await stopIfRequested(options, checkpoint, 'extraction', checkpointPath, { projectId })) return { status: 'stopped', stage: 'extraction' };
 
   const scriptPath = path.join(productionDir, 'zero-state-script-package.json');
-  const scriptHash = hashValue({ sourceSha256: identity.sha256, componentHash, language });
+  const providerContract = listConfiguredProviders().map(({ name, model }) => ({ name, model }));
+  const scriptHash = hashValue({ sourceSha256: identity.sha256, componentHash, language, providerContract });
   let scriptPackage;
   if (stageReady(checkpoint, 'script', scriptHash, [scriptPath])) {
     scriptPackage = jsonIf(scriptPath);
@@ -290,7 +299,10 @@ async function runZeroState(options = {}) {
       metadata: {}, components: extraction.components.components || extraction.components,
     }, apiKey);
     if (!response.scriptPackage?.sections?.length) throw new Error('Script generation returned no canonical sections.');
-    scriptPackage = response.scriptPackage;
+    scriptPackage = {
+      ...response.scriptPackage,
+      generationProvenance: response.generationProvenance || null,
+    };
     await saveJson(scriptPath, scriptPackage);
   }
   markStage(checkpoint, 'script', scriptHash, [scriptPath], { reused: checkpoint.stages.script?.reused === true, sections: scriptPackage.sections.length });

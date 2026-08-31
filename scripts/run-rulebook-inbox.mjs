@@ -105,8 +105,11 @@ async function listPdfs(directory, result = []) {
 
 export function classifyInboxError(error) {
   const message = String(error?.message || error || '').toLowerCase();
-  const retryable = /econn|etimedout|enotfound|network|timeout|\b429\b|rate limit|\b5\d\d\b|temporar|elevenlabs|openai/i.test(message);
-  const terminal = /no usable text|ocr before production|invalid.*(pdf|script|storyboard)|missing.*(credential|api key)|unknown narration preset|not found/i.test(message);
+  const providerAvailability = error?.code === 'AI_PROVIDER_ALL_FAILED'
+    || error?.classification === 'provider_unavailable'
+    || /all configured .*provider|provider_unavailable|quota_exhausted|credit_balance_exhausted|credit.*exhausted/i.test(message);
+  const retryable = providerAvailability || /econn|etimedout|enotfound|network|timeout|\b429\b|rate limit|\b5\d\d\b|temporar|elevenlabs|openai/i.test(message);
+  const terminal = /ai_not_configured|no usable text|ocr before production|invalid.*(pdf|script|storyboard)|missing.*(credential|api key)|unknown narration preset|not found/i.test(message);
   if (terminal && !retryable) return { class: 'terminal', retryable: false };
   return { class: retryable ? 'retryable' : 'terminal', retryable };
 }

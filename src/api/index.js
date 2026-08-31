@@ -12,6 +12,7 @@ import {
   getGenerationOptions,
   requireAiReady,
 } from '../config/aiConfig.js';
+import { createAiProviderRun } from '../services/aiProviderExecutor.js';
 const pdfToImg = {
   pdf: async (...args) => {
     const { pdf } = await import('pdf-to-img');
@@ -19,6 +20,7 @@ const pdfToImg = {
   },
 };
 import path from 'path';
+import crypto from 'node:crypto';
 import { spawn, execFile } from 'child_process';
 import { ensureDir } from 'fs-extra'; // If you use fs-extra for directory creation
 import sharp from 'sharp'; // For image processing
@@ -2369,15 +2371,54 @@ function normalizeExtractedMetadata(value) {
   };
 }
 
-async function extractOptionalMetadata(rulebookText, generationOptions) {
+const SCRIPT_CHUNK_CHECKPOINT_VERSION = 1;
+const hashScriptInput = (value) => crypto.createHash('sha256').update(String(value || '')).digest('hex');
+
+function scriptChunkCheckpointPath(projectId) {
+  return path.join(process.cwd(), 'data', projectId, 'production', 'script-chunk-checkpoint.json');
+}
+
+async function loadScriptChunkCheckpoint(projectId, sourceHash, language, providerContractHash, chunks) {
   try {
-    const response = await getAiClient().chat.completions.create({
-      model: getAiModel(),
+    const checkpoint = JSON.parse(await fsPromises.readFile(scriptChunkCheckpointPath(projectId), 'utf8'));
+    if (checkpoint.version !== SCRIPT_CHUNK_CHECKPOINT_VERSION
+      || checkpoint.sourceHash !== sourceHash
+      || checkpoint.language !== language
+      || checkpoint.providerContractHash !== providerContractHash
+      || !Array.isArray(checkpoint.chunks)) return [];
+    const byIndex = new Map(checkpoint.chunks.map((chunk) => [chunk.index, chunk]));
+    return chunks.map((chunk) => {
+      const saved = byIndex.get(chunk.index);
+      return saved && saved.startOffset === chunk.startOffset && saved.endOffset === chunk.endOffset && typeof saved.summary === 'string' && saved.summary.trim()
+        ? { ...chunk, summary: saved.summary, provenance: saved.provenance || null }
+        : null;
+    });
+  } catch {
+    return [];
+  }
+}
+
+async function saveScriptChunkCheckpoint(projectId, sourceHash, language, providerContractHash, chunks) {
+  const filePath = scriptChunkCheckpointPath(projectId);
+  await ensureDir(path.dirname(filePath));
+  const temporary = `${filePath}.tmp-${process.pid}`;
+  await fsPromises.writeFile(temporary, `${JSON.stringify({ version: SCRIPT_CHUNK_CHECKPOINT_VERSION, sourceHash, language, providerContractHash, chunks }, null, 2)}\n`, 'utf8');
+  await fsPromises.rename(temporary, filePath);
+}
+
+async function extractOptionalMetadata(rulebookText, generationOptions, providerRun) {
+  try {
+    const { response } = await providerRun.complete({
       messages: [
         { role: 'system', content: 'You are a precise metadata extractor. Return only a JSON object.' },
         { role: 'user', content: `Extract optional boardgame metadata from this rulebook excerpt. Return JSON with publisher, player_count, play_time, recommended_age, theme, year_published, and categories. Use null or [] when unknown.\n\n${rulebookText.slice(0, MAX_RULEBOOK_CHUNK_CHARS)}` },
       ],
-      ...generationOptions,
+      options: generationOptions,
+      maxRetries: 0,
+      disableOnFailure: false,
+      inputHash: rulebookText.slice(0, MAX_RULEBOOK_CHUNK_CHARS),
+      promptTemplateVersion: 'metadata-extraction-v1',
+      schemaContractVersion: 'metadata-v1',
     });
     const text = typeof response?.choices?.[0]?.message?.content === 'string'
       ? response.choices[0].message.content.trim()
@@ -2397,20 +2438,28 @@ async function extractOptionalMetadata(rulebookText, generationOptions) {
   }
 }
 
-async function summarizeRequiredChunk(chunk, generationOptions, model) {
-  const response = await getAiClient().chat.completions.create({
-    model: getAiModel(),
+async function summarizeRequiredChunk(chunk, generationOptions, model, providerRun) {
+  const completion = await providerRun.complete({
     messages: [
       { role: 'system', content: 'You are a precise boardgame rulebook summarizer. Return only a concise source-grounded summary.' },
       { role: 'user', content: `Summarize this numbered rulebook section. Preserve rules, setup, components, scoring, and exceptions found here. Do not invent information.\n\nSection ${chunk.index} (source offsets ${chunk.startOffset}-${chunk.endOffset}):\n${chunk.text}` },
     ],
-    ...generationOptions,
+    options: generationOptions,
+    inputHash: chunk.text,
+    promptTemplateVersion: 'required-chunk-summary-v1',
+    schemaContractVersion: 'source-summary-v1',
+    validate: (response, provider) => requireUsableModelText(response, {
+      model: provider.model || model,
+      stage: `chunk_${chunk.index}`,
+      label: `rulebook section ${chunk.index}`,
+    }),
   });
-  return requireUsableModelText(response, {
-    model,
+  const summary = requireUsableModelText(completion.response, {
+    model: completion.model || model,
     stage: `chunk_${chunk.index}`,
     label: `rulebook section ${chunk.index}`,
   });
+  return { summary, provenance: completion.provenance };
 }
 
 function isUsableScriptComponentName(value) {
@@ -2487,8 +2536,10 @@ app.post('/summarize', async (req, res) => {
       return res.status(400).json({ error: 'No game name provided' });
     }
 
+    let providerRun;
     try {
-      await requireAiReady();
+      providerRun = createAiProviderRun({ task: 'source-grounded-script' });
+      providerRun.assertConfigured();
     } catch (error) {
       return res.status(error.statusCode || 422).json({ error: error.message, code: error.code });
     }
@@ -2521,7 +2572,7 @@ app.post('/summarize', async (req, res) => {
     }
 
     // Metadata is optional enrichment. Malformed or empty metadata never blocks rules generation.
-    const metadataResult = await extractOptionalMetadata(rulebookText, metadataGenerationOptions);
+    const metadataResult = await extractOptionalMetadata(rulebookText, metadataGenerationOptions, providerRun);
     const metadataForPrompt = {
       publisher: metadata?.publisher || metadataResult.metadata.publisher || 'Not specified',
       playerCount: metadata?.playerCount || metadataResult.metadata.playerCount || 'Not specified',
@@ -2531,11 +2582,31 @@ app.post('/summarize', async (req, res) => {
       edition: metadata?.edition || metadataResult.metadata.edition || 'Not specified',
     };
 
+    const sourceHash = hashScriptInput(rulebookText);
+    const savedChunks = await loadScriptChunkCheckpoint(
+      projectId,
+      sourceHash,
+      language,
+      providerRun.providerContractHash,
+      chunks,
+    );
     const chunkSummaries = [];
     for (const chunk of chunks) {
+      const saved = savedChunks[chunk.index - 1];
+      if (saved) {
+        chunkSummaries.push(saved);
+        generationStatus = createGenerationStatus({
+          coverage,
+          chunkCount: chunks.length,
+          completedChunks: chunkSummaries.length,
+          metadataAvailable: metadataResult.available,
+        });
+        continue;
+      }
       try {
-        const summary = await summarizeRequiredChunk(chunk, chunkGenerationOptions, summaryAiConfig.model);
-        chunkSummaries.push({ ...chunk, summary });
+        const summaryResult = await summarizeRequiredChunk(chunk, chunkGenerationOptions, summaryAiConfig.model, providerRun);
+        chunkSummaries.push({ ...chunk, summary: summaryResult.summary, provenance: summaryResult.provenance });
+        await saveScriptChunkCheckpoint(projectId, sourceHash, language, providerRun.providerContractHash, chunkSummaries);
         generationStatus = createGenerationStatus({
           coverage,
           chunkCount: chunks.length,
@@ -2547,6 +2618,7 @@ app.post('/summarize', async (req, res) => {
           ? error
           : getGenerationOptionCompatibilityError(error);
         if (compatibilityError) throw compatibilityError;
+        if (error.code === 'AI_PROVIDER_ALL_FAILED') throw error;
         if (error.code === 'SCRIPT_GENERATION_INCOMPLETE') {
           throw createScriptGenerationError(error.message, {
             stage: `chunk_${chunk.index}`,
@@ -2621,41 +2693,54 @@ ${sourceGroundedSummaries}`;
         finalPromptChars: finalPrompt.length,
       }));
       
-// Generate the summary
-console.log('Generating final English script using OpenAI...')
-    const englishSummaryResponse = await getAiClient().chat.completions.create({
-      model: getAiModel(),
-      messages: [  
-        {  
-          role: 'system',  
-          content: "You are a master boardgame educator, scriptwriter, and video production consultant for a leading YouTube channel. Your role is to transform complex boardgame rulebooks into clear, engaging, and visually dynamic tutorial scripts. You always write in a friendly, enthusiastic, and conversational style, making the rules accessible for new and casual players while still respecting experienced gamers. You structure every script in logical, easy-to-follow sections, include visual cues and editing notes, and ensure the script is ready for high-quality video production. Your explanations are concise, step-by-step, and always highlight key rules, common mistakes, and tips for success. You never add information not found in the rulebook or provided data, and you always write for spoken delivery.",  
-        },  
-        { role: 'user', content: finalPrompt },
-      ],  
-      ...getGenerationOptions(summaryAiConfig, {}, 'summary_final'),
-    });  
-    
+// Generate the summary through the configured provider run. A provider that is
+// exhausted or unavailable is disabled for this run, so later chunks do not
+// repeatedly hit the same dead account.
+console.log('Generating final English script using the configured AI provider run...')
+    let englishSummaryResponse;
     let englishPackage;
+    let englishProvenance;
+    let translationProvenance = null;
     let finalContent = '';
     try {
-      finalContent = requireUsableModelText(englishSummaryResponse, {
-        model: summaryAiConfig.model,
-        stage: 'final_synthesis',
-        label: 'final synthesis',
+      const completion = await providerRun.complete({
+        messages: [
+          {
+            role: 'system',
+            content: "You are a master boardgame educator, scriptwriter, and video production consultant for a leading YouTube channel. Your role is to transform complex boardgame rulebooks into clear, engaging, and visually dynamic tutorial scripts. You always write in a friendly, enthusiastic, and conversational style, making the rules accessible for new and casual players while still respecting experienced gamers. You structure every script in logical, easy-to-follow sections, include visual cues and editing notes, and ensure the script is ready for high-quality video production. Your explanations are concise, step-by-step, and always highlight key rules, common mistakes, and tips for success. You never add information not found in the rulebook or provided data, and you always write for spoken delivery.",
+          },
+          { role: 'user', content: finalPrompt },
+        ],
+        options: getGenerationOptions(summaryAiConfig, {}, 'summary_final'),
+        inputHash: finalPrompt,
+        promptTemplateVersion: 'final-synthesis-v2',
+        schemaContractVersion: 'script-package-v1',
+        validate: async (response, provider) => {
+          finalContent = requireUsableModelText(response, {
+            model: provider.model,
+            stage: 'final_synthesis',
+            label: 'final synthesis',
+          });
+          try {
+            return parseGeneratedScriptPackage(finalContent, { chunks: chunkSummaries, profile: tutorialLengthProfile });
+          } catch (error) {
+            await writeInvalidScriptPackageDiagnostic({
+              content: finalContent,
+              error,
+              response,
+              model: provider.model,
+            });
+            throw error;
+          }
+        },
       });
-      englishPackage = parseGeneratedScriptPackage(finalContent, { chunks: chunkSummaries, profile: tutorialLengthProfile });
+      englishSummaryResponse = completion.response;
+      englishPackage = completion.value;
+      englishProvenance = completion.provenance;
     } catch (error) {
       const classification = error?.code === 'SCRIPT_PACKAGE_WORD_CAP_EXCEEDED'
         ? 'spoken_word_cap_exceeded'
         : error?.code === 'SCRIPT_PACKAGE_INVALID' ? 'script_package_invalid' : error?.classification;
-      if (classification === 'script_package_invalid' || classification === 'spoken_word_cap_exceeded') {
-        await writeInvalidScriptPackageDiagnostic({
-          content: finalContent || englishSummaryResponse?.choices?.[0]?.message?.content,
-          error,
-          response: englishSummaryResponse,
-          model: summaryAiConfig.model,
-        });
-      }
       throw createScriptGenerationError(error?.message || 'Script generation stopped: final synthesis produced no usable script package. No script was saved.', {
         stage: 'final_synthesis',
         generationStatus,
@@ -2685,8 +2770,7 @@ console.log('Generating final English script using OpenAI...')
       try {  
         const translationPrompt = `Translate this script package to French. Return only the same JSON package shape. Translate title, spokenText, and visualDirections into natural French; preserve every sources entry and its offsets exactly. Keep spokenText narration-only: no brackets, citations, Markdown labels, or production notes.\n\n${JSON.stringify(englishPackage)}`;
         
-        const translationResponse = await getAiClient().chat.completions.create({
-          model: summaryAiConfig.model,
+        const translationCompletion = await providerRun.complete({
           messages: [
             {
               role: 'system',
@@ -2694,8 +2778,21 @@ console.log('Generating final English script using OpenAI...')
             },
             { role: 'user', content: translationPrompt },
           ],
-          ...getGenerationOptions(summaryAiConfig, {}, 'summary_translation'),
-        });  
+          options: getGenerationOptions(summaryAiConfig, {}, 'summary_translation'),
+          inputHash: JSON.stringify(englishPackage),
+          promptTemplateVersion: 'french-translation-v1',
+          schemaContractVersion: 'script-package-v1',
+          validate: (response, provider) => {
+            const translatedContent = requireUsableModelText(response, {
+              model: provider.model,
+              stage: 'translation',
+              label: 'French translation',
+            });
+            return parseGeneratedScriptPackage(translatedContent, { chunks: chunkSummaries, profile: tutorialLengthProfile });
+          },
+        });
+        const translationResponse = translationCompletion.response;
+        translationProvenance = translationCompletion.provenance;
         
         try {
           const translatedContent = requireUsableModelText(translationResponse, {
@@ -2726,6 +2823,7 @@ console.log('Generating final English script using OpenAI...')
           ? translateError
           : getGenerationOptionCompatibilityError(translateError);
         if (compatibilityError) throw compatibilityError;
+        if (translateError.code === 'AI_PROVIDER_ALL_FAILED') throw translateError;
         if (translateError.code === 'SCRIPT_GENERATION_INCOMPLETE') throw translateError;
         throw createScriptGenerationError('Script generation stopped: French translation failed. No script was saved.', {
           stage: 'translation',
@@ -2764,6 +2862,12 @@ console.log('Generating final English script using OpenAI...')
       components,
       sourceCompleteness: { complete: generationStatus.sourceComplete },
       generationStatus,
+      generationProvenance: {
+        sections: chunkSummaries.map((chunk) => ({ section: chunk.index, ...chunk.provenance })),
+        finalSynthesis: englishProvenance,
+        translation: translationProvenance,
+        attempts: providerRun.attempts,
+      },
     });
   } catch (error) {
     const compatibilityError = error.code === 'AI_GENERATION_OPTION_UNSUPPORTED'
@@ -2779,6 +2883,14 @@ console.log('Generating final English script using OpenAI...')
       return res.status(compatibilityError.statusCode).json({
         error: compatibilityError.message,
         code: compatibilityError.code,
+      });
+    }
+    if (error.code === 'AI_PROVIDER_ALL_FAILED') {
+      return res.status(error.statusCode || 503).json({
+        error: error.message,
+        code: error.code,
+        classification: error.classification || 'provider_unavailable',
+        providerAttempts: error.providerAttempts || [],
       });
     }
     if (error.code === 'SCRIPT_GENERATION_INCOMPLETE') {
