@@ -117,3 +117,5 @@ out/real-input-adhoc-cli-smoke/
 
 # Local non-secret provider capability/model discovery cache
 /data/provider-model-cache.json
+data/twelvelabs/
+data/**/twelvelabs-*.json

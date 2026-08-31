@@ -60,7 +60,8 @@
     "tutorial:next": "node scripts/run-rulebook-production.mjs --next",
     "tutorial:inbox:once": "node scripts/run-rulebook-inbox.mjs once",
     "tutorial:inbox:watch": "node scripts/run-rulebook-inbox.mjs watch",
-    "tutorial:inbox:status": "node scripts/run-rulebook-inbox.mjs status"
+    "tutorial:inbox:status": "node scripts/run-rulebook-inbox.mjs status",
+    "editorial:review": "node scripts/analyze-production-video.mjs"
   },
   "keywords": [
     "game",

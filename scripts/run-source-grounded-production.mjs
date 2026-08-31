@@ -35,6 +35,7 @@ import {
   getNarrationPreset,
   prepareNarrationText,
 } from '../src/services/editorialStandard.cjs';
+import { analyzeProductionVideo, buildExternalReviewSummary } from '../src/services/twelveLabsVideoReview.js';
 
 const { DEFAULT_BRAND, buildBrandIntro, buildBrandOutro } = presentation;
 const SCRIPT_NAME = 'production-script.json';
@@ -723,6 +724,20 @@ export async function runProduction(options = {}) {
   delete checkpoint.stoppedAfter;
   jsonFile(checkpointPath, checkpoint);
   jsonFile(join(normalized.productionDir, REPORT_NAME), report);
+  if (String(process.env.MOBIUS_EXTERNAL_VIDEO_QA || '').trim().toLowerCase() === 'twelvelabs') {
+    let externalReview;
+    try {
+      externalReview = await analyzeProductionVideo({
+        videoPath: outputPath,
+        cachePath: join(root, 'data', 'twelvelabs', 'editorial-review-cache.json'),
+      });
+    } catch (error) {
+      externalReview = { status: 'unavailable', configured: true, classification: 'unknown_provider_failure', error: String(error?.message || error) };
+    }
+    jsonFile(join(normalized.productionDir, 'twelvelabs-review.json'), externalReview);
+    report.externalEditorialReview = buildExternalReviewSummary(externalReview);
+    jsonFile(join(normalized.productionDir, REPORT_NAME), report);
+  }
   console.log(JSON.stringify(report, null, 2));
   return report;
 }
