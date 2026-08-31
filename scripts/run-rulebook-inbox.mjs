@@ -377,7 +377,17 @@ export async function runInboxOnce(options = {}) {
     const retryCount = Number(previous.retryCount || 0) + 1;
     const classification = classifyInboxError(error);
     const status = classification.retryable && retryCount < (Number(options.retryLimit) || DEFAULT_RETRY_LIMIT) ? 'failed-retryable' : 'failed-terminal';
-    const diagnostic = { status, classification: classification.class, retryCount, error: String(error?.stack || error), source: work.identity, at: now() };
+    const diagnostic = {
+      status,
+      classification: classification.class,
+      retryCount,
+      error: String(error?.stack || error),
+      providerCode: error?.code || null,
+      providerClassification: error?.classification || null,
+      providerAttempts: Array.isArray(error?.providerAttempts) ? error.providerAttempts : [],
+      source: work.identity,
+      at: now(),
+    };
     const directory = status === 'failed-terminal' ? paths.failedTerminal : paths.failedRetryable;
     const diagnosticPath = path.join(directory, `${work.identity.sha256}.failure.json`);
     await fs.writeFile(diagnosticPath, `${JSON.stringify(diagnostic, null, 2)}\n`, 'utf8');
