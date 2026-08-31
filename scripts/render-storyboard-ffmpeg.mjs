@@ -292,7 +292,7 @@ function buildFocusHighlight(scene, layout) {
   const boxY = Math.round(layout.imageY + ((y - (h / 2)) * layout.imageHeight));
   const boxW = Math.round(w * layout.imageWidth);
   const boxH = Math.round(h * layout.imageHeight);
-  return `,drawbox=x=${boxX}:y=${boxY}:w=${boxW}:h=${boxH}:color=0xf5d76e@0.95:t=4:enable='between(t,0,4)'`;
+  return `,drawbox=x=${boxX}:y=${boxY}:w=${boxW}:h=${boxH}:color=0xb7ef59@0.95:t=4:enable='between(t,0,4)'`;
 }
 
 function getOverlaySafeWidth(overlay, fontSize, w, h, scene) {
@@ -617,11 +617,11 @@ function buildSceneCommand(scene, index) {
       const horizontalW = Math.max(2, Math.abs(fromX - x));
       const verticalY = Math.min(fromY, y);
       const verticalH = Math.max(2, Math.abs(fromY - y));
-      filterChain += `,drawbox=x=${horizontalX}:y=${fromY - 2}:w=${horizontalW}:h=4:color=0xf5d76e@0.8:t=fill${enabled}`;
-      filterChain += `,drawbox=x=${x - 2}:y=${verticalY}:w=4:h=${verticalH}:color=0xf5d76e@0.8:t=fill${enabled}`;
+      filterChain += `,drawbox=x=${horizontalX}:y=${fromY - 2}:w=${horizontalW}:h=4:color=0xb7ef59@0.8:t=fill${enabled}`;
+      filterChain += `,drawbox=x=${x - 2}:y=${verticalY}:w=4:h=${verticalH}:color=0xb7ef59@0.8:t=fill${enabled}`;
     }
-    filterChain += `,drawbox=x=${x - boxSize / 2}:y=${y - boxSize / 2}:w=${boxSize}:h=${boxSize}:color=0xf5d76e@0.95:t=4${enabled}`;
-    filterChain += `,drawtext=text='${label}':fontsize=${Math.round(boxSize * 0.68)}:fontcolor=0xf5d76e:borderw=2:bordercolor=black:x=${x - Math.round(boxSize * 0.18)}:y=${y - Math.round(boxSize * 0.42)}${enabled}`;
+    filterChain += `,drawbox=x=${x - boxSize / 2}:y=${y - boxSize / 2}:w=${boxSize}:h=${boxSize}:color=0xb7ef59@0.95:t=4${enabled}`;
+    filterChain += `,drawtext=text='${label}':fontsize=${Math.round(boxSize * 0.68)}:fontcolor=0xb7ef59:borderw=2:bordercolor=black:x=${x - Math.round(boxSize * 0.18)}:y=${y - Math.round(boxSize * 0.42)}${enabled}`;
   }
 
   // Duration trim for image-based inputs

@@ -21,6 +21,9 @@ describe('tutorial presentation contract', () => {
     expect(intro.durationSec).toBeGreaterThan(8);
     expect(intro.chapterTitle).toBe('Bienvenue');
     expect(outro.chapterTitle).toBe('Merci et à bientôt');
+    expect(outro.overlays).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'body', text: expect.stringContaining('Abonnez-vous') }),
+    ]));
   });
 
   test('places instruction text opposite the visual and keeps the rule reference discreet', () => {

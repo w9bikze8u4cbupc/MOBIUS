@@ -46,6 +46,12 @@ const BRAND_VISUAL_CONTRACT = Object.freeze({
   placement: 'canonical-bookends',
 });
 
+const BRAND_STYLE_CONTRACT = Object.freeze({
+  version: 'mobius-banner-style-v1',
+  palette: Object.freeze({ background: '#101416', primary: '#b7ef59', accent: '#f6d36b', text: '#ffffff', muted: '#c8d0d0' }),
+  typography: Object.freeze({ heading: 'Inter SemiBold', body: 'Inter', fallbacks: ['Arial', 'sans-serif'] }),
+});
+
 const ORDINAL_REPLACEMENTS = [
   [/\bpremièrement\s*,?\s*/gi, 'D’abord, '],
   [/\bdeuxièmement\s*,?\s*/gi, 'Ensuite, '],
@@ -78,12 +84,17 @@ function buildThematicWelcome({ gameName = 'ce jeu', firstNarration = '' } = {})
   const firstSentence = clean(firstNarration).split(/(?<=[.!?])\s+/)[0] || '';
   const sourceHook = firstSentence
     .replace(/^bienvenue\s+(?:dans|à)\s+/i, '')
-    .replace(/^aujourd'hui,?\s*/i, '')
+    .replace(/^aujourd['’]hui,?\s*/i, '')
     .trim();
-  const hook = sourceHook.length > 65 ? `${sourceHook.slice(0, 62).replace(/\s+\S*$/, '')}…` : sourceHook;
+  const clauses = sourceHook.split(/[,:;]/).map(clean).filter(Boolean);
+  const hookSource = clauses.find((clause) => !clause.toLocaleLowerCase('fr-CA').includes(name.toLocaleLowerCase('fr-CA'))) || clauses[0] || '';
+  const conciseHook = hookSource
+    .replace(/[.!?]+$/, '')
+    .replace(/\s+pour\s+(?:deux|trois|quatre|cinq|six|de|la plupart).*$/i, '')
+    .trim();
+  const hook = conciseHook.length > 58 ? `${conciseHook.slice(0, 55).replace(/\s+\S*$/, '')}…` : conciseHook;
   return [
-    `Bienvenue chez Les Jeux Mobius! Aujourd’hui, on s’installe autour de la table pour découvrir ${name}.`,
-    hook ? `${hook} On se lance!` : 'On se lance!',
+    `Bienvenue chez Les Jeux Mobius! Installez-vous: ${name}${hook ? ` — ${hook}` : ''}. On se lance!`,
   ].join(' ');
 }
 
@@ -178,6 +189,7 @@ function getEditorialContract({ narrationPreset = DEFAULT_NARRATION_PRESET } = {
     narrationPreset: preset.id,
     narrationPresetVersion: preset.version,
     brandAudio: BRAND_AUDIO_CONTRACT,
+    brandStyle: BRAND_STYLE_CONTRACT,
     visualPolicy: {
       visualDominant: true,
       panelWidthRatio: 0.22,
@@ -233,5 +245,6 @@ module.exports = {
   isConciseSupportText,
   classifyVisualLanguage,
   BRAND_VISUAL_CONTRACT,
+  BRAND_STYLE_CONTRACT,
   buildThematicWelcome,
 };

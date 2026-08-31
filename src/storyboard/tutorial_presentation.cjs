@@ -67,7 +67,7 @@ function buildBrandOutro({ bannerPath = DEFAULT_BRAND.bannerPath, audio = null, 
     overlays: [
       { type: 'kicker', text: 'LES JEUX', position: 'brand-kicker', fontColor: '#b7ef59' },
       { type: 'title', text: 'Merci d’avoir joué avec nous !', position: 'brand-title' },
-      { type: 'body', text: 'À bientôt pour une nouvelle partie.', position: 'brand-subtitle' },
+      { type: 'body', text: 'Aimez • Abonnez-vous • Activez les notifications • Commentez', position: 'brand-subtitle' },
     ],
   };
 }
@@ -140,7 +140,7 @@ function buildTeachingScene({
     callouts: normalizedCallouts,
     motion: buildTeachingMotion({ visualKind, visualFocus: derivedFocus, durationSec }),
     overlays: [
-      { type: 'badge', text: stepLabel, position: 'top', fontColor: '#f5d76e' },
+      { type: 'badge', text: stepLabel, position: 'top', fontColor: '#b7ef59' },
       { type: 'heading', text: normalizedSection, position: 'panel-heading', fontColor: '#ffffff' },
       { type: 'body', text: editorialSupport.text, position: 'panel-body', fontColor: '#ffffff' },
       ...(reference ? [{ type: 'reference', text: reference, position: 'reference-bottom-left', fontColor: '#b8c2cc' }] : []),

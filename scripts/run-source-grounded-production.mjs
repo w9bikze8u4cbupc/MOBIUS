@@ -305,13 +305,13 @@ function buildEditorialReport(config, normalized, visuals, narration) {
     };
   });
   return {
-    version: 'mobius-editorial-report-v1',
+    version: 'mobius-editorial-report-v2',
     contract: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
     brandedIntroAudioPresent: Boolean(narration.records.find((record) => record.sceneId === 'brand-intro')?.brandAudioContract),
     brandedOutroAudioPresent: Boolean(narration.records.find((record) => record.sceneId === 'brand-outro')?.brandAudioContract),
     narrationPreset: normalized.narrationPreset,
     narrationPresetHash: narration.presetHash,
-    visualDominantLayout: { ...layout, panelShare: 0.28, visualShare: layout.visualAreaRatio },
+    visualDominantLayout: { ...layout, panelShare: 0.22, visualShare: layout.visualAreaRatio },
     foreignExplanatoryTextScenes: sceneAudit.filter((scene) => ['english-explanatory', 'english-source-uncertain'].includes(scene.language)).map((scene) => scene.sceneId),
     localizedCalloutScenes: sceneAudit.filter((scene) => scene.calloutCount > 0).map((scene) => scene.sceneId),
     layoutCollisions: sceneAudit.filter(() => layout.overlap).map((scene) => scene.sceneId),

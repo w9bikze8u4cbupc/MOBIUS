@@ -58,7 +58,7 @@ describe('professional editorial standard', () => {
       gameName: 'Abyss',
       firstNarration: 'Bienvenue dans Abyss, un jeu de stratégie sous-marine pour deux à quatre joueurs.',
     });
-    expect(text).toContain('autour de la table');
+    expect(text).toContain('Installez-vous');
     expect(text).toContain('stratégie sous-marine');
     expect(text).toContain('On se lance');
   });

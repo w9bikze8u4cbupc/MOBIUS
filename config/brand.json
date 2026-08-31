@@ -7,10 +7,10 @@
       "sha256": "9f63df856527e6639706d2fb793bb74ed4b8c6eb1483a44d44ddec50d31df219"
     },
     "colors": {
-      "primary": "#1F7AE0",
-      "secondary": "#0F3A70",
-      "accent": "#FFD54F",
-      "background": "#0B0B0D",
+      "primary": "#B7EF59",
+      "secondary": "#17201D",
+      "accent": "#F6D36B",
+      "background": "#101416",
       "text": "#FFFFFF",
       "muted": "#C8C8C8"
     },
@@ -60,7 +60,7 @@
   },
   "callouts": {
     "style": "spotlight",
-    "color": "#FFD54F",
+    "color": "#B7EF59",
     "pulseMs": 600,
     "radius": 64
   },
@@ -68,7 +68,7 @@
     "highlight": {
       "enabled": true,
       "radius": 48,
-      "color": "#FFD54F",
+      "color": "#B7EF59",
       "opacity": 0.35,
       "showClicks": true
     }
