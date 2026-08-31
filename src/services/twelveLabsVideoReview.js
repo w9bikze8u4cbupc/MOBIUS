@@ -88,9 +88,10 @@ function headers(config) { return { 'x-api-key': config.apiKey }; }
 async function uploadAsset(videoPath, config, timeoutMs, fetchImpl) {
   const bytes = await fsPromises.readFile(videoPath);
   const form = new FormData();
+  form.append('method', 'direct');
   form.append('file', new Blob([bytes]), path.basename(videoPath));
   const payload = await requestJson(`${config.baseUrl}/assets`, { method: 'POST', headers: headers(config), body: form }, timeoutMs, fetchImpl);
-  const assetId = payload?.id || payload?.asset_id || payload?.asset?.id;
+  const assetId = payload?._id || payload?.id || payload?.asset_id || payload?.asset?._id || payload?.asset?.id;
   if (!assetId) throw new Error('Twelve Labs upload returned no asset identifier.');
   return assetId;
 }
@@ -114,6 +115,22 @@ function responseText(payload) {
   if (typeof payload?.result?.text === 'string') return payload.result.text;
   if (payload?.data && typeof payload.data === 'object') return JSON.stringify(payload.data);
   return '';
+}
+
+// Twelve Labs validates the request schema against its supported JSON-schema
+// subset. Keep the canonical schema strict locally, but omit transport-only
+// keywords that the Analyze API rejects (notably numeric bounds on `number`).
+function buildProviderSchema(node) {
+  if (Array.isArray(node)) return node.map(buildProviderSchema);
+  if (!node || typeof node !== 'object') return node;
+  const output = {};
+  for (const [key, value] of Object.entries(node)) {
+    if (key === '$schema' || key === 'additionalProperties') continue;
+    if ((key === 'minimum' || key === 'maximum') && node.type !== 'integer') continue;
+    if (key === 'minItems' && node.type !== 'array') continue;
+    output[key] = buildProviderSchema(value);
+  }
+  return output;
 }
 
 export function parseStrictReviewJson(value, schema = null) {
@@ -182,12 +199,12 @@ export async function analyzeProductionVideo({ videoPath, promptPath = DEFAULT_P
       method: 'POST', headers: { ...headers(config), 'content-type': 'application/json' },
       body: JSON.stringify({
         model_name: resolvedModel,
-        video: { type: 'asset', asset_id: assetId },
+        video: { type: 'asset_id', asset_id: assetId },
         prompt,
         stream: false,
         temperature: 0.2,
         max_tokens: 4096,
-        response_format: { type: 'json_schema', json_schema: schema },
+        response_format: { type: 'json_schema', json_schema: buildProviderSchema(schema) },
       }),
     }, timeoutMs, fetchImpl);
     const result = parseStrictReviewJson(responseText(payload), schema);

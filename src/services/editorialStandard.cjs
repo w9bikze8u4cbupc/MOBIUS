@@ -4,7 +4,7 @@
  * rendering remain in their existing pipeline modules.
  */
 
-const EDITORIAL_CONTRACT_VERSION = 'mobius-professional-editorial-v4';
+const EDITORIAL_CONTRACT_VERSION = 'mobius-professional-editorial-v5';
 
 const NARRATION_PRESETS = Object.freeze({
   'warm-engaging-fr-ca': Object.freeze({

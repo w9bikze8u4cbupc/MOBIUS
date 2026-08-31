@@ -61,7 +61,9 @@
     "tutorial:inbox:once": "node scripts/run-rulebook-inbox.mjs once",
     "tutorial:inbox:watch": "node scripts/run-rulebook-inbox.mjs watch",
     "tutorial:inbox:status": "node scripts/run-rulebook-inbox.mjs status",
-    "editorial:review": "node scripts/analyze-production-video.mjs"
+    "editorial:review": "node scripts/analyze-production-video.mjs",
+    "editorial:calibrate": "node scripts/calibrate-twelvelabs-review.mjs",
+    "editorial:compare": "node scripts/compare-twelvelabs-reviews.mjs"
   },
   "keywords": [
     "game",

@@ -236,7 +236,7 @@ function getSceneLayout(scene, w, h) {
   const imageY = Math.round((h - imageHeight) / 2);
   const bodyTextLength = String((scene?.overlays || []).find((overlay) => overlay.type === 'body')?.text || '').length;
   const compactPanelRatio = isTeaching
-    ? Math.min(0.64, Math.max(0.40, 0.34 + (bodyTextLength / 400)))
+    ? Math.min(0.60, Math.max(0.30, 0.24 + (bodyTextLength / 460)))
     : 0.68;
   return {
     mode: layout.mode || 'default',
