@@ -2,8 +2,9 @@
   "brand": {
     "name": "Les Jeux Mobius Games",
     "logos": {
-      "primary": "/mnt/data/Banner.png",
-      "mono": "/mnt/data/Banner.png"
+      "primary": "src/assets/branding/les-jeux-mobius-banner.png",
+      "mono": "src/assets/branding/les-jeux-mobius-banner.png",
+      "sha256": "9f63df856527e6639706d2fb793bb74ed4b8c6eb1483a44d44ddec50d31df219"
     },
     "colors": {
       "primary": "#1F7AE0",
@@ -40,7 +41,7 @@
       "easing": "easeInOutCubic"
     },
     "intro": {
-      "durationMs": 1200,
+      "durationMs": 8200,
       "musicCue": true,
       "logo": {
         "animation": "scale-up",
@@ -49,7 +50,7 @@
       }
     },
     "outro": {
-      "durationMs": 1000,
+      "durationMs": 8200,
       "cta": "Abonnez-vous pour plus de tutoriels Mobius Games.",
       "logo": {
         "fadeToOpacity": 0.4,

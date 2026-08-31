@@ -324,7 +324,7 @@ function buildEditorialReport(config, normalized, visuals, narration) {
 }
 
 function audioSpecs(normalized) {
-  const intro = buildBrandIntro({ audio: null });
+  const intro = buildBrandIntro({ audio: null, gameName: normalized.gameName, themeHook: normalized.scenes[0]?.spokenText || '' });
   const outro = buildBrandOutro({ audio: null });
   return [
     { id: 'brand-intro-voice', sceneId: 'brand-intro', text: prepareNarrationText(intro.narrationText) },
@@ -343,6 +343,7 @@ function audioRecordIndex(normalized) {
 function ensureBrandAudioMix(normalized, tools, records, presetHash) {
   const signaturePath = join(normalized.audioDir, 'mobius-signature-bed.wav');
   const signatureMetaPath = join(normalized.audioDir, 'mobius-signature-bed.json');
+  const transitionPath = join(normalized.audioDir, 'mobius-transition-bed.wav');
   const mixHash = hashValue({ brandAudio: BRAND_AUDIO_CONTRACT, presetHash });
   const introVoice = records.find((record) => record.sceneId === 'brand-intro');
   const outroVoice = records.find((record) => record.sceneId === 'brand-outro');
@@ -352,13 +353,14 @@ function ensureBrandAudioMix(normalized, tools, records, presetHash) {
   if (!existsSync(signaturePath) || signatureMeta.contractHash !== mixHash) {
     const duration = BRAND_AUDIO_CONTRACT.durationSec;
     const bedFilter = [
-      '[0:a]volume=0.055[motif1]',
-      '[1:a]volume=0.035[motif2]',
-      '[2:a]volume=0.025[motif3]',
-      '[3:a]lowpass=f=900,volume=0.035[room]',
-      '[4:a]adelay=900|900,volume=0.07[tap1]',
-      '[5:a]adelay=2600|2600,volume=0.055[tap2]',
-      '[motif1][motif2][motif3][room][tap1][tap2]amix=inputs=6:duration=longest:normalize=0,atrim=0:' + duration + ',afade=t=in:st=0:d=0.12,afade=t=out:st=3.92:d=0.28,alimiter=limit=0.8[a]',
+      '[0:a]volume=0.075[motif1]',
+      '[1:a]volume=0.045[motif2]',
+      '[2:a]volume=0.03[motif3]',
+      '[3:a]lowpass=f=1100,volume=0.06[room]',
+      '[4:a]adelay=900|900,volume=0.08[cup1]',
+      '[5:a]adelay=2600|2600,volume=0.06[cup2]',
+      '[6:a]lowpass=f=700,volume=0.035[water]',
+      '[motif1][motif2][motif3][room][cup1][cup2][water]amix=inputs=7:duration=longest:normalize=0,atrim=0:' + duration + ',afade=t=in:st=0:d=0.18,afade=t=out:st=' + Math.max(0, duration - 0.72).toFixed(2) + ':d=0.72,alimiter=limit=0.8[a]',
     ].join(';');
     execFileSync(tools.ffmpeg, [
       '-hide_banner', '-loglevel', 'error', '-y',
@@ -368,10 +370,23 @@ function ensureBrandAudioMix(normalized, tools, records, presetHash) {
       '-f', 'lavfi', '-i', `anoisesrc=color=pink:amplitude=0.02:duration=${duration}:sample_rate=48000`,
       '-f', 'lavfi', '-i', 'aevalsrc=0.18*sin(2*PI*90*t)*exp(-35*t):s=48000:d=0.18',
       '-f', 'lavfi', '-i', 'aevalsrc=0.14*sin(2*PI*120*t)*exp(-42*t):s=48000:d=0.16',
+      '-f', 'lavfi', '-i', `anoisesrc=color=brown:amplitude=0.018:duration=${duration}:sample_rate=48000`,
       '-filter_complex', bedFilter,
       '-map', '[a]', '-ar', '48000', '-ac', '2', signaturePath,
     ], { stdio: 'pipe', windowsHide: true });
-    jsonFile(signatureMetaPath, { version: BRAND_AUDIO_CONTRACT.version, contract: BRAND_AUDIO_CONTRACT.id, contractHash: mixHash, path: signaturePath });
+    jsonFile(signatureMetaPath, { version: BRAND_AUDIO_CONTRACT.version, contract: BRAND_AUDIO_CONTRACT.id, contractHash: mixHash, path: signaturePath, layers: BRAND_AUDIO_CONTRACT.layers });
+  }
+
+  const transitionMetaHash = hashValue({ mixHash, transition: BRAND_AUDIO_CONTRACT.transition });
+  const transitionMetaPath = join(normalized.audioDir, 'mobius-transition-bed.json');
+  const transitionMeta = readJsonIfPresent(transitionMetaPath, {});
+  if (!existsSync(transitionPath) || transitionMeta.contractHash !== transitionMetaHash) {
+    execFileSync(tools.ffmpeg, [
+      '-hide_banner', '-loglevel', 'error', '-y', '-i', signaturePath,
+      '-filter_complex', `[0:a]atrim=0:${BRAND_AUDIO_CONTRACT.transitionBedSec},volume=0.24,afade=t=in:st=0:d=0.18,afade=t=out:st=1.8:d=4.0,alimiter=limit=0.7[a]`,
+      '-map', '[a]', '-ar', '48000', '-ac', '2', transitionPath,
+    ], { stdio: 'pipe', windowsHide: true });
+    jsonFile(transitionMetaPath, { version: BRAND_AUDIO_CONTRACT.version, contract: BRAND_AUDIO_CONTRACT.id, contractHash: transitionMetaHash, path: transitionPath, durationSec: BRAND_AUDIO_CONTRACT.transitionBedSec });
   }
 
   const mixed = new Map();
@@ -400,7 +415,7 @@ function ensureBrandAudioMix(normalized, tools, records, presetHash) {
       brandMixHash: outputHash,
     });
   }
-  return mixed;
+  return { mixed, transitionPath, transitionHash: transitionMetaHash };
 }
 
 function probeAudio(ffprobe, filePath) {
@@ -465,15 +480,15 @@ async function ensureNarration(normalized, tools, checkpoint, inputHash) {
       status: 'ready',
     });
   }
-  const bookendRecords = await ensureBrandAudioMix(normalized, tools, records, presetHash);
-  const finalRecords = records.map((record) => bookendRecords.get(record.sceneId) || record);
+  const brandMix = await ensureBrandAudioMix(normalized, tools, records, presetHash);
+  const finalRecords = records.map((record) => brandMix.mixed.get(record.sceneId) || record);
   jsonFile(join(normalized.productionDir, AUDIO_NAME), {
     provider: 'elevenlabs', voiceName: normalized.voiceName, voiceId: normalized.voiceId,
     language: normalized.language, modelId: preset.modelId, narrationPreset: preset.id,
     narrationPresetHash: presetHash, voiceSettings: preset.voiceSettings, inputHash, assets: finalRecords,
   });
   checkpoint.stages.narration = { inputHash, reused, generated, outputs: [join(normalized.productionDir, AUDIO_NAME)] };
-  return { reused, generated, records: finalRecords, preset, presetHash };
+  return { reused, generated, records: finalRecords, preset, presetHash, brandTransitionPath: brandMix.transitionPath, brandTransitionHash: brandMix.transitionHash };
 }
 
 function materializeScript(normalized, inputHash) {
@@ -621,6 +636,7 @@ export async function runProduction(options = {}) {
     inputHash,
     narrationInputHash,
     editorial: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
+    branding: { bannerPath: resolve(root, DEFAULT_BRAND.bannerPath), transitionHash: narration.brandTransitionHash },
     audio: narration.records.map((record) => ({
       id: record.id,
       durationMs: record.durationMs,
@@ -636,6 +652,8 @@ export async function runProduction(options = {}) {
       '--project-id', projectId, '--width', '1920', '--height', '1080', '--fps', '30',
       '--language', language, '--voice-name', normalized.voiceName, '--voice-id', normalized.voiceId,
       '--narration-provider', 'elevenlabs', '--narration-preset', normalized.narrationPreset,
+      '--brand-banner', resolve(root, DEFAULT_BRAND.bannerPath),
+      '--brand-transition-audio', narration.brandTransitionPath,
     ], tools.env);
   }
   checkpoint.stages.handoff = { inputHash: handoffHash, reused: handoffReuse, outputs: [configPath, captionsPath, chaptersPath] };
@@ -688,6 +706,11 @@ export async function runProduction(options = {}) {
     visuals: { ...visuals.counts, warnings: visuals.warnings },
     narration: { total: narration.records.length, reused: narration.reused, generated: narration.generated },
     handoff: { configPath, captionsPath, chaptersPath, reused: handoffReuse },
+    branding: {
+      bannerPath: resolve(root, DEFAULT_BRAND.bannerPath),
+      transitionAudioPath: narration.brandTransitionPath,
+      transitionHash: narration.brandTransitionHash,
+    },
     render: { outputPath, reused: renderReused, durationSec: media.durationSec, resolution: `${media.video.width}x${media.video.height}`, fps: media.video.avg_frame_rate, status: 'complete' },
     media: { ...media, loudness },
     captions,

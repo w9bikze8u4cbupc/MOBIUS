@@ -4,19 +4,21 @@ const {
   buildEditorialSupport,
   buildSetupCallouts,
   getEditorialContract,
+  buildThematicWelcome,
 } = require('../services/editorialStandard.cjs');
 
 const DEFAULT_BRAND = Object.freeze({
   channelName: 'Les Jeux Mobius',
   language: 'fr-CA',
+  bannerPath: 'src/assets/branding/les-jeux-mobius-banner.png',
   narration: Object.freeze({
     provider: 'elevenlabs',
     voiceName: 'Amélie',
     voiceIdEnv: 'ELEVENLABS_VOICE_ID_AMELIE',
     preset: DEFAULT_NARRATION_PRESET,
   }),
-  introText: 'Bienvenue chez Les Jeux Mobius. Prenons un moment pour jouer mieux, ensemble.',
-  outroText: 'Merci d’avoir joué avec Les Jeux Mobius. À bientôt pour une nouvelle partie.',
+  introText: 'Bienvenue chez Les Jeux Mobius! Installez-vous autour de la table: on découvre le jeu ensemble.',
+  outroText: 'Merci d’avoir joué avec Les Jeux Mobius! Si le tutoriel vous a aidé, aimez la vidéo, abonnez-vous, activez les notifications et dites-nous en commentaire comment s’est passée votre partie.',
   audioSignature: BRAND_AUDIO_CONTRACT,
 });
 
@@ -32,38 +34,38 @@ function sourceReference(sourcePages = []) {
   return pages.length === 1 ? `Livret p. ${pages[0]}` : `Livret pp. ${pages.join(', ')}`;
 }
 
-function buildBrandIntro({ bannerPath = null, audio = null, brand = DEFAULT_BRAND } = {}) {
+function buildBrandIntro({ bannerPath = DEFAULT_BRAND.bannerPath, audio = null, brand = DEFAULT_BRAND, gameName = null, themeHook = '' } = {}) {
   return {
     id: 'brand-intro',
     type: 'brand_intro',
     chapterTitle: 'Bienvenue',
-    durationSec: 4.2,
-    narrationText: brand.introText,
+    durationSec: brand.audioSignature?.durationSec || 8.2,
+    narrationText: gameName ? buildThematicWelcome({ gameName, firstNarration: themeHook }) : brand.introText,
     audio,
-    background: bannerPath ? { image: bannerPath } : { color: '#151a21' },
-    layout: { mode: 'brand', visualSide: 'center' },
+    background: bannerPath ? { image: bannerPath, kind: 'brand-banner' } : { color: '#151a21' },
+    layout: { mode: 'brand', visualSide: 'center', brandBanner: true },
     editorial: getEditorialContract({ narrationPreset: brand.narration.preset }),
     overlays: [
-      { type: 'kicker', text: 'LES JEUX', position: 'brand-kicker', fontColor: '#d9f6ff' },
+      { type: 'kicker', text: 'LES JEUX', position: 'brand-kicker', fontColor: '#b7ef59' },
       { type: 'title', text: brand.channelName, position: 'brand-title' },
-      { type: 'body', text: 'Des tutoriels clairs pour jouer avec plaisir.', position: 'brand-subtitle' },
+      { type: 'body', text: 'On s’installe, on écoute, puis on joue.', position: 'brand-subtitle' },
     ],
   };
 }
 
-function buildBrandOutro({ bannerPath = null, audio = null, brand = DEFAULT_BRAND } = {}) {
+function buildBrandOutro({ bannerPath = DEFAULT_BRAND.bannerPath, audio = null, brand = DEFAULT_BRAND } = {}) {
   return {
     id: 'brand-outro',
     type: 'brand_outro',
     chapterTitle: 'Merci et à bientôt',
-    durationSec: 4.2,
+    durationSec: brand.audioSignature?.durationSec || 8.2,
     narrationText: brand.outroText,
     audio,
-    background: bannerPath ? { image: bannerPath } : { color: '#151a21' },
-    layout: { mode: 'brand', visualSide: 'center' },
+    background: bannerPath ? { image: bannerPath, kind: 'brand-banner' } : { color: '#151a21' },
+    layout: { mode: 'brand', visualSide: 'center', brandBanner: true },
     editorial: getEditorialContract({ narrationPreset: brand.narration.preset }),
     overlays: [
-      { type: 'kicker', text: 'LES JEUX', position: 'brand-kicker', fontColor: '#d9f6ff' },
+      { type: 'kicker', text: 'LES JEUX', position: 'brand-kicker', fontColor: '#b7ef59' },
       { type: 'title', text: 'Merci d’avoir joué avec nous !', position: 'brand-title' },
       { type: 'body', text: 'À bientôt pour une nouvelle partie.', position: 'brand-subtitle' },
     ],
@@ -124,8 +126,8 @@ function buildTeachingScene({
       mode: 'split-teaching',
       imageSide,
       textSide,
-      panelWidthRatio: 0.28,
-      visualWidthRatio: 0.66,
+      panelWidthRatio: 0.22,
+      visualWidthRatio: 0.72,
       editorial: {
         contract: getEditorialContract({ narrationPreset: DEFAULT_NARRATION_PRESET }),
         visualDominant: true,
@@ -141,7 +143,7 @@ function buildTeachingScene({
       { type: 'badge', text: stepLabel, position: 'top', fontColor: '#f5d76e' },
       { type: 'heading', text: normalizedSection, position: 'panel-heading', fontColor: '#ffffff' },
       { type: 'body', text: editorialSupport.text, position: 'panel-body', fontColor: '#ffffff' },
-      ...(reference ? [{ type: 'reference', text: reference, position: 'reference-bottom', fontColor: '#d9e2ec' }] : []),
+      ...(reference ? [{ type: 'reference', text: reference, position: 'reference-bottom-left', fontColor: '#b8c2cc' }] : []),
     ],
   };
 }

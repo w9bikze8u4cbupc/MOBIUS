@@ -131,7 +131,9 @@ function main() {
   const narrationProvider = optionalArg('narration-provider', DEFAULT_BRAND.narration.provider);
   const narrationPreset = optionalArg('narration-preset', DEFAULT_NARRATION_PRESET);
   const voiceId = optionalArg('voice-id', process.env[DEFAULT_BRAND.narration.voiceIdEnv] || null);
-  const bannerPath = optionalArg('brand-banner', null);
+  const canonicalBannerPath = resolve(process.cwd(), DEFAULT_BRAND.bannerPath);
+  const bannerPath = optionalArg('brand-banner', canonicalBannerPath);
+  const transitionAudioPath = optionalArg('brand-transition-audio', null);
   const assetManifestPath = optionalArg('asset-manifest', null);
   const visualQualityReportPath = optionalArg('visual-quality-report', null);
   const semanticVisualReportPath = optionalArg('semantic-visual-report', null);
@@ -164,6 +166,8 @@ function main() {
     const intro = buildBrandIntro({
       bannerPath: bannerPath && existsSync(resolve(bannerPath)) ? resolve(bannerPath) : null,
       audio: { file: introAudio, provider: narrationProvider, providerVoiceId: voiceId, language, narrationPreset },
+      gameName: script.game || projectId,
+      themeHook: script.scenes[0]?.narration || '',
     });
     intro.durationSec = getDurationSeconds(introAudio);
     captions.scene = intro;
@@ -195,6 +199,9 @@ function main() {
       },
       audio: {
         file: audioPath,
+        ...(index === 0 && transitionAudioPath && existsSync(resolve(transitionAudioPath))
+          ? { ambientFile: resolve(transitionAudioPath), ambientGain: 0.24, ambientFadeOutSec: 5.8 }
+          : {}),
         provider: narrationProvider,
         providerVoiceId: voiceId,
         language,
@@ -257,6 +264,11 @@ function main() {
         kind: scene.background?.kind || 'unknown',
         language: scene.background?.languageAudit || 'language-unknown',
       })),
+    branding: {
+      bannerPath: bannerPath && existsSync(resolve(bannerPath)) ? resolve(bannerPath) : null,
+      transitionAudioPath: transitionAudioPath && existsSync(resolve(transitionAudioPath)) ? resolve(transitionAudioPath) : null,
+      contract: getEditorialContract({ narrationPreset }).brandAudio,
+    },
   };
 
   mkdirSync(dirname(outputConfigPath), { recursive: true });

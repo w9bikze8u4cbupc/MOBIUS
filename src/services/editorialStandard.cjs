@@ -4,18 +4,18 @@
  * rendering remain in their existing pipeline modules.
  */
 
-const EDITORIAL_CONTRACT_VERSION = 'mobius-professional-editorial-v3';
+const EDITORIAL_CONTRACT_VERSION = 'mobius-professional-editorial-v4';
 
 const NARRATION_PRESETS = Object.freeze({
   'warm-engaging-fr-ca': Object.freeze({
     id: 'warm-engaging-fr-ca',
-    version: '1',
+    version: '2',
     language: 'fr-CA',
     modelId: 'eleven_multilingual_v2',
     voiceSettings: Object.freeze({
-      stability: 0.38,
+      stability: 0.34,
       similarity_boost: 0.78,
-      style: 0.22,
+      style: 0.32,
       use_speaker_boost: true,
     }),
     description: 'Warm, engaged, conversational French Canadian narration.',
@@ -25,17 +25,25 @@ const NARRATION_PRESETS = Object.freeze({
 const DEFAULT_NARRATION_PRESET = 'warm-engaging-fr-ca';
 
 const BRAND_AUDIO_CONTRACT = Object.freeze({
-  id: 'mobius-cafe-game-night-v1',
-  version: '1',
-  durationSec: 4.2,
+  id: 'mobius-cafe-game-night-v2',
+  version: '2',
+  durationSec: 8.2,
+  transitionBedSec: 5.8,
   sampleRate: 48000,
   channels: 2,
   layers: Object.freeze([
-    Object.freeze({ id: 'signature-motif', kind: 'synthesized-music', gainDb: -25 }),
-    Object.freeze({ id: 'room-murmur', kind: 'filtered-ambient-noise', gainDb: -31, intelligibleSpeech: false }),
-    Object.freeze({ id: 'tabletop-texture', kind: 'subtle-tabletop-sfx', gainDb: -27 }),
+    Object.freeze({ id: 'signature-motif', kind: 'synthesized-music', gainDb: -22 }),
+    Object.freeze({ id: 'room-murmur', kind: 'filtered-ambient-noise', gainDb: -27, intelligibleSpeech: false }),
+    Object.freeze({ id: 'cafe-tableware', kind: 'subtle-cup-and-tabletop-sfx', gainDb: -24, intelligibleSpeech: false }),
+    Object.freeze({ id: 'water-jet-ambience', kind: 'filtered-water-ambience', gainDb: -30, intelligibleSpeech: false }),
   ]),
-  transition: Object.freeze({ fadeInSec: 0.12, fadeOutSec: 0.28, narrationDuckDb: -4 }),
+  transition: Object.freeze({ fadeInSec: 0.18, fadeOutSec: 0.72, carryoverSec: 5.8, narrationDuckDb: -6 }),
+});
+
+const BRAND_VISUAL_CONTRACT = Object.freeze({
+  asset: 'src/assets/branding/les-jeux-mobius-banner.png',
+  sha256: '9f63df856527e6639706d2fb793bb74ed4b8c6eb1483a44d44ddec50d31df219',
+  placement: 'canonical-bookends',
 });
 
 const ORDINAL_REPLACEMENTS = [
@@ -63,6 +71,20 @@ function prepareNarrationText(value) {
     .replace(/\s*\|\s*/g, '. ')
     .replace(/\.\s*\./g, '.')
     .trim();
+}
+
+function buildThematicWelcome({ gameName = 'ce jeu', firstNarration = '' } = {}) {
+  const name = clean(gameName) || 'ce jeu';
+  const firstSentence = clean(firstNarration).split(/(?<=[.!?])\s+/)[0] || '';
+  const sourceHook = firstSentence
+    .replace(/^bienvenue\s+(?:dans|à)\s+/i, '')
+    .replace(/^aujourd'hui,?\s*/i, '')
+    .trim();
+  const hook = sourceHook.length > 65 ? `${sourceHook.slice(0, 62).replace(/\s+\S*$/, '')}…` : sourceHook;
+  return [
+    `Bienvenue chez Les Jeux Mobius! Aujourd’hui, on s’installe autour de la table pour découvrir ${name}.`,
+    hook ? `${hook} On se lance!` : 'On se lance!',
+  ].join(' ');
 }
 
 function setupLabelsFromNarration(narration) {
@@ -105,7 +127,7 @@ function buildEditorialSupport({ section = '', narration = '', onScreenText = ''
   let concise = pieces[0] || source;
   const semanticBoundary = concise.search(/\b(?:Menace|Lieux|Pour les interactions)\b/i);
   if (semanticBoundary > 32) concise = concise.slice(0, semanticBoundary).trim();
-  const maxChars = 90;
+  const maxChars = 80;
   const text = concise.length > maxChars
     ? `${concise.slice(0, maxChars).replace(/\s+\S*$/, '')}…`
     : concise;
@@ -158,19 +180,21 @@ function getEditorialContract({ narrationPreset = DEFAULT_NARRATION_PRESET } = {
     brandAudio: BRAND_AUDIO_CONTRACT,
     visualPolicy: {
       visualDominant: true,
-      panelWidthRatio: 0.28,
-      visualWidthRatio: 0.66,
-      maxSupportChars: 150,
+      panelWidthRatio: 0.22,
+      visualWidthRatio: 0.72,
+      maxSupportChars: 110,
       languageAware: true,
+      citationPlacement: 'bottom-left',
+      banner: BRAND_VISUAL_CONTRACT,
     },
   };
 }
 
-function estimateTeachingLayout({ width = 1920, height = 1080, panelWidthRatio = 0.28, visualWidthRatio = 0.66 } = {}) {
+function estimateTeachingLayout({ width = 1920, height = 1080, panelWidthRatio = 0.22, visualWidthRatio = 0.72 } = {}) {
   const marginX = Math.round(width * 0.08);
   const contentWidth = width - (marginX * 2);
-  const panelWidth = Math.round(contentWidth * Math.min(0.34, Math.max(0.22, panelWidthRatio)));
-  const visualWidth = Math.round(contentWidth * Math.min(0.72, Math.max(0.58, visualWidthRatio)));
+  const panelWidth = Math.round(contentWidth * Math.min(0.30, Math.max(0.18, panelWidthRatio)));
+  const visualWidth = Math.round(contentWidth * Math.min(0.76, Math.max(0.62, visualWidthRatio)));
   const gap = Math.max(24, contentWidth - panelWidth - visualWidth);
   const panel = { x: marginX, y: Math.round(height * 0.15), width: panelWidth, height: Math.round(height * 0.68) };
   const visual = { x: marginX + panelWidth + gap, y: Math.round(height * 0.11), width: visualWidth, height: Math.round(height * 0.78) };
@@ -208,4 +232,6 @@ module.exports = {
   estimateTeachingLayout,
   isConciseSupportText,
   classifyVisualLanguage,
+  BRAND_VISUAL_CONTRACT,
+  buildThematicWelcome,
 };

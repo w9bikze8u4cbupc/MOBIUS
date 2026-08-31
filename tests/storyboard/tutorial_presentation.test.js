@@ -16,7 +16,9 @@ describe('tutorial presentation contract', () => {
     expect(DEFAULT_BRAND.narration.voiceName).toBe('Amélie');
     expect(intro.narrationText).toContain('Bienvenue chez Les Jeux Mobius');
     expect(outro.narrationText).toContain('Merci d’avoir joué');
-    expect(intro.editorial.brandAudio.id).toBe('mobius-cafe-game-night-v1');
+    expect(intro.editorial.brandAudio.id).toBe('mobius-cafe-game-night-v2');
+    expect(intro.background.image).toBe(DEFAULT_BRAND.bannerPath);
+    expect(intro.durationSec).toBeGreaterThan(8);
     expect(intro.chapterTitle).toBe('Bienvenue');
     expect(outro.chapterTitle).toBe('Merci et à bientôt');
   });
@@ -45,7 +47,7 @@ describe('tutorial presentation contract', () => {
       expect.objectContaining({ type: 'badge', position: 'top', text: expect.stringContaining('Étape 1/4') }),
       expect.objectContaining({ type: 'heading', position: 'panel-heading' }),
       expect.objectContaining({ type: 'body', position: 'panel-body' }),
-      expect.objectContaining({ type: 'reference', position: 'reference-bottom', text: 'Livret p. 7' }),
+      expect.objectContaining({ type: 'reference', position: 'reference-bottom-left', text: 'Livret p. 7' }),
     ]));
     expect(scene.callouts).toHaveLength(1);
     expect(scene.layout.visualFocus).toEqual({ x: 0.72, y: 0.48 });

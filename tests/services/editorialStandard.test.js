@@ -6,18 +6,25 @@ const {
   buildEditorialSupport,
   buildSetupCallouts,
   estimateTeachingLayout,
+  buildThematicWelcome,
 } = require('../../src/services/editorialStandard.cjs');
 
 describe('professional editorial standard', () => {
   test('exposes a versioned supported Amélie preset and brand mix contract', () => {
     const preset = getNarrationPreset();
     expect(preset.modelId).toBe('eleven_multilingual_v2');
-    expect(preset.voiceSettings).toMatchObject({ stability: 0.38, similarity_boost: 0.78, style: 0.22, use_speaker_boost: true });
+    expect(preset.voiceSettings).toMatchObject({ stability: 0.34, similarity_boost: 0.78, style: 0.32, use_speaker_boost: true });
     expect(BRAND_AUDIO_CONTRACT.layers).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'signature-motif' }),
       expect.objectContaining({ id: 'room-murmur', intelligibleSpeech: false }),
     ]));
-    expect(getEditorialContract().version).toBe('mobius-professional-editorial-v3');
+    expect(getEditorialContract().version).toBe('mobius-professional-editorial-v4');
+    expect(BRAND_AUDIO_CONTRACT.id).toBe('mobius-cafe-game-night-v2');
+    expect(BRAND_AUDIO_CONTRACT.durationSec).toBeGreaterThan(8);
+    expect(BRAND_AUDIO_CONTRACT.layers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'cafe-tableware' }),
+      expect.objectContaining({ id: 'water-jet-ambience' }),
+    ]));
   });
 
   test('turns ordinal setup delivery into conversational transitions without changing rules', () => {
@@ -43,6 +50,16 @@ describe('professional editorial standard', () => {
   test('reserves non-overlapping visual-dominant teaching geometry', () => {
     const layout = estimateTeachingLayout();
     expect(layout.overlap).toBe(false);
-    expect(layout.visualAreaRatio).toBeGreaterThanOrEqual(0.64);
+    expect(layout.visualAreaRatio).toBeGreaterThanOrEqual(0.70);
+  });
+
+  test('builds a source-backed thematic welcome without inventing game rules', () => {
+    const text = buildThematicWelcome({
+      gameName: 'Abyss',
+      firstNarration: 'Bienvenue dans Abyss, un jeu de stratégie sous-marine pour deux à quatre joueurs.',
+    });
+    expect(text).toContain('autour de la table');
+    expect(text).toContain('stratégie sous-marine');
+    expect(text).toContain('On se lance');
   });
 });

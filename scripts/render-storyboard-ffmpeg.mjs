@@ -223,8 +223,8 @@ function getSceneLayout(scene, w, h) {
   const margins = getSafeMargins(w, h);
   const isTeaching = layout.mode === 'split-teaching';
   const contentWidth = w - (margins.x * 2);
-  const panelRatio = Math.min(0.34, Math.max(0.22, Number(layout.panelWidthRatio) || 0.28));
-  const visualRatio = Math.min(0.72, Math.max(0.58, Number(layout.visualWidthRatio) || 0.66));
+  const panelRatio = Math.min(0.30, Math.max(0.18, Number(layout.panelWidthRatio) || 0.22));
+  const visualRatio = Math.min(0.76, Math.max(0.62, Number(layout.visualWidthRatio) || 0.72));
   const panelWidth = Math.round(contentWidth * panelRatio);
   const textSide = layout.textSide === 'right' ? 'right' : 'left';
   const imageSide = layout.imageSide === 'left' ? 'left' : 'right';
@@ -234,13 +234,17 @@ function getSceneLayout(scene, w, h) {
   const imageHeight = Math.round(h * 0.78);
   const imageX = imageSide === 'left' ? margins.x : margins.x + panelWidth + gap;
   const imageY = Math.round((h - imageHeight) / 2);
+  const bodyTextLength = String((scene?.overlays || []).find((overlay) => overlay.type === 'body')?.text || '').length;
+  const compactPanelRatio = isTeaching
+    ? Math.min(0.64, Math.max(0.40, 0.34 + (bodyTextLength / 400)))
+    : 0.68;
   return {
     mode: layout.mode || 'default',
     isTeaching,
     panelWidth,
     panelX,
-    panelY: Math.round(h * 0.15),
-    panelHeight: Math.round(h * 0.68),
+    panelY: Math.round(h * (isTeaching ? 0.19 : 0.15)),
+    panelHeight: Math.round(h * compactPanelRatio),
     textSide,
     imageSide,
     imageX,
@@ -293,7 +297,7 @@ function buildFocusHighlight(scene, layout) {
 
 function getOverlaySafeWidth(overlay, fontSize, w, h, scene) {
   const layout = getSceneLayout(scene, w, h);
-  if (layout.isTeaching && ['panel-heading', 'panel-body', 'reference-bottom'].includes(overlay.position)) {
+  if (layout.isTeaching && ['panel-heading', 'panel-body'].includes(overlay.position)) {
     return Math.max(20, Math.round(layout.panelWidth * 0.84));
   }
   return w - (layout.margins.x * 2);
@@ -363,7 +367,11 @@ function resolveOverlayPosition(overlay, fontSize, lineCount, w, h, scene = {}) 
   }
 
   if (layout.isTeaching && overlay.position === 'reference-bottom') {
-    return { x: `${layout.panelX + Math.round(layout.panelWidth * 0.08)}`, y: `${Math.round(h * 0.82)}` };
+    return { x: `${layout.margins.x}`, y: `${Math.round(h * 0.94)}` };
+  }
+
+  if (layout.isTeaching && overlay.position === 'reference-bottom-left') {
+    return { x: `${layout.margins.x}`, y: `${Math.round(h * 0.94)}` };
   }
 
   // Badge: top-left in safe area
@@ -478,8 +486,8 @@ function buildSceneCommand(scene, index) {
     // Create a full-frame, softened version of the source asset behind a
     // readable foreground page or component. This avoids letterboxed slides
     // while retaining the original visual as an honest, inspectable source.
-    const foregroundWidth = Math.round(width * 0.84);
-    const foregroundHeight = Math.round(height * 0.84);
+    const foregroundWidth = scene.layout?.mode === 'brand' ? Math.round(width * 0.88) : Math.round(width * 0.84);
+    const foregroundHeight = scene.layout?.mode === 'brand' ? Math.round(height * 0.72) : Math.round(height * 0.84);
     const layout = getSceneLayout(scene, width, height);
     const targetWidth = layout.isTeaching ? layout.imageWidth : foregroundWidth;
     const targetHeight = layout.isTeaching ? layout.imageHeight : foregroundHeight;
@@ -504,7 +512,7 @@ function buildSceneCommand(scene, index) {
   const bodyOverlay = overlays.find((o) => o.type === 'body' && ['center', 'panel-body'].includes(o.position));
   const sceneLayout = getSceneLayout(scene, width, height);
   if (sceneLayout.isTeaching) {
-    filterChain += `,drawbox=x=${sceneLayout.panelX}:y=${sceneLayout.panelY}:w=${sceneLayout.panelWidth}:h=${sceneLayout.panelHeight}:color=black@0.74:t=fill`;
+    filterChain += `,drawbox=x=${sceneLayout.panelX}:y=${sceneLayout.panelY}:w=${sceneLayout.panelWidth}:h=${sceneLayout.panelHeight}:color=black@0.66:t=fill`;
   }
   filterChain += buildFocusHighlight(scene, sceneLayout);
 
@@ -627,7 +635,14 @@ function buildSceneCommand(scene, index) {
   const audioArgs = [];
   if (scene.audio?.file && existsSync(scene.audio.file)) {
     audioArgs.push('-i', scene.audio.file);
-    filterChain += `;[1:a]atrim=duration=${scene.durationSec},asetpts=PTS-STARTPTS,aresample=44100,aformat=sample_rates=44100:channel_layouts=stereo[aout]`;
+    if (scene.audio?.ambientFile && existsSync(scene.audio.ambientFile)) {
+      audioArgs.push('-stream_loop', '-1', '-i', scene.audio.ambientFile);
+      const gain = Number(scene.audio.ambientGain ?? 0.24);
+      const fadeOut = Math.max(0.5, Number(scene.audio.ambientFadeOutSec ?? 5.8));
+      filterChain += `;[1:a]atrim=duration=${scene.durationSec},asetpts=PTS-STARTPTS,aresample=44100,aformat=sample_rates=44100:channel_layouts=stereo[voice];[2:a]atrim=duration=${scene.durationSec},asetpts=PTS-STARTPTS,volume=${gain},afade=t=out:st=${Math.max(0, Number(scene.durationSec) - fadeOut).toFixed(2)}:d=${fadeOut.toFixed(2)},aresample=44100,aformat=sample_rates=44100:channel_layouts=stereo[bed];[voice][bed]amix=inputs=2:duration=first:dropout_transition=1,alimiter=limit=0.92[aout]`;
+    } else {
+      filterChain += `;[1:a]atrim=duration=${scene.durationSec},asetpts=PTS-STARTPTS,aresample=44100,aformat=sample_rates=44100:channel_layouts=stereo[aout]`;
+    }
   } else {
     // Generate silent audio
     audioArgs.push('-f', 'lavfi', '-i', `anullsrc=r=44100:cl=stereo`);
