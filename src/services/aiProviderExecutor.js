@@ -217,7 +217,19 @@ export function createAiProviderRun({ env = process.env, providerOrder, provider
         }
       }
     }
-    if (ordered.length === 1 && lastFailure) throw lastFailure.cause || lastFailure;
+    if (ordered.length === 1 && lastFailure) {
+      const finalCategory = classifyProviderError(lastFailure);
+      const providerUnavailable = [
+        'quota_exhausted',
+        'auth_failed',
+        'model_unavailable',
+        'rate_limited_transient',
+        'network_transient',
+        'provider_5xx',
+        'unknown_provider_failure',
+      ].includes(finalCategory);
+      if (!providerUnavailable) throw lastFailure.cause || lastFailure;
+    }
     const error = new Error('All configured MOBIUS AI providers failed for this generation task.');
     error.code = 'AI_PROVIDER_ALL_FAILED'; error.statusCode = 503; error.classification = 'provider_unavailable';
     error.providerAttempts = attempts.map(({ provider, model, attempt, category, status }) => ({ provider, model, attempt, category, status }));

@@ -23,6 +23,22 @@ test('quota exhaustion disables one provider for the run and falls through once'
   assert.equal(result.provenance.provider, 'anthropic');
 });
 
+test('a single exhausted provider is still reported as provider-unavailable', async () => {
+  const run = createAiProviderRun({
+    env: {},
+    providerOrder: ['openai'],
+    providers: {
+      openai: { model: 'quota-model', adapter: async () => { throw Object.assign(new Error('credit_balance_exhausted'), { status: 429, code: 'credit_balance_exhausted' }); } },
+    },
+  });
+  await assert.rejects(() => run.complete({ messages: [{ role: 'user', content: 'rules' }] }), (error) => {
+    assert.equal(error.code, 'AI_PROVIDER_ALL_FAILED');
+    assert.equal(error.classification, 'provider_unavailable');
+    assert.deepEqual(error.providerAttempts.map((attempt) => attempt.category), ['quota_exhausted']);
+    return true;
+  });
+});
+
 test('schema-invalid output retries once, then uses the next provider', async () => {
   let firstCalls = 0;
   const run = createAiProviderRun({
