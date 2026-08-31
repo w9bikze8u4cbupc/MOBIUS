@@ -21,7 +21,7 @@ import { projectSourceService } from '../src/services/projectSourceService.js';
 import { loadSourceVisualCatalog, selectSourceVisual } from '../src/services/sourceVisualSelection.js';
 import { runProduction } from './run-source-grounded-production.mjs';
 import editorialStandard from '../src/services/editorialStandard.cjs';
-import { listConfiguredProviders } from '../src/services/aiProviderExecutor.js';
+import { listConfiguredProviders, resolveConfiguredProviderModels } from '../src/services/aiProviderExecutor.js';
 
 const require = createRequire(import.meta.url);
 const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor.js');
@@ -287,7 +287,8 @@ async function runZeroState(options = {}) {
   if (await stopIfRequested(options, checkpoint, 'extraction', checkpointPath, { projectId })) return { status: 'stopped', stage: 'extraction' };
 
   const scriptPath = path.join(productionDir, 'zero-state-script-package.json');
-  const providerContract = listConfiguredProviders().map(({ name, model }) => ({ name, model }));
+  const providerResolution = await resolveConfiguredProviderModels({ providers: listConfiguredProviders() });
+  const providerContract = providerResolution.providers.map(({ name, model }) => ({ name, model }));
   const scriptHash = hashValue({ sourceSha256: identity.sha256, componentHash, language, providerContract });
   let scriptPackage;
   if (stageReady(checkpoint, 'script', scriptHash, [scriptPath])) {

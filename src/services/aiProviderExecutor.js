@@ -1,5 +1,8 @@
 import crypto from 'node:crypto';
 import { getAiClient, getAiConfig } from '../config/aiConfig.js';
+import { getCachedProviderModel, resolveConfiguredProviderModels, resolveProviderModel, providerModelHash } from './aiModelDiscovery.js';
+
+export { resolveConfiguredProviderModels };
 
 export const PROVIDER_ERROR_CATEGORIES = Object.freeze([
   'quota_exhausted', 'auth_failed', 'model_unavailable', 'rate_limited_transient',
@@ -70,18 +73,15 @@ function configuredProviders(env = process.env) {
     adapter: async ({ messages, options }) => getAiClient().chat.completions.create({ model: openai.model, messages, ...(options || {}) }),
   });
 
-  // These native adapters are opt-in only when both credentials and a model are
-  // explicitly configured. A legacy API key alone must never cause production to
-  // make an unbounded or surprising external request.
   const anthropicModel = configuredModel(env, ['ANTHROPIC_MODEL', 'CLAUDE_MODEL']);
-  if (env?.ANTHROPIC_API_KEY && anthropicModel) providers.push({
-    name: 'anthropic', model: anthropicModel, configured: true,
-    adapter: ({ messages, options, timeoutMs }) => nativeAnthropic({ env, model: anthropicModel, messages, options, timeoutMs }),
+  if (env?.ANTHROPIC_API_KEY) providers.push({
+    name: 'anthropic', model: anthropicModel || getCachedProviderModel('anthropic'), configured: true,
+    adapter: ({ messages, options, timeoutMs, model }) => nativeAnthropic({ env, model, messages, options, timeoutMs }),
   });
   const cohereModel = configuredModel(env, ['COHERE_MODEL']);
-  if (env?.COHERE_API_KEY && cohereModel) providers.push({
-    name: 'cohere', model: cohereModel, configured: true,
-    adapter: ({ messages, options, timeoutMs }) => nativeCohere({ env, model: cohereModel, messages, options, timeoutMs }),
+  if (env?.COHERE_API_KEY) providers.push({
+    name: 'cohere', model: cohereModel || getCachedProviderModel('cohere'), configured: true,
+    adapter: ({ messages, options, timeoutMs, model }) => nativeCohere({ env, model, messages, options, timeoutMs }),
   });
   return providers;
 }
@@ -179,6 +179,19 @@ export function createAiProviderRun({ env = process.env, providerOrder, provider
     let lastFailure = null;
     for (const provider of ordered) {
       if (disabled.has(provider.name)) continue;
+      if (!provider.model) {
+        const resolution = await resolveProviderModel({ provider: provider.name, env, timeoutMs });
+        for (const attempt of resolution.attempts || []) {
+          if (!attempt.compatible && attempt.classification) {
+            attempts.push({ provider: attempt.provider, model: attempt.model || null, attempt: attempts.length + 1, category: attempt.classification, status: attempt.status || null });
+          }
+        }
+        if (!resolution.compatible) {
+          disabled.add(provider.name);
+          continue;
+        }
+        provider.model = resolution.model;
+      }
       const attemptsForProvider = Math.max(0, retries) + 1;
       for (let attempt = 1; attempt <= attemptsForProvider; attempt += 1) {
         try {
@@ -211,7 +224,9 @@ export function createAiProviderRun({ env = process.env, providerOrder, provider
           const retryable = !terminalModelOutput && !terminalContentValidation
             && ['rate_limited_transient', 'network_transient', 'provider_5xx', 'empty_response', 'schema_invalid'].includes(category);
           if (!retryable || attempt >= attemptsForProvider) {
-            if (disableOnFailure) disabled.add(provider.name);
+            if (disableOnFailure || ['quota_exhausted', 'auth_failed', 'model_unavailable', 'rate_limited_transient', 'network_transient', 'provider_5xx', 'unknown_provider_failure'].includes(category)) {
+              disabled.add(provider.name);
+            }
             break;
           }
         }
@@ -237,8 +252,8 @@ export function createAiProviderRun({ env = process.env, providerOrder, provider
   };
 
   return {
-    providers: ordered.map(({ name, model }) => ({ name, model })),
-    providerContractHash: hash(JSON.stringify(ordered.map(({ name, model }) => ({ name, model })))),
+    get providers() { return ordered.map(({ name, model }) => ({ name, model })); },
+    get providerContractHash() { return providerModelHash(ordered.filter(({ model }) => model)); },
     attempts,
     disabledProviders: disabled,
     hasConfiguredProvider: () => ordered.length > 0,
