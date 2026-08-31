@@ -170,7 +170,7 @@ export function validateReviewResult(result) {
 
 function evaluationKey(videoSha256, rubricVersion, model) { return hashValue({ videoSha256, rubricVersion, model }); }
 
-export async function analyzeProductionVideo({ videoPath, promptPath = DEFAULT_PROMPT, schemaPath = DEFAULT_SCHEMA, cachePath, env = process.env, model, timeoutMs = 60_000, fetchImpl = fetch, pollMs = 5_000, maxPolls = 120, force = false } = {}) {
+export async function analyzeProductionVideo({ videoPath, promptPath = DEFAULT_PROMPT, schemaPath = DEFAULT_SCHEMA, cachePath, env = process.env, model, timeoutMs = 180_000, fetchImpl = fetch, pollMs = 5_000, maxPolls = 120, force = false } = {}) {
   const config = getTwelveLabsConfig(env);
   if (!videoPath || !fs.existsSync(videoPath)) throw new Error('Twelve Labs review video does not exist.');
   const videoBytes = await fsPromises.readFile(videoPath);
