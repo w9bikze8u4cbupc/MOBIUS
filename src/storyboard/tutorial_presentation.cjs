@@ -1,3 +1,11 @@
+const {
+  DEFAULT_NARRATION_PRESET,
+  BRAND_AUDIO_CONTRACT,
+  buildEditorialSupport,
+  buildSetupCallouts,
+  getEditorialContract,
+} = require('../services/editorialStandard.cjs');
+
 const DEFAULT_BRAND = Object.freeze({
   channelName: 'Les Jeux Mobius',
   language: 'fr-CA',
@@ -5,9 +13,11 @@ const DEFAULT_BRAND = Object.freeze({
     provider: 'elevenlabs',
     voiceName: 'Amélie',
     voiceIdEnv: 'ELEVENLABS_VOICE_ID_AMELIE',
+    preset: DEFAULT_NARRATION_PRESET,
   }),
-  introText: 'Bienvenue sur la chaîne Mobius.',
-  outroText: 'Si vous avez aimé cette vidéo, laissez un pouce et abonnez-vous à la chaîne. Vos suggestions de jeux et vos questions sont toujours les bienvenues dans les commentaires. Merci d’avoir regardé cette vidéo des Jeux Mobius.',
+  introText: 'Bienvenue chez Les Jeux Mobius. Prenons un moment pour jouer mieux, ensemble.',
+  outroText: 'Merci d’avoir joué avec Les Jeux Mobius. À bientôt pour une nouvelle partie.',
+  audioSignature: BRAND_AUDIO_CONTRACT,
 });
 
 function cleanText(value) {
@@ -27,12 +37,14 @@ function buildBrandIntro({ bannerPath = null, audio = null, brand = DEFAULT_BRAN
     id: 'brand-intro',
     type: 'brand_intro',
     chapterTitle: 'Bienvenue',
-    durationSec: 5,
+    durationSec: 4.2,
     narrationText: brand.introText,
     audio,
     background: bannerPath ? { image: bannerPath } : { color: '#151a21' },
     layout: { mode: 'brand', visualSide: 'center' },
+    editorial: getEditorialContract({ narrationPreset: brand.narration.preset }),
     overlays: [
+      { type: 'kicker', text: 'LES JEUX', position: 'brand-kicker', fontColor: '#d9f6ff' },
       { type: 'title', text: brand.channelName, position: 'brand-title' },
       { type: 'body', text: 'Des tutoriels clairs pour jouer avec plaisir.', position: 'brand-subtitle' },
     ],
@@ -44,14 +56,16 @@ function buildBrandOutro({ bannerPath = null, audio = null, brand = DEFAULT_BRAN
     id: 'brand-outro',
     type: 'brand_outro',
     chapterTitle: 'Merci et à bientôt',
-    durationSec: 18,
+    durationSec: 4.2,
     narrationText: brand.outroText,
     audio,
     background: bannerPath ? { image: bannerPath } : { color: '#151a21' },
     layout: { mode: 'brand', visualSide: 'center' },
+    editorial: getEditorialContract({ narrationPreset: brand.narration.preset }),
     overlays: [
+      { type: 'kicker', text: 'LES JEUX', position: 'brand-kicker', fontColor: '#d9f6ff' },
       { type: 'title', text: 'Merci d’avoir joué avec nous !', position: 'brand-title' },
-      { type: 'body', text: 'Aimez, abonnez-vous et proposez votre prochain jeu en commentaire.', position: 'brand-subtitle' },
+      { type: 'body', text: 'À bientôt pour une nouvelle partie.', position: 'brand-subtitle' },
     ],
   };
 }
@@ -95,7 +109,8 @@ function buildTeachingScene({
   const imageSide = current % 2 === 1 ? 'right' : 'left';
   const textSide = imageSide === 'right' ? 'left' : 'right';
   const reference = sourceReference(sourcePages);
-  const normalizedCallouts = Array.isArray(callouts) ? callouts : [];
+  const editorialSupport = buildEditorialSupport({ section, narration, onScreenText });
+  const normalizedCallouts = buildSetupCallouts(editorialSupport.labels, Array.isArray(callouts) ? callouts : []);
   const derivedFocus = visualFocus || normalizedCallouts.find((callout) => callout?.target)?.target || null;
 
   return {
@@ -109,7 +124,14 @@ function buildTeachingScene({
       mode: 'split-teaching',
       imageSide,
       textSide,
-      panelWidthRatio: 0.34,
+      panelWidthRatio: 0.28,
+      visualWidthRatio: 0.66,
+      editorial: {
+        contract: getEditorialContract({ narrationPreset: DEFAULT_NARRATION_PRESET }),
+        visualDominant: true,
+        groupedSetup: editorialSupport.grouped,
+        supportTextChars: editorialSupport.text.length,
+      },
       completedSteps: completedSteps.map(Number).filter((step) => Number.isInteger(step) && step > 0),
       visualFocus: derivedFocus,
     },
@@ -118,7 +140,7 @@ function buildTeachingScene({
     overlays: [
       { type: 'badge', text: stepLabel, position: 'top', fontColor: '#f5d76e' },
       { type: 'heading', text: normalizedSection, position: 'panel-heading', fontColor: '#ffffff' },
-      { type: 'body', text: cleanText(onScreenText), position: 'panel-body', fontColor: '#ffffff' },
+      { type: 'body', text: editorialSupport.text, position: 'panel-body', fontColor: '#ffffff' },
       ...(reference ? [{ type: 'reference', text: reference, position: 'reference-bottom', fontColor: '#d9e2ec' }] : []),
     ],
   };
@@ -147,4 +169,6 @@ module.exports = {
   buildTeachingScene,
   buildTeachingMotion,
   buildChapters,
+  buildEditorialSupport,
+  buildSetupCallouts,
 };

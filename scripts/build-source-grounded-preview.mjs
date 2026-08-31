@@ -18,6 +18,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import presentation from '../src/storyboard/tutorial_presentation.cjs';
 import { loadSourceVisualCatalog, selectSourceVisual } from '../src/services/sourceVisualSelection.js';
+import { DEFAULT_NARRATION_PRESET, getEditorialContract, getNarrationPreset } from '../src/services/editorialStandard.cjs';
 
 const {
   DEFAULT_BRAND,
@@ -128,11 +129,14 @@ function main() {
   const language = optionalArg('language', DEFAULT_BRAND.language);
   const voiceName = optionalArg('voice-name', DEFAULT_BRAND.narration.voiceName);
   const narrationProvider = optionalArg('narration-provider', DEFAULT_BRAND.narration.provider);
+  const narrationPreset = optionalArg('narration-preset', DEFAULT_NARRATION_PRESET);
+  const voiceId = optionalArg('voice-id', process.env[DEFAULT_BRAND.narration.voiceIdEnv] || null);
   const bannerPath = optionalArg('brand-banner', null);
   const assetManifestPath = optionalArg('asset-manifest', null);
   const visualQualityReportPath = optionalArg('visual-quality-report', null);
   const semanticVisualReportPath = optionalArg('semantic-visual-report', null);
   const includeBrand = !hasFlag('no-brand');
+  const preset = getNarrationPreset(narrationPreset);
 
   if (!['fr-CA', 'fr-FR', 'en'].includes(language)) {
     throw new Error(`Unsupported tutorial language '${language}'. Use fr-CA, fr-FR, or en.`);
@@ -159,7 +163,7 @@ function main() {
     const introAudio = requireAudio(audioDir, 'brand-intro', 'The branded intro');
     const intro = buildBrandIntro({
       bannerPath: bannerPath && existsSync(resolve(bannerPath)) ? resolve(bannerPath) : null,
-      audio: { file: introAudio, provider: narrationProvider },
+      audio: { file: introAudio, provider: narrationProvider, providerVoiceId: voiceId, language, narrationPreset },
     });
     intro.durationSec = getDurationSeconds(introAudio);
     captions.scene = intro;
@@ -171,7 +175,7 @@ function main() {
     assertScene(scene, index);
     const audioPath = requireAudio(audioDir, scene.id, `Scene ${scene.id}`);
     const durationSec = getDurationSeconds(audioPath);
-    const visual = selectSourceVisual(scene, visualCatalog, resolveRulebookFallback(scene, pageDir));
+    const visual = selectSourceVisual({ ...scene, language }, visualCatalog, resolveRulebookFallback(scene, pageDir));
     if (!visual.path) throw new Error(`Scene ${scene.id} has no renderable visual`);
     if (visual.warning) visualWarnings.push(visual.warning);
     const teaching = buildTeachingScene({
@@ -187,12 +191,14 @@ function main() {
         kind: visual.kind,
         confidence: visual.confidence,
         reason: visual.reason,
+        languageAudit: visual.languageAudit || null,
       },
       audio: {
         file: audioPath,
         provider: narrationProvider,
-        providerVoiceId: process.env[DEFAULT_BRAND.narration.voiceIdEnv] || null,
+        providerVoiceId: voiceId,
         language,
+        narrationPreset,
       },
       callouts: scene.callouts || scene.visual_callouts || [],
       completedSteps: scene.completed_steps || [],
@@ -212,7 +218,7 @@ function main() {
     const outroAudio = requireAudio(audioDir, 'brand-outro', 'The branded outro');
     const outro = buildBrandOutro({
       bannerPath: bannerPath && existsSync(resolve(bannerPath)) ? resolve(bannerPath) : null,
-      audio: { file: outroAudio, provider: narrationProvider },
+      audio: { file: outroAudio, provider: narrationProvider, providerVoiceId: voiceId, language, narrationPreset },
     });
     outro.durationSec = getDurationSeconds(outroAudio);
     captions.scene = outro;
@@ -229,9 +235,13 @@ function main() {
     narration: {
       provider: narrationProvider,
       voiceName,
-      providerVoiceId: process.env[DEFAULT_BRAND.narration.voiceIdEnv] || null,
+      providerVoiceId: voiceId,
+      modelId: preset.modelId,
+      narrationPreset,
+      voiceSettings: preset.voiceSettings,
       language,
     },
+    editorial: getEditorialContract({ narrationPreset }),
     scenes,
     chapters,
     sourceGrounded: true,
@@ -240,6 +250,13 @@ function main() {
     sourceVisualQualityReport: visualCatalog.qualityReportPath || null,
     sourceSemanticVisualReport: visualCatalog.semanticReportPath || null,
     visualWarnings,
+    visualLanguageAudit: scenes
+      .filter((scene) => scene.type === 'teaching')
+      .map((scene) => ({
+        sceneId: scene.id,
+        kind: scene.background?.kind || 'unknown',
+        language: scene.background?.languageAudit || 'language-unknown',
+      })),
   };
 
   mkdirSync(dirname(outputConfigPath), { recursive: true });

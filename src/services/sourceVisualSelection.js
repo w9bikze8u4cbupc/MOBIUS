@@ -1,6 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { curateHephaestusAssets } from './hephaestusCuration.js';
+import editorialStandard from './editorialStandard.cjs';
+
+const { classifyVisualLanguage } = editorialStandard;
 
 const TYPE_KEYWORDS = {
   board: ['plateau', 'board', 'piste', 'track', 'emplacement', 'site', 'temple', 'recherche', 'supply'],
@@ -74,6 +77,20 @@ function dimensionsScore(asset) {
   return Math.min(0.15, Math.log10(Math.max(1, area)) / 40);
 }
 
+function languageScore(asset, scene = {}) {
+  if (scene.language !== 'fr-CA') return { score: 0, audit: 'not-applicable' };
+  const audit = classifyVisualLanguage({
+    visualKind: asset.visual_kind || asset.type,
+    assetPath: asset.renderPath || asset.path || asset.file_name,
+    metadata: asset,
+    language: scene.language,
+  });
+  if (audit === 'english-explanatory') return { score: -0.18, audit };
+  if (audit === 'english-source-uncertain') return { score: -0.08, audit };
+  if (audit === 'language-neutral-component' || audit === 'french-localized') return { score: 0.04, audit };
+  return { score: 0, audit };
+}
+
 /**
  * Load and curate a Hephaestus manifest into renderer-ready candidate assets.
  * Files whose historical absolute paths are stale are resolved from the manifest
@@ -141,6 +158,12 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
       assetId: scene.visual_asset_id || null,
       sourcePage: scene.visual_source_page || scene.source_page || null,
       provenance: scene.visual_provenance || scene.provenance || null,
+      languageAudit: classifyVisualLanguage({
+        visualKind: scene.visual_asset_kind || 'explicit-asset',
+        assetPath: scene.visual_asset,
+        metadata: scene.visual_metadata || {},
+        language: scene.language || 'fr-CA',
+      }),
     };
   }
 
@@ -173,8 +196,9 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
     .map((asset) => {
       const curationScore = Number(asset.curation?.score || asset.confidence || 0.5) * 0.28;
       const duplicatePenalty = asset.curation?.isDuplicate ? 0.035 : 0;
-      const score = curationScore + sourcePageScore(asset, scene.source_pages) + typeScore(asset, desiredTypes) + dimensionsScore(asset) - duplicatePenalty;
-      return { asset, score: Number(Math.min(1, score).toFixed(3)) };
+      const language = languageScore(asset, scene);
+      const score = curationScore + sourcePageScore(asset, scene.source_pages) + typeScore(asset, desiredTypes) + dimensionsScore(asset) + language.score - duplicatePenalty;
+      return { asset, score: Number(Math.min(1, score).toFixed(3)), languageAudit: language.audit };
     })
     .sort((left, right) => right.score - left.score);
 
@@ -195,6 +219,7 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
         : null,
       visualTypes: desiredTypes,
       visualQuality: best.asset.visualQuality || null,
+      languageAudit: best.languageAudit,
       semanticMatch: semanticMatch || null,
       provenance: best.asset.provenance || {
         sourcePdfSha256: best.asset.sourcePdfSha256 || null,
@@ -214,6 +239,7 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
       assetId: null,
       visualTypes: desiredTypes,
       warning: `Scene '${scene.id || 'unknown'}' fell back to a rulebook page because no curated component passed selection${semanticGateEnabled ? ' against the semantic scene match' : citedPageCandidates.length > 0 ? ' on the cited rule page' : ''}` ,
+      languageAudit: classifyVisualLanguage({ visualKind: 'fallback', assetPath: fallbackPath, language: scene.language || 'fr-CA' }),
     };
   }
 

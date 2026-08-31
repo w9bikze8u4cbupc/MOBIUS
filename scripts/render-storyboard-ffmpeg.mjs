@@ -222,13 +222,17 @@ function getSceneLayout(scene, w, h) {
   const layout = scene?.layout || {};
   const margins = getSafeMargins(w, h);
   const isTeaching = layout.mode === 'split-teaching';
-  const panelWidth = Math.round(w * Math.min(0.42, Math.max(0.28, Number(layout.panelWidthRatio) || 0.34)));
+  const contentWidth = w - (margins.x * 2);
+  const panelRatio = Math.min(0.34, Math.max(0.22, Number(layout.panelWidthRatio) || 0.28));
+  const visualRatio = Math.min(0.72, Math.max(0.58, Number(layout.visualWidthRatio) || 0.66));
+  const panelWidth = Math.round(contentWidth * panelRatio);
   const textSide = layout.textSide === 'right' ? 'right' : 'left';
   const imageSide = layout.imageSide === 'left' ? 'left' : 'right';
-  const panelX = textSide === 'left' ? margins.x : w - margins.x - panelWidth;
-  const imageWidth = Math.round(w * 0.56);
-  const imageHeight = Math.round(h * 0.82);
-  const imageX = imageSide === 'left' ? margins.x : w - margins.x - imageWidth;
+  const imageWidth = Math.round(contentWidth * visualRatio);
+  const gap = Math.max(24, contentWidth - panelWidth - imageWidth);
+  const panelX = textSide === 'left' ? margins.x : margins.x + imageWidth + gap;
+  const imageHeight = Math.round(h * 0.78);
+  const imageX = imageSide === 'left' ? margins.x : margins.x + panelWidth + gap;
   const imageY = Math.round((h - imageHeight) / 2);
   return {
     mode: layout.mode || 'default',
@@ -236,7 +240,7 @@ function getSceneLayout(scene, w, h) {
     panelWidth,
     panelX,
     panelY: Math.round(h * 0.15),
-    panelHeight: Math.round(h * 0.73),
+    panelHeight: Math.round(h * 0.68),
     textSide,
     imageSide,
     imageX,
@@ -290,7 +294,7 @@ function buildFocusHighlight(scene, layout) {
 function getOverlaySafeWidth(overlay, fontSize, w, h, scene) {
   const layout = getSceneLayout(scene, w, h);
   if (layout.isTeaching && ['panel-heading', 'panel-body', 'reference-bottom'].includes(overlay.position)) {
-    return Math.max(20, layout.panelWidth - (layout.margins.x * 0.55));
+    return Math.max(20, Math.round(layout.panelWidth * 0.84));
   }
   return w - (layout.margins.x * 2);
 }
@@ -310,7 +314,7 @@ function getWrappedLineCount(text, maxCharsPerLine) {
  */
 function getTeachingBodyFontSize(overlay, w, h, scene = {}) {
   const baseFontSize = Math.round(h / 31);
-  const maxBodyHeight = Math.round(h * 0.30);
+  const maxBodyHeight = Math.round(h * 0.22);
   for (let fontSize = baseFontSize; fontSize >= Math.round(h / 50); fontSize -= 1) {
     const safeWidth = getOverlaySafeWidth(overlay, fontSize, w, h, scene);
     const maxCharsPerLine = Math.max(20, Math.floor(safeWidth / (fontSize * 0.6)));
@@ -339,6 +343,10 @@ function resolveOverlayPosition(overlay, fontSize, lineCount, w, h, scene = {}) 
     return { x: '(w-text_w)/2', y: `${Math.round(h * 0.34)}` };
   }
 
+  if (overlay.position === 'brand-kicker') {
+    return { x: '(w-text_w)/2', y: `${Math.round(h * 0.21)}` };
+  }
+
   if (overlay.position === 'brand-subtitle') {
     return { x: '(w-text_w)/2', y: `${Math.round(h * 0.63)}` };
   }
@@ -349,8 +357,8 @@ function resolveOverlayPosition(overlay, fontSize, lineCount, w, h, scene = {}) 
 
   if (layout.isTeaching && overlay.position === 'panel-body') {
     const bodyBlockHeight = lineCount * lineHeight;
-    const availableHeight = Math.round(h * 0.33);
-    const bodyY = Math.round(h * 0.48) + Math.round((availableHeight - bodyBlockHeight) / 2);
+    const availableHeight = Math.round(h * 0.24);
+    const bodyY = Math.round(h * 0.50) + Math.round((availableHeight - bodyBlockHeight) / 2);
     return { x: `${layout.panelX + Math.round(layout.panelWidth * 0.08)}`, y: `${Math.max(Math.round(h * 0.48), bodyY)}` };
   }
 
@@ -545,6 +553,7 @@ function buildSceneCommand(scene, index) {
       case 'title':     fontSize = Math.round(height / 12); break;
       case 'heading':   fontSize = Math.round(height / 24); break;
       case 'badge':     fontSize = Math.round(height / 34); break;
+      case 'kicker':    fontSize = Math.round(height / 34); break;
       case 'reference': fontSize = Math.round(height / 42); break;
       case 'body':      fontSize = Math.round(height / 31); break;
       default:          fontSize = Math.round(height / 30); break;
@@ -588,6 +597,21 @@ function buildSceneCommand(scene, index) {
     const label = escapeDrawtext(String(callout.label || callout.number || '•'));
     const appearAt = Math.max(0, Number(callout.appearSec ?? callout.appear_sec ?? (index * 0.45)) || 0).toFixed(2);
     const enabled = `:enable='gte(t,${appearAt})'`;
+    const lineFrom = callout?.lineFrom || null;
+    if (lineFrom) {
+      const fromX = Math.round(sceneLayout.isTeaching
+        ? sceneLayout.imageX + (Math.min(0.96, Math.max(0.04, Number(lineFrom.x) || 0.5)) * sceneLayout.imageWidth)
+        : Math.min(0.96, Math.max(0.04, Number(lineFrom.x) || 0.5)) * width);
+      const fromY = Math.round(sceneLayout.isTeaching
+        ? sceneLayout.imageY + (Math.min(0.94, Math.max(0.06, Number(lineFrom.y) || 0.5)) * sceneLayout.imageHeight)
+        : Math.min(0.94, Math.max(0.06, Number(lineFrom.y) || 0.5)) * height);
+      const horizontalX = Math.min(fromX, x);
+      const horizontalW = Math.max(2, Math.abs(fromX - x));
+      const verticalY = Math.min(fromY, y);
+      const verticalH = Math.max(2, Math.abs(fromY - y));
+      filterChain += `,drawbox=x=${horizontalX}:y=${fromY - 2}:w=${horizontalW}:h=4:color=0xf5d76e@0.8:t=fill${enabled}`;
+      filterChain += `,drawbox=x=${x - 2}:y=${verticalY}:w=4:h=${verticalH}:color=0xf5d76e@0.8:t=fill${enabled}`;
+    }
     filterChain += `,drawbox=x=${x - boxSize / 2}:y=${y - boxSize / 2}:w=${boxSize}:h=${boxSize}:color=0xf5d76e@0.95:t=4${enabled}`;
     filterChain += `,drawtext=text='${label}':fontsize=${Math.round(boxSize * 0.68)}:fontcolor=0xf5d76e:borderw=2:bordercolor=black:x=${x - Math.round(boxSize * 0.18)}:y=${y - Math.round(boxSize * 0.42)}${enabled}`;
   }

@@ -26,6 +26,15 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import presentation from '../src/storyboard/tutorial_presentation.cjs';
 import { generateNarration, ELEVENLABS_MODEL_ID } from '../src/services/elevenLabsService.js';
 import { selectSourceVisual } from '../src/services/sourceVisualSelection.js';
+import {
+  BRAND_AUDIO_CONTRACT,
+  DEFAULT_NARRATION_PRESET,
+  classifyVisualLanguage,
+  estimateTeachingLayout,
+  getEditorialContract,
+  getNarrationPreset,
+  prepareNarrationText,
+} from '../src/services/editorialStandard.cjs';
 
 const { DEFAULT_BRAND, buildBrandIntro, buildBrandOutro } = presentation;
 const SCRIPT_NAME = 'production-script.json';
@@ -33,6 +42,7 @@ const CHECKPOINT_NAME = 'production-pipeline-state.json';
 const REPORT_NAME = 'production-report.json';
 const AUDIO_NAME = 'narration-assets.json';
 const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac'];
+const EDITORIAL_NAME = 'editorial-report.json';
 
 function parseMaybeJson(value, fallback = null) {
   if (value && typeof value === 'object') return value;
@@ -157,6 +167,8 @@ function normalizeProject(project, root, projectId, language) {
   const voiceId = production.voiceId
     || process.env.ELEVENLABS_VOICE_ID_AMELIE
     || required(process.env.ELEVENLABS_VOICE_ID, 'voice-id or ELEVENLABS_VOICE_ID_AMELIE');
+  const narrationPreset = production.narrationPreset || DEFAULT_NARRATION_PRESET;
+  getNarrationPreset(narrationPreset);
   return {
     project,
     metadata,
@@ -173,6 +185,7 @@ function normalizeProject(project, root, projectId, language) {
     pageDir,
     voiceId,
     voiceName: production.voiceName || 'Amélie',
+    narrationPreset,
     production,
   };
 }
@@ -196,10 +209,12 @@ function scriptSceneFromCanonical(scene, index) {
   const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop'].includes(scene.renderVisual?.kind)
     && scene.renderVisual?.path
     && existsSync(scene.renderVisual.path);
+  const sourceNarration = scene.spokenText;
   return {
     id: scene.id,
     section: scene.title || scene.sectionId || `Étape ${index + 1}`,
-    narration: scene.spokenText,
+    narration: prepareNarrationText(sourceNarration),
+    source_narration: sourceNarration,
     on_screen_text: onScreenText,
     source_pages: sourcePagesForScene(scene),
     callouts: overlay.callouts || firstDirection.callouts || [],
@@ -221,6 +236,8 @@ function canonicalInput(normalized) {
     language: normalized.language,
     voiceId: normalized.voiceId,
     voiceName: normalized.voiceName,
+    narrationPreset: normalized.narrationPreset,
+    editorial: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
     sourcePdfSha256: normalized.sourcePdfSha256,
     scenes: normalized.scenes.map((scene, index) => ({
       ...scriptSceneFromCanonical(scene, index),
@@ -238,7 +255,15 @@ function inspectVisuals(normalized) {
     const fallback = join(normalized.pageDir, `page-${pages[0]}.png`);
     const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop'].includes(scene.renderVisual?.kind) && scene.renderVisual?.path;
     const selection = selectSourceVisual(
-      explicit ? { visual_asset: scene.renderVisual.path, visual_asset_id: scene.renderVisual.assetId, visual_asset_kind: scene.renderVisual.kind } : {},
+      explicit ? {
+        language: normalized.language,
+        visual_asset: scene.renderVisual.path,
+        visual_asset_id: scene.renderVisual.assetId,
+        visual_asset_kind: scene.renderVisual.kind,
+        visual_source_page: scene.renderVisual.sourcePage,
+        visual_provenance: scene.renderVisual.provenance,
+        visual_metadata: scene.renderVisual.metadata,
+      } : { language: normalized.language },
       { assets: [] },
       fallback,
     );
@@ -263,13 +288,48 @@ function inspectVisuals(normalized) {
   return { counts, warnings, bindings };
 }
 
+function buildEditorialReport(config, normalized, visuals, narration) {
+  const teaching = (config.scenes || []).filter((scene) => scene.type === 'teaching');
+  const layout = estimateTeachingLayout({ width: config.video?.resolution?.width, height: config.video?.resolution?.height });
+  const sceneAudit = teaching.map((scene) => {
+    const body = (scene.overlays || []).find((overlay) => overlay.type === 'body');
+    const source = scene.background || {};
+    return {
+      sceneId: scene.id,
+      visualKind: source.kind || 'unknown',
+      language: source.languageAudit || classifyVisualLanguage({ visualKind: source.kind, assetPath: source.image, language: normalized.language }),
+      supportTextChars: String(body?.text || '').length,
+      conciseSupportText: String(body?.text || '').length <= 150,
+      groupedSetup: scene.layout?.editorial?.groupedSetup === true,
+      calloutCount: Array.isArray(scene.callouts) ? scene.callouts.length : 0,
+    };
+  });
+  return {
+    version: 'mobius-editorial-report-v1',
+    contract: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
+    brandedIntroAudioPresent: Boolean(narration.records.find((record) => record.sceneId === 'brand-intro')?.brandAudioContract),
+    brandedOutroAudioPresent: Boolean(narration.records.find((record) => record.sceneId === 'brand-outro')?.brandAudioContract),
+    narrationPreset: normalized.narrationPreset,
+    narrationPresetHash: narration.presetHash,
+    visualDominantLayout: { ...layout, panelShare: 0.28, visualShare: layout.visualAreaRatio },
+    foreignExplanatoryTextScenes: sceneAudit.filter((scene) => ['english-explanatory', 'english-source-uncertain'].includes(scene.language)).map((scene) => scene.sceneId),
+    localizedCalloutScenes: sceneAudit.filter((scene) => scene.calloutCount > 0).map((scene) => scene.sceneId),
+    layoutCollisions: sceneAudit.filter(() => layout.overlap).map((scene) => scene.sceneId),
+    fullPageFallbacks: sceneAudit.filter((scene) => scene.visualKind === 'rulebook-page-fallback').map((scene) => scene.sceneId),
+    groupedSetupSteps: sceneAudit.filter((scene) => scene.groupedSetup).map((scene) => scene.sceneId),
+    calloutCount: sceneAudit.reduce((sum, scene) => sum + scene.calloutCount, 0),
+    overlayExceedsConcisePolicy: sceneAudit.filter((scene) => !scene.conciseSupportText).map((scene) => scene.sceneId),
+    scenes: sceneAudit,
+  };
+}
+
 function audioSpecs(normalized) {
   const intro = buildBrandIntro({ audio: null });
   const outro = buildBrandOutro({ audio: null });
   return [
-    { id: 'brand-intro', text: intro.narrationText },
-    ...normalized.scenes.map((scene) => ({ id: scene.id, text: scene.spokenText })),
-    { id: 'brand-outro', text: outro.narrationText },
+    { id: 'brand-intro-voice', sceneId: 'brand-intro', text: prepareNarrationText(intro.narrationText) },
+    ...normalized.scenes.map((scene) => ({ id: scene.id, sceneId: scene.id, text: prepareNarrationText(scene.spokenText) })),
+    { id: 'brand-outro-voice', sceneId: 'brand-outro', text: prepareNarrationText(outro.narrationText) },
   ];
 }
 
@@ -278,6 +338,69 @@ function audioRecordIndex(normalized) {
   const sidecar = readJsonIfPresent(join(normalized.productionDir, AUDIO_NAME), {});
   const all = [...(Array.isArray(records) ? records : []), ...(Array.isArray(sidecar.assets) ? sidecar.assets : [])];
   return new Map(all.filter((record) => record?.sceneId).map((record) => [record.sceneId, record]));
+}
+
+function ensureBrandAudioMix(normalized, tools, records, presetHash) {
+  const signaturePath = join(normalized.audioDir, 'mobius-signature-bed.wav');
+  const signatureMetaPath = join(normalized.audioDir, 'mobius-signature-bed.json');
+  const mixHash = hashValue({ brandAudio: BRAND_AUDIO_CONTRACT, presetHash });
+  const introVoice = records.find((record) => record.sceneId === 'brand-intro');
+  const outroVoice = records.find((record) => record.sceneId === 'brand-outro');
+  if (!introVoice || !outroVoice) throw new Error('Branded bookend narration records are missing.');
+
+  const signatureMeta = readJsonIfPresent(signatureMetaPath, {});
+  if (!existsSync(signaturePath) || signatureMeta.contractHash !== mixHash) {
+    const duration = BRAND_AUDIO_CONTRACT.durationSec;
+    const bedFilter = [
+      '[0:a]volume=0.055[motif1]',
+      '[1:a]volume=0.035[motif2]',
+      '[2:a]volume=0.025[motif3]',
+      '[3:a]lowpass=f=900,volume=0.035[room]',
+      '[4:a]adelay=900|900,volume=0.07[tap1]',
+      '[5:a]adelay=2600|2600,volume=0.055[tap2]',
+      '[motif1][motif2][motif3][room][tap1][tap2]amix=inputs=6:duration=longest:normalize=0,atrim=0:' + duration + ',afade=t=in:st=0:d=0.12,afade=t=out:st=3.92:d=0.28,alimiter=limit=0.8[a]',
+    ].join(';');
+    execFileSync(tools.ffmpeg, [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-f', 'lavfi', '-i', `sine=frequency=261.63:duration=${duration}:sample_rate=48000`,
+      '-f', 'lavfi', '-i', `sine=frequency=329.63:duration=${duration}:sample_rate=48000`,
+      '-f', 'lavfi', '-i', `sine=frequency=392.00:duration=${duration}:sample_rate=48000`,
+      '-f', 'lavfi', '-i', `anoisesrc=color=pink:amplitude=0.02:duration=${duration}:sample_rate=48000`,
+      '-f', 'lavfi', '-i', 'aevalsrc=0.18*sin(2*PI*90*t)*exp(-35*t):s=48000:d=0.18',
+      '-f', 'lavfi', '-i', 'aevalsrc=0.14*sin(2*PI*120*t)*exp(-42*t):s=48000:d=0.16',
+      '-filter_complex', bedFilter,
+      '-map', '[a]', '-ar', '48000', '-ac', '2', signaturePath,
+    ], { stdio: 'pipe', windowsHide: true });
+    jsonFile(signatureMetaPath, { version: BRAND_AUDIO_CONTRACT.version, contract: BRAND_AUDIO_CONTRACT.id, contractHash: mixHash, path: signaturePath });
+  }
+
+  const mixed = new Map();
+  for (const [sceneId, voiceRecord] of [['brand-intro', introVoice], ['brand-outro', outroVoice]]) {
+    const outputPath = join(normalized.audioDir, `${sceneId}.mp3`);
+    const voicePath = voiceRecord.rawFilePath || voiceRecord.filePath;
+    const outputHash = hashValue({ mixHash, sceneId, voice: hashFile(voicePath) });
+    if (voiceRecord.brandMixHash !== outputHash || !existsSync(outputPath)) {
+      execFileSync(tools.ffmpeg, [
+        '-hide_banner', '-loglevel', 'error', '-y',
+        '-i', voicePath, '-i', signaturePath,
+        '-filter_complex', '[0:a]aresample=48000,volume=1.0[voice];[1:a]aresample=48000,volume=0.16[bed];[voice][bed]amix=inputs=2:duration=longest:dropout_transition=0,alimiter=limit=0.95[a]',
+        '-map', '[a]', '-ar', '48000', '-ac', '2', outputPath,
+      ], { stdio: 'pipe', windowsHide: true });
+    }
+    const probe = probeAudio(tools.ffprobe, outputPath);
+    mixed.set(sceneId, {
+      ...voiceRecord,
+      filePath: outputPath,
+      rawFilePath: voicePath,
+      durationMs: Math.round(probe.durationSec * 1000),
+      sampleRate: probe.sampleRate,
+      channels: probe.channels,
+      brandAudioContract: BRAND_AUDIO_CONTRACT.id,
+      brandAudioContractHash: mixHash,
+      brandMixHash: outputHash,
+    });
+  }
+  return mixed;
 }
 
 function probeAudio(ffprobe, filePath) {
@@ -295,49 +418,62 @@ function probeAudio(ffprobe, filePath) {
 
 async function ensureNarration(normalized, tools, checkpoint, inputHash) {
   const index = audioRecordIndex(normalized);
+  const preset = getNarrationPreset(normalized.narrationPreset);
+  const presetHash = hashValue(preset);
   mkdirSync(normalized.audioDir, { recursive: true });
   const records = [];
   let reused = 0;
   let generated = 0;
   for (const spec of audioSpecs(normalized)) {
     const target = join(normalized.audioDir, `${spec.id}.mp3`);
-    const existing = index.get(spec.id);
-    const sourcePath = existing?.filePath || existing?.path;
+    const existing = index.get(spec.sceneId) || index.get(spec.id);
+    const sourcePath = existing?.rawFilePath || existing?.filePath || existing?.path;
     const compatible = existing
       && existing.sourceText === spec.text
       && existing.providerVoiceId === normalized.voiceId
       && existing.language === normalized.language
-      && existing.modelId === ELEVENLABS_MODEL_ID
+      && existing.modelId === preset.modelId
+      && existing.narrationPreset === preset.id
+      && existing.narrationPresetHash === presetHash
       && sourcePath && existsSync(sourcePath);
     if (compatible && !existsSync(target)) copyFileSync(sourcePath, target);
     const valid = compatible && existsSync(target);
     if (!valid) {
-      await generateNarration(spec.text, normalized.voiceId, target);
+      await generateNarration(spec.text, normalized.voiceId, target, {
+        modelId: preset.modelId,
+        voiceSettings: preset.voiceSettings,
+      });
       generated += 1;
     } else reused += 1;
     const probe = probeAudio(tools.ffprobe, target);
     records.push({
-      id: `narration-${spec.id}`,
-      sceneId: spec.id,
+      id: `narration-${spec.sceneId}`,
+      sceneId: spec.sceneId,
       provider: 'elevenlabs',
       providerVoiceId: normalized.voiceId,
-      modelId: ELEVENLABS_MODEL_ID,
+      modelId: preset.modelId,
       language: normalized.language,
       sourceText: spec.text,
-      sourceTextHash: hashValue({ text: spec.text, voiceId: normalized.voiceId, language: normalized.language, modelId: ELEVENLABS_MODEL_ID }),
+      narrationPreset: preset.id,
+      narrationPresetHash: presetHash,
+      sourceTextHash: hashValue({ text: spec.text, voiceId: normalized.voiceId, language: normalized.language, modelId: preset.modelId, narrationPreset: preset.id, voiceSettings: preset.voiceSettings }),
       filePath: target,
+      rawFilePath: target,
       durationMs: Math.round(probe.durationSec * 1000),
       sampleRate: probe.sampleRate,
       channels: probe.channels,
       status: 'ready',
     });
   }
+  const bookendRecords = await ensureBrandAudioMix(normalized, tools, records, presetHash);
+  const finalRecords = records.map((record) => bookendRecords.get(record.sceneId) || record);
   jsonFile(join(normalized.productionDir, AUDIO_NAME), {
     provider: 'elevenlabs', voiceName: normalized.voiceName, voiceId: normalized.voiceId,
-    language: normalized.language, modelId: ELEVENLABS_MODEL_ID, inputHash, assets: records,
+    language: normalized.language, modelId: preset.modelId, narrationPreset: preset.id,
+    narrationPresetHash: presetHash, voiceSettings: preset.voiceSettings, inputHash, assets: finalRecords,
   });
   checkpoint.stages.narration = { inputHash, reused, generated, outputs: [join(normalized.productionDir, AUDIO_NAME)] };
-  return { reused, generated, records };
+  return { reused, generated, records: finalRecords, preset, presetHash };
 }
 
 function materializeScript(normalized, inputHash) {
@@ -349,6 +485,8 @@ function materializeScript(normalized, inputHash) {
     language: normalized.language,
     voiceName: normalized.voiceName,
     voiceId: normalized.voiceId,
+    narrationPreset: normalized.narrationPreset,
+    editorial: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
     sourcePdf: normalized.sourcePdf,
     sourcePdfSha256: normalized.sourcePdfSha256,
     sourceProjectId: normalized.projectId,
@@ -463,21 +601,41 @@ export async function runProduction(options = {}) {
   checkpoint.stages.script = { inputHash, reused: script.reused, outputs: [script.path] };
   if (stopAfter(options, 'script', checkpoint, partial)) return { status: 'stopped', stage: 'script' };
 
-  const narrationInputHash = hashValue({ inputHash, voiceId: normalized.voiceId, language, modelId: ELEVENLABS_MODEL_ID });
+  const narrationPreset = getNarrationPreset(normalized.narrationPreset);
+  const narrationPresetHash = hashValue(narrationPreset);
+  const narrationInputHash = hashValue({
+    inputHash,
+    voiceId: normalized.voiceId,
+    language,
+    narrationPreset: normalized.narrationPreset,
+    narrationPresetHash,
+    modelId: narrationPreset.modelId,
+  });
   const narration = await ensureNarration(normalized, tools, checkpoint, narrationInputHash);
   if (stopAfter(options, 'narration', checkpoint, partial)) return { status: 'stopped', stage: 'narration' };
 
   const configPath = join(normalized.productionDir, 'render-config.json');
   const captionsPath = join(normalized.productionDir, `captions_${language}.srt`);
   const chaptersPath = join(normalized.productionDir, 'chapters.json');
-  const handoffHash = hashValue({ inputHash, narrationInputHash, audio: narration.records.map((record) => ({ id: record.id, durationMs: record.durationMs, sourceTextHash: record.sourceTextHash })) });
+  const handoffHash = hashValue({
+    inputHash,
+    narrationInputHash,
+    editorial: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
+    audio: narration.records.map((record) => ({
+      id: record.id,
+      durationMs: record.durationMs,
+      sourceTextHash: record.sourceTextHash,
+      brandMixHash: record.brandMixHash || null,
+    })),
+  });
   const handoffReuse = checkpointReady(checkpoint, 'handoff', handoffHash, [configPath, captionsPath, chaptersPath]);
   if (!handoffReuse) {
     runNodeScript(root, 'scripts/build-source-grounded-preview.mjs', [
       '--script', script.path, '--page-dir', normalized.pageDir, '--audio-dir', normalized.audioDir,
       '--out-config', configPath, '--out-srt', captionsPath, '--out-chapters', chaptersPath,
       '--project-id', projectId, '--width', '1920', '--height', '1080', '--fps', '30',
-      '--language', language, '--voice-name', normalized.voiceName, '--narration-provider', 'elevenlabs',
+      '--language', language, '--voice-name', normalized.voiceName, '--voice-id', normalized.voiceId,
+      '--narration-provider', 'elevenlabs', '--narration-preset', normalized.narrationPreset,
     ], tools.env);
   }
   checkpoint.stages.handoff = { inputHash: handoffHash, reused: handoffReuse, outputs: [configPath, captionsPath, chaptersPath] };
@@ -485,6 +643,8 @@ export async function runProduction(options = {}) {
 
   const config = readJsonIfPresent(configPath);
   if (!config?.scenes?.length) throw new Error('Render handoff is missing scenes.');
+  const editorialReport = buildEditorialReport(config, normalized, visuals, narration);
+  jsonFile(join(normalized.productionDir, EDITORIAL_NAME), editorialReport);
   const expectedDuration = config.scenes.reduce((sum, scene) => sum + Number(scene.durationSec || 0), 0);
   const outputPath = join(normalized.productionDir, `${String(normalized.gameName).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${language}-production.mp4`);
   const renderHash = hashValue({ handoffHash, configHash: hashFile(configPath) });
@@ -514,7 +674,15 @@ export async function runProduction(options = {}) {
     status: 'PASS',
     projectId,
     language,
-    voice: { name: normalized.voiceName, id: normalized.voiceId, provider: 'elevenlabs', modelId: ELEVENLABS_MODEL_ID },
+    voice: {
+      name: normalized.voiceName,
+      id: normalized.voiceId,
+      provider: 'elevenlabs',
+      modelId: narration.preset.modelId,
+      narrationPreset: narration.preset.id,
+      narrationPresetHash: narration.presetHash,
+      voiceSettings: narration.preset.voiceSettings,
+    },
     source: { pdf: normalized.sourcePdf, sha256: normalized.sourcePdfSha256 },
     scenes: { teaching: normalized.scenes.length, rendered: config.scenes.length },
     visuals: { ...visuals.counts, warnings: visuals.warnings },
@@ -524,10 +692,11 @@ export async function runProduction(options = {}) {
     media: { ...media, loudness },
     captions,
     chapters: { count: chapterList.length, order: 'valid' },
+    editorial: editorialReport,
     checkpoint: checkpointPath,
     generatedAt: new Date().toISOString(),
   };
-  checkpoint.stages.qa = { inputHash: renderHash, media, captions, chapterCount: chapterList.length, loudness };
+  checkpoint.stages.qa = { inputHash: renderHash, media, captions, chapterCount: chapterList.length, loudness, editorial: editorialReport };
   delete checkpoint.stoppedAfter;
   jsonFile(checkpointPath, checkpoint);
   jsonFile(join(normalized.productionDir, REPORT_NAME), report);

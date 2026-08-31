@@ -45,7 +45,11 @@ describe('generateNarration', () => {
         'https://api.elevenlabs.io/v1/text-to-speech/voice%2Fid',
         'xi-api-key: test-elevenlabs-key',
         'Content-Type: application/json',
-        JSON.stringify({ text: 'Hello from MOBIUS', model_id: 'eleven_multilingual_v2' }),
+        JSON.stringify({
+          text: 'Hello from MOBIUS',
+          model_id: 'eleven_multilingual_v2',
+          voice_settings: { stability: 0.38, similarity_boost: 0.78, style: 0.22, use_speaker_boost: true },
+        }),
         '--output',
         outputPath,
       ]),
@@ -53,6 +57,15 @@ describe('generateNarration', () => {
       expect.any(Function),
     );
     expect(execFile.mock.calls[0][1]).not.toContain('--http2');
+  });
+
+  test('passes an explicit supported voice preset through the provider contract', async () => {
+    await generateNarration('Warm test', 'voice-id', outputPath, {
+      modelId: 'eleven_multilingual_v2',
+      voiceSettings: { stability: 0.4, similarity_boost: 0.8, style: 0.2, use_speaker_boost: true },
+    });
+    const body = execFile.mock.calls[0][1][execFile.mock.calls[0][1].indexOf('-d') + 1];
+    expect(JSON.parse(body).voice_settings).toEqual({ stability: 0.4, similarity_boost: 0.8, style: 0.2, use_speaker_boost: true });
   });
 
   test('throws a descriptive error when curl exits unsuccessfully', async () => {

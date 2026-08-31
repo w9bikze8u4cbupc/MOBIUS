@@ -14,8 +14,9 @@ describe('tutorial presentation contract', () => {
 
     expect(DEFAULT_BRAND.language).toBe('fr-CA');
     expect(DEFAULT_BRAND.narration.voiceName).toBe('Amélie');
-    expect(intro.narrationText).toContain('Bienvenue sur la chaîne Mobius');
-    expect(outro.narrationText).toContain('abonnez-vous');
+    expect(intro.narrationText).toContain('Bienvenue chez Les Jeux Mobius');
+    expect(outro.narrationText).toContain('Merci d’avoir joué');
+    expect(intro.editorial.brandAudio.id).toBe('mobius-cafe-game-night-v1');
     expect(intro.chapterTitle).toBe('Bienvenue');
     expect(outro.chapterTitle).toBe('Merci et à bientôt');
   });
@@ -70,5 +71,18 @@ describe('tutorial presentation contract', () => {
       { index: 1, startSec: 0, title: 'Mise en place', sceneId: 'one' },
       { index: 2, startSec: 8, title: 'Actions principales', sceneId: 'two' },
     ]);
+  });
+
+  test('groups setup support copy and derives progressive callouts from the spoken steps', () => {
+    const scene = buildTeachingScene({
+      id: 'setup', index: 0, total: 2, section: 'Mise en place',
+      narration: 'Premièrement, placez le plateau au centre. Deuxièmement, mélangez les cartes. Troisièmement, révélez les Seigneurs dans la Cour.',
+      onScreenText: '1. Plateau 2. Cartes 3. Cour', durationSec: 12,
+    });
+    expect(scene.layout.editorial).toMatchObject({ visualDominant: true, groupedSetup: true });
+    expect(scene.overlays.find((overlay) => overlay.type === 'body').text).toContain('Repères');
+    expect(scene.overlays.find((overlay) => overlay.type === 'body').text.length).toBeLessThanOrEqual(90);
+    expect(scene.callouts).toHaveLength(3);
+    expect(scene.callouts[0]).toMatchObject({ number: 1, kind: 'arrow', target: { x: expect.any(Number), y: expect.any(Number) } });
   });
 });

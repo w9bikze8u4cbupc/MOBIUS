@@ -5,6 +5,12 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 const ELEVENLABS_MODEL_ID = 'eleven_multilingual_v2';
+const DEFAULT_VOICE_SETTINGS = Object.freeze({
+  stability: 0.38,
+  similarity_boost: 0.78,
+  style: 0.22,
+  use_speaker_boost: true,
+});
 
 function requireNonEmptyString(value, fieldName) {
   if (typeof value !== 'string' || value.trim() === '') {
@@ -22,7 +28,7 @@ function requireNonEmptyString(value, fieldName) {
  * command, so narration text, voice identifiers, and output paths are never
  * interpreted as shell syntax.
  */
-export async function generateNarration(narrationText, voiceId, outputPath) {
+export async function generateNarration(narrationText, voiceId, outputPath, options = {}) {
   const text = requireNonEmptyString(narrationText, 'narrationText');
   const normalizedVoiceId = requireNonEmptyString(voiceId, 'voiceId');
   const targetPath = requireNonEmptyString(outputPath, 'outputPath');
@@ -34,6 +40,8 @@ export async function generateNarration(narrationText, voiceId, outputPath) {
 
   await fs.mkdir(path.dirname(targetPath), { recursive: true });
 
+  const modelId = options.modelId || ELEVENLABS_MODEL_ID;
+  const voiceSettings = options.voiceSettings || DEFAULT_VOICE_SETTINGS;
   const curlArguments = [
     '-s',
     '--fail',
@@ -45,7 +53,7 @@ export async function generateNarration(narrationText, voiceId, outputPath) {
     '-H',
     'Content-Type: application/json',
     '-d',
-    JSON.stringify({ text, model_id: ELEVENLABS_MODEL_ID }),
+    JSON.stringify({ text, model_id: modelId, voice_settings: voiceSettings }),
     '--output',
     targetPath,
   ];
@@ -65,4 +73,4 @@ export async function generateNarration(narrationText, voiceId, outputPath) {
   return targetPath;
 }
 
-export { ELEVENLABS_MODEL_ID };
+export { DEFAULT_VOICE_SETTINGS, ELEVENLABS_MODEL_ID };

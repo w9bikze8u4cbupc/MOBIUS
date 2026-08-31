@@ -20,6 +20,7 @@ import { computePdfIdentity, discoverRulebooks, findProcessedBySha } from './rul
 import { projectSourceService } from '../src/services/projectSourceService.js';
 import { loadSourceVisualCatalog, selectSourceVisual } from '../src/services/sourceVisualSelection.js';
 import { runProduction } from './run-source-grounded-production.mjs';
+import editorialStandard from '../src/services/editorialStandard.cjs';
 
 const require = createRequire(import.meta.url);
 const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor.js');
@@ -29,6 +30,7 @@ const { generateStoryboard } = require('../src/storyboard/generator.js');
 const VOICE_ID = process.env.ELEVENLABS_VOICE_ID_AMELIE || 'UJCi4DDncuo0VJDSIegj';
 const VOICE_NAME = 'Amélie';
 const MODEL_ID = 'eleven_multilingual_v2';
+const { DEFAULT_NARRATION_PRESET, getEditorialContract } = editorialStandard;
 const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v2';
 const DEFAULT_BASE_URL = process.env.MOBIUS_BASE_URL || 'http://127.0.0.1:5001';
 
@@ -194,7 +196,7 @@ async function reserveProject({ baseUrl, apiKey, projectId, gameName, language, 
     projectContext: {
       projectId, gameName, language, sourcePdf: descriptor,
       sourceSha256: descriptor.sha256, status: 'processing',
-      production: { voiceName: VOICE_NAME, voiceId: VOICE_ID, modelId: MODEL_ID },
+      production: { voiceName: VOICE_NAME, voiceId: VOICE_ID, modelId: MODEL_ID, narrationPreset: DEFAULT_NARRATION_PRESET, editorial: getEditorialContract({ narrationPreset: DEFAULT_NARRATION_PRESET }) },
     },
     components: [], images: [], script: '', audio: '', scenes: [],
   }, apiKey);
@@ -205,7 +207,7 @@ async function persistProject({ baseUrl, apiKey, projectId, gameName, language, 
     projectId, gameName, language, sourcePdf: descriptor, sourceSha256: descriptor.sha256,
     rulebookText: manifest.text.full, ingestionManifest: manifest.ingestion,
     storyboardManifest, scriptPackage, audioAssets, status: production.status || 'processing',
-    production: { voiceName: VOICE_NAME, voiceId: VOICE_ID, modelId: MODEL_ID, ...production },
+    production: { voiceName: VOICE_NAME, voiceId: VOICE_ID, modelId: MODEL_ID, narrationPreset: DEFAULT_NARRATION_PRESET, editorial: getEditorialContract({ narrationPreset: DEFAULT_NARRATION_PRESET }), ...production },
   };
   return postJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/production-state`, {
     name: gameName,
