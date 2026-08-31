@@ -159,7 +159,9 @@ export async function discoverInbox(root, { dataRoot = path.join(path.dirname(pa
   }
   const waiting = rows.filter((row) => !ACTIVE_STATUSES.includes(row.state?.status)
     && row.state?.status !== 'completed' && row.state?.status !== 'failed-terminal' && !row.completedProjectId);
-  return { paths, state, rows, waiting };
+  const duplicates = rows.filter((row) => !ACTIVE_STATUSES.includes(row.state?.status)
+    && row.state?.status !== 'failed-terminal' && (row.completedProjectId || row.state?.status === 'completed'));
+  return { paths, state, rows, waiting, duplicates };
 }
 
 async function updateItem(paths, state, sha256, changes) {
@@ -204,7 +206,7 @@ async function selectWork(root, paths, state, explicitPdf) {
     const sourcePath = sourceForRecord(item);
     if (sourcePath && existsSync(sourcePath)) return { sourcePath, identity: await computePdfIdentity(sourcePath), existing: { ...item, sha256 } };
   }
-  const row = inventory.waiting[0];
+  const row = inventory.waiting[0] || inventory.duplicates[0];
   return row ? { sourcePath: row.identity.path, identity: row.identity, existing: row.state, processed: row.processed, completedProjectId: row.completedProjectId } : null;
 }
 
@@ -392,7 +394,8 @@ export async function inboxStatus(options = {}) {
   const state = await loadState(paths);
   const entries = Object.entries(state.items);
   const active = entries.find(([, item]) => ACTIVE_STATUSES.includes(item.status));
-  const waiting = (await listPdfs(paths.waiting)).length;
+  const inventory = await discoverInbox(paths.root, { dataRoot: path.join(root, 'data') });
+  const waiting = inventory.waiting.length;
   const counts = entries.reduce((result, [, item]) => { result[item.status] = (result[item.status] || 0) + 1; return result; }, {});
   const lease = safeRead(paths.lease, null);
   return {

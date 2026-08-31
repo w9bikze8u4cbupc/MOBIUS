@@ -58,6 +58,25 @@ test('renamed bytes resolve to an existing completed project without invoking pr
   assert.equal((await inboxStatus({ root })).completed, 1);
 });
 
+test('a physical renamed duplicate is archived and does not remain actionable', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mobius-inbox-'));
+  const source = path.join(root, 'first.pdf');
+  await fs.writeFile(source, '%PDF-duplicate-proof');
+  const paths = await ensureInbox(path.join(root, 'data', 'rulebook-inbox'));
+  await fs.copyFile(source, path.join(paths.waiting, 'renamed.pdf'));
+  const identity = await computePdfIdentity(source);
+  const projects = path.join(root, 'data', 'existing', 'source');
+  await fs.mkdir(projects, { recursive: true });
+  await fs.writeFile(path.join(projects, 'source.json'), JSON.stringify({ documentId: 'existing', sha256: identity.sha256, status: 'complete' }));
+  const result = await runInboxOnce({ root, runner: async () => { throw new Error('runner must not be called'); } });
+  assert.equal(result.status, 'completed');
+  assert.equal(result.duplicate, true);
+  assert.equal(result.item.status, 'completed');
+  assert.equal((await fs.readdir(paths.waiting)).length, 0);
+  assert.equal((await fs.readdir(paths.completed)).length, 1);
+  assert.equal(identity.sha256, result.item.source.sha256);
+});
+
 test('worker interruption is retained as retryable state and a concurrent worker is refused', async () => {
   const root = await tempRoot();
   const source = path.join(root, 'new-game.pdf');
