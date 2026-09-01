@@ -62,6 +62,28 @@ describe('component inventory extraction', () => {
     expect(result.rawRows.every((row) => row.reviewRequired && row.sourceQuote)).toBe(true);
     expect(result.rawRows.every((row) => /Excluded non-component evidence/.test(row.reason))).toBe(true);
   });
+
+  test('does not treat an empty table of contents as the component inventory', () => {
+    const result = deterministicInventory([
+      {
+        number: 1,
+        blocks: [
+          { text: 'CONTENTS' },
+          { text: 'Game Overview 3' },
+          { text: 'GAME OVERVIEW' },
+          { text: 'The game board is placed in the center.' },
+          { text: 'Resource cubes are stored on the player board.' },
+        ],
+      },
+    ]);
+
+    expect(result.components).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'game board', eligibility: 'setup', reviewRequired: true }),
+      expect.objectContaining({ name: 'cubes', eligibility: 'setup', reviewRequired: true }),
+    ]));
+    expect(result.coverage.validPhysicalComponentCount).toBe(0);
+    expect(result.reviewRequired).toBe(true);
+  });
 });
 
 describe('strict eligibility validation', () => {
