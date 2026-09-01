@@ -50,6 +50,29 @@ describe('Phase E ingestion pipeline', () => {
     const { valid } = validateIngestionManifest(manifest);
     expect(valid).toBe(true);
   });
+
+  it('ignores symbol-only blocks that cannot produce a contract slug', () => {
+    const manifest = runIngestionPipeline({
+      documentId: 'symbol-heading-case',
+      metadata: {
+        title: 'Symbol Heading Case',
+        gameId: 'symbol-heading-case',
+        source: 'fixture'
+      },
+      pages: [{
+        number: 1,
+        blocks: [
+          { text: 'SETUP', fontSize: 24, x: 10, y: 10 },
+          { text: '*', fontSize: 24, x: 10, y: 40 },
+          { text: 'Place the components.', fontSize: 12, x: 10, y: 70 }
+        ]
+      }]
+    });
+
+    const { valid, errors } = validateIngestionManifest(manifest);
+    expect({ valid, errors }).toEqual({ valid: true, errors: [] });
+    expect(manifest.outline.map((heading) => heading.title)).toEqual(['SETUP']);
+  });
 });
 
 describe('Phase E storyboard governance', () => {

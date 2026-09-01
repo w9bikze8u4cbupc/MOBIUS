@@ -43,7 +43,7 @@ function extractOutline(pages) {
       ...heading,
       page: page.number,
       slug: slugify(heading.title)
-    }))
+    })).filter((heading) => heading.slug)
   );
 
   // pdf-parse on Node 20 can expose usable text blocks without reliable font
