@@ -12,6 +12,10 @@ const COMPONENT_CATEGORIES = [
   'other',
 ];
 
+// Bump when deterministic candidate discovery changes so zero-state
+// checkpoints cannot silently reuse an inventory produced by older rules.
+const COMPONENT_INVENTORY_CONTRACT_VERSION = 'component-inventory-v2-source-fallback';
+
 const COMPONENT_TERMS = {
   board: ['board', 'boards', 'plateau', 'plateaux', 'player board', 'game board', 'mat', 'mats'],
   card: ['card', 'cards', 'carte', 'cartes', 'lord', 'lords', 'ally', 'allies'],
@@ -646,6 +650,7 @@ async function extractComponentInventory(input, { gameName = null, llm = null, l
 }
 
 export {
+  COMPONENT_INVENTORY_CONTRACT_VERSION,
   COMPONENT_CATEGORIES,
   COMPONENT_HEADINGS,
   STOP_HEADINGS,

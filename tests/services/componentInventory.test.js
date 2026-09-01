@@ -1,4 +1,5 @@
 import {
+  COMPONENT_INVENTORY_CONTRACT_VERSION,
   deterministicInventory,
   findComponentSection,
   parseQuantity,
@@ -6,6 +7,10 @@ import {
 } from '../../src/services/componentInventory.js';
 
 describe('component inventory extraction', () => {
+  test('exposes a checkpoint version for deterministic inventory changes', () => {
+    expect(COMPONENT_INVENTORY_CONTRACT_VERSION).toBe('component-inventory-v2-source-fallback');
+  });
+
   test.each([
     ['Components', true],
     ["What's in the Box:", true],

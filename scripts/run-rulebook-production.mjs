@@ -25,7 +25,7 @@ import { listConfiguredProviders, resolveConfiguredProviderModels } from '../src
 
 const require = createRequire(import.meta.url);
 const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor.js');
-const { extractComponentInventory } = await import('../src/services/componentInventory.js');
+const { COMPONENT_INVENTORY_CONTRACT_VERSION, extractComponentInventory } = await import('../src/services/componentInventory.js');
 const { generateStoryboard } = require('../src/storyboard/generator.js');
 
 const VOICE_ID = process.env.ELEVENLABS_VOICE_ID_AMELIE || 'UJCi4DDncuo0VJDSIegj';
@@ -257,7 +257,7 @@ async function runZeroState(options = {}) {
   if (await stopIfRequested(options, checkpoint, 'source', checkpointPath, { projectId })) return { status: 'stopped', stage: 'source' };
 
   const extractionPath = path.join(productionDir, 'zero-state-extraction.json');
-  const extractionHash = hashValue({ sourceSha256: identity.sha256, engine: 'auto', mergeLines: false });
+  const extractionHash = hashValue({ sourceSha256: identity.sha256, engine: 'auto', mergeLines: false, componentInventory: COMPONENT_INVENTORY_CONTRACT_VERSION });
   let extraction;
   if (stageReady(checkpoint, 'extraction', extractionHash, [extractionPath])) {
     extraction = jsonIf(extractionPath);
