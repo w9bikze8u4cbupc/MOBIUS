@@ -128,4 +128,47 @@ describe('professional editorial standard', () => {
     expect(gate.verdict).toBe('PUBLISHABLE');
     expect(gate.scoreRequirement).toBe('exceptional-physical-justification');
   });
+
+  test('accepts the production caption validator DTO', () => {
+    const gate = evaluateProfessionalReleaseGate({
+      deterministicPass: true,
+      visuals: { missing: 0 },
+      editorial: { layoutCollisions: [] },
+      media: { valid: true, video: { width: 1920, height: 1080 } },
+      captions: { blocks: 16, lastEndSec: 305.147, overlaps: 0, valid: true },
+      chapters: { count: 16, order: 'valid' },
+      narration: { total: 16, complete: true },
+      provenance: { sourceGrounded: true, complete: true },
+      branding: { bannerPresent: true, introPresent: true, outroPresent: true },
+      physicalReview: { completed: true },
+      calibration: {
+        verified_external_qa_score_10: 8.5,
+        findings: [],
+      },
+    });
+    expect(gate.unresolvedVerifiedBlockers).not.toContain('caption-contract-failed');
+    expect(gate.verdict).toBe('PUBLISHABLE');
+  });
+
+  test('does not promote a partial finding to a confirmed hard blocker', () => {
+    const gate = evaluateProfessionalReleaseGate({
+      deterministicPass: true,
+      visuals: { missing: 0 },
+      editorial: { layoutCollisions: [] },
+      media: { valid: true, video: { width: 1920, height: 1080 } },
+      captions: { blocks: 1, valid: true },
+      chapters: { count: 1, order: 'valid' },
+      narration: { total: 1, complete: true },
+      provenance: { sourceGrounded: true, complete: true },
+      branding: { bannerPresent: true, introPresent: true, outroPresent: true },
+      physicalReview: { completed: true },
+      calibration: {
+        verified_external_qa_score_10: 7.85,
+        scoreException: { accepted: true, basis: 'Physical inspection confirms all release-critical gates pass; the external finding remains only partially verified.' },
+        findings: [{ severity: 'P1', category: 'visual_relevance_and_variety', physicalVerification: { status: 'partially_confirmed' } }],
+      },
+    });
+    expect(gate.confirmedCounts.p1).toBe(0);
+    expect(gate.verdict).toBe('PUBLISHABLE');
+  });
 });

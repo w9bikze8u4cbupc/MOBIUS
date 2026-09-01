@@ -238,9 +238,11 @@ const CRITICAL_P2_CATEGORIES = new Set([
 ]);
 
 function findingIsConfirmed(finding) {
-  return ['confirmed', 'partially_confirmed'].includes(finding?.physicalVerification?.status)
-    || finding?.status === 'confirmed'
-    || finding?.status === 'partially_confirmed';
+  // A partial disposition is evidence for editorial follow-up, but it is not
+  // the same claim as a physically confirmed release blocker.  The release
+  // gate must reflect the user's explicit confirmed/partial distinction.
+  return finding?.physicalVerification?.status === 'confirmed'
+    || finding?.status === 'confirmed';
 }
 
 /**
@@ -264,7 +266,10 @@ function evaluateProfessionalReleaseGate({
   if (!deterministicPass) blockers.push('deterministic-production-failed');
   if (Number(visuals.missing || 0) > 0) blockers.push('missing-visual-bindings');
   if (Number(editorial.layoutCollisions?.length || editorial.layoutCollisionCount || 0) > 0) blockers.push('layout-collision');
-  if (Number(captions.count || captions.cueCount || 0) <= 0 || captions.valid === false) blockers.push('caption-contract-failed');
+  // The production validator exposes `blocks`; accept its canonical shape as
+  // well as the compact DTOs used by callers/tests.  A valid SRT must not be
+  // downgraded merely because the gate used a different field name.
+  if (Number(captions.blocks || captions.count || captions.cueCount || 0) <= 0 || captions.valid === false) blockers.push('caption-contract-failed');
   if (Number(chapters.count || 0) <= 0 || chapters.order === 'invalid') blockers.push('chapter-contract-failed');
   if (narration.complete === false || Number(narration.total || 0) <= 0) blockers.push('narration-incomplete');
   if (provenance.sourceGrounded === false || provenance.complete === false) blockers.push('provenance-incomplete');
