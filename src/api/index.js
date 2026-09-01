@@ -2267,6 +2267,7 @@ function createScriptGenerationError(message, {
   classification = 'provider_empty_content',
   nextAction = null,
   validationFields = [],
+  providerAttempts = [],
 } = {}) {
   const error = new Error(message);
   error.code = 'SCRIPT_GENERATION_INCOMPLETE';
@@ -2276,6 +2277,7 @@ function createScriptGenerationError(message, {
   error.classification = classification;
   error.nextAction = nextAction;
   error.validationFields = validationFields;
+  error.providerAttempts = Array.isArray(providerAttempts) ? providerAttempts : [];
   return error;
 }
 
@@ -2746,6 +2748,7 @@ console.log('Generating final English script using the configured AI provider ru
         generationStatus,
         classification,
         validationFields: Array.isArray(error?.validationFields) ? error.validationFields : [],
+        providerAttempts: error?.providerAttempts || [],
         nextAction: classification === 'spoken_word_cap_exceeded'
           ? 'Regenerate with the configured tutorial-length profile; do not send over-limit narration to TTS or captions.'
           : error?.nextAction,
@@ -2828,6 +2831,7 @@ console.log('Generating final English script using the configured AI provider ru
         throw createScriptGenerationError('Script generation stopped: French translation failed. No script was saved.', {
           stage: 'translation',
           generationStatus,
+          providerAttempts: translateError?.providerAttempts || [],
         });
       }  
     }  
@@ -2900,6 +2904,7 @@ console.log('Generating final English script using the configured AI provider ru
         stage: error.stage,
         classification: error.classification || null,
         validationFields: Array.isArray(error.validationFields) ? error.validationFields : [],
+        providerAttempts: Array.isArray(error.providerAttempts) ? error.providerAttempts : [],
         nextAction: error.nextAction || null,
         generationStatus: error.generationStatus || null,
       });
