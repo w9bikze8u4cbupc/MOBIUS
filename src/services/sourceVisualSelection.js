@@ -6,6 +6,7 @@ import editorialStandard from './editorialStandard.cjs';
 const { classifyVisualLanguage } = editorialStandard;
 
 const TYPE_KEYWORDS = {
+  component: ['composant', 'composants', 'component', 'components', 'matériel', 'materiel'],
   board: ['plateau', 'board', 'piste', 'track', 'emplacement', 'site', 'temple', 'recherche', 'supply'],
   card: ['carte', 'card', 'deck', 'paquet', 'rangée', 'artefact', 'objet', 'jouer'],
   token: ['jeton', 'token', 'ressource', 'pièce', 'garde', 'idole', 'marqueur', 'diamant', 'tablette'],
@@ -57,16 +58,23 @@ function inferVisualTypes(scene = {}) {
 
 function sourcePageScore(asset, sourcePages) {
   const pages = new Set((Array.isArray(sourcePages) ? sourcePages : []).map(Number));
-  const assetPage = Number(asset.page_index ?? asset.pageIndex ?? asset.source_page);
-  // HEPHAESTUS records zero-based PDF pages while storyboard source evidence
-  // is one-based. Accept both representations without weakening other gates.
-  return pages.has(assetPage) || pages.has(assetPage + 1) ? 0.32 : 0;
+  const assetPage = asset.source_page !== undefined && asset.source_page !== null
+    ? Number(asset.source_page)
+    : asset.sourcePage !== undefined && asset.sourcePage !== null
+      ? Number(asset.sourcePage)
+      : Number(asset.page_index ?? asset.pageIndex) + 1;
+  // HEPHAESTUS records zero-based PDF pages, while source_page is the
+  // canonical one-based identity. Normalize once, then use an exact match so
+  // a cited page can never silently select its neighbour.
+  return pages.has(assetPage) ? 0.32 : 0;
 }
 
 function typeScore(asset, desiredTypes) {
   if (!desiredTypes.length) return 0.08;
   const type = normalize(assetType(asset));
-  return desiredTypes.includes(type) ? 0.34 : 0;
+  if (desiredTypes.includes(type)) return 0.34;
+  if (desiredTypes.includes('component') && ['focused-page-crop', 'focused-page-region', 'card', 'token', 'board', 'tile', 'marker', 'dice'].includes(type)) return 0.30;
+  return 0;
 }
 
 function dimensionsScore(asset) {
@@ -206,8 +214,10 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
   if (best && best.score >= 0.42) {
     return {
       path: best.asset.renderPath,
-      kind: best.asset.visual_kind === 'focused-page-crop' || best.asset.type === 'focused-crop'
-        ? 'focused-page-crop'
+      kind: ['focused-page-crop', 'focused-page-region'].includes(best.asset.visual_kind)
+        ? best.asset.visual_kind
+        : best.asset.type === 'focused-crop'
+          ? 'focused-page-crop'
         : 'component',
       confidence: best.score,
       reason: `curated-component:${assetType(best.asset)}`,
@@ -238,7 +248,7 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
       reason: 'no-suitable-curated-component',
       assetId: null,
       visualTypes: desiredTypes,
-      warning: `Scene '${scene.id || 'unknown'}' fell back to a rulebook page because no curated component passed selection${semanticGateEnabled ? ' against the semantic scene match' : citedPageCandidates.length > 0 ? ' on the cited rule page' : ''}` ,
+      warning: `Scene '${scene.id || 'unknown'}' fell back to the cited rule page because no curated component passed selection${semanticGateEnabled ? ' against the semantic scene match' : citedPageCandidates.length > 0 ? ' on the cited rule page' : ''}` ,
       languageAudit: classifyVisualLanguage({ visualKind: 'fallback', assetPath: fallbackPath, language: scene.language || 'fr-CA' }),
     };
   }

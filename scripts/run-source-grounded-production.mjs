@@ -207,7 +207,7 @@ function scriptSceneFromCanonical(scene, index) {
   const onScreenText = Array.isArray(overlay.onScreenText) && overlay.onScreenText.length
     ? overlay.onScreenText.join(' ')
     : firstDirection.onScreenText || scene.title;
-  const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop'].includes(scene.renderVisual?.kind)
+  const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop', 'focused-page-region'].includes(scene.renderVisual?.kind)
     && scene.renderVisual?.path
     && existsSync(scene.renderVisual.path);
   const sourceNarration = scene.spokenText;
@@ -254,7 +254,7 @@ function inspectVisuals(normalized) {
   for (const [index, scene] of normalized.scenes.entries()) {
     const pages = sourcePagesForScene(scene);
     const fallback = join(normalized.pageDir, `page-${pages[0]}.png`);
-    const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop'].includes(scene.renderVisual?.kind) && scene.renderVisual?.path;
+  const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop', 'focused-page-region'].includes(scene.renderVisual?.kind) && scene.renderVisual?.path;
     const selection = selectSourceVisual(
       explicit ? {
         language: normalized.language,
@@ -276,7 +276,7 @@ function inspectVisuals(normalized) {
     } else if (selection.kind === 'automatic-asset' || selection.kind === 'automatic-component' || selection.kind === 'component') {
       counts.automatic += 1;
       counts.automaticComponent += 1;
-    } else if (selection.kind === 'focused-page-crop') {
+    } else if (['focused-page-crop', 'focused-page-region'].includes(selection.kind)) {
       counts.automatic += 1;
       counts.automaticFocusedCrop += 1;
     } else {

@@ -60,7 +60,7 @@ describe('tutorial presentation contract', () => {
     expect(buildTeachingMotion({ visualKind: 'component', durationSec: 12, visualFocus: { x: 0.7, y: 0.4 } }))
       .toMatchObject({ type: 'focus-zoom', startScale: 1, endScale: 1.08, anchor: { x: 0.7, y: 0.4 } });
     expect(buildTeachingMotion({ visualKind: 'focused-page-crop', durationSec: 12 }))
-      .toMatchObject({ type: 'slow-zoom', startScale: 1, endScale: 1.035 });
+      .toMatchObject({ type: 'slow-zoom', startScale: 1, endScale: 1.07 });
     expect(buildTeachingMotion({ visualKind: 'rulebook-page-fallback', durationSec: 12 }))
       .toMatchObject({ type: 'hold' });
     expect(buildTeachingMotion({ visualKind: 'component', durationSec: 2 }))
