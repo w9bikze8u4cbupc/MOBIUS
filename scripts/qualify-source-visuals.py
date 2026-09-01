@@ -209,7 +209,7 @@ def main() -> None:
         },
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n")
+    out_path.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(output["summary"], ensure_ascii=False))
 
 
