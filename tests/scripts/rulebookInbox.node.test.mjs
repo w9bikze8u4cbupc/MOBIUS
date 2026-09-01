@@ -43,6 +43,16 @@ test('atomic lease permits one owner and recovers a stale owner', async () => {
   await recovered.release();
 });
 
+test('atomic lease recovers immediately when the recorded owner process is gone', async () => {
+  const paths = await ensureInbox(path.join(await tempRoot(), 'inbox'));
+  await fs.writeFile(paths.lease, JSON.stringify({
+    ownerId: 'interrupted', pid: 900000000, heartbeatAt: new Date().toISOString(), leaseMs: 900000,
+  }));
+  const recovered = await acquireLease(paths, { ownerId: 'recovered-after-interruption', leaseMs: 900000 });
+  assert.equal(recovered.ownerId, 'recovered-after-interruption');
+  await recovered.release();
+});
+
 test('renamed bytes resolve to an existing completed project without invoking production', async () => {
   const root = await tempRoot();
   const source = path.join(root, 'Jaipur-renamed.pdf');
