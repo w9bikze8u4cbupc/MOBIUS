@@ -7,6 +7,20 @@ const PYTHON_SCRIPT = path.join(HEPHAESTUS_DIR, 'extract_api.py');
 const PYTHON_COMMAND =
   process.env.HEPHAESTUS_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 
+// HEPHAESTUS clears and repopulates its output directory.  Serialize the
+// complete project operation (not just the Python child) so a client/network
+// retry cannot delete files while an earlier request is still consuming them.
+const projectLocks = new Map();
+
+export function withHephaestusProjectLock(projectId, operation) {
+  const previous = projectLocks.get(projectId) || Promise.resolve();
+  const current = previous.catch(() => {}).then(operation);
+  projectLocks.set(projectId, current);
+  return current.finally(() => {
+    if (projectLocks.get(projectId) === current) projectLocks.delete(projectId);
+  });
+}
+
 export async function clearHephaestusCache(outputDir) {
   const manifestPath = path.join(outputDir, 'manifest.json');
   

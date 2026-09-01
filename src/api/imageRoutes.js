@@ -52,6 +52,7 @@ import {
 import {
   extractWithHephaestus,
   isHephaestusAvailable,
+  withHephaestusProjectLock,
 } from '../services/hephaestusService.js';
 import { curateHephaestusAssets } from '../services/hephaestusCuration.js';
 import { hybridMatch } from '../services/hybridMatcher.js';
@@ -778,82 +779,87 @@ export function registerImageRoutes(app, {
         return res.status(500).json({ error: 'HEPHAESTUS system not available' });
       }
 
-      const outputDir = path.join(process.cwd(), 'data', projectId, 'hephaestus');
-      const result = await extractWithHephaestus(canonicalPdfPath, outputDir, {
-        minWidth: 1,
-        minHeight: 1,
-      });
-      if (!result.success && result.error) {
-        return res.status(500).json({ error: result.error });
-      }
+      const payload = await withHephaestusProjectLock(projectId, async () => {
+        const outputDir = path.join(process.cwd(), 'data', projectId, 'hephaestus');
+        const result = await extractWithHephaestus(canonicalPdfPath, outputDir, {
+          minWidth: 1,
+          minHeight: 1,
+        });
+        if (!result.success && result.error) {
+          const error = new Error(result.error);
+          error.code = 'HEPHAESTUS_EXTRACTION_FAILED';
+          throw error;
+        }
 
-      removeImagesBySource(projectId, 'hephaestus');
-      const nativeImages = result.images || [];
-      if (nativeImages.length === 0) {
-        const state = listImages(projectId);
-        return res.json({
+        removeImagesBySource(projectId, 'hephaestus');
+        const nativeImages = result.images || [];
+        if (nativeImages.length === 0) {
+          const state = listImages(projectId);
+          return {
+            success: true,
+            mode: 'hephaestus',
+            message: 'No native raster images were found in this PDF.',
+            stats: result.stats || {},
+            imagesCount: 0,
+            images: state.images,
+            componentImages: state.componentImages,
+            componentImageLinkDetails: state.componentImageLinkDetails,
+          };
+        }
+
+        const curatedResult = curateHephaestusAssets(nativeImages);
+        const images = curatedResult.assets.map((img) => {
+          const imageId = `heph_${img.id}`;
+          const type = ['card', 'token', 'board', 'tile', 'dice', 'marker', 'miniature', 'currency'].includes(img.type) ? img.type : 'other';
+          const localUrl = `/api/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(imageId)}/file`;
+          return normalizeImageAsset({
+            id: imageId,
+            source: 'hephaestus',
+            name: img.label,
+            label: img.label,
+            type,
+            fileKey: img.file_path,
+            thumbnailKey: img.thumbnail_path,
+            localUrl,
+            thumbnailUrl: `${localUrl}?variant=thumbnail`,
+            width: img.dimensions?.width,
+            height: img.dimensions?.height,
+            tags: ['native-pdf', type, img.is_component ? 'component' : 'non-component'],
+            metadata: {
+              page: img.page_index,
+              confidence: img.confidence,
+              label: img.label,
+              quantity: img.quantity,
+              classification: type,
+              type,
+              native: img.native === true,
+              originalDimensions: img.original_dimensions,
+              upscaleFactor: img.upscale_factor,
+              contentHash: img.contentHash,
+              curation: img.curation,
+            },
+            curation: img.curation,
+            quality: { score: img.curation.score, notes: img.curation.reasons.join('; ') || 'Curated native PDF asset' },
+          });
+        });
+
+        appendImages(projectId, images.map(runImageEnhancement));
+        const updatedState = listImages(projectId);
+
+        console.log(`[HEPHAESTUS] Extraction complete: ${images.length} native images`);
+        return {
           success: true,
           mode: 'hephaestus',
-          message: 'No native raster images were found in this PDF.',
-          stats: result.stats || {},
-          imagesCount: 0,
-          images: state.images,
-          componentImages: state.componentImages,
-          componentImageLinkDetails: state.componentImageLinkDetails,
-        });
-      }
-
-      const curatedResult = curateHephaestusAssets(nativeImages);
-      const images = curatedResult.assets.map((img) => {
-        const imageId = `heph_${img.id}`;
-        const type = ['card', 'token', 'board', 'tile', 'dice', 'marker', 'miniature', 'currency'].includes(img.type) ? img.type : 'other';
-        const localUrl = `/api/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(imageId)}/file`;
-        return normalizeImageAsset({
-          id: imageId,
-          source: 'hephaestus',
-          name: img.label,
-          label: img.label,
-          type,
-          fileKey: img.file_path,
-          thumbnailKey: img.thumbnail_path,
-          localUrl,
-          thumbnailUrl: `${localUrl}?variant=thumbnail`,
-          width: img.dimensions?.width,
-          height: img.dimensions?.height,
-          tags: ['native-pdf', type, img.is_component ? 'component' : 'non-component'],
-          metadata: {
-            page: img.page_index,
-            confidence: img.confidence,
-            label: img.label,
-            quantity: img.quantity,
-            classification: type,
-            type,
-            native: img.native === true,
-            originalDimensions: img.original_dimensions,
-            upscaleFactor: img.upscale_factor,
-            contentHash: img.contentHash,
-            curation: img.curation,
-          },
-          curation: img.curation,
-          quality: { score: img.curation.score, notes: img.curation.reasons.join('; ') || 'Curated native PDF asset' },
-        });
+          message: `Extracted ${images.length} raw native images; ${curatedResult.stats.curatedCount} curated candidates are ready for review`,
+          stats: { ...(result.stats || {}), ...curatedResult.stats },
+          imagesCount: images.length,
+          curatedCount: curatedResult.stats.curatedCount,
+          images: updatedState.images,
+          componentImages: updatedState.componentImages,
+          componentImageLinkDetails: updatedState.componentImageLinkDetails,
+        };
       });
-
-      appendImages(projectId, images.map(runImageEnhancement));
-      const updatedState = listImages(projectId);
-
-      console.log(`[HEPHAESTUS] Extraction complete: ${images.length} native images`);
-      return res.json({
-        success: true,
-        mode: 'hephaestus',
-        message: `Extracted ${images.length} raw native images; ${curatedResult.stats.curatedCount} curated candidates are ready for review`,
-        stats: { ...(result.stats || {}), ...curatedResult.stats },
-        imagesCount: images.length,
-        curatedCount: curatedResult.stats.curatedCount,
-        images: updatedState.images,
-        componentImages: updatedState.componentImages,
-        componentImageLinkDetails: updatedState.componentImageLinkDetails,
-      });
+      return res.json(payload);
     } catch (err) {
       if (err instanceof ProjectSourceError || String(err?.code || '').startsWith('SOURCE_PDF_')) {
         return projectSourceErrorResponse(res, err);
@@ -1151,4 +1157,3 @@ export function registerImageRoutes(app, {
 }
 
 export default registerImageRoutes;
-
