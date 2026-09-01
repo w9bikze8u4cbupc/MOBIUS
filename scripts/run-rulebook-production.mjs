@@ -391,7 +391,7 @@ async function runZeroState(options = {}) {
   const visualCounts = boundScenes.reduce((counts, scene) => {
     const kind = scene.renderVisual.kind;
     if (kind === 'automatic-component' || kind === 'automatic-asset' || kind === 'component') counts.automaticComponent += 1;
-    else if (kind === 'focused-page-crop') counts.automaticFocusedCrop += 1;
+    else if (['focused-page-crop', 'focused-page-region'].includes(kind)) counts.automaticFocusedCrop += 1;
     else if (kind === 'explicit-asset') counts.explicit += 1;
     else if (kind === 'missing') counts.missing += 1;
     else counts.fallback += 1;
