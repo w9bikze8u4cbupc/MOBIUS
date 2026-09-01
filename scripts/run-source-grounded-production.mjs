@@ -236,7 +236,10 @@ function scriptSceneFromCanonical(scene, index) {
   const firstDirection = directions[0] || {};
   const onScreenText = Array.isArray(overlay.onScreenText) && overlay.onScreenText.length
     ? overlay.onScreenText.join(' ')
-    : firstDirection.onScreenText || scene.title;
+    : firstDirection.onScreenText
+      || scene.onScreenText
+      || scene.on_screen_text
+      || scene.title;
   const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop', 'focused-page-region'].includes(scene.renderVisual?.kind)
     && scene.renderVisual?.path
     && existsSync(scene.renderVisual.path);
