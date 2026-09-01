@@ -115,6 +115,16 @@ export function classifyInboxError(error) {
   return { class: retryable ? 'retryable' : 'terminal', retryable };
 }
 
+function isProcessAlive(pid) {
+  if (!Number.isInteger(Number(pid)) || Number(pid) <= 0) return false;
+  try {
+    process.kill(Number(pid), 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function acquireLease(paths, { ownerId = `${process.pid}-${randomToken()}`, leaseMs = DEFAULT_LEASE_MS } = {}) {
   const lease = { ownerId, pid: process.pid, startedAt: now(), heartbeatAt: now(), leaseMs };
   try {
@@ -142,7 +152,11 @@ export async function acquireLease(paths, { ownerId = `${process.pid}-${randomTo
       return acquireLease(paths, { ownerId, leaseMs });
     }
     const lastBeat = Date.parse(current?.heartbeatAt || current?.startedAt || 0);
-    if (current && Number.isFinite(lastBeat) && Date.now() - lastBeat <= Number(current.leaseMs || leaseMs)) return null;
+    // A process can be interrupted after writing its lease but before the
+    // heartbeat timeout.  Process evidence lets the next worker recover that
+    // claim immediately while still protecting a live owner from concurrency.
+    const ownerAlive = isProcessAlive(current?.pid);
+    if (ownerAlive && Number.isFinite(lastBeat) && Date.now() - lastBeat <= Number(current.leaseMs || leaseMs)) return null;
     await fs.unlink(paths.lease).catch(() => {});
     return acquireLease(paths, { ownerId, leaseMs });
   }
