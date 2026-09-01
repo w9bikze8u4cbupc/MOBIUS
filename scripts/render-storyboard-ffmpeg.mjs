@@ -512,7 +512,10 @@ function buildSceneCommand(scene, index) {
   // Determine if this scene has a body overlay that needs a background box.
   const bodyOverlay = overlays.find((o) => o.type === 'body' && ['center', 'panel-body'].includes(o.position));
   const sceneLayout = getSceneLayout(scene, width, height);
-  if (sceneLayout.isTeaching) {
+  // Do not paint a full-height text column behind every teaching scene. The
+  // body-specific box below is sized from the actual wrapped copy, which keeps
+  // short support text secondary and leaves the source visual dominant.
+  if (sceneLayout.isTeaching && !bodyOverlay) {
     filterChain += `,drawbox=x=${sceneLayout.panelX}:y=${sceneLayout.panelY}:w=${sceneLayout.panelWidth}:h=${sceneLayout.panelHeight}:color=black@0.66:t=fill`;
   }
   filterChain += buildFocusHighlight(scene, sceneLayout);

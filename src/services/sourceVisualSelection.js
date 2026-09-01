@@ -238,6 +238,7 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
     : (citedPageCandidates.length > 0 ? citedPageCandidates.filter(passesVisualQa) : baseCandidates.filter(passesVisualQa));
   const semanticGateEnabled = Boolean(catalog.semanticReportPath);
   const semanticMatch = catalog.semanticBySceneId?.get(scene.id) || null;
+  const isMetadataCard = scene.metadata_card === true;
   const providerSemanticFailure = isProviderSemanticFailure(semanticMatch);
   const locallyGroundedCandidates = providerSemanticFailure
     ? qualityCandidates
@@ -247,7 +248,9 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
       .sort((left, right) => right.evidence.score - left.evidence.score)
       .map(({ asset }) => asset)
     : [];
-  const candidatePool = semanticGateEnabled
+  const candidatePool = isMetadataCard
+    ? qualityCandidates
+    : semanticGateEnabled
     ? (semanticMatch?.status === 'matched'
       ? qualityCandidates.filter((asset) => asset.id === semanticMatch.selected_asset_id)
       : locallyGroundedCandidates)

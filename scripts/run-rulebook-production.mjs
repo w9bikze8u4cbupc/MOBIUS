@@ -72,6 +72,19 @@ function gameNameFromPdf(filePath) {
   const withoutEdition = base.replace(/\b(rulebook|rules|us|en|english|fr|french)\b/gi, ' ').replace(/\s+/g, ' ').trim();
   return withoutEdition.split(' ').map((word) => word ? word[0].toUpperCase() + word.slice(1).toLowerCase() : word).join(' ') || 'Rulebook';
 }
+function gameNameFromRulebookText(text, fallback) {
+  const source = String(text || '').replace(/\s+/g, ' ').trim();
+  const patterns = [
+    /\bIn\s+([A-Z][A-Za-z0-9'’:-]*(?:\s+[A-Z][A-Za-z0-9'’:-]*){0,5}),\s+you\s+(?:control|play|are)\b/,
+    /\bWelcome\s+to\s+([A-Z][A-Za-z0-9'’:-]*(?:\s+[A-Z][A-Za-z0-9'’:-]*){0,5})\b/i,
+    /\bDans\s+([A-ZÀ-ÖØ-Þ][^,.!?]{1,60}),\s+vous\b/i,
+  ];
+  for (const pattern of patterns) {
+    const candidate = source.match(pattern)?.[1]?.replace(/[\s,:;]+$/g, '').trim();
+    if (candidate && candidate.length <= 64) return candidate;
+  }
+  return fallback;
+}
 function headers(apiKey) {
   return { 'content-type': 'application/json', ...(apiKey ? { 'x-api-key': apiKey } : {}) };
 }
@@ -147,21 +160,13 @@ function pagesForSources(sources, ranges) {
 }
 function teachingSourcePages(scene, ranges, pages = []) {
   const available = new Set(pages.map((page) => Number(page.number)).filter(Number.isFinite));
-  const title = String(scene.title || '').toLocaleLowerCase('fr-CA');
-  const preferred = title.includes('présentation') || title.includes('introduction')
-    ? [1, 2]
-    : title.includes('objectif') || title.includes('matériel') || title.includes('mise en place') || title.includes('pause')
-      ? [2, 3]
-      : title.includes('tour') || title.includes('action')
-        ? [3, 2]
-        : title.includes('fin') || title.includes('décompte') || title.includes('conclusion')
-          ? [4, 3]
-          : [];
-  const selected = preferred.filter((page) => available.size === 0 || available.has(page));
-  if (selected.length) return selected;
   const cited = pagesForSources(scene.sources, ranges);
   const nonCover = cited.filter((page) => page > 1 && (available.size === 0 || available.has(page)));
-  return nonCover.length ? [nonCover[0]] : cited;
+  // Source offsets are authoritative. The old title table paired scenes with
+  // unrelated neighbouring pages in real rulebooks.
+  if (nonCover.length) return nonCover.slice(0, 2);
+  const validCited = cited.filter((page) => available.size === 0 || available.has(page));
+  return validCited.length ? validCited.slice(0, 2) : [1];
 }
 
 function sceneForProduction(scene, ranges, pages = []) {
@@ -210,16 +215,16 @@ async function reserveProject({ baseUrl, apiKey, projectId, gameName, language, 
   }, apiKey);
 }
 
-async function persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components, scriptPackage, storyboardManifest, scenes, images, production = {}, audioAssets = [] }) {
+async function persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components, scriptPackage, storyboardManifest, scenes, images, production = {}, audioAssets = [], gameMetadata = {} }) {
   const context = {
-    projectId, gameName, language, sourcePdf: descriptor, sourceSha256: descriptor.sha256,
+    projectId, gameName, language, metadata: gameMetadata, sourcePdf: descriptor, sourceSha256: descriptor.sha256,
     rulebookText: manifest.text.full, ingestionManifest: manifest.ingestion,
     storyboardManifest, scriptPackage, audioAssets, status: production.status || 'processing',
     production: { voiceName: VOICE_NAME, voiceId: VOICE_ID, modelId: MODEL_ID, narrationPreset: DEFAULT_NARRATION_PRESET, editorial: getEditorialContract({ narrationPreset: DEFAULT_NARRATION_PRESET }), ...production },
   };
   return postJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/production-state`, {
     name: gameName,
-    metadata: { sourceIdentity: descriptor, ingestionDiagnostics: manifest.diagnostics },
+    metadata: { sourceIdentity: descriptor, ingestionDiagnostics: manifest.diagnostics, gameMetadata },
     projectContext: context,
     components, images, script: JSON.stringify(scriptPackage), audio: JSON.stringify(audioAssets), scenes,
   }, apiKey);
@@ -238,7 +243,7 @@ async function runZeroState(options = {}) {
   const processed = await findProcessedBySha(path.join(root, 'data'), identity.sha256);
   const prior = processed[0] || null;
   const projectId = prior?.documentId || `${slug(gameNameFromPdf(requested))}-${identity.sha256.slice(0, 12)}`;
-  const gameName = prior?.documentId ? (jsonIf(path.join(root, 'data', projectId, 'production', 'zero-state-extraction.json'))?.gameName || gameNameFromPdf(requested)) : gameNameFromPdf(requested);
+  let gameName = prior?.documentId ? (jsonIf(path.join(root, 'data', projectId, 'production', 'zero-state-extraction.json'))?.gameName || gameNameFromPdf(requested)) : gameNameFromPdf(requested);
   const projectDir = path.join(root, 'data', projectId);
   const productionDir = path.join(projectDir, 'production');
   const checkpointPath = path.join(productionDir, 'zero-state-production-state.json');
@@ -257,7 +262,7 @@ async function runZeroState(options = {}) {
   if (await stopIfRequested(options, checkpoint, 'source', checkpointPath, { projectId })) return { status: 'stopped', stage: 'source' };
 
   const extractionPath = path.join(productionDir, 'zero-state-extraction.json');
-  const extractionHash = hashValue({ sourceSha256: identity.sha256, engine: 'auto', mergeLines: false, componentInventory: COMPONENT_INVENTORY_CONTRACT_VERSION });
+  const extractionHash = hashValue({ sourceSha256: identity.sha256, engine: 'auto', mergeLines: false, componentInventory: COMPONENT_INVENTORY_CONTRACT_VERSION, gameIdentity: 'content-before-filename-v1' });
   let extraction;
   if (stageReady(checkpoint, 'extraction', extractionHash, [extractionPath])) {
     extraction = jsonIf(extractionPath);
@@ -267,6 +272,7 @@ async function runZeroState(options = {}) {
     const input = await extractPdfToIngestionInput(sourcePath, { source: descriptor.filename, mergeLines: false });
     const text = pageText(input.pages);
     if (!text) throw new Error('PDF extraction produced no usable text; the source requires OCR before production can continue.');
+    gameName = gameNameFromRulebookText(text, gameName);
     const components = await extractComponentInventory(input.pages, { gameName });
     const manifest = await apiJson(baseUrl, '/api/ingest', {
       method: 'POST', apiKey,
@@ -280,6 +286,7 @@ async function runZeroState(options = {}) {
     };
     await saveJson(extractionPath, extraction);
   }
+  gameName = extraction.gameName || gameName;
   const manifest = { text: { full: extraction.rulebookText }, ingestion: extraction.ingestion, diagnostics: extraction.diagnostics || [] };
   const componentHash = hashValue(extraction.components);
   markStage(checkpoint, 'extraction', extractionHash, [extractionPath], { reused: checkpoint.stages.extraction?.reused === true, components: extraction.components.length, pages: extraction.pages.length, sourceEvidencePages: extraction.pageRanges.length });
@@ -289,7 +296,7 @@ async function runZeroState(options = {}) {
   const scriptPath = path.join(productionDir, 'zero-state-script-package.json');
   const providerResolution = await resolveConfiguredProviderModels({ providers: listConfiguredProviders() });
   const providerContract = providerResolution.providers.map(({ name, model }) => ({ name, model }));
-  const scriptHash = hashValue({ sourceSha256: identity.sha256, componentHash, language, providerContract });
+  const scriptHash = hashValue({ sourceSha256: identity.sha256, componentHash, language, providerContract, editorialContract: 'metadata-card-v1-section-labels-v1' });
   let scriptPackage;
   if (stageReady(checkpoint, 'script', scriptHash, [scriptPath])) {
     scriptPackage = jsonIf(scriptPath);
@@ -302,10 +309,12 @@ async function runZeroState(options = {}) {
     if (!response.scriptPackage?.sections?.length) throw new Error('Script generation returned no canonical sections.');
     scriptPackage = {
       ...response.scriptPackage,
+      metadata: response.metadata || {},
       generationProvenance: response.generationProvenance || null,
     };
     await saveJson(scriptPath, scriptPackage);
   }
+  const gameMetadata = scriptPackage.metadata || {};
   markStage(checkpoint, 'script', scriptHash, [scriptPath], { reused: checkpoint.stages.script?.reused === true, sections: scriptPackage.sections.length });
   await saveJson(checkpointPath, checkpoint);
   if (await stopIfRequested(options, checkpoint, 'script', checkpointPath, { projectId })) return { status: 'stopped', stage: 'script' };
@@ -409,7 +418,7 @@ async function runZeroState(options = {}) {
 
   const imagesResponse = await apiJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/images`, { apiKey });
   const initialStateHash = hashValue({ identity: identity.sha256, scriptHash, storyboardHash, visualCounts });
-  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], production: { status: 'ready_for_production', sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, inputHash: initialStateHash } });
+  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], gameMetadata, production: { status: 'ready_for_production', sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, inputHash: initialStateHash } });
   markStage(checkpoint, 'canonical-state', initialStateHash, [storyboardPath], { reused: false, visualCounts });
   await saveJson(checkpointPath, checkpoint);
   if (await stopIfRequested(options, checkpoint, 'canonical-state', checkpointPath, { projectId, visualCounts })) return { status: 'stopped', stage: 'canonical-state' };
@@ -431,7 +440,7 @@ async function runZeroState(options = {}) {
     rejectedForSemantic: (semanticReport.scenes || []).filter((scene) => ['no-qualified-source-asset', 'no-semantic-match'].includes(scene.status)).length,
   };
   await saveJson(path.join(productionDir, 'production-report.json'), report);
-  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], audioAssets: audioSidecar.assets || [], production: { status: 'complete', sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, reportPath: path.join(productionDir, 'production-report.json'), report }, });
+  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], audioAssets: audioSidecar.assets || [], gameMetadata, production: { status: 'complete', sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, reportPath: path.join(productionDir, 'production-report.json'), report }, });
   checkpoint.stages.production = { inputHash: hashValue({ initialStateHash, report: report.render?.outputSha256 || null }), reused: report.render?.reused === true, reportPath: path.join(productionDir, 'production-report.json'), ttsReused: report.narration?.reused || 0, ttsGenerated: report.narration?.generated || 0 };
   checkpoint.stages.qa = { status: report.status, output: report.render?.outputPath, media: report.media, visuals: visualCounts };
   delete checkpoint.stoppedAfter;
@@ -459,4 +468,4 @@ if (pathToFileURL(path.resolve(process.argv[1] || '')).href === import.meta.url)
   main().catch((error) => { console.error(`[run-rulebook-production] ${error.message}`); process.exitCode = 1; });
 }
 
-export { chooseNext, runZeroState, stageReady };
+export { chooseNext, gameNameFromRulebookText, pagesForSources, sceneForProduction, teachingSourcePages, runZeroState, stageReady };

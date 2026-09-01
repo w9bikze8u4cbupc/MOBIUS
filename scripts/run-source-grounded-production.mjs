@@ -166,6 +166,7 @@ function normalizeProject(project, root, projectId, language) {
   const pageDir = pageDirCandidates.find((dir) => existsSync(join(dir, 'page-1.png'))) || null;
   if (!pageDir) throw new Error(`No canonical rulebook page images found for ${gameName}.`);
   const production = context.production || {};
+  const gameMetadata = context.metadata || metadata.gameMetadata || {};
   const voiceId = production.voiceId
     || process.env.ELEVENLABS_VOICE_ID_AMELIE
     || required(process.env.ELEVENLABS_VOICE_ID, 'voice-id or ELEVENLABS_VOICE_ID_AMELIE');
@@ -178,6 +179,7 @@ function normalizeProject(project, root, projectId, language) {
     scenes,
     projectId,
     gameName,
+    gameMetadata,
     language,
     projectDir,
     productionDir,
@@ -190,6 +192,33 @@ function normalizeProject(project, root, projectId, language) {
     narrationPreset,
     production,
   };
+}
+
+function metadataScriptScene(normalized) {
+  const metadata = normalized.gameMetadata || {};
+  const values = [
+    metadata.playerCount && `Joueurs: ${metadata.playerCount}`,
+    metadata.gameLength && `Durée: ${metadata.gameLength}`,
+    metadata.minimumAge && `Âge: ${metadata.minimumAge}`,
+    metadata.publisher && `Éditeur: ${metadata.publisher}`,
+    Array.isArray(metadata.designers) && metadata.designers.length ? `Auteur: ${metadata.designers.join(', ')}` : null,
+    metadata.weight && `Complexité: ${metadata.weight}`,
+  ].filter(Boolean);
+  if (!values.length) return null;
+  return {
+    id: 'metadata-card',
+    section: 'À propos du jeu',
+    narration: `Avant de commencer, voici ${normalized.gameName} et les informations essentielles pour vous installer à la table.`,
+    on_screen_text: values.join(' • '),
+    source_pages: [1],
+    visual_intent: 'box cover and game overview',
+    metadata_card: true,
+  };
+}
+
+function productionScenes(normalized) {
+  const metadata = metadataScriptScene(normalized);
+  return metadata ? [metadata, ...normalized.scenes] : normalized.scenes;
 }
 
 function sourcePagesForScene(scene) {
@@ -211,16 +240,17 @@ function scriptSceneFromCanonical(scene, index) {
   const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop', 'focused-page-region'].includes(scene.renderVisual?.kind)
     && scene.renderVisual?.path
     && existsSync(scene.renderVisual.path);
-  const sourceNarration = scene.spokenText;
+  const sourceNarration = scene.spokenText || scene.narration || '';
   return {
     id: scene.id,
-    section: scene.title || scene.sectionId || `Étape ${index + 1}`,
+    section: scene.title || scene.section || scene.sectionId || `Section ${index + 1}`,
     narration: prepareNarrationText(sourceNarration),
     source_narration: sourceNarration,
     on_screen_text: onScreenText,
     source_pages: sourcePagesForScene(scene),
     callouts: overlay.callouts || firstDirection.callouts || [],
     visual_focus: scene.visualPlan?.visualFocus || null,
+    ...(scene.metadata_card ? { metadata_card: true, visual_intent: scene.visual_intent } : {}),
     ...(explicit ? {
       visual_asset: resolve(scene.renderVisual.path),
       visual_asset_id: scene.renderVisual.assetId || null,
@@ -241,7 +271,8 @@ function canonicalInput(normalized) {
     narrationPreset: normalized.narrationPreset,
     editorial: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
     sourcePdfSha256: normalized.sourcePdfSha256,
-    scenes: normalized.scenes.map((scene, index) => ({
+    metadata: normalized.gameMetadata,
+    scenes: productionScenes(normalized).map((scene, index) => ({
       ...scriptSceneFromCanonical(scene, index),
       renderKind: scene.renderVisual?.kind || 'missing',
     })),
@@ -346,7 +377,7 @@ function audioSpecs(normalized) {
   const outro = buildBrandOutro({ audio: null });
   return [
     { id: 'brand-intro-voice', sceneId: 'brand-intro', text: prepareNarrationText(intro.narrationText) },
-    ...normalized.scenes.map((scene) => ({ id: scene.id, sceneId: scene.id, text: prepareNarrationText(scene.spokenText) })),
+    ...productionScenes(normalized).map((scene) => ({ id: scene.id, sceneId: scene.id, text: prepareNarrationText(scene.narration || scene.spokenText) })),
     { id: 'brand-outro-voice', sceneId: 'brand-outro', text: prepareNarrationText(outro.narrationText) },
   ];
 }
@@ -511,7 +542,7 @@ async function ensureNarration(normalized, tools, checkpoint, inputHash) {
 
 function materializeScript(normalized, inputHash) {
   const output = join(normalized.productionDir, SCRIPT_NAME);
-  const scenes = normalized.scenes.map(scriptSceneFromCanonical);
+  const scenes = productionScenes(normalized).map(scriptSceneFromCanonical);
   const value = {
     version: 1,
     game: normalized.gameName,

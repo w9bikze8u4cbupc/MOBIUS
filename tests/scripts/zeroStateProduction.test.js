@@ -25,4 +25,5 @@ describe('zero-state production contracts', () => {
     expect(first.sha256).toBe(renamed.sha256);
     expect(first.bytes).toBe(renamed.bytes);
   });
+
 });

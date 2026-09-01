@@ -2,20 +2,28 @@ import React from "react";
 
 const fieldLabels = {
   publisher: "Publisher",
+  designers: "Designer(s)",
   playerCount: "Player Count",
   gameLength: "Play Time",
   minimumAge: "Minimum Age",
   theme: "Theme",
-  edition: "Edition"
+  edition: "Edition",
+  yearPublished: "Year Published",
+  weight: "Complexity / Weight",
+  coverImage: "Box art URL"
 };
 
 const fieldPlaceholders = {
   publisher: "e.g., Fantasy Flight Games",
+  designers: "e.g., Jacob Fryxelius",
   playerCount: "e.g., 2-4 players",
   gameLength: "e.g., 45-60 minutes",
   minimumAge: "e.g., 10+",
   theme: "e.g., Fantasy, Sci-Fi",
-  edition: "e.g., 2nd Edition"
+  edition: "e.g., 2nd Edition",
+  yearPublished: "e.g., 2016",
+  weight: "e.g., 3.24 / 5",
+  coverImage: "Optional image URL"
 };
 
 export function MetadataInputStep({
@@ -29,7 +37,7 @@ export function MetadataInputStep({
   bggLookupLoading,
   bggLookupWarning,
 }) {
-  const hasAnyMetadata = metadata && Object.values(metadata).some(v => v && v.trim());
+  const hasAnyMetadata = metadata && Object.values(metadata).some(v => Array.isArray(v) ? v.length > 0 : v && String(v).trim());
   
   return (
     <div className="pipeline-section fade-in">
@@ -68,8 +76,8 @@ export function MetadataInputStep({
               {fieldLabels[key] || key}
               <input
                 type="text"
-                value={value || ''}
-                onChange={(e) => handleMetadataChange(key, e.target.value)}
+                value={Array.isArray(value) ? value.join(', ') : (value || '')}
+                onChange={(e) => handleMetadataChange(key, key === 'designers' ? e.target.value.split(',').map((item) => item.trim()).filter(Boolean) : e.target.value)}
                 placeholder={fieldPlaceholders[key] || `Enter ${key}`}
                 className="pipeline-input"
                 style={{ 

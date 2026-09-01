@@ -54,6 +54,12 @@ describe('professional editorial standard', () => {
     expect(layout.visualAreaRatio).toBeGreaterThanOrEqual(0.70);
   });
 
+  test('sanitizes filename and hash-derived identities before spoken use', () => {
+    const { sanitizeSpokenGameName } = require('../../src/services/editorialStandard.cjs');
+    expect(sanitizeSpokenGameName('fa06788222239dcc-TM_RULES_ENG_BGG.pdf')).not.toMatch(/[a-f0-9]{12,}|\.pdf|RULES|BGG/i);
+    expect(sanitizeSpokenGameName('Terraforming Mars')).toBe('Terraforming Mars');
+  });
+
   test('builds a source-backed thematic welcome without inventing game rules', () => {
     const text = buildThematicWelcome({
       gameName: 'Abyss',

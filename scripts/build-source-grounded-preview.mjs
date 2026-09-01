@@ -24,6 +24,7 @@ const {
   DEFAULT_BRAND,
   buildBrandIntro,
   buildBrandOutro,
+  buildMetadataScene,
   buildTeachingScene,
   buildChapters,
 } = presentation;
@@ -160,6 +161,8 @@ function main() {
     })
     : { manifestPath: null, assets: [], warnings: [] };
   visualWarnings.push(...(visualCatalog.warnings || []));
+  const metadata = script.metadata && typeof script.metadata === 'object' ? script.metadata : {};
+  const metadataValues = Object.values(metadata).filter((value) => value && value !== 'Not specified');
 
   if (includeBrand) {
     const introAudio = requireAudio(audioDir, 'brand-intro', 'The branded intro');
@@ -173,6 +176,44 @@ function main() {
     captions.scene = intro;
     addCaption(captions, cursor, intro.narrationText);
     scenes.push(intro);
+  }
+
+  if (metadataValues.length > 0) {
+    const metadataAudio = requireAudio(audioDir, 'metadata-card', 'The metadata opening scene');
+    const metadataSource = {
+      id: 'metadata-card',
+      section: 'À propos du jeu',
+      narration: `Avant de commencer, voici ${script.game || projectId} et les informations essentielles pour vous installer à la table.`,
+      on_screen_text: metadataValues.slice(0, 6).map((value) => Array.isArray(value) ? value.join(', ') : value).join(' • '),
+      source_pages: [1],
+      visual_intent: 'box cover and game overview',
+      metadata_card: true,
+    };
+    const metadataVisual = selectSourceVisual({ ...metadataSource, language }, visualCatalog, resolveRulebookFallback(metadataSource, pageDir));
+    if (!metadataVisual.path) throw new Error('Metadata scene has no renderable visual');
+    const metadataDuration = getDurationSeconds(metadataAudio);
+    const metadataScene = buildMetadataScene({
+      gameName: script.game || projectId,
+      metadata,
+      narration: metadataSource.narration,
+      sourcePages: metadataSource.source_pages,
+      background: {
+        image: metadataVisual.path,
+        kind: metadataVisual.kind,
+        confidence: metadataVisual.confidence,
+        reason: metadataVisual.reason,
+        languageAudit: metadataVisual.languageAudit || null,
+        provenance: metadataVisual.provenance || null,
+      },
+      audio: { file: metadataAudio, provider: narrationProvider, providerVoiceId: voiceId, language, narrationPreset },
+      visualKind: metadataVisual.kind,
+      durationSec: metadataDuration,
+    });
+    metadataScene.durationSec = metadataDuration;
+    metadataScene.visualSelection = metadataVisual;
+    captions.scene = metadataScene;
+    addCaption(captions, cursor, metadataScene.narrationText);
+    scenes.push(metadataScene);
   }
 
   for (const [index, scene] of script.scenes.entries()) {

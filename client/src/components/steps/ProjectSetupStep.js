@@ -169,7 +169,7 @@ export function ProjectSetupStep({
           <div style={{ marginTop: 16, padding: 14, backgroundColor: '#f5f5f5', borderRadius: 8 }}>
             <strong style={{ display: 'block', marginBottom: 6 }}>Optional AI game-info extraction</strong>
             <p style={{ margin: '0 0 10px', fontSize: 13, color: '#555' }}>
-              Your editable game name comes from the PDF filename. Request AI metadata only if you want to enrich it.
+              The filename is only a provisional identity. Confirm the canonical game name and enrich the metadata before generating the tutorial.
             </p>
             <button type="button" onClick={onExtractGameInfo} disabled={extractingName || !rulebookText.trim()}>
               {extractingName ? 'Requesting AI metadata...' : 'Extract optional AI metadata'}
