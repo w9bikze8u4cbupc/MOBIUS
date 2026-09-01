@@ -141,8 +141,12 @@ def main() -> None:
     if len(sys.argv) != 4:
         usage()
     script_path, manifest_path, out_path = map(Path, sys.argv[1:])
-    script = json.loads(script_path.read_text())
-    manifest = json.loads(manifest_path.read_text())
+    # Node writes canonical manifests as UTF-8.  Passing no encoding makes
+    # Windows use the active ANSI code page (often cp1252), which rejects
+    # perfectly valid French/Unicode source text and incorrectly aborts an
+    # otherwise resumable production.
+    script = json.loads(script_path.read_text(encoding="utf-8"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     cited_pages = {int(page) for scene in script.get("scenes", []) for page in scene.get("source_pages", [])}
     by_page: dict[int, list[dict]] = {}
     for asset in manifest.get("images", []):
