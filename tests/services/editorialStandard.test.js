@@ -7,6 +7,7 @@ const {
   buildSetupCallouts,
   estimateTeachingLayout,
   buildThematicWelcome,
+  evaluateProfessionalReleaseGate,
 } = require('../../src/services/editorialStandard.cjs');
 
 describe('professional editorial standard', () => {
@@ -61,5 +62,70 @@ describe('professional editorial standard', () => {
     expect(text).toContain('Installez-vous');
     expect(text).toContain('stratégie sous-marine');
     expect(text).toContain('On se lance');
+  });
+
+  test('keeps rejected external findings out of the publish gate', () => {
+    const gate = evaluateProfessionalReleaseGate({
+      deterministicPass: true,
+      visuals: { missing: 0 },
+      editorial: { layoutCollisions: [] },
+      media: { valid: true, video: { width: 1920, height: 1080 } },
+      captions: { count: 2, valid: true },
+      chapters: { count: 2, order: 'valid' },
+      narration: { total: 2, complete: true },
+      provenance: { sourceGrounded: true, complete: true },
+      branding: { bannerPresent: true, introPresent: true, outroPresent: true },
+      physicalReview: { completed: true },
+      calibration: {
+        verified_external_qa_score_10: 9,
+        finding_status_counts: { rejected: 1 },
+        findings: [{ severity: 'P0', physicalVerification: { status: 'rejected' } }],
+      },
+    });
+    expect(gate.verdict).toBe('PUBLISHABLE');
+    expect(gate.confirmedCounts.p0).toBe(0);
+  });
+
+  test('blocks publishability for a confirmed critical P2', () => {
+    const gate = evaluateProfessionalReleaseGate({
+      deterministicPass: true,
+      visuals: { missing: 0 },
+      editorial: { layoutCollisions: [] },
+      media: { valid: true, video: { width: 1920, height: 1080 } },
+      captions: { count: 2, valid: true },
+      chapters: { count: 2, order: 'valid' },
+      narration: { total: 2, complete: true },
+      provenance: { sourceGrounded: true, complete: true },
+      branding: { bannerPresent: true, introPresent: true, outroPresent: true },
+      physicalReview: { completed: true },
+      calibration: {
+        verified_external_qa_score_10: 9,
+        findings: [{ severity: 'P2', category: 'visual_relevance_and_variety', physicalVerification: { status: 'confirmed' } }],
+      },
+    });
+    expect(gate.verdict).toBe('NOT_READY');
+    expect(gate.unresolvedVerifiedBlockers).toContain('confirmed-critical-p2');
+  });
+
+  test('allows a physically justified external-score exception without trusting raw score', () => {
+    const gate = evaluateProfessionalReleaseGate({
+      deterministicPass: true,
+      visuals: { missing: 0 },
+      editorial: { layoutCollisions: [] },
+      media: { valid: true, video: { width: 1920, height: 1080 } },
+      captions: { count: 2, valid: true },
+      chapters: { count: 2, order: 'valid' },
+      narration: { total: 2, complete: true },
+      provenance: { sourceGrounded: true, complete: true },
+      branding: { bannerPresent: true, introPresent: true, outroPresent: true },
+      physicalReview: { completed: true },
+      calibration: {
+        verified_external_qa_score_10: 7.85,
+        scoreException: { accepted: true, basis: 'Physical inspection and deterministic audio evidence reject the external critic limitation; all release-critical gates pass.' },
+        findings: [],
+      },
+    });
+    expect(gate.verdict).toBe('PUBLISHABLE');
+    expect(gate.scoreRequirement).toBe('exceptional-physical-justification');
   });
 });

@@ -30,7 +30,20 @@ function labelsForColumn(page, side) {
     })
     .map((block) => normalizeLabel(block.text))
     .filter((label, index, labels) => label && labels.indexOf(label) === index)
-    .slice(0, 12);
+    .slice(0, 24);
+}
+
+function layoutTextForColumn(page, side) {
+  const blocks = Array.isArray(page?.blocks) ? page.blocks : [];
+  const maxX = blocks.reduce((max, block) => Math.max(max, Number(block.x || 0) + Number(block.width || 0)), 0) || 1;
+  return blocks
+    .filter((block) => {
+      const center = (Number(block.x || 0) + (Number(block.width || 0) / 2)) / maxX;
+      return side === 'left' ? center <= 0.5 : center > 0.5;
+    })
+    .map((block) => normalizeLabel(block.text))
+    .filter(Boolean)
+    .join(' ');
 }
 
 function visualRegionTop(page, imageHeight) {
@@ -85,6 +98,7 @@ export async function generateFocusedPageCrops({ pageDir, pages = [], outputDir,
       ['right', halfWidth, imageWidth - halfWidth],
     ]) {
       const labels = labelsForColumn(page, side);
+      const layoutText = layoutTextForColumn(page, side);
       const content = await sharp(pagePath).extract({ left, top: 0, width, height: imageHeight }).png().toBuffer();
       const contentHash = sha256(content);
       const filename = `focused-page-${pageNumber}-${side}-${String(sourceSha256 || contentHash).slice(0, 12)}.png`;
@@ -106,6 +120,7 @@ export async function generateFocusedPageCrops({ pageDir, pages = [], outputDir,
         confidence: 0.92,
         label: `Focused rulebook panel — page ${pageNumber}, ${side}`,
         layout_labels: labels,
+        layout_text: layoutText,
         bbox: { x: left, y: 0, width, height: imageHeight },
         normalized_bbox: { x: left / imageWidth, y: 0, width: width / imageWidth, height: 1 },
         contentHash,
@@ -143,6 +158,7 @@ export async function generateFocusedPageCrops({ pageDir, pages = [], outputDir,
           confidence: 0.95,
           label: `Focused visual region — page ${pageNumber}, ${side}`,
           layout_labels: labels,
+          layout_text: layoutText,
           bbox: { x: left, y: regionTop, width, height: regionHeight },
           normalized_bbox: { x: left / imageWidth, y: regionTop / imageHeight, width: width / imageWidth, height: regionHeight / imageHeight },
           contentHash: regionHash,

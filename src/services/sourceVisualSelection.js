@@ -99,6 +99,49 @@ function languageScore(asset, scene = {}) {
   return { score: 0, audit };
 }
 
+const LOCAL_SEMANTIC_STOP_WORDS = new Set([
+  'avec', 'dans', 'pour', 'plus', 'vous', 'votre', 'leurs', 'cette', 'comme', 'sont',
+  'the', 'and', 'from', 'that', 'this', 'your', 'will', 'have', 'into', 'with',
+  'afin', 'sans', 'tous', 'toutes', 'sur', 'une', 'des', 'les', 'aux', 'par', 'qui',
+]);
+
+const VISUAL_TERM_ALIASES = new Map([
+  ['outil', 'tool'], ['outils', 'tool'], ['carte', 'card'], ['cartes', 'card'],
+  ['jeton', 'token'], ['jetons', 'token'], ['faveur', 'favor'], ['faveurs', 'favor'],
+  ['de', 'dice'], ['des', 'dice'], ['dés', 'dice'], ['objectif', 'objective'], ['objectifs', 'objective'],
+]);
+
+function meaningfulTokens(value) {
+  return new Set(normalize(value).split(' ')
+    .map((token) => VISUAL_TERM_ALIASES.get(token) || token.replace(/s$/, ''))
+    .filter((token) => token.length >= 4 && !LOCAL_SEMANTIC_STOP_WORDS.has(token)));
+}
+
+function localLayoutEvidence(asset, scene = {}) {
+  const sceneTokens = meaningfulTokens([
+    scene.section,
+    scene.narration,
+    scene.on_screen_text,
+    scene.visual_intent,
+  ].filter(Boolean).join(' '));
+  const layoutTokens = meaningfulTokens([
+    asset.label,
+    asset.layout_text,
+    ...(Array.isArray(asset.layout_labels) ? asset.layout_labels : []),
+  ].join(' '));
+  if (!sceneTokens.size || !layoutTokens.size) return { score: 0, overlap: [] };
+  const overlap = [...sceneTokens].filter((token) => layoutTokens.has(token));
+  return { score: Number((overlap.length / Math.min(sceneTokens.size, 8)).toFixed(3)), overlap };
+}
+
+function isProviderSemanticFailure(semanticMatch) {
+  const reason = String(semanticMatch?.reason || '').toLowerCase();
+  return Boolean(semanticMatch)
+    && (reason.includes('vision failure') || reason.includes('credit_balance_exhausted')
+      || reason.includes('insufficient_quota') || reason.includes('429')
+      || reason.includes('provider unavailable') || reason.includes('provider failure'));
+}
+
 /**
  * Load and curate a Hephaestus manifest into renderer-ready candidate assets.
  * Files whose historical absolute paths are stale are resolved from the manifest
@@ -195,10 +238,19 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
     : (citedPageCandidates.length > 0 ? citedPageCandidates.filter(passesVisualQa) : baseCandidates.filter(passesVisualQa));
   const semanticGateEnabled = Boolean(catalog.semanticReportPath);
   const semanticMatch = catalog.semanticBySceneId?.get(scene.id) || null;
+  const providerSemanticFailure = isProviderSemanticFailure(semanticMatch);
+  const locallyGroundedCandidates = providerSemanticFailure
+    ? qualityCandidates
+      .filter((asset) => ['focused-page-crop', 'focused-page-region'].includes(asset.visual_kind))
+      .map((asset) => ({ asset, evidence: localLayoutEvidence(asset, scene) }))
+      .filter(({ evidence }) => evidence.score >= 0.18)
+      .sort((left, right) => right.evidence.score - left.evidence.score)
+      .map(({ asset }) => asset)
+    : [];
   const candidatePool = semanticGateEnabled
     ? (semanticMatch?.status === 'matched'
       ? qualityCandidates.filter((asset) => asset.id === semanticMatch.selected_asset_id)
-      : [])
+      : locallyGroundedCandidates)
     : qualityCandidates;
   const candidates = candidatePool
     .map((asset) => {
@@ -212,6 +264,7 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
 
   const best = candidates[0];
   if (best && best.score >= 0.42) {
+    const localEvidence = providerSemanticFailure ? localLayoutEvidence(best.asset, scene) : null;
     return {
       path: best.asset.renderPath,
       kind: ['focused-page-crop', 'focused-page-region'].includes(best.asset.visual_kind)
@@ -220,7 +273,9 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
           ? 'focused-page-crop'
         : 'component',
       confidence: best.score,
-      reason: `curated-component:${assetType(best.asset)}`,
+      reason: providerSemanticFailure
+        ? `layout-grounded-semantic-recovery:${localEvidence.overlap.join(',') || 'cited-focused-region'}`
+        : `curated-component:${assetType(best.asset)}`,
       assetId: best.asset.id || null,
       sourcePage: Number.isFinite(Number(best.asset.source_page ?? best.asset.sourcePage))
         ? Number(best.asset.source_page ?? best.asset.sourcePage)
@@ -241,11 +296,31 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
   }
 
   if (fallbackPath) {
+    const alternatives = citedPageCandidates.slice(0, 12).map((asset) => {
+      const evidence = localLayoutEvidence(asset, scene);
+      return {
+        assetId: asset.id || null,
+        kind: asset.visual_kind || asset.type || 'unknown',
+        sourcePage: asset.source_page ?? ((Number(asset.page_index) + 1) || null),
+        qualityScore: asset.visualQuality?.quality_score ?? null,
+        semanticEvidence: evidence.score,
+        rejection: providerSemanticFailure ? 'below-local-layout-semantic-threshold' : 'semantic-gate-no-match',
+      };
+    });
     return {
       path: fallbackPath,
       kind: 'rulebook-page-fallback',
       confidence: 0.2,
       reason: 'no-suitable-curated-component',
+      fallbackReason: 'no-qualified-source-visual-after-quality-and-semantic-gates',
+      alternativesConsidered: alternatives,
+      fallbackMitigation: 'labelled cited rulebook page with discreet bottom-left source reference',
+      sourcePage: Number(scene.source_pages?.[0]) || null,
+      provenance: scene.source_pdf_sha256 ? {
+        sourcePdfSha256: scene.source_pdf_sha256,
+        sourcePage: Number(scene.source_pages?.[0]) || null,
+        extraction: 'authoritative-rulebook-page-fallback',
+      } : null,
       assetId: null,
       visualTypes: desiredTypes,
       warning: `Scene '${scene.id || 'unknown'}' fell back to the cited rule page because no curated component passed selection${semanticGateEnabled ? ' against the semantic scene match' : citedPageCandidates.length > 0 ? ' on the cited rule page' : ''}` ,

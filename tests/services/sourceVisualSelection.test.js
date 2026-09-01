@@ -187,6 +187,44 @@ describe('sourceVisualSelection', () => {
     expect(selection.path).toBe('/fallback/page-4.png');
   });
 
+  test('recovers a layout-grounded focused crop when the semantic provider failed', () => {
+    const focused = path.join(root, 'tool-cards.png');
+    fs.writeFileSync(focused, 'focused');
+    const selection = selectSourceVisual({
+      id: 'tool-cards', source_pages: [3], section: 'Utilisation des cartes Outil',
+      narration: 'Dépensez des jetons de faveur pour utiliser une carte Outil.', language: 'fr-CA',
+    }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      semanticReportPath: '/reviewed/scene-match.json',
+      semanticBySceneId: new Map([['tool-cards', {
+        status: 'no-semantic-match', selected_asset_id: null, relevance_score: 25,
+        reason: 'local-semantic-fallback after vision failure: credit_balance_exhausted',
+      }]]),
+      assets: [{
+        id: 'focused-p3-right', source_page: 3, page_index: 2, visual_kind: 'focused-page-crop',
+        type: 'focused-crop', is_component: true, renderPath: focused, layout_text: 'TOOL CARDS FAVOR TOKENS',
+        curation: { lowInformation: false, score: 0.92 }, visualQuality: { primary_explanatory: true, quality_score: 91 },
+      }],
+    }, '/fallback/page-3.png');
+
+    expect(selection.kind).toBe('focused-page-crop');
+    expect(selection.reason).toContain('layout-grounded-semantic-recovery');
+    expect(selection.semanticMatch.status).toBe('no-semantic-match');
+  });
+
+  test('records machine-readable fallback alternatives when no local recovery is justified', () => {
+    const selection = selectSourceVisual({ id: 'fallback', source_pages: [4], language: 'fr-CA' }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      semanticReportPath: '/reviewed/scene-match.json',
+      semanticBySceneId: new Map([['fallback', { status: 'no-semantic-match', reason: 'model returned no match' }]]),
+      assets: [],
+    }, '/fallback/page-4.png');
+    expect(selection.kind).toBe('rulebook-page-fallback');
+    expect(selection.fallbackReason).toBe('no-qualified-source-visual-after-quality-and-semantic-gates');
+    expect(selection).toHaveProperty('fallbackMitigation');
+    expect(selection).toHaveProperty('alternativesConsidered');
+  });
+
   test('preserves an explicit reviewed visual assignment', () => {
     const explicit = path.join(root, 'reviewed.png');
     fs.writeFileSync(explicit, 'reviewed');
