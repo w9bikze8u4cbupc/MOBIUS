@@ -76,6 +76,25 @@ def pixmap_to_image(pixmap: fitz.Pixmap) -> Image.Image:
         return opened.convert("RGB").copy()
 
 
+def iter_unique_image_refs(document):
+    """Yield the first page occurrence of each embedded PDF image XRef.
+
+    PDFs commonly reuse a large background or mask XRef on every page.  The
+    pixels are identical, so extracting and upscaling each occurrence wastes
+    disk and memory and can make a real rulebook impossible to process.
+    Keeping the first page preserves provenance while avoiding duplicate work.
+    """
+    seen_xrefs = set()
+    for page_index in range(document.page_count):
+        page = document.load_page(page_index)
+        for image_index, image_info in enumerate(page.get_images(full=True)):
+            xref = int(image_info[0])
+            if xref in seen_xrefs:
+                continue
+            seen_xrefs.add(xref)
+            yield page_index, image_index, xref
+
+
 def extract_all_native_images(pdf_path: str, output_dir: str) -> Dict[str, Any]:
     """Extract every native raster image, upscale it 3x, and create a thumbnail."""
     pdf = Path(pdf_path)
@@ -103,10 +122,7 @@ def extract_all_native_images(pdf_path: str, output_dir: str) -> Dict[str, Any]:
         if document.needs_pass:
             raise RuntimeError("PDF is encrypted")
 
-        for page_index in range(document.page_count):
-            page = document.load_page(page_index)
-            for image_index, image_info in enumerate(page.get_images(full=True)):
-                xref = int(image_info[0])
+        for page_index, image_index, xref in iter_unique_image_refs(document):
                 asset_id = f"p{page_index}_img{image_index}_xref{xref}"
 
                 try:
