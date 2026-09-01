@@ -18,7 +18,7 @@ describe('professional editorial standard', () => {
       expect.objectContaining({ id: 'signature-motif' }),
       expect.objectContaining({ id: 'room-murmur', intelligibleSpeech: false }),
     ]));
-    expect(getEditorialContract().version).toBe('mobius-professional-editorial-v4');
+    expect(getEditorialContract().version).toBe('mobius-professional-editorial-v5');
     expect(BRAND_AUDIO_CONTRACT.id).toBe('mobius-cafe-game-night-v2');
     expect(BRAND_AUDIO_CONTRACT.durationSec).toBeGreaterThan(8);
     expect(BRAND_AUDIO_CONTRACT.layers).toEqual(expect.arrayContaining([
