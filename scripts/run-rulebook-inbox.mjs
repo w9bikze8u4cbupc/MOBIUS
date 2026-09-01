@@ -54,6 +54,7 @@ export function inboxPaths(root) {
     failedRetryable: path.join(resolved, 'failed-retryable'),
     failedTerminal: path.join(resolved, 'failed-terminal'),
     releases: path.join(resolved, 'releases'),
+    candidateReleases: path.join(resolved, 'candidate-releases'),
     state: path.join(resolved, 'inbox-state.json'),
     lease: path.join(resolved, 'worker-lease.json'),
     events: path.join(resolved, 'events.jsonl'),
@@ -70,7 +71,7 @@ export async function ensureInbox(root) {
   const paths = inboxPaths(root);
   await Promise.all([
     paths.root, paths.waiting, paths.claimed, paths.processing, paths.qa,
-    paths.completed, paths.failedRetryable, paths.failedTerminal, paths.releases,
+    paths.completed, paths.failedRetryable, paths.failedTerminal, paths.releases, paths.candidateReleases,
   ].map((directory) => fs.mkdir(directory, { recursive: true })));
   if (!existsSync(paths.state)) await atomicWrite(paths.state, { schemaVersion: STATE_VERSION, updatedAt: now(), items: {} });
   if (!existsSync(paths.events)) await fs.writeFile(paths.events, '', 'utf8');
@@ -250,6 +251,9 @@ export function releaseEntries(releaseDir) {
 export async function validateRelease(releaseDir) {
   const manifest = safeRead(path.join(releaseDir, 'release-manifest.json'), null);
   if (!manifest || !Array.isArray(manifest.files)) return { valid: false, reason: 'invalid release manifest' };
+  if (!manifest.professionalGate || !['PUBLISHABLE', 'PROFESSIONAL_CANDIDATE', 'NOT_READY'].includes(manifest.professionalGate.verdict)) {
+    return { valid: false, reason: 'missing professional gate verdict' };
+  }
   const required = new Set(releaseEntries(releaseDir).map((entry) => entry.name));
   for (const name of required) if (!manifest.files.some((file) => file.path === name)) return { valid: false, reason: `manifest missing ${name}` };
   for (const file of manifest.files) {
@@ -272,10 +276,15 @@ export async function packageRelease({ root, paths, identity, result, item }) {
   const report = safeRead(artifacts.productionReport, result) || result;
   const gameName = report.gameName || result.gameName || result.zeroState?.gameName || path.basename(identity.filename, '.pdf');
   const releaseName = `${slug(gameName)}-${artifacts.projectId}`;
-  const finalDir = path.join(paths.releases, releaseName);
+  const professionalGate = report.professionalGate || result.professionalGate || { version: null, verdict: 'NOT_READY' };
+  const releaseStatus = professionalGate.verdict === 'PUBLISHABLE'
+    ? 'publishable'
+    : professionalGate.verdict === 'PROFESSIONAL_CANDIDATE' ? 'professional-candidate' : 'not-ready';
+  const targetRoot = releaseStatus === 'publishable' ? paths.releases : paths.candidateReleases;
+  const finalDir = path.join(targetRoot, releaseName);
   const existing = await validateRelease(finalDir);
   if (existing.valid) return { releaseDir: finalDir, manifest: existing.manifest, reused: true };
-  const staging = path.join(paths.releases, `.staging-${releaseName}-${process.pid}-${randomToken()}`);
+  const staging = path.join(targetRoot, `.staging-${releaseName}-${process.pid}-${randomToken()}`);
   await fs.mkdir(staging, { recursive: true });
   try {
     await copyRequired(artifacts.mp4, path.join(staging, 'tutorial.mp4'));
@@ -298,7 +307,7 @@ export async function packageRelease({ root, paths, identity, result, item }) {
     await fs.writeFile(path.join(staging, 'completion-summary.txt'), [
       `MOBIUS tutorial completed: ${sourceSummary.gameName || artifacts.projectId}`,
       `Language: ${report.language || 'fr-CA'} | Voice: ${report.voice?.name || 'Amélie'} (${report.voice?.narrationPreset || 'versioned preset'})`,
-      `Duration: ${report.media?.durationSec || report.render?.durationSec || 'n/a'} s | Visual fallbacks: ${fallbackCount} | QA: ${report.status || 'PASS'}`,
+      `Duration: ${report.media?.durationSec || report.render?.durationSec || 'n/a'} s | Visual fallbacks: ${fallbackCount} | QA: ${report.status || 'PASS'} | Release: ${releaseStatus}`,
       `Package: ${releaseName}`,
       '',
     ].join('\n'), 'utf8');
@@ -309,6 +318,7 @@ export async function packageRelease({ root, paths, identity, result, item }) {
     const manifest = {
       schemaVersion: 1, packageId: releaseName, projectId: artifacts.projectId, gameName: sourceSummary.gameName,
       sourceSha256: identity.sha256, language: report.language || 'fr-CA',
+      releaseStatus, professionalGate,
       editorialContract: report.editorial?.contract?.version || null, voice: report.voice || null,
       durationSec: report.media?.durationSec || report.render?.durationSec || null, media: report.media || null,
       visuals: report.visuals || null, captions: report.captions || null, chapters: report.chapters || null,
@@ -342,7 +352,7 @@ export async function runInboxOnce(options = {}) {
     const processed = work.processed || await findProcessedBySha(path.join(root, 'data'), work.identity.sha256);
     const complete = work.completedProjectId || processed.find((record) => record.status === 'complete'
       || existsSync(path.join(root, 'data', record.documentId || '', 'production', 'production-report.json')));
-    if (complete && !ACTIVE_STATUSES.includes(work.existing?.status)) {
+    if (complete && !options.reprocess && !ACTIVE_STATUSES.includes(work.existing?.status)) {
       const item = await updateItem(paths, state, work.identity.sha256, {
         status: 'completed', source: { ...work.identity, discoveredAt: now() }, projectId: complete.documentId,
         completedAt: work.existing?.completedAt || now(), lastError: null, result: { duplicateOf: complete.documentId },
@@ -449,7 +459,7 @@ function parseCli(argv) {
 
 async function main() {
   const { command, values } = parseCli(process.argv.slice(2));
-  const options = { ...values, language: values.lang || values.language || 'fr-CA', leaseMs: values['lease-ms'], retryLimit: values['retry-limit'], pollMs: values['poll-ms'], forceRender: Boolean(values['force-render']) };
+  const options = { ...values, language: values.lang || values.language || 'fr-CA', leaseMs: values['lease-ms'], retryLimit: values['retry-limit'], pollMs: values['poll-ms'], forceRender: Boolean(values['force-render']), reprocess: Boolean(values.reprocess) };
   const result = command === 'status' ? await inboxStatus(options) : command === 'watch' ? await runInboxWatch(options) : await runInboxOnce(options);
   console.log(JSON.stringify(result, null, 2));
   if (result.status === 'failed-terminal') process.exitCode = 2;

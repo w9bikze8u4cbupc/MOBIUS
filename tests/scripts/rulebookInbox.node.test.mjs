@@ -110,7 +110,14 @@ test('release validation checks every declared payload checksum', async () => {
     await fs.writeFile(path.join(release, name), contents);
     files.push({ path: name, bytes: contents.length, sha256: crypto.createHash('sha256').update(contents).digest('hex') });
   }
-  await fs.writeFile(path.join(release, 'release-manifest.json'), JSON.stringify({ files }));
+  const manifestPath = path.join(release, 'release-manifest.json');
+  await fs.writeFile(manifestPath, JSON.stringify({ files }));
+  assert.equal((await validateRelease(release)).valid, false);
+  await fs.writeFile(manifestPath, JSON.stringify({
+    releaseStatus: 'publishable',
+    professionalGate: { version: 'mobius-professional-release-gate-v1', verdict: 'PUBLISHABLE' },
+    files,
+  }));
   assert.equal((await validateRelease(release)).valid, true);
   await fs.writeFile(path.join(release, 'poster.jpg'), 'tampered');
   assert.equal((await validateRelease(release)).valid, false);
