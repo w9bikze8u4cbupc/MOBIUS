@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import base64
 import concurrent.futures
+import io
 import json
 import os
 import sys
 from pathlib import Path
 
 from openai import OpenAI
+from PIL import Image
 
 MODEL = os.getenv("MOBIUS_VISUAL_QA_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5-mini"
 MAX_PER_PAGE = 18
@@ -108,9 +110,16 @@ def local_judgement(asset: dict) -> dict:
 
 
 def image_data_url(image_path: Path) -> str:
-    ext = image_path.suffix.lower().lstrip(".") or "png"
-    mime = "jpeg" if ext in {"jpg", "jpeg"} else ext
-    return f"data:image/{mime};base64,{base64.b64encode(image_path.read_bytes()).decode('ascii')}"
+    # HEPHAESTUS intentionally preserves source pixels and may produce very
+    # large native rasters. Vision QA needs the visual evidence, not a 241 MB
+    # upload; bound the in-memory probe representation while keeping the
+    # canonical asset path/hash and provenance untouched.
+    with Image.open(image_path) as source:
+        image = source.convert("RGB")
+        image.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
+        encoded = io.BytesIO()
+        image.save(encoded, format="JPEG", quality=85, optimize=True)
+    return f"data:image/jpeg;base64,{base64.b64encode(encoded.getvalue()).decode('ascii')}"
 
 
 def judge_one(client: OpenAI, entry: dict) -> dict:
