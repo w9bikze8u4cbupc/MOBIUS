@@ -25,4 +25,13 @@ describe('zero-state production contracts', () => {
     expect(first.sha256).toBe(renamed.sha256);
     expect(first.bytes).toBe(renamed.bytes);
   });
+
+  test('content-derived game identity wins over hash-prefixed inbox filenames', () => {
+    const { execFileSync } = require('child_process');
+    const { pathToFileURL } = require('url');
+    const path = require('path');
+    const script = pathToFileURL(path.resolve(__dirname, '../../scripts/run-rulebook-production.mjs')).href;
+    const output = execFileSync(process.execPath, ['--input-type=module', '-e', `import {gameNameFromRulebookText} from '${script}'; console.log(gameNameFromRulebookText('In Terraforming Mars, you control a corporation.', 'Fa06788222239dcc Tm Eng Bgg'));`], { encoding: 'utf8' });
+    expect(output.trim()).toBe('Terraforming Mars');
+  });
 });

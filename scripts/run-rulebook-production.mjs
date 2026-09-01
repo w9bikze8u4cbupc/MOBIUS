@@ -33,6 +33,7 @@ const VOICE_NAME = 'Amélie';
 const MODEL_ID = 'eleven_multilingual_v2';
 const { DEFAULT_NARRATION_PRESET, getEditorialContract } = editorialStandard;
 const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v4-layout-semantic-recovery';
+const GAME_IDENTITY_CONTRACT_VERSION = 'game-identity-v1-content-before-filename';
 const DEFAULT_BASE_URL = process.env.MOBIUS_BASE_URL || 'http://127.0.0.1:5001';
 
 function argsToObject(argv = process.argv.slice(2)) {
@@ -71,6 +72,20 @@ function gameNameFromPdf(filePath) {
   const base = path.basename(filePath, path.extname(filePath)).replace(/[_-]+/g, ' ').trim();
   const withoutEdition = base.replace(/\b(rulebook|rules|us|en|english|fr|french)\b/gi, ' ').replace(/\s+/g, ' ').trim();
   return withoutEdition.split(' ').map((word) => word ? word[0].toUpperCase() + word.slice(1).toLowerCase() : word).join(' ') || 'Rulebook';
+}
+function gameNameFromRulebookText(text, fallback) {
+  const source = String(text || '').replace(/\s+/g, ' ').trim();
+  const patterns = [
+    /\bIn\s+([A-Z][A-Za-z0-9'’:-]*(?:\s+[A-Z][A-Za-z0-9'’:-]*){0,5}),\s+you\s+(?:control|play|are)\b/,
+    /\bWelcome\s+to\s+([A-Z][A-Za-z0-9'’:-]*(?:\s+[A-Z][A-Za-z0-9'’:-]*){0,5})\b/i,
+    /\bDans\s+([A-ZÀ-ÖØ-Þ][^,.!?]{1,60}),\s+vous\b/i,
+  ];
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    const candidate = match?.[1]?.replace(/[\s,:;]+$/g, '').trim();
+    if (candidate && candidate.split(/\s+/).length >= 1 && candidate.length <= 64) return candidate;
+  }
+  return fallback;
 }
 function headers(apiKey) {
   return { 'content-type': 'application/json', ...(apiKey ? { 'x-api-key': apiKey } : {}) };
@@ -238,7 +253,7 @@ async function runZeroState(options = {}) {
   const processed = await findProcessedBySha(path.join(root, 'data'), identity.sha256);
   const prior = processed[0] || null;
   const projectId = prior?.documentId || `${slug(gameNameFromPdf(requested))}-${identity.sha256.slice(0, 12)}`;
-  const gameName = prior?.documentId ? (jsonIf(path.join(root, 'data', projectId, 'production', 'zero-state-extraction.json'))?.gameName || gameNameFromPdf(requested)) : gameNameFromPdf(requested);
+  let gameName = prior?.documentId ? (jsonIf(path.join(root, 'data', projectId, 'production', 'zero-state-extraction.json'))?.gameName || gameNameFromPdf(requested)) : gameNameFromPdf(requested);
   const projectDir = path.join(root, 'data', projectId);
   const productionDir = path.join(projectDir, 'production');
   const checkpointPath = path.join(productionDir, 'zero-state-production-state.json');
@@ -257,7 +272,7 @@ async function runZeroState(options = {}) {
   if (await stopIfRequested(options, checkpoint, 'source', checkpointPath, { projectId })) return { status: 'stopped', stage: 'source' };
 
   const extractionPath = path.join(productionDir, 'zero-state-extraction.json');
-  const extractionHash = hashValue({ sourceSha256: identity.sha256, engine: 'auto', mergeLines: false, componentInventory: COMPONENT_INVENTORY_CONTRACT_VERSION });
+  const extractionHash = hashValue({ sourceSha256: identity.sha256, engine: 'auto', mergeLines: false, componentInventory: COMPONENT_INVENTORY_CONTRACT_VERSION, gameIdentity: GAME_IDENTITY_CONTRACT_VERSION });
   let extraction;
   if (stageReady(checkpoint, 'extraction', extractionHash, [extractionPath])) {
     extraction = jsonIf(extractionPath);
@@ -267,6 +282,7 @@ async function runZeroState(options = {}) {
     const input = await extractPdfToIngestionInput(sourcePath, { source: descriptor.filename, mergeLines: false });
     const text = pageText(input.pages);
     if (!text) throw new Error('PDF extraction produced no usable text; the source requires OCR before production can continue.');
+    gameName = gameNameFromRulebookText(text, gameName);
     const components = await extractComponentInventory(input.pages, { gameName });
     const manifest = await apiJson(baseUrl, '/api/ingest', {
       method: 'POST', apiKey,
@@ -280,6 +296,7 @@ async function runZeroState(options = {}) {
     };
     await saveJson(extractionPath, extraction);
   }
+  gameName = extraction.gameName || gameName;
   const manifest = { text: { full: extraction.rulebookText }, ingestion: extraction.ingestion, diagnostics: extraction.diagnostics || [] };
   const componentHash = hashValue(extraction.components);
   markStage(checkpoint, 'extraction', extractionHash, [extractionPath], { reused: checkpoint.stages.extraction?.reused === true, components: extraction.components.length, pages: extraction.pages.length, sourceEvidencePages: extraction.pageRanges.length });
@@ -459,4 +476,4 @@ if (pathToFileURL(path.resolve(process.argv[1] || '')).href === import.meta.url)
   main().catch((error) => { console.error(`[run-rulebook-production] ${error.message}`); process.exitCode = 1; });
 }
 
-export { chooseNext, runZeroState, stageReady };
+export { chooseNext, gameNameFromRulebookText, runZeroState, stageReady };
