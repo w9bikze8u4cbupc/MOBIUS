@@ -263,7 +263,7 @@ function getVisualMotion(scene = {}) {
   const anchor = motion.anchor || scene.layout?.visualFocus?.anchor || scene.layout?.visualFocus || {};
   const anchorX = Math.min(0.85, Math.max(0.15, Number(anchor.x) || 0.5));
   const anchorY = Math.min(0.85, Math.max(0.15, Number(anchor.y) || 0.5));
-  if (!['slow-zoom', 'focus-zoom'].includes(type) || endScale <= startScale || Number(scene.durationSec) < 2.5) {
+  if (!['slow-zoom', 'focus-zoom', 'slow-pan'].includes(type) || endScale <= startScale || Number(scene.durationSec) < 2.5) {
     return { enabled: false, type: 'hold', startScale: 1, endScale: 1, anchorX, anchorY };
   }
   return { enabled: true, type, startScale, endScale, anchorX, anchorY };
@@ -278,7 +278,8 @@ function buildForegroundVisualFilter({ scene, targetWidth, targetHeight }) {
   const increment = ((motion.endScale - motion.startScale) / frameCount).toFixed(8);
   const start = motion.startScale.toFixed(4);
   const end = motion.endScale.toFixed(4);
-  return `[fgsrc]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase,crop=${targetWidth}:${targetHeight},zoompan=z='min(${end},${start}+on*${increment})':x='(iw-iw/zoom)*${motion.anchorX.toFixed(4)}':y='(ih-ih/zoom)*${motion.anchorY.toFixed(4)}':d=1:s=${targetWidth}x${targetHeight}:fps=${fps}[fg]`;
+  const panX = motion.type === 'slow-pan' ? `((iw-iw/zoom)*min(0.85,${motion.anchorX.toFixed(4)}+on/${frameCount}*0.12))` : `(iw-iw/zoom)*${motion.anchorX.toFixed(4)}`;
+  return `[fgsrc]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase,crop=${targetWidth}:${targetHeight},zoompan=z='min(${end},${start}+on*${increment})':x='${panX}':y='(ih-ih/zoom)*${motion.anchorY.toFixed(4)}':d=1:s=${targetWidth}x${targetHeight}:fps=${fps}[fg]`;
 }
 
 function buildFocusHighlight(scene, layout) {

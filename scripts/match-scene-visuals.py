@@ -57,6 +57,7 @@ def scene_concepts(scene: dict) -> set[str]:
     text = normalize(" ".join(str(scene.get(key) or "") for key in ("section", "narration", "on_screen_text")))
     concepts = set()
     groups = {
+        "components": {"component", "components", "composant", "composants", "materiel", "matériel", "element", "elements"},
         "setup": {"setup", "set", "mise", "place", "placer", "material", "materiel", "preparer", "marche", "market"},
         "take": {"take", "prendre", "prenez", "echange", "echanger", "exchange", "camel", "chameau", "market", "marche"},
         "sell": {"sell", "vendre", "vente", "sale", "goods", "marchandise", "marchandises"},
@@ -72,7 +73,7 @@ def scene_concepts(scene: dict) -> set[str]:
 
 def preferred_page(scene: dict) -> int | None:
     section = normalize(scene.get("section"))
-    if any(word in section for word in ("mise en place", "materiel", "matériel", "setup", "objectif", "presentation", "présentation", "pause")):
+    if any(word in section for word in ("composant", "component", "mise en place", "materiel", "matériel", "setup", "préparation", "preparation", "objectif", "presentation", "présentation", "pause")):
         return 2
     if any(word in section for word in ("tour", "action", "prendre", "take", "vendre", "sell")):
         return 3
@@ -84,6 +85,7 @@ def preferred_page(scene: dict) -> int | None:
 def concept_weight(scene: dict, concept: str) -> int:
     words = tokens(" ".join(str(scene.get(key) or "") for key in ("section", "narration", "on_screen_text")))
     members = {
+        "components": {"component", "components", "composant", "composants", "materiel", "matériel", "element", "elements"},
         "setup": {"setup", "mise", "place", "placer", "materiel", "marche", "market"},
         "take": {"take", "prendre", "prenez", "echange", "echanger", "exchange", "camel", "chameau"},
         "sell": {"sell", "vendre", "vente", "vendu", "vends", "goods", "marchandise", "jeton"},
@@ -102,6 +104,7 @@ def local_relevance(scene: dict, asset: dict) -> dict:
     label_concepts = set()
     label_text = normalize(labels)
     if any(word in label_text for word in ("setup", "set-up", "material", "mise")): label_concepts.add("setup")
+    if any(word in label_text for word in ("game setup", "components", "component", "matériel", "material")): label_concepts.add("components")
     if any(word in label_text for word in ("take", "exchange", "game turn")): label_concepts.add("take")
     if "sell" in label_text: label_concepts.add("sell")
     if any(word in label_text for word in ("scoring", "round", "end of the game")): label_concepts.add("scoring")
@@ -112,12 +115,21 @@ def local_relevance(scene: dict, asset: dict) -> dict:
     strongest_weight = concept_weight(scene, scene_concept) if scene_concept else 0
     candidate_weight = max((concept_weight(scene, concept) for concept in label_concepts), default=0)
     kind = normalize(metadata.get("visual_kind") or metadata.get("type") or metadata.get("classification"))
-    page_match = metadata.get("source_page") in {int(page) for page in scene.get("source_pages", []) if str(page).isdigit()}
+    source_page = metadata.get("source_page")
+    if source_page is None and metadata.get("page_index") is not None:
+        source_page = int(metadata["page_index"]) + 1
+    page_match = int(source_page or 0) in {int(page) for page in scene.get("source_pages", []) if str(page).isdigit()}
     page_priority = preferred_page(scene)
     preferred = page_priority is not None and int(metadata.get("source_page") or 0) == page_priority
-    if kind == "focused-page-crop" and (concept_overlap or overlap):
+    normalized_bbox = metadata.get("normalized_bbox") or {}
+    right_visual_region = kind == "focused-page-region" and float(normalized_bbox.get("x") or 0) >= 0.5
+    if "components" in concepts and right_visual_region:
+        return {"relevant": True, "relevance_score": 99, "reason": "local-semantic: focused visual region contains the page's component/setup area"}
+    if "components" in concepts and kind == "focused-page-region":
+        return {"relevant": True, "relevance_score": 76, "reason": "local-semantic: cited focused visual region supports components but is not the primary setup column"}
+    if kind in {"focused-page-crop", "focused-page-region"} and (concept_overlap or overlap):
         return {"relevant": True, "relevance_score": 98 if preferred and candidate_weight >= strongest_weight else 92, "reason": "local-semantic: focused source panel label directly matches the teaching concept"}
-    if kind == "focused-page-crop" and page_match and concepts & {"objective", "setup", "take", "sell", "scoring"}:
+    if kind in {"focused-page-crop", "focused-page-region"} and page_match and concepts & {"components", "objective", "setup", "take", "sell", "scoring"}:
         return {"relevant": True, "relevance_score": 84 if preferred else 74, "reason": "local-semantic: cited focused source panel supports the teaching concept"}
     asset_type = normalize(metadata.get("type") or metadata.get("classification"))
     type_match = ((asset_type in {"card", "tile"} and concepts & {"setup", "take", "sell", "objective"})
@@ -161,7 +173,12 @@ def main() -> None:
     usable_by_page: dict[int, list[dict]] = {}
     for asset in qa.get("assets", []):
         if asset.get("primary_explanatory") is True and int(asset.get("quality_score") or 0) >= 70 and asset.get("path"):
-            usable_by_page.setdefault(int(asset["page_index"]), []).append(asset)
+            metadata = asset.get("asset_metadata") or {}
+            source_page = metadata.get("source_page")
+            if source_page is None and asset.get("page_index") is not None:
+                source_page = int(asset["page_index"]) + 1
+            if source_page is not None:
+                usable_by_page.setdefault(int(source_page), []).append(asset)
 
     jobs: list[tuple[dict, dict]] = []
     scene_rows: list[dict] = []
@@ -176,7 +193,6 @@ def main() -> None:
         for page in scene.get("source_pages", []):
             page_number = int(page)
             candidates.extend(usable_by_page.get(page_number, []))
-            candidates.extend(usable_by_page.get(page_number - 1, []))
         # Keep a diverse bounded pool. The old first-eight slice could be
         # exhausted by page 2 components when a scene cited a broad range,
         # hiding the more explanatory panel on the later teaching page.
@@ -186,7 +202,7 @@ def main() -> None:
         preferred = preferred_page(scene)
         candidates = sorted(unique.values(), key=lambda asset: (
             0 if preferred is not None and int((asset.get("asset_metadata") or {}).get("source_page") or 0) == preferred else 1,
-            0 if (asset.get("asset_metadata") or {}).get("visual_kind") == "focused-page-crop" else 1,
+            0 if (asset.get("asset_metadata") or {}).get("visual_kind") in {"focused-page-crop", "focused-page-region"} else 1,
             -int(asset.get("quality_score") or 0),
         ))
         if not candidates:

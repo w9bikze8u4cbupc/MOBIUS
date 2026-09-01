@@ -94,7 +94,7 @@ def local_judgement(asset: dict) -> dict:
     kind = str(asset.get("visual_kind") or asset.get("type") or asset.get("classification") or "").lower()
     if metrics.get("nearBlank") is True or width < 96 or height < 96 or width * height < 20000:
         return {"primary_explanatory": False, "quality_score": 0, "category": "blank_or_unusable", "reason": "local-quality-rejected: blank or too small"}
-    if kind == "focused-page-crop":
+    if kind in {"focused-page-crop", "focused-page-region"}:
         return {"primary_explanatory": True, "quality_score": 91, "category": "board_or_tableau", "reason": "local-quality: layout-derived focused source panel"}
     if kind == "board" and float(metrics.get("edgeDensity") or 0) < 0.035 and float(metrics.get("contrast") or 0) < 0.28:
         return {"primary_explanatory": False, "quality_score": 25, "category": "blank_or_unusable", "reason": "local-quality-rejected: low-information board shell"}

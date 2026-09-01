@@ -32,7 +32,7 @@ const VOICE_ID = process.env.ELEVENLABS_VOICE_ID_AMELIE || 'UJCi4DDncuo0VJDSIegj
 const VOICE_NAME = 'Amélie';
 const MODEL_ID = 'eleven_multilingual_v2';
 const { DEFAULT_NARRATION_PRESET, getEditorialContract } = editorialStandard;
-const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v2';
+const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v3-layout-regions';
 const DEFAULT_BASE_URL = process.env.MOBIUS_BASE_URL || 'http://127.0.0.1:5001';
 
 function argsToObject(argv = process.argv.slice(2)) {

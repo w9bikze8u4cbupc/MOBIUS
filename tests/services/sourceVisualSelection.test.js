@@ -19,7 +19,7 @@ function makeAsset(root, { id, page = 4, classification = 'card', confidence = 0
   return {
     id,
     file_name: fileName,
-    page_index: page,
+    page_index: page - 1,
     classification,
     is_component: true,
     confidence,
@@ -89,7 +89,7 @@ describe('sourceVisualSelection', () => {
       qualityReportPath: '/reviewed/asset-quality.json',
       assets: [{
         id: 'decorative-arrow',
-        page_index: 13,
+        page_index: 12,
         is_component: true,
         renderPath: decorative,
         curation: { lowInformation: false, score: 0.8 },
@@ -129,8 +129,8 @@ describe('sourceVisualSelection', () => {
       semanticReportPath: '/reviewed/scene-match.json',
       semanticBySceneId: new Map([['teach-research', { status: 'matched', selected_asset_id: 'research-track', relevance_score: 92 }]]),
       assets: [
-        { id: 'research-track', page_index: 14, is_component: true, renderPath: relevant, curation: { lowInformation: false, score: 0.8 }, visualQuality: { primary_explanatory: true, quality_score: 85 } },
-        { id: 'other-card', page_index: 14, is_component: true, renderPath: other, curation: { lowInformation: false, score: 0.9 }, visualQuality: { primary_explanatory: true, quality_score: 90 } },
+        { id: 'research-track', page_index: 13, is_component: true, renderPath: relevant, curation: { lowInformation: false, score: 0.8 }, visualQuality: { primary_explanatory: true, quality_score: 85 } },
+        { id: 'other-card', page_index: 13, is_component: true, renderPath: other, curation: { lowInformation: false, score: 0.9 }, visualQuality: { primary_explanatory: true, quality_score: 90 } },
       ],
     };
     const selection = selectSourceVisual({ id: 'teach-research', source_pages: [14] }, catalog, '/fallback/page-14.png');
@@ -156,6 +156,21 @@ describe('sourceVisualSelection', () => {
 
     expect(selection).toMatchObject({ kind: 'focused-page-crop', assetId: 'sell-panel', sourcePage: 3 });
     expect(selection.provenance).toMatchObject({ sourcePdfSha256: 'pdf-sha', sourcePage: 3, assetHash: 'asset-sha' });
+  });
+
+  test('uses explicit one-based source_page instead of confusing zero-based page_index', () => {
+    const crop = path.join(root, 'page-2-region.png');
+    fs.writeFileSync(crop, 'focused');
+    const selection = selectSourceVisual({ id: 'teach-components', source_pages: [2], section: 'Composants du jeu' }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      assets: [{
+        id: 'page-2-region', source_page: 2, page_index: 1, visual_kind: 'focused-page-region', type: 'focused-crop',
+        is_component: true, renderPath: crop, curation: { lowInformation: false, score: 0.95 },
+        visualQuality: { primary_explanatory: true, quality_score: 91 },
+      }],
+    }, '/fallback/page-2.png');
+
+    expect(selection).toMatchObject({ kind: 'focused-page-region', assetId: 'page-2-region', sourcePage: 2 });
   });
 
   test('keeps a truthful fallback when a high-quality candidate has no semantic match', () => {

@@ -33,6 +33,27 @@ function labelsForColumn(page, side) {
     .slice(0, 12);
 }
 
+function visualRegionTop(page, imageHeight) {
+  const starts = [...new Set((Array.isArray(page?.blocks) ? page.blocks : [])
+    .map((block) => Number(block.y))
+    .filter((value) => Number.isFinite(value) && value >= 0 && value < imageHeight))]
+    .sort((a, b) => a - b);
+  if (starts.length < 2) return null;
+  let best = null;
+  for (let index = 1; index < starts.length; index += 1) {
+    const gap = starts[index] - starts[index - 1];
+    if (gap < Math.max(32, imageHeight * 0.045) || starts[index] < imageHeight * 0.25 || starts[index] > imageHeight * 0.72) continue;
+    // The first substantial layout gap after the text-heavy upper block is
+    // the most stable signal for where a visual demonstration begins. Using
+    // the first gap avoids selecting a later gap between two annotations.
+    best = { gap, next: starts[index] };
+    break;
+  }
+  if (!best) return null;
+  const top = Math.round(best.next - (best.gap * 0.25));
+  return Math.min(imageHeight - 1, Math.max(Math.round(imageHeight * 0.18), top));
+}
+
 function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
@@ -58,6 +79,7 @@ export async function generateFocusedPageCrops({ pageDir, pages = [], outputDir,
     if (!imageWidth || !imageHeight || !pageHasColumns(page, imageWidth)) continue;
 
     const halfWidth = Math.floor(imageWidth / 2);
+    const regionTop = visualRegionTop(page, imageHeight);
     for (const [side, left, width] of [
       ['left', 0, halfWidth],
       ['right', halfWidth, imageWidth - halfWidth],
@@ -97,6 +119,44 @@ export async function generateFocusedPageCrops({ pageDir, pages = [], outputDir,
         dimensions: { width, height: imageHeight },
         visual_metrics: { nearBlank: false },
       });
+
+      if (regionTop !== null && imageHeight - regionTop >= 96) {
+        const regionHeight = imageHeight - regionTop;
+        const region = await sharp(pagePath).extract({ left, top: regionTop, width, height: regionHeight }).png().toBuffer();
+        const regionHash = sha256(region);
+        const regionFilename = `focused-region-${pageNumber}-${side}-${String(sourceSha256 || regionHash).slice(0, 12)}.png`;
+        const regionPath = path.join(outputDir, regionFilename);
+        if (!fs.existsSync(regionPath) || sha256(await fs.promises.readFile(regionPath)) !== regionHash) {
+          await fs.promises.writeFile(regionPath, region);
+        }
+        assets.push({
+          id: `focused-region-p${pageNumber}-${side}`,
+          file_name: regionFilename,
+          file_path: regionPath,
+          page_index: pageNumber - 1,
+          source_page: pageNumber,
+          native: false,
+          type: 'focused-crop',
+          classification: 'focused-page-region',
+          visual_kind: 'focused-page-region',
+          is_component: true,
+          confidence: 0.95,
+          label: `Focused visual region — page ${pageNumber}, ${side}`,
+          layout_labels: labels,
+          bbox: { x: left, y: regionTop, width, height: regionHeight },
+          normalized_bbox: { x: left / imageWidth, y: regionTop / imageHeight, width: width / imageWidth, height: regionHeight / imageHeight },
+          contentHash: regionHash,
+          sourcePdfSha256: sourceSha256 || null,
+          provenance: {
+            sourcePdfSha256: sourceSha256 || null,
+            sourcePage: pageNumber,
+            bbox: { x: left, y: regionTop, width, height: regionHeight },
+            extraction: 'layout-derived-visual-region',
+          },
+          dimensions: { width, height: regionHeight },
+          visual_metrics: { nearBlank: false },
+        });
+      }
     }
   }
   return { version: 1, sourceSha256: sourceSha256 || null, assets };
