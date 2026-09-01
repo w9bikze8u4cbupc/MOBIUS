@@ -470,8 +470,17 @@ function deterministicInventory(input) {
   const componentOrder = [];
   let recordIndex = 0;
 
-  const rows = sections.length > 0
+  // A bare "Contents" heading is frequently a table of contents rather than
+  // a physical component list. If that section yields no candidates, scan the
+  // complete source for grounded physical-object phrases as review-required
+  // candidates instead of presenting an empty inventory to script generation.
+  // Inferred records remain review-required and are never promoted to verified
+  // contents merely because they were found in rule text.
+  const componentRows = sections.length > 0
     ? sections.flatMap((section, sectionIndex) => section.lines.map((line) => ({ ...line, sectionIndex })))
+    : source.lines.filter((line) => line.text).map((line) => ({ ...line, sectionIndex: null }));
+  const rows = componentRows.some((line) => line.text && extractComponentPhrase(line.text))
+    ? componentRows
     : source.lines.filter((line) => line.text).map((line) => ({ ...line, sectionIndex: null }));
 
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
