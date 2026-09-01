@@ -68,6 +68,7 @@ const result = {
   findings: calibratedFindings,
   known_mobius_concerns: verification.knownMobiusConcerns || [],
   three_highest_impact_verified_changes: verification.topVerifiedChanges || [],
+  scoreException: verification.scoreException || null,
   physical_verification_method: verification.method || 'ffprobe, rendered-frame inspection, and scene-contract comparison',
   generatedAt: new Date().toISOString(),
 };
