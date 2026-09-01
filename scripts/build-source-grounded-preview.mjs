@@ -196,6 +196,10 @@ function main() {
         confidence: visual.confidence,
         reason: visual.reason,
         languageAudit: visual.languageAudit || null,
+        fallbackReason: visual.fallbackReason || null,
+        alternativesConsidered: visual.alternativesConsidered || [],
+        fallbackMitigation: visual.fallbackMitigation || null,
+        provenance: visual.provenance || null,
       },
       audio: {
         file: audioPath,

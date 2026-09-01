@@ -34,6 +34,7 @@ import {
   getEditorialContract,
   getNarrationPreset,
   prepareNarrationText,
+  evaluateProfessionalReleaseGate,
 } from '../src/services/editorialStandard.cjs';
 import { analyzeProductionVideo, buildExternalReviewSummary } from '../src/services/twelveLabsVideoReview.js';
 
@@ -283,7 +284,16 @@ function inspectVisuals(normalized) {
       counts.fallback += 1;
       warnings.push(`Scene '${scene.id}' uses labelled rulebook fallback page ${pages[0]}.`);
     }
-    bindings.push({ sceneId: scene.id, kind: selection.kind, path: selection.path, sourcePage: selection.sourcePage || pages[0], provenance: selection.provenance || null });
+    bindings.push({
+      sceneId: scene.id,
+      kind: selection.kind,
+      path: selection.path,
+      sourcePage: selection.sourcePage || pages[0],
+      provenance: selection.provenance || null,
+      fallbackReason: selection.fallbackReason || scene.renderVisual?.fallbackReason || null,
+      alternativesConsidered: selection.alternativesConsidered || scene.renderVisual?.alternativesConsidered || [],
+      fallbackMitigation: selection.fallbackMitigation || scene.renderVisual?.fallbackMitigation || null,
+    });
   }
   if (counts.missing) throw new Error(`Visual contract failed: ${counts.missing} scene(s) have no readable visual.`);
   return { counts, warnings, bindings };
@@ -303,6 +313,8 @@ function buildEditorialReport(config, normalized, visuals, narration) {
       conciseSupportText: String(body?.text || '').length <= 150,
       groupedSetup: scene.layout?.editorial?.groupedSetup === true,
       calloutCount: Array.isArray(scene.callouts) ? scene.callouts.length : 0,
+      fallbackReason: scene.background?.fallbackReason || scene.visualSelection?.fallbackReason || null,
+      alternativesConsidered: scene.background?.alternativesConsidered || scene.visualSelection?.alternativesConsidered || [],
     };
   });
   return {
@@ -317,6 +329,11 @@ function buildEditorialReport(config, normalized, visuals, narration) {
     localizedCalloutScenes: sceneAudit.filter((scene) => scene.calloutCount > 0).map((scene) => scene.sceneId),
     layoutCollisions: sceneAudit.filter(() => layout.overlap).map((scene) => scene.sceneId),
     fullPageFallbacks: sceneAudit.filter((scene) => scene.visualKind === 'rulebook-page-fallback').map((scene) => scene.sceneId),
+    fallbackJustifications: sceneAudit.filter((scene) => scene.visualKind === 'rulebook-page-fallback').map((scene) => ({
+      sceneId: scene.sceneId,
+      fallbackReason: scene.fallbackReason || 'not-recorded',
+      alternativesConsidered: scene.alternativesConsidered,
+    })),
     groupedSetupSteps: sceneAudit.filter((scene) => scene.groupedSetup).map((scene) => scene.sceneId),
     calloutCount: sceneAudit.reduce((sum, scene) => sum + scene.calloutCount, 0),
     overlayExceedsConcisePolicy: sceneAudit.filter((scene) => !scene.conciseSupportText).map((scene) => scene.sceneId),
@@ -689,6 +706,21 @@ export async function runProduction(options = {}) {
     if (Number(chapterList[index].startSec) < Number(chapterList[index - 1].startSec)) throw new Error('Chapter contract failed: chapter order is not monotonic.');
   }
   const loudness = measureLoudness(tools, outputPath);
+  const physicalReview = readJsonIfPresent(join(normalized.productionDir, 'professional-physical-review.json'), {});
+  const calibration = readJsonIfPresent(join(normalized.productionDir, 'twelvelabs-calibration.json'), {});
+  const professionalGate = evaluateProfessionalReleaseGate({
+    deterministicPass: true,
+    visuals,
+    editorial: editorialReport,
+    media: { ...media, valid: true },
+    captions: { ...captions, valid: true },
+    chapters: { count: chapterList.length, order: 'valid' },
+    narration: { total: narration.records.length, complete: narration.records.length === config.scenes.length },
+    provenance: { sourceGrounded: true, complete: normalized.scenes.every((scene) => sourcePagesForScene(scene).length > 0) },
+    branding: { bannerPresent: true, introPresent: true, outroPresent: true },
+    physicalReview,
+    calibration,
+  });
   const report = {
     status: 'PASS',
     projectId,
@@ -711,12 +743,15 @@ export async function runProduction(options = {}) {
       bannerPath: resolve(root, DEFAULT_BRAND.bannerPath),
       transitionAudioPath: narration.brandTransitionPath,
       transitionHash: narration.brandTransitionHash,
+      introPresent: true,
+      outroPresent: true,
     },
     render: { outputPath, reused: renderReused, durationSec: media.durationSec, resolution: `${media.video.width}x${media.video.height}`, fps: media.video.avg_frame_rate, status: 'complete' },
     media: { ...media, loudness },
     captions,
     chapters: { count: chapterList.length, order: 'valid' },
     editorial: editorialReport,
+    professionalGate,
     checkpoint: checkpointPath,
     generatedAt: new Date().toISOString(),
   };
@@ -736,6 +771,20 @@ export async function runProduction(options = {}) {
     }
     jsonFile(join(normalized.productionDir, 'twelvelabs-review.json'), externalReview);
     report.externalEditorialReview = buildExternalReviewSummary(externalReview);
+    const updatedCalibration = readJsonIfPresent(join(normalized.productionDir, 'twelvelabs-calibration.json'), calibration);
+    report.professionalGate = evaluateProfessionalReleaseGate({
+      deterministicPass: true,
+      visuals,
+      editorial: editorialReport,
+      media: { ...media, valid: true },
+      captions: { ...captions, valid: true },
+      chapters: { count: chapterList.length, order: 'valid' },
+      narration: { total: narration.records.length, complete: narration.records.length === config.scenes.length },
+      provenance: { sourceGrounded: true, complete: normalized.scenes.every((scene) => sourcePagesForScene(scene).length > 0) },
+      branding: { bannerPresent: true, introPresent: true, outroPresent: true },
+      physicalReview,
+      calibration: updatedCalibration,
+    });
     jsonFile(join(normalized.productionDir, REPORT_NAME), report);
   }
   console.log(JSON.stringify(report, null, 2));

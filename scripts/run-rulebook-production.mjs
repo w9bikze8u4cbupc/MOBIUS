@@ -32,7 +32,7 @@ const VOICE_ID = process.env.ELEVENLABS_VOICE_ID_AMELIE || 'UJCi4DDncuo0VJDSIegj
 const VOICE_NAME = 'Amélie';
 const MODEL_ID = 'eleven_multilingual_v2';
 const { DEFAULT_NARRATION_PRESET, getEditorialContract } = editorialStandard;
-const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v3-layout-regions';
+const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v4-layout-semantic-recovery';
 const DEFAULT_BASE_URL = process.env.MOBIUS_BASE_URL || 'http://127.0.0.1:5001';
 
 function argsToObject(argv = process.argv.slice(2)) {
@@ -375,7 +375,10 @@ async function runZeroState(options = {}) {
   const catalog = loadSourceVisualCatalog(combinedVisualManifestPath, { qualityReportPath: qualityPath, semanticReportPath: semanticPath });
   const boundScenes = storyboardManifest.scenes.map((scene) => {
     const productionScene = sceneForProduction(scene, extraction.pageRanges, extraction.pages);
-    const selection = selectSourceVisual(productionScene, catalog, sourcePageFallback(root, projectId, productionScene.source_pages[0]));
+    const selection = selectSourceVisual({
+      ...productionScene,
+      source_pdf_sha256: identity.sha256,
+    }, catalog, sourcePageFallback(root, projectId, productionScene.source_pages[0]));
     if (!selection.path || !exists(selection.path)) throw new Error(`No renderable visual for ${scene.id}`);
     return {
       ...scene,
@@ -385,6 +388,10 @@ async function runZeroState(options = {}) {
         confidence: selection.confidence, reason: selection.reason, sourcePage: selection.sourcePage || productionScene.source_pages[0],
         semanticMatch: selection.semanticMatch || null,
         provenance: selection.provenance || null,
+        fallbackReason: selection.fallbackReason || null,
+        alternativesConsidered: selection.alternativesConsidered || [],
+        fallbackMitigation: selection.fallbackMitigation || null,
+        languageAudit: selection.languageAudit || null,
       },
     };
   });

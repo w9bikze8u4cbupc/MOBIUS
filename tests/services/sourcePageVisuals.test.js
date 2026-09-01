@@ -23,7 +23,8 @@ test('generates stable layout-derived crops with bounded provenance', async () =
     expect(first.assets[0]).toMatchObject({ source_page: 2, page_index: 1, visual_kind: 'focused-page-crop', sourcePdfSha256: 'pdf-sha' });
     expect(first.assets[0].bbox.x).toBeGreaterThanOrEqual(0);
     expect(first.assets[0].bbox.x + first.assets[0].bbox.width).toBeLessThanOrEqual(200);
-    expect(first.assets[0].provenance.extraction).toBe('layout-derived-column-crop');
+  expect(first.assets[0].provenance.extraction).toBe('layout-derived-column-crop');
+  expect(first.assets[0].layout_text).toContain('MATERIAL');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

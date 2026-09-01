@@ -5,6 +5,7 @@
  */
 
 const EDITORIAL_CONTRACT_VERSION = 'mobius-professional-editorial-v5';
+const PROFESSIONAL_RELEASE_GATE_VERSION = 'mobius-professional-release-gate-v1';
 
 const NARRATION_PRESETS = Object.freeze({
   'warm-engaging-fr-ca': Object.freeze({
@@ -231,6 +232,93 @@ function classifyVisualLanguage({ visualKind = '', assetPath = '', metadata = {}
   return 'language-unknown';
 }
 
+const CRITICAL_P2_CATEGORIES = new Set([
+  'teaching_clarity', 'visual_relevance_and_variety', 'french_visual_coherence',
+  'layout_and_legibility', 'audio_identity_and_continuity', 'screen_space_utilization',
+]);
+
+function findingIsConfirmed(finding) {
+  return ['confirmed', 'partially_confirmed'].includes(finding?.physicalVerification?.status)
+    || finding?.status === 'confirmed'
+    || finding?.status === 'partially_confirmed';
+}
+
+/**
+ * Deterministic MOBIUS release disposition. External critics are evidence only
+ * after physical disposition; their raw score can never hard-fail a release.
+ */
+function evaluateProfessionalReleaseGate({
+  deterministicPass = false,
+  visuals = {},
+  editorial = {},
+  media = {},
+  captions = {},
+  chapters = {},
+  narration = {},
+  provenance = {},
+  branding = {},
+  physicalReview = {},
+  calibration = {},
+} = {}) {
+  const blockers = [];
+  if (!deterministicPass) blockers.push('deterministic-production-failed');
+  if (Number(visuals.missing || 0) > 0) blockers.push('missing-visual-bindings');
+  if (Number(editorial.layoutCollisions?.length || editorial.layoutCollisionCount || 0) > 0) blockers.push('layout-collision');
+  if (Number(captions.count || captions.cueCount || 0) <= 0 || captions.valid === false) blockers.push('caption-contract-failed');
+  if (Number(chapters.count || 0) <= 0 || chapters.order === 'invalid') blockers.push('chapter-contract-failed');
+  if (narration.complete === false || Number(narration.total || 0) <= 0) blockers.push('narration-incomplete');
+  if (provenance.sourceGrounded === false || provenance.complete === false) blockers.push('provenance-incomplete');
+  if (branding.bannerPresent === false || branding.introPresent === false || branding.outroPresent === false) blockers.push('brand-bookends-missing');
+  if (media.valid === false || media.video?.width < 1920 || media.video?.height < 1080) blockers.push('media-contract-failed');
+
+  const findings = Array.isArray(calibration.findings) ? calibration.findings : [];
+  const confirmed = findings.filter(findingIsConfirmed);
+  const confirmedP0 = confirmed.filter((finding) => finding.severity === 'P0');
+  const confirmedP1 = confirmed.filter((finding) => finding.severity === 'P1');
+  const confirmedCriticalP2 = confirmed.filter((finding) => finding.severity === 'P2' && CRITICAL_P2_CATEGORIES.has(finding.category));
+  if (confirmedP0.length) blockers.push('confirmed-p0');
+  if (confirmedP1.length) blockers.push('confirmed-p1');
+  if (confirmedCriticalP2.length) blockers.push('confirmed-critical-p2');
+
+  const physicalReviewCompleted = physicalReview.completed === true;
+  if (!physicalReviewCompleted) blockers.push('physical-review-incomplete');
+  const verifiedScore = Number(calibration.verified_external_qa_score_10 ?? calibration.verifiedScore ?? NaN);
+  const scoreException = calibration.scoreException;
+  const scorePass = Number.isFinite(verifiedScore) && verifiedScore >= 8.5;
+  const exceptionPass = Boolean(scoreException?.accepted && String(scoreException.basis || '').trim().length >= 40);
+  const hardBlocker = blockers.some((blocker) => !['physical-review-incomplete'].includes(blocker));
+  let verdict = 'PUBLISHABLE';
+  if (hardBlocker) verdict = 'NOT_READY';
+  else if (!physicalReviewCompleted || (!scorePass && !exceptionPass)) verdict = 'PROFESSIONAL_CANDIDATE';
+  return {
+    version: PROFESSIONAL_RELEASE_GATE_VERSION,
+    verdict,
+    deterministicPass: Boolean(deterministicPass),
+    verifiedScore: Number.isFinite(verifiedScore) ? verifiedScore : null,
+    scoreRequirement: scorePass ? 'verified-score>=8.5' : exceptionPass ? 'exceptional-physical-justification' : 'verified-score>=8.5-required',
+    scoreException: exceptionPass ? scoreException : null,
+    confirmedCounts: {
+      total: confirmed.length,
+      p0: confirmedP0.length,
+      p1: confirmedP1.length,
+      criticalP2: confirmedCriticalP2.length,
+    },
+    rejectedCount: Number(calibration.finding_status_counts?.rejected || 0),
+    partialCount: Number(calibration.finding_status_counts?.partially_confirmed || 0),
+    unresolvedVerifiedBlockers: blockers,
+    physicalReviewRequired: true,
+    physicalReviewCompleted,
+    hardGates: {
+      deterministicPass: Boolean(deterministicPass),
+      missingVisuals: Number(visuals.missing || 0),
+      layoutCollisions: Number(editorial.layoutCollisions?.length || editorial.layoutCollisionCount || 0),
+      confirmedP0: confirmedP0.length,
+      confirmedP1: confirmedP1.length,
+      confirmedCriticalP2: confirmedCriticalP2.length,
+    },
+  };
+}
+
 module.exports = {
   EDITORIAL_CONTRACT_VERSION,
   NARRATION_PRESETS,
@@ -247,4 +335,6 @@ module.exports = {
   BRAND_VISUAL_CONTRACT,
   BRAND_STYLE_CONTRACT,
   buildThematicWelcome,
+  PROFESSIONAL_RELEASE_GATE_VERSION,
+  evaluateProfessionalReleaseGate,
 };
