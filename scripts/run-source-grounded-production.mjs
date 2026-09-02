@@ -86,6 +86,13 @@ function deriveRulebookMetadata(text = '') {
   return metadata;
 }
 
+function isComponentOverviewScene(scene = {}) {
+  const text = [scene.section, scene.title, scene.narration, scene.visual_intent, scene.visualIntent]
+    .filter(Boolean).join(' ').toLowerCase();
+  return /\b(composant|composants|component|components|matériel|materiel)\b/.test(text)
+    && !/\b(action|actions|jouer|play|tour|turn|placement|placer)\b/.test(text);
+}
+
 function argsToObject(argv = process.argv.slice(2)) {
   const flags = new Set();
   const values = {};
@@ -216,9 +223,33 @@ function normalizeProject(project, root, projectId, language) {
     }, new Set());
     return [storyboardScene.id, [...pages].sort((a, b) => a - b)];
   }).filter(([, pages]) => pages.length));
+  const persistedPagesByScene = new Map((persistedProductionScript.scenes || [])
+    .filter((scene) => scene?.id)
+    .map((scene) => [scene.id, sourcePagesForScene(scene)]));
+  const extractedComponents = Array.isArray(persistedExtraction.components)
+    ? persistedExtraction.components
+    : Array.isArray(persistedExtraction.components?.components)
+      ? persistedExtraction.components.components
+      : [];
+  const extractedComponentPages = extractedComponents
+    .map((component) => Number(component.sourcePage))
+    .filter((page) => Number.isInteger(page) && page > 0);
   const hydratedScenes = scenes.map((scene) => {
     const sourcePages = storyboardSourcePages.get(scene.id);
     if (!sourcePages?.length || scene.renderVisual?.path) return scene;
+    // A components overview is intentionally multi-page evidence: its
+    // narration names the inventory, while the canonical storyboard often
+    // points only at the first explanatory section. Preserve the persisted
+    // component/source pages so visual matching can select real cards, tiles
+    // and boards instead of the nearest contents-page crop. Other teaching
+    // scenes remain strictly anchored to storyboard character offsets.
+    if (isComponentOverviewScene(scene)) {
+      const persistedPages = persistedPagesByScene.get(scene.id) || [];
+      return {
+        ...scene,
+        source_pages: [...new Set([...sourcePages, ...persistedPages, ...extractedComponentPages])].sort((a, b) => a - b),
+      };
+    }
     return { ...scene, source_pages: sourcePages };
   });
   const gameName = persistedExtraction.gameName
@@ -797,6 +828,10 @@ export async function runProduction(options = {}) {
   const handoffHash = hashValue({
     inputHash,
     narrationInputHash,
+    // Selection heuristics are part of the render contract. Bump this when
+    // source-visual ranking changes so a stale handoff cannot preserve a
+    // previously selected cover/page visual after a visual-quality repair.
+    sourceVisualSelectionContract: 'source-visual-selection-v7-provenance-handoff-v1',
     editorial: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
     branding: { bannerPath: resolve(root, DEFAULT_BRAND.bannerPath), transitionHash: narration.brandTransitionHash },
     sourceVisualContracts: {

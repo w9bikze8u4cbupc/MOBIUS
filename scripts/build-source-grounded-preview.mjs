@@ -187,6 +187,7 @@ function main() {
       narration: `Avant de commencer, voici ${script.game || projectId} et les informations essentielles pour vous installer à la table.`,
       on_screen_text: metadataValues.slice(0, 6).map((value) => Array.isArray(value) ? value.join(', ') : value).join(' • '),
       source_pages: [1],
+      source_pdf_sha256: script.sourcePdfSha256 || null,
       visual_intent: 'box cover and game overview',
       metadata_card: true,
     };
@@ -221,7 +222,11 @@ function main() {
     assertScene(scene, index);
     const audioPath = requireAudio(audioDir, scene.id, `Scene ${scene.id}`);
     const durationSec = getDurationSeconds(audioPath);
-    const visual = selectSourceVisual({ ...scene, language }, visualCatalog, resolveRulebookFallback(scene, pageDir));
+    const visual = selectSourceVisual({
+      ...scene,
+      language,
+      source_pdf_sha256: scene.source_pdf_sha256 || script.sourcePdfSha256 || null,
+    }, visualCatalog, resolveRulebookFallback(scene, pageDir));
     if (!visual.path) throw new Error(`Scene ${scene.id} has no renderable visual`);
     if (visual.warning) visualWarnings.push(visual.warning);
     const teaching = buildTeachingScene({
