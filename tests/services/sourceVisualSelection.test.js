@@ -212,6 +212,32 @@ describe('sourceVisualSelection', () => {
     expect(selection.semanticMatch.status).toBe('no-semantic-match');
   });
 
+  test('uses a cited, quality-approved typed component during a semantic-provider outage', () => {
+    const token = path.join(root, 'token.png');
+    fs.writeFileSync(token, 'token');
+    const selection = selectSourceVisual({
+      id: 'actions', source_pages: [5], section: 'Actions',
+      narration: 'Convertissez vos ressources en tuiles.', language: 'fr-CA',
+    }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      semanticReportPath: '/reviewed/scene-match.json',
+      semanticBySceneId: new Map([['actions', {
+        status: 'no-semantic-match', selected_asset_id: null, relevance_score: 25,
+        reason: 'provider unavailable: credit_balance_exhausted',
+      }]]),
+      assets: [{
+        id: 'cited-token', source_page: 5, page_index: 4, type: 'token',
+        is_component: true, renderPath: token,
+        curation: { lowInformation: false, score: 0.9 },
+        visualQuality: { primary_explanatory: true, quality_score: 82 },
+      }],
+    }, '/fallback/page-5.png');
+
+    expect(selection.kind).toBe('component');
+    expect(selection.assetId).toBe('cited-token');
+    expect(selection.reason).toContain('layout-grounded-semantic-recovery');
+  });
+
   test('records machine-readable fallback alternatives when no local recovery is justified', () => {
     const selection = selectSourceVisual({ id: 'fallback', source_pages: [4], language: 'fr-CA' }, {
       qualityReportPath: '/reviewed/asset-quality.json',

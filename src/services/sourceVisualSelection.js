@@ -242,8 +242,18 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
   const providerSemanticFailure = isProviderSemanticFailure(semanticMatch);
   const locallyGroundedCandidates = providerSemanticFailure
     ? qualityCandidates
-      .filter((asset) => ['focused-page-crop', 'focused-page-region'].includes(asset.visual_kind))
-      .map((asset) => ({ asset, evidence: localLayoutEvidence(asset, scene) }))
+      .map((asset) => {
+        const evidence = localLayoutEvidence(asset, scene);
+        const cited = sourcePageScore(asset, scene.source_pages) > 0;
+        const typed = typeScore(asset, desiredTypes) >= 0.30;
+        // When the vision provider is unavailable, a cited, quality-approved
+        // component with a direct visual type match is still defensible. This
+        // keeps provider outage from erasing real source evidence, while the
+        // cited-page + type gates prevent an attractive unrelated image from
+        // displacing a truthful fallback.
+        const deterministicScore = cited && typed ? 0.24 : 0;
+        return { asset, evidence: { ...evidence, score: Math.max(evidence.score, deterministicScore) } };
+      })
       .filter(({ evidence }) => evidence.score >= 0.18)
       .sort((left, right) => right.evidence.score - left.evidence.score)
       .map(({ asset }) => asset)

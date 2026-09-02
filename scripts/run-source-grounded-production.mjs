@@ -25,7 +25,7 @@ import { dirname, join, resolve, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import presentation from '../src/storyboard/tutorial_presentation.cjs';
 import { generateNarration, ELEVENLABS_MODEL_ID } from '../src/services/elevenLabsService.js';
-import { selectSourceVisual } from '../src/services/sourceVisualSelection.js';
+import { loadSourceVisualCatalog, selectSourceVisual } from '../src/services/sourceVisualSelection.js';
 import {
   BRAND_AUDIO_CONTRACT,
   DEFAULT_NARRATION_PRESET,
@@ -66,6 +66,24 @@ function hashValue(value) {
 
 function hashFile(filePath) {
   return crypto.createHash('sha256').update(readFileSync(filePath)).digest('hex');
+}
+
+function deriveRulebookMetadata(text = '') {
+  const value = String(text || '');
+  const metadata = {};
+  const players = value.match(/(?:game|play|players?)[^\n]{0,80}?\b(\d+)\s*(?:-|–|to)\s*(\d+)\s+players?\b/i)
+    || value.match(/\b(\d+)\s*(?:-|–|to)\s*(\d+)\s+players?\b/i);
+  if (players) metadata.playerCount = `${players[1]}-${players[2]}`;
+  const duration = value.match(/\b(\d+)\s*(?:-|–|to)\s*(\d+)\s*(?:minutes?|mins?)\b/i)
+    || value.match(/\b(\d+)\s*(?:minutes?|mins?)\b/i);
+  if (duration) metadata.gameLength = duration[2] ? `${duration[1]}-${duration[2]} min` : `${duration[1]} min`;
+  const age = value.match(/\b(?:ages?|age)\s*(?:from\s*)?(\d+)\s*\+?/i);
+  if (age) metadata.minimumAge = `${age[1]}+`;
+  const designer = value.match(/(?:^|\n)\s*(?:game\s+design|designed\s+by|design)\s*:\s*([^\n\r]+)/im);
+  if (designer) metadata.designers = [designer[1].replace(/\s+/g, ' ').trim()];
+  const publisher = value.match(/\b(?:published\s+by|publisher)\s*:\s*([^\n\r]+)/i);
+  if (publisher) metadata.publisher = publisher[1].replace(/\s+/g, ' ').trim();
+  return metadata;
 }
 
 function argsToObject(argv = process.argv.slice(2)) {
@@ -146,11 +164,68 @@ async function loadPersistedProject(baseUrl, projectId, apiKey) {
 function normalizeProject(project, root, projectId, language) {
   const metadata = parseMaybeJson(project.metadata, {}) || {};
   const context = parseMaybeJson(metadata.projectContext || project.projectContext, {}) || {};
-  const scenes = parseMaybeJson(project.scenes, []) || [];
-  if (!Array.isArray(scenes) || scenes.length === 0) throw new Error('Persisted project has no storyboard scenes.');
-  const gameName = context.gameName || project.name || projectId;
   const projectDir = resolve(root, 'data', projectId);
   const productionDir = join(projectDir, 'production');
+  const persistedStoryboard = readJsonIfPresent(join(productionDir, 'zero-state-storyboard.json'), {});
+  const persistedProductionScript = readJsonIfPresent(join(productionDir, SCRIPT_NAME), {});
+  const persistedExtraction = readJsonIfPresent(join(productionDir, 'zero-state-extraction.json'), {});
+  const apiScenes = parseMaybeJson(project.scenes, []) || [];
+  const rawCheckpointScenes = Array.isArray(persistedProductionScript.scenes)
+    ? persistedProductionScript.scenes
+    : [];
+  const seenSceneIds = new Set();
+  const checkpointScenes = rawCheckpointScenes.filter((scene) => {
+    const id = scene?.id;
+    if (!id || seenSceneIds.has(id)) return false;
+    seenSceneIds.add(id);
+    return true;
+  });
+  const storyboardScenes = Array.isArray(persistedStoryboard.scenes) ? persistedStoryboard.scenes : [];
+  const checkpointHasDuplicateIds = checkpointScenes.length !== rawCheckpointScenes.length;
+  // A deployment can leave the newest browser row with an empty scenes field
+  // while the canonical production checkpoints remain complete on disk. Use
+  // those same-project checkpoints as recovery input; never invent scenes or
+  // merge an unrelated historical project.
+  const scenes = apiScenes.length
+    ? apiScenes
+    : checkpointHasDuplicateIds && storyboardScenes.length
+      ? storyboardScenes
+      : checkpointScenes.length
+        ? checkpointScenes
+        : storyboardScenes;
+  if (!Array.isArray(scenes) || scenes.length === 0) throw new Error('Persisted project has no storyboard scenes.');
+  // The API row can legitimately lag behind the canonical zero-state
+  // storyboard after a runtime rebuild. Rehydrate source pages from the
+  // storyboard's authoritative character offsets before visual matching;
+  // otherwise a stale row can send a components/setup scene to an unrelated
+  // neighbouring page and make the renderer appear to have poor visuals.
+  const pageRanges = Array.isArray(persistedExtraction.pageRanges)
+    ? persistedExtraction.pageRanges
+    : [];
+  const storyboardSourcePages = new Map(storyboardScenes.map((storyboardScene) => {
+    const pages = (storyboardScene.sources || []).reduce((found, source) => {
+      const start = Number(source.startOffset);
+      const end = Number(source.endOffset);
+      pageRanges.forEach((range) => {
+        const page = Number(range.page);
+        if (Number.isFinite(start) && Number.isFinite(end)
+          && Number.isFinite(page)
+          && end >= Number(range.start) && start <= Number(range.end)) found.add(page);
+      });
+      return found;
+    }, new Set());
+    return [storyboardScene.id, [...pages].sort((a, b) => a - b)];
+  }).filter(([, pages]) => pages.length));
+  const hydratedScenes = scenes.map((scene) => {
+    const sourcePages = storyboardSourcePages.get(scene.id);
+    if (!sourcePages?.length || scene.renderVisual?.path) return scene;
+    return { ...scene, source_pages: sourcePages };
+  });
+  const gameName = persistedExtraction.gameName
+    || context.gameName
+    || project.name
+    || persistedProductionScript.game
+    || projectId;
   const audioDir = join(productionDir, 'audio');
   const sourceCandidates = [
     join(projectDir, 'source', 'rulebook.pdf'),
@@ -165,8 +240,22 @@ function normalizeProject(project, root, projectId, language) {
   ];
   const pageDir = pageDirCandidates.find((dir) => existsSync(join(dir, 'page-1.png'))) || null;
   if (!pageDir) throw new Error(`No canonical rulebook page images found for ${gameName}.`);
-  const production = context.production || {};
-  const gameMetadata = context.metadata || metadata.gameMetadata || {};
+  const visualReviewDir = join(productionDir, 'source-visual-review');
+  const visualManifestPath = join(visualReviewDir, 'source-visual-manifest.json');
+  const visualQualityReportPath = join(visualReviewDir, 'source-visual-quality.json');
+  const semanticVisualReportPath = join(visualReviewDir, 'source-visual-semantic-matches.json');
+  // Prefer the persisted production contract, while allowing the canonical API
+  // context to override individual fields. This keeps restart recovery scoped
+  // to the same project and avoids losing valid checkpoint metadata when the
+  // newest browser row is incomplete.
+  const production = { ...(persistedProductionScript || {}), ...(context.production || {}) };
+  const derivedMetadata = deriveRulebookMetadata(persistedExtraction.rulebookText);
+  const gameMetadata = {
+    ...(persistedProductionScript.metadata || {}),
+    ...derivedMetadata,
+    ...(metadata.gameMetadata || {}),
+    ...(context.metadata || {}),
+  };
   const voiceId = production.voiceId
     || process.env.ELEVENLABS_VOICE_ID_AMELIE
     || required(process.env.ELEVENLABS_VOICE_ID, 'voice-id or ELEVENLABS_VOICE_ID_AMELIE');
@@ -176,7 +265,7 @@ function normalizeProject(project, root, projectId, language) {
     project,
     metadata,
     context,
-    scenes,
+    scenes: hydratedScenes,
     projectId,
     gameName,
     gameMetadata,
@@ -187,6 +276,9 @@ function normalizeProject(project, root, projectId, language) {
     sourcePdf,
     sourcePdfSha256: hashFile(sourcePdf),
     pageDir,
+    visualManifestPath: existsSync(visualManifestPath) ? visualManifestPath : null,
+    visualQualityReportPath: existsSync(visualQualityReportPath) ? visualQualityReportPath : null,
+    semanticVisualReportPath: existsSync(semanticVisualReportPath) ? semanticVisualReportPath : null,
     voiceId,
     voiceName: production.voiceName || 'Amélie',
     narrationPreset,
@@ -218,12 +310,17 @@ function metadataScriptScene(normalized) {
 
 function productionScenes(normalized) {
   const metadata = metadataScriptScene(normalized);
-  return metadata ? [metadata, ...normalized.scenes] : normalized.scenes;
+  if (!metadata || normalized.scenes.some((scene) => scene?.id === 'metadata-card')) return normalized.scenes;
+  return [metadata, ...normalized.scenes];
 }
 
 function sourcePagesForScene(scene) {
   const preferred = Number(scene.renderVisual?.sourcePage);
   if (Number.isInteger(preferred) && preferred > 0) return [preferred];
+  const directPages = (Array.isArray(scene.source_pages) ? scene.source_pages : [])
+    .map(Number)
+    .filter((page) => Number.isInteger(page) && page > 0);
+  if (directPages.length) return [...new Set(directPages)];
   const pages = (scene.sources || [])
     .map((source) => Number(source.page ?? source.pageNumber ?? source.section))
     .filter((page) => Number.isInteger(page) && page > 0);
@@ -286,10 +383,17 @@ function inspectVisuals(normalized) {
   const counts = { explicit: 0, automatic: 0, automaticComponent: 0, automaticFocusedCrop: 0, fallback: 0, missing: 0 };
   const warnings = [];
   const bindings = [];
-  for (const [index, scene] of normalized.scenes.entries()) {
+  const catalog = normalized.visualManifestPath
+    ? loadSourceVisualCatalog(normalized.visualManifestPath, {
+      qualityReportPath: normalized.visualQualityReportPath,
+      semanticReportPath: normalized.semanticVisualReportPath,
+    })
+    : { assets: [], warnings: ['asset manifest unavailable'] };
+  warnings.push(...(catalog.warnings || []));
+  for (const [index, scene] of productionScenes(normalized).entries()) {
     const pages = sourcePagesForScene(scene);
     const fallback = join(normalized.pageDir, `page-${pages[0]}.png`);
-  const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop', 'focused-page-region'].includes(scene.renderVisual?.kind) && scene.renderVisual?.path;
+    const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop', 'focused-page-region'].includes(scene.renderVisual?.kind) && scene.renderVisual?.path;
     const selection = selectSourceVisual(
       explicit ? {
         language: normalized.language,
@@ -299,8 +403,13 @@ function inspectVisuals(normalized) {
         visual_source_page: scene.renderVisual.sourcePage,
         visual_provenance: scene.renderVisual.provenance,
         visual_metadata: scene.renderVisual.metadata,
-      } : { language: normalized.language },
-      { assets: [] },
+      } : {
+        ...scene,
+        language: normalized.language,
+        source_pages: pages,
+        source_pdf_sha256: normalized.sourcePdfSha256,
+      },
+      catalog,
       fallback,
     );
     if (!selection.path || !existsSync(selection.path)) {
@@ -330,7 +439,7 @@ function inspectVisuals(normalized) {
     });
   }
   if (counts.missing) throw new Error(`Visual contract failed: ${counts.missing} scene(s) have no readable visual.`);
-  return { counts, warnings, bindings };
+  return { counts, warnings, bindings, catalog };
 }
 
 function buildEditorialReport(config, normalized, visuals, narration) {
@@ -553,6 +662,7 @@ function materializeScript(normalized, inputHash) {
     voiceName: normalized.voiceName,
     voiceId: normalized.voiceId,
     narrationPreset: normalized.narrationPreset,
+    metadata: normalized.gameMetadata,
     editorial: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
     sourcePdf: normalized.sourcePdf,
     sourcePdfSha256: normalized.sourcePdfSha256,
@@ -689,6 +799,11 @@ export async function runProduction(options = {}) {
     narrationInputHash,
     editorial: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
     branding: { bannerPath: resolve(root, DEFAULT_BRAND.bannerPath), transitionHash: narration.brandTransitionHash },
+    sourceVisualContracts: {
+      manifest: normalized.visualManifestPath ? hashFile(normalized.visualManifestPath) : null,
+      quality: normalized.visualQualityReportPath ? hashFile(normalized.visualQualityReportPath) : null,
+      semantic: normalized.semanticVisualReportPath ? hashFile(normalized.semanticVisualReportPath) : null,
+    },
     audio: narration.records.map((record) => ({
       id: record.id,
       durationMs: record.durationMs,
@@ -706,6 +821,9 @@ export async function runProduction(options = {}) {
       '--narration-provider', 'elevenlabs', '--narration-preset', normalized.narrationPreset,
       '--brand-banner', resolve(root, DEFAULT_BRAND.bannerPath),
       '--brand-transition-audio', narration.brandTransitionPath,
+      ...(normalized.visualManifestPath ? ['--asset-manifest', normalized.visualManifestPath] : []),
+      ...(normalized.visualQualityReportPath ? ['--visual-quality-report', normalized.visualQualityReportPath] : []),
+      ...(normalized.semanticVisualReportPath ? ['--semantic-visual-report', normalized.semanticVisualReportPath] : []),
     ], tools.env);
   }
   checkpoint.stages.handoff = { inputHash: handoffHash, reused: handoffReuse, outputs: [configPath, captionsPath, chaptersPath] };

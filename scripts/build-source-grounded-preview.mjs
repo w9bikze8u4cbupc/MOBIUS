@@ -178,7 +178,8 @@ function main() {
     scenes.push(intro);
   }
 
-  if (metadataValues.length > 0) {
+  const hasCanonicalMetadataScene = script.scenes.some((scene) => scene?.id === 'metadata-card');
+  if (metadataValues.length > 0 && !hasCanonicalMetadataScene) {
     const metadataAudio = requireAudio(audioDir, 'metadata-card', 'The metadata opening scene');
     const metadataSource = {
       id: 'metadata-card',
