@@ -69,6 +69,42 @@ function clean(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Keep file/source identities out of spoken copy.  These values are useful to
+ * the pipeline but are never useful to a viewer listening to Amélie.
+ */
+function sanitizeSpokenGameName(value, fallback = 'ce jeu') {
+  let name = clean(value)
+    .replace(/\.(?:pdf|json|mp4)$/i, '')
+    .replace(/(?:rulebook|rules|eng|english|fr|french|bgg|zero[-_ ]state)/gi, ' ')
+    .replace(/\b[a-f0-9]{12,}\b/gi, ' ')
+    .replace(/(?:^|[-_\s])(?:tm|game|project)[-_](?:eng[-_])?/gi, ' ')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return name || fallback;
+}
+
+const SECTION_LABELS = [
+  [/objectif|but|mission/i, 'Objectif'],
+  [/composant|matériel|materiel/i, 'Composants'],
+  [/mise en place|préparation|preparation|installation|setup/i, 'Mise en place'],
+  [/tour|manche|round|déroulement|deroulement/i, 'Tour de jeu'],
+  [/action|jouer|phase principale/i, 'Actions'],
+  [/placement|poser|installer/i, 'Placement'],
+  [/fin|termin|condition/i, 'Fin de partie'],
+  [/score|point|décompte|decompte|victoire/i, 'Calcul des points'],
+  [/conseil|variante|solo|exception/i, 'Conseils et variantes'],
+  [/introduction|présentation|presentation|bienvenue/i, 'Présentation'],
+  [/conclusion|résumé|resume/i, 'Conclusion'],
+];
+
+function sectionLabelFor(value, fallback = 'Tutoriel') {
+  const section = clean(value);
+  const match = SECTION_LABELS.find(([pattern]) => pattern.test(section));
+  return match ? match[1] : (section || fallback);
+}
+
 function prepareNarrationText(value) {
   let text = clean(value);
   for (const [pattern, replacement] of ORDINAL_REPLACEMENTS) text = text.replace(pattern, replacement);
@@ -81,7 +117,7 @@ function prepareNarrationText(value) {
 }
 
 function buildThematicWelcome({ gameName = 'ce jeu', firstNarration = '' } = {}) {
-  const name = clean(gameName) || 'ce jeu';
+  const name = sanitizeSpokenGameName(gameName);
   const firstSentence = clean(firstNarration).split(/(?<=[.!?])\s+/)[0] || '';
   const sourceHook = firstSentence
     .replace(/^bienvenue\s+(?:dans|à)\s+/i, '')
@@ -340,6 +376,8 @@ module.exports = {
   BRAND_VISUAL_CONTRACT,
   BRAND_STYLE_CONTRACT,
   buildThematicWelcome,
+  sanitizeSpokenGameName,
+  sectionLabelFor,
   PROFESSIONAL_RELEASE_GATE_VERSION,
   evaluateProfessionalReleaseGate,
 };

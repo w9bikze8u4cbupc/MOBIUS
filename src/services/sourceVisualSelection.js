@@ -85,6 +85,44 @@ function dimensionsScore(asset) {
   return Math.min(0.15, Math.log10(Math.max(1, area)) / 40);
 }
 
+function isComponentOverviewScene(scene = {}) {
+  const text = normalize([
+    scene.section,
+    scene.title,
+    scene.narration,
+    scene.on_screen_text,
+    scene.visual_intent,
+  ].filter(Boolean).join(' '));
+  return /\b(composants?|components?|materiel)\b/.test(text)
+    && !/\b(action|actions|jouer|play|tour|turn|placement|placer)\b/.test(text);
+}
+
+function componentPresentationPenalty(asset, scene = {}) {
+  const setupText = normalize([scene.section, scene.title, scene.narration, scene.visual_intent]
+    .filter(Boolean).join(' '));
+  const isSetupScene = /\b(mise en place|preparation|setup)\b/.test(setupText);
+  if (!isComponentOverviewScene(scene) && !isSetupScene) return 0;
+  const explicitPage = asset.source_page ?? asset.sourcePage;
+  const page = explicitPage !== undefined && explicitPage !== null
+    ? Number(explicitPage)
+    : Number(asset.page_index ?? asset.pageIndex) + 1;
+  const type = normalize(assetType(asset));
+  const dimensions = asset.dimensions || {};
+  const width = Number(asset.width || dimensions.width || 0);
+  const height = Number(asset.height || dimensions.height || 0);
+  const area = width * height;
+  let penalty = 0;
+  // Page-one art is normally the box cover. It remains eligible as a last
+  // resort, but must not outrank actual teaching components in an inventory
+  // overview. Metadata scenes bypass this policy through their own contract.
+  if (page === 1 && ['board', 'component', 'focused-page-crop', 'focused-page-region'].includes(type)) penalty -= 0.35;
+  // A very large raster classified as a token/tile/marker is usually a
+  // source illustration rather than the small physical item being named.
+  // Prefer the bounded extracted instance when one is available.
+  if (['token', 'tile', 'marker', 'dice', 'currency'].includes(type) && area > 500000) penalty -= 0.22;
+  return penalty;
+}
+
 function languageScore(asset, scene = {}) {
   if (scene.language !== 'fr-CA') return { score: 0, audit: 'not-applicable' };
   const audit = classifyVisualLanguage({
@@ -238,17 +276,32 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
     : (citedPageCandidates.length > 0 ? citedPageCandidates.filter(passesVisualQa) : baseCandidates.filter(passesVisualQa));
   const semanticGateEnabled = Boolean(catalog.semanticReportPath);
   const semanticMatch = catalog.semanticBySceneId?.get(scene.id) || null;
+  const isMetadataCard = scene.metadata_card === true;
   const providerSemanticFailure = isProviderSemanticFailure(semanticMatch);
   const locallyGroundedCandidates = providerSemanticFailure
     ? qualityCandidates
-      .filter((asset) => ['focused-page-crop', 'focused-page-region'].includes(asset.visual_kind))
-      .map((asset) => ({ asset, evidence: localLayoutEvidence(asset, scene) }))
+      .map((asset) => {
+        const evidence = localLayoutEvidence(asset, scene);
+        const cited = sourcePageScore(asset, scene.source_pages) > 0;
+        const selectedByLocalRecovery = semanticMatch?.selected_asset_id === asset.id
+          && ['focused-page-crop', 'focused-page-region'].includes(asset.visual_kind);
+        const typed = typeScore(asset, desiredTypes) >= 0.30 || selectedByLocalRecovery;
+        // When the vision provider is unavailable, a cited, quality-approved
+        // component with a direct visual type match is still defensible. This
+        // keeps provider outage from erasing real source evidence, while the
+        // cited-page + type gates prevent an attractive unrelated image from
+        // displacing a truthful fallback.
+        const deterministicScore = cited && typed ? 0.24 : 0;
+        return { asset, evidence: { ...evidence, score: Math.max(evidence.score, deterministicScore) } };
+      })
       .filter(({ evidence }) => evidence.score >= 0.18)
       .sort((left, right) => right.evidence.score - left.evidence.score)
       .map(({ asset }) => asset)
     : [];
-  const candidatePool = semanticGateEnabled
-    ? (semanticMatch?.status === 'matched'
+  const candidatePool = isMetadataCard
+    ? qualityCandidates
+    : semanticGateEnabled
+    ? (!providerSemanticFailure && semanticMatch?.status === 'matched'
       ? qualityCandidates.filter((asset) => asset.id === semanticMatch.selected_asset_id)
       : locallyGroundedCandidates)
     : qualityCandidates;
@@ -257,7 +310,20 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
       const curationScore = Number(asset.curation?.score || asset.confidence || 0.5) * 0.28;
       const duplicatePenalty = asset.curation?.isDuplicate ? 0.035 : 0;
       const language = languageScore(asset, scene);
-      const score = curationScore + sourcePageScore(asset, scene.source_pages) + typeScore(asset, desiredTypes) + dimensionsScore(asset) + language.score - duplicatePenalty;
+      const localSemanticRecoveryBonus = providerSemanticFailure
+        && !isComponentOverviewScene(scene)
+        && semanticMatch?.selected_asset_id === asset.id
+        && ['focused-page-crop', 'focused-page-region'].includes(asset.visual_kind)
+        ? 0.18
+        : 0;
+      const localSemanticRecoveryTypeBonus = providerSemanticFailure
+        && !isComponentOverviewScene(scene)
+        && semanticMatch?.selected_asset_id === asset.id
+        && ['focused-page-crop', 'focused-page-region'].includes(asset.visual_kind)
+        && typeScore(asset, desiredTypes) === 0
+        ? 0.30
+        : 0;
+      const score = curationScore + sourcePageScore(asset, scene.source_pages) + typeScore(asset, desiredTypes) + dimensionsScore(asset) + language.score - duplicatePenalty + componentPresentationPenalty(asset, scene) + localSemanticRecoveryBonus + localSemanticRecoveryTypeBonus;
       return { asset, score: Number(Math.min(1, score).toFixed(3)), languageAudit: language.audit };
     })
     .sort((left, right) => right.score - left.score);
@@ -265,6 +331,12 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
   const best = candidates[0];
   if (best && best.score >= 0.42) {
     const localEvidence = providerSemanticFailure ? localLayoutEvidence(best.asset, scene) : null;
+    const assetProvenance = best.asset.provenance || {};
+    const sourcePage = Number.isFinite(Number(best.asset.source_page ?? best.asset.sourcePage))
+      ? Number(best.asset.source_page ?? best.asset.sourcePage)
+      : Number.isFinite(Number(best.asset.page_index ?? best.asset.pageIndex))
+        ? Number(best.asset.page_index ?? best.asset.pageIndex) + 1
+        : Number(scene.source_pages?.[0]) || null;
     return {
       path: best.asset.renderPath,
       kind: ['focused-page-crop', 'focused-page-region'].includes(best.asset.visual_kind)
@@ -277,20 +349,17 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
         ? `layout-grounded-semantic-recovery:${localEvidence.overlap.join(',') || 'cited-focused-region'}`
         : `curated-component:${assetType(best.asset)}`,
       assetId: best.asset.id || null,
-      sourcePage: Number.isFinite(Number(best.asset.source_page ?? best.asset.sourcePage))
-        ? Number(best.asset.source_page ?? best.asset.sourcePage)
-        : Number.isFinite(Number(best.asset.page_index ?? best.asset.pageIndex))
-          ? Number(best.asset.page_index ?? best.asset.pageIndex) + 1
-        : null,
+      sourcePage,
       visualTypes: desiredTypes,
       visualQuality: best.asset.visualQuality || null,
       languageAudit: best.languageAudit,
       semanticMatch: semanticMatch || null,
-      provenance: best.asset.provenance || {
-        sourcePdfSha256: best.asset.sourcePdfSha256 || null,
-        sourcePage: best.asset.source_page || (Number(best.asset.page_index) + 1) || null,
-        bbox: best.asset.bbox || best.asset.normalized_bbox || null,
-        assetHash: best.asset.contentHash || null,
+      provenance: {
+        ...assetProvenance,
+        sourcePdfSha256: assetProvenance.sourcePdfSha256 || best.asset.sourcePdfSha256 || scene.source_pdf_sha256 || null,
+        sourcePage: assetProvenance.sourcePage || assetProvenance.source_page || sourcePage,
+        bbox: assetProvenance.bbox || best.asset.bbox || best.asset.normalized_bbox || null,
+        assetHash: assetProvenance.assetHash || best.asset.contentHash || null,
       },
     };
   }

@@ -76,19 +76,24 @@ jobs:
           else
             echo "source=pinned-download"
             echo "  Downloading $FFMPEG_VERSION..."
-            curl -fsSL "$FFMPEG_URL" -o /tmp/ffmpeg.tar.xz
-            echo "  Verifying SHA-256..."
-            echo "$FFMPEG_SHA256  /tmp/ffmpeg.tar.xz" | sha256sum -c -
-            echo "  Extracting..."
-            mkdir -p /tmp/ffmpeg-extract
-            tar -xf /tmp/ffmpeg.tar.xz --strip-components=1 -C /tmp/ffmpeg-extract
-            sudo mkdir -p /opt/ffmpeg
-            sudo cp /tmp/ffmpeg-extract/bin/ffmpeg /opt/ffmpeg/ffmpeg
-            sudo cp /tmp/ffmpeg-extract/bin/ffprobe /opt/ffmpeg/ffprobe
-            sudo chmod +x /opt/ffmpeg/ffmpeg /opt/ffmpeg/ffprobe
-            sudo ln -sf /opt/ffmpeg/ffmpeg /usr/local/bin/ffmpeg
-            sudo ln -sf /opt/ffmpeg/ffprobe /usr/local/bin/ffprobe
-            rm -rf /tmp/ffmpeg.tar.xz /tmp/ffmpeg-extract
+            if curl -fsSL "$FFMPEG_URL" -o /tmp/ffmpeg.tar.xz; then
+              echo "  Verifying SHA-256..."
+              echo "$FFMPEG_SHA256  /tmp/ffmpeg.tar.xz" | sha256sum -c -
+              echo "  Extracting..."
+              mkdir -p /tmp/ffmpeg-extract
+              tar -xf /tmp/ffmpeg.tar.xz --strip-components=1 -C /tmp/ffmpeg-extract
+              sudo mkdir -p /opt/ffmpeg
+              sudo cp /tmp/ffmpeg-extract/bin/ffmpeg /opt/ffmpeg/ffmpeg
+              sudo cp /tmp/ffmpeg-extract/bin/ffprobe /opt/ffmpeg/ffprobe
+              sudo chmod +x /opt/ffmpeg/ffmpeg /opt/ffmpeg/ffprobe
+              sudo ln -sf /opt/ffmpeg/ffmpeg /usr/local/bin/ffmpeg
+              sudo ln -sf /opt/ffmpeg/ffprobe /usr/local/bin/ffprobe
+              rm -rf /tmp/ffmpeg.tar.xz /tmp/ffmpeg-extract
+            else
+              echo "source=ubuntu-package-fallback (pinned archive unavailable)"
+              sudo apt-get update
+              sudo apt-get install -y ffmpeg
+            fi
           fi
 
           echo "--- FFmpeg diagnostics ---"
@@ -613,6 +618,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
 
       - name: Run MOBIUS E2E orchestrator
         run: npm run mobius:e2e

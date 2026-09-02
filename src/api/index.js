@@ -2365,11 +2365,19 @@ function normalizeExtractedMetadata(value) {
     : null;
   return {
     publisher: asText(metadata.publisher),
+    designers: Array.isArray(metadata.designers)
+      ? metadata.designers.map(asText).filter(Boolean)
+      : (asText(metadata.designer) ? [asText(metadata.designer)] : []),
     playerCount: asText(metadata.playerCount) || asText(metadata.player_count),
     gameLength: asText(metadata.gameLength) || asText(metadata.play_time),
     minimumAge: asText(metadata.minimumAge) || asText(metadata.recommended_age),
     theme: asText(metadata.theme) || categoryTheme,
     edition: asText(metadata.edition) || asText(metadata.year_published),
+    yearPublished: asText(metadata.yearPublished) || asText(metadata.year_published),
+    weight: asText(metadata.weight) || asText(metadata.complexity),
+    coverImage: asText(metadata.coverImage) || asText(metadata.cover_image) || asText(metadata.image),
+    thumbnail: asText(metadata.thumbnail),
+    bggUrl: asText(metadata.bggUrl) || asText(metadata.bgg_url),
   };
 }
 
@@ -2413,7 +2421,7 @@ async function extractOptionalMetadata(rulebookText, generationOptions, provider
     const { response } = await providerRun.complete({
       messages: [
         { role: 'system', content: 'You are a precise metadata extractor. Return only a JSON object.' },
-        { role: 'user', content: `Extract optional boardgame metadata from this rulebook excerpt. Return JSON with publisher, player_count, play_time, recommended_age, theme, year_published, and categories. Use null or [] when unknown.\n\n${rulebookText.slice(0, MAX_RULEBOOK_CHUNK_CHARS)}` },
+        { role: 'user', content: `Extract optional boardgame metadata from this rulebook excerpt. Return JSON with publisher, designers, player_count, play_time, recommended_age, theme, year_published, complexity, and categories. Use null or [] when unknown. Never derive a title, image URL, filename, hash, or identifier from the input.\n\n${rulebookText.slice(0, MAX_RULEBOOK_CHUNK_CHARS)}` },
       ],
       options: generationOptions,
       maxRetries: 0,
@@ -2577,11 +2585,17 @@ app.post('/summarize', async (req, res) => {
     const metadataResult = await extractOptionalMetadata(rulebookText, metadataGenerationOptions, providerRun);
     const metadataForPrompt = {
       publisher: metadata?.publisher || metadataResult.metadata.publisher || 'Not specified',
+      designers: metadata?.designers || metadataResult.metadata.designers || [],
       playerCount: metadata?.playerCount || metadataResult.metadata.playerCount || 'Not specified',
       gameLength: metadata?.gameLength || metadataResult.metadata.gameLength || 'Not specified',
       minimumAge: metadata?.minimumAge || metadataResult.metadata.minimumAge || 'Not specified',
       theme: metadata?.theme || metadataResult.metadata.theme || 'Not specified',
       edition: metadata?.edition || metadataResult.metadata.edition || 'Not specified',
+      yearPublished: metadata?.yearPublished || metadataResult.metadata.yearPublished || 'Not specified',
+      weight: metadata?.weight || metadataResult.metadata.weight || 'Not specified',
+      coverImage: metadata?.coverImage || metadataResult.metadata.coverImage || null,
+      thumbnail: metadata?.thumbnail || metadataResult.metadata.thumbnail || null,
+      bggUrl: metadata?.bggUrl || metadataResult.metadata.bggUrl || null,
     };
 
     const sourceHash = hashScriptInput(rulebookText);
@@ -2668,6 +2682,14 @@ The JSON must be {"sections":[...]}. sections must be a non-empty ordered array.
 - "sourceIds": a non-empty array of the exact source IDs provided below, for example ["S1"]. Do not invent source IDs or offsets.
 
 Follow this pedagogical order: introduction/presentation, objective, components, numbered setup, pause before play, turn structure/actions, scoring/endgame, outro.
+
+The first introduction section must open with a warm welcome to the viewer, one
+brief evocative hook grounded in the game's theme or central tension, and a
+natural invitation to learn the game together. Keep that opening conversational
+and human; do not begin with a filename, project ID, hash, source label, or a
+database-like list. SpokenText is for Amélie, while onScreenText remains concise
+support (never a transcript of the narration). Use the requested locale's
+canonical display name and never speak filesystem-derived identifiers.
 
 Tutorial length policy: ${tutorialLengthProfile.name}. Target ${tutorialLengthProfile.targetSpokenWords.min}-${tutorialLengthProfile.targetSpokenWords.max} spoken English words and never exceed ${tutorialLengthProfile.maxSpokenWords}. Prefer objective, setup, a normal turn, essential scoring/endgame, and relevant secondary rules. Put rare exceptions, exhaustive reward tables, and card-by-card detail in visualDirections or an official-rulebook reminder instead of narration.`;
 

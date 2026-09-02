@@ -25,4 +25,16 @@ describe('zero-state production contracts', () => {
     expect(first.sha256).toBe(renamed.sha256);
     expect(first.bytes).toBe(renamed.bytes);
   });
+
+  test('content-derived game identity and source offsets beat filename/page guesses', async () => {
+    const { execFileSync } = require('child_process');
+    const { pathToFileURL } = require('url');
+    const path = require('path');
+    const production = pathToFileURL(path.resolve(__dirname, '../../scripts/run-rulebook-production.mjs')).href;
+    const output = execFileSync(process.execPath, ['--input-type=module', '-e', `import {gameNameFromRulebookText,pagesForSources} from '${production}'; const ranges=[{page:1,start:0,end:2},{page:2,start:2,end:1970},{page:16,start:48917,end:50140}]; console.log(JSON.stringify({name:gameNameFromRulebookText('In Terraforming Mars, you control a corporation.', 'fa0678822223-tm-eng-bgg'), pages:pagesForSources([{startOffset:47974,endOffset:50136}], ranges)}));`], { encoding: 'utf8' });
+    const result = JSON.parse(output.trim().split(/\r?\n/).pop());
+    expect(result.name).toBe('Terraforming Mars');
+    expect(result.pages).toEqual([16]);
+  });
+
 });

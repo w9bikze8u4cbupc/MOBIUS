@@ -47,7 +47,7 @@ describe('tutorial presentation contract', () => {
       completedSteps: [1],
     });
     expect(scene.overlays).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: 'badge', position: 'top', text: expect.stringContaining('Étape 1/4') }),
+      expect.objectContaining({ type: 'badge', position: 'top', text: 'Placement' }),
       expect.objectContaining({ type: 'heading', position: 'panel-heading' }),
       expect.objectContaining({ type: 'body', position: 'panel-body' }),
       expect.objectContaining({ type: 'reference', position: 'reference-bottom-left', text: 'Livret p. 7' }),
@@ -91,5 +91,20 @@ describe('tutorial presentation contract', () => {
     expect(scene.overlays.find((overlay) => overlay.type === 'body').text.length).toBeLessThanOrEqual(90);
     expect(scene.callouts).toHaveLength(3);
     expect(scene.callouts[0]).toMatchObject({ number: 1, kind: 'arrow', target: { x: expect.any(Number), y: expect.any(Number) } });
+  });
+
+  test('uses a metadata card and canonical section labels instead of numeric-only badges', () => {
+    const { buildMetadataScene } = require('../../src/storyboard/tutorial_presentation.cjs');
+    const scene = buildMetadataScene({
+      gameName: 'Terraforming Mars',
+      metadata: { playerCount: '1-5', gameLength: '120 minutes', publisher: 'FryxGames' },
+      narration: 'Avant de commencer, voici Terraforming Mars et les informations essentielles.',
+      background: { image: '/tmp/cover.png' },
+      durationSec: 8,
+    });
+    expect(scene.id).toBe('metadata-card');
+    expect(scene.chapterTitle).toBe('À propos du jeu');
+    expect(scene.overlays.find((overlay) => overlay.type === 'body').text).toContain('Joueurs: 1-5');
+    expect(scene.overlays.find((overlay) => overlay.type === 'badge').text).toBe('À propos du jeu');
   });
 });

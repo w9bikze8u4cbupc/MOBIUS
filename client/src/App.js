@@ -336,12 +336,16 @@ function App() {
   const [bggUrl, setBggUrl] = useState("");
   const [metadata, setMetadata] = useState({
     publisher: "",
+    designers: [],
     playerCount: "",
     gameLength: "",
-    minimumAge: "",
-    theme: "",
-    edition: "",
-  });
+  minimumAge: "",
+  theme: "",
+    edition: "",
+  yearPublished: "",
+  weight: "",
+  coverImage: "",
+ });
   const [detailPercentage, setDetailPercentage] = useState(25);
   const [showThemePrompt, setShowThemePrompt] = useState(false); // To show the theme input modal
   const [loading, setLoading] = useState(false); // For main processing loading state
@@ -890,10 +894,14 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       setMetadata((previous) => ({
         ...previous,
         publisher: previous.publisher || data.publisher || '',
+        designers: previous.designers?.length ? previous.designers : (data.designers || []),
         playerCount: previous.playerCount || data.playerCount || '',
         gameLength: previous.gameLength || data.gameLength || '',
         minimumAge: previous.minimumAge || data.minimumAge || '',
         theme: previous.theme || data.theme || '',
+        weight: previous.weight || data.weight || '',
+        yearPublished: previous.yearPublished || data.yearPublished || '',
+        coverImage: previous.coverImage || data.image || data.cover_image || '',
       }));
     } catch (err) {
       setMetadataWarning(err.response?.data?.error || 'BGG lookup could not complete. You can continue without external metadata.');
@@ -933,7 +941,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setRulebookPages([]);
     setCompletedStepIds([]);
     setImageReviewStatus(null);
-    setMetadata({ publisher: "", playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "" });
+    setMetadata({ publisher: "", designers: [], playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "", yearPublished: "", weight: "", coverImage: "" });
     setShowThemePrompt(false);
     setError("");
     setSummaryWarning("");
@@ -1013,7 +1021,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setAudio({});
     setAudioLoading({});
     // Keep existing metadata or reset based on preference, here resetting to empty
-    setMetadata({ publisher: "", playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "" });
+    setMetadata({ publisher: "", designers: [], playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "", yearPublished: "", weight: "", coverImage: "" });
     setShowThemePrompt(false);
     setError("");
     setSummaryWarning("");

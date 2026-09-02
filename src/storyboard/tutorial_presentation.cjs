@@ -5,6 +5,7 @@ const {
   buildSetupCallouts,
   getEditorialContract,
   buildThematicWelcome,
+  sectionLabelFor,
 } = require('../services/editorialStandard.cjs');
 
 const DEFAULT_BRAND = Object.freeze({
@@ -106,8 +107,8 @@ function buildTeachingScene({
   durationSec = 0,
 }) {
   const current = Number(index) + 1;
-  const normalizedSection = cleanText(section) || `Étape ${current}`;
-  const stepLabel = `Étape ${current}/${total}`;
+  const normalizedSection = cleanText(section) || `Section ${current}`;
+  const stepLabel = sectionLabelFor(normalizedSection, `Section ${current}`);
   const imageSide = current % 2 === 1 ? 'right' : 'left';
   const textSide = imageSide === 'right' ? 'left' : 'right';
   const reference = sourceReference(sourcePages);
@@ -148,6 +149,39 @@ function buildTeachingScene({
   };
 }
 
+function buildMetadataScene({
+  gameName,
+  metadata = {},
+  narration,
+  sourcePages = [1],
+  background,
+  audio = null,
+  visualKind = '',
+  durationSec = 0,
+}) {
+  const details = [
+    metadata.playerCount && `Joueurs: ${metadata.playerCount}`,
+    metadata.gameLength && `Durée: ${metadata.gameLength}`,
+    metadata.minimumAge && `Âge: ${metadata.minimumAge}`,
+    metadata.publisher && `Éditeur: ${metadata.publisher}`,
+    Array.isArray(metadata.designers) && metadata.designers.length ? `Auteur: ${metadata.designers.join(', ')}` : null,
+    metadata.weight && `Complexité: ${metadata.weight}`,
+  ].filter(Boolean);
+  return buildTeachingScene({
+    id: 'metadata-card',
+    index: 0,
+    total: 1,
+    section: 'À propos du jeu',
+    narration: narration || `Avant de commencer, voici ${cleanText(gameName) || 'le jeu'} et les informations essentielles pour vous installer à la table.`,
+    onScreenText: details.join(' • ') || 'Les informations essentielles pour commencer',
+    sourcePages,
+    background,
+    audio,
+    visualKind,
+    durationSec,
+  });
+}
+
 function buildChapters(scenes = []) {
   let cursorSec = 0;
   return scenes.map((scene, index) => {
@@ -169,6 +203,7 @@ module.exports = {
   buildBrandIntro,
   buildBrandOutro,
   buildTeachingScene,
+  buildMetadataScene,
   buildTeachingMotion,
   buildChapters,
   buildEditorialSupport,
