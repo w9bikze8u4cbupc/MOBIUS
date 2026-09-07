@@ -5,10 +5,10 @@ const readJson = (relativePath) => JSON.parse(fs.readFileSync(path.resolve(relat
 
 describe('R9 learner grounding and component-isolation contracts', () => {
   const plan = readJson('config/projects/7-wonders-duel/visual-plan.r9.json');
-  const assets = readJson('out/publishability-r9/7-wonders-duel/component-library/manifest.json');
+  const progressAsset = readJson('tests/fixtures/publishability-r9/progress-token-asset.json');
   const assembly = readJson('config/projects/7-wonders-duel/tutorial-assembly.r9.json');
   const byPlan = (id) => plan.plans.find((item) => item.ruleAtomId === id);
-  const byAsset = (id) => assets.assets.find((item) => item.id === id);
+  const byAsset = (id) => (progressAsset.id === id ? progressAsset : null);
 
   test('repeatedly rejected Progress derivatives cannot return to an accepted plan', () => {
     const rejected = new Set(['7wd-progress-tokens-clean', 'r6-progress-token-examples', 'r6-progress-tokens-isolated']);

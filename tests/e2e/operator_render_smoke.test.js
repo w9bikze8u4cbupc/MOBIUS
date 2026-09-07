@@ -12,6 +12,11 @@
 const path = require('path');
 const fs = require('fs');
 
+// The queue performs a real renderer process setup even in dry-run mode.
+// Allow slower hosted macOS/Windows runners without weakening the job's own
+// bounded 15-second completion guard below.
+jest.setTimeout(30000);
+
 // Import pipeline components
 const { runIngestionPipeline } = require('../../src/ingestion/pipeline');
 const { generateStoryboardFromIngestion } = require('../../src/storyboard/storyboard_from_ingestion');
