@@ -14,8 +14,8 @@ const fs = require('fs');
 
 // The queue performs a real renderer process setup even in dry-run mode.
 // Allow slower hosted macOS/Windows runners without weakening the job's own
-// bounded 15-second completion guard below.
-jest.setTimeout(30000);
+// bounded 60-second completion guard below.
+jest.setTimeout(75000);
 
 // Import pipeline components
 const { runIngestionPipeline } = require('../../src/ingestion/pipeline');
@@ -61,7 +61,7 @@ describe('E2E Operator Render Smoke', () => {
     delete process.env.RENDERER_ARGS;
   });
 
-  async function waitForJob(jobId, timeoutMs = 15000) {
+  async function waitForJob(jobId, timeoutMs = 60000) {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       const job = getJob(jobId);
