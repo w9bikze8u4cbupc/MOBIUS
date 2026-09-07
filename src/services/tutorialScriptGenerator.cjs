@@ -8,6 +8,7 @@
 
 const { computeTextDuration } = require('../storyboard/storyboard_timing');
 const { SEGMENT_TYPES, ELITE_S1_REQUIRED_ORDER, validateSegment, validateEliteOrdering } = require('./tutorialScriptSchema.cjs');
+const { resolveCanonicalGameIdentity, resolveCanonicalGameMetadata } = require('./gameIdentity.cjs');
 
 /**
  * Generate a deterministic tutorial script from a game fixture.
@@ -22,7 +23,14 @@ function generateTutorialScript(fixture) {
 
   const segments = [];
   const warnings = [];
-  const gameName = fixture.gameName || 'Unknown Game';
+  const identity = resolveCanonicalGameIdentity({
+    projectMetadata: { gameName: fixture.gameName, identity: fixture.identity },
+    bgg: fixture.bgg || fixture.metadata || {},
+    rulebook: { gameName: fixture.gameName },
+    locale: fixture.locale || 'en',
+    sourceLanguage: fixture.sourceLanguage || 'en',
+  });
+  const gameName = identity.displayName;
   const gameId = fixture.gameId || 'unknown';
 
   // --- Hook (0-10s) ---
@@ -124,6 +132,8 @@ function generateTutorialScript(fixture) {
   const metadata = {
     gameId,
     gameName,
+    identity,
+    normalizedMetadata: resolveCanonicalGameMetadata({ explicit: fixture.metadata || fixture }),
     segmentCount: segments.length,
     totalDurationSec: Math.round(totalDurationSec * 100) / 100,
     eliteS1Valid: orderingResult.valid,

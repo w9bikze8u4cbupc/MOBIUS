@@ -331,6 +331,12 @@ function App() {
   const [language, setLanguage] = useState("french");
   const [voice, setVoice] = useState(""); // Stores ElevenLabs voice ID
   const [gameName, setGameName] = useState("");
+  const [identity, setIdentity] = useState({
+    version: 'game-identity-v1', sourceTitle: '', officialEditionTitle: '', displayName: '', spokenName: '',
+    locale: 'fr-CA', sourceLanguage: 'en', bggId: null, edition: null, versionName: null,
+    pronunciationOverride: null, pronunciationRepresentation: '', pronunciationStatus: 'unresolved',
+    preserveOriginalTitle: true, operatorConfirmed: false, provenance: null,
+  });
   const [projectId, setProjectId] = useState("");
   const [sourcePdf, setSourcePdf] = useState(null);
   const [bggUrl, setBggUrl] = useState("");
@@ -479,6 +485,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       setProjectId(context.projectId);
       setSourcePdf(normalizeProjectSourceRecord(context.sourcePdf, context.projectId));
       setGameName(context.gameName);
+      setIdentity(context.identity || { displayName: context.gameName, locale: 'fr-CA', sourceLanguage: 'en', preserveOriginalTitle: true });
       setLanguage(context.language);
       setRulebookText(context.rulebookText);
       setRulebookPages(context.rulebookPages);
@@ -599,6 +606,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     saveProjectContext(window.localStorage, createPersistedProjectContext({
       projectId,
       gameName,
+      identity,
       language,
       rulebookText,
       rulebookPages,
@@ -627,6 +635,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     editedSummary,
     gameComponents,
     gameName,
+    identity,
     generatedScript,
     hasHydratedProjectContext,
     ingestionManifest,
@@ -854,6 +863,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       });
       const extractedName = String(data?.gameName || '').trim();
       if (extractedName) setGameName(extractedName);
+      if (extractedName) setIdentity((previous) => ({ ...previous, displayName: extractedName, sourceTitle: extractedName, operatorConfirmed: false }));
       setMetadata((previous) => ({
         ...previous,
         publisher: previous.publisher || data?.publisher || '',
@@ -891,6 +901,13 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       }
 
       setBggUrl(data.bggUrl || '');
+      setIdentity((previous) => ({
+        ...previous,
+        bggId: data.bggId || previous.bggId || null,
+        officialEditionTitle: data.gameName || previous.officialEditionTitle || '',
+        displayName: previous.operatorConfirmed ? previous.displayName : (data.gameName || previous.displayName),
+        locale: previous.locale || 'fr-CA',
+      }));
       setMetadata((previous) => ({
         ...previous,
         publisher: previous.publisher || data.publisher || '',
@@ -916,6 +933,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     // Reset relevant state variables before processing new file
     setFile(file);
     setGameName("");
+    setIdentity({ version: 'game-identity-v1', sourceTitle: '', officialEditionTitle: '', displayName: '', spokenName: '', locale: 'fr-CA', sourceLanguage: 'en', bggId: null, edition: null, versionName: null, pronunciationOverride: null, pronunciationRepresentation: '', pronunciationStatus: 'unresolved', preserveOriginalTitle: true, operatorConfirmed: false, provenance: null });
     setProjectId("");
     setSourcePdf(null);
     setBggUrl("");
@@ -957,6 +975,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       const canonicalProjectId = createProjectIdFromFilename(file.name);
       setProjectId(canonicalProjectId);
       setGameName(createDisplayNameFromFilename(file.name));
+      setIdentity((previous) => ({ ...previous, sourceTitle: file.name, displayName: createDisplayNameFromFilename(file.name), operatorConfirmed: false, locale: language === 'french' ? 'fr-CA' : 'en' }));
       setSourcePdf(null);
       setLoading(true);
 
@@ -1022,6 +1041,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     setAudioLoading({});
     // Keep existing metadata or reset based on preference, here resetting to empty
     setMetadata({ publisher: "", designers: [], playerCount: "", gameLength: "", minimumAge: "", theme: "", edition: "", yearPublished: "", weight: "", coverImage: "" });
+    setIdentity((previous) => ({ ...previous, sourceTitle: '', displayName: '', officialEditionTitle: '', spokenName: '', operatorConfirmed: false }));
     setShowThemePrompt(false);
     setError("");
     setSummaryWarning("");
@@ -1155,6 +1175,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
         saveProjectContext(window.localStorage, createPersistedProjectContext({
           projectId,
           gameName,
+          identity,
           language,
           rulebookText,
           rulebookPages,
@@ -1291,6 +1312,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
       const projectContext = createPersistedProjectContext({
         projectId,
         gameName,
+        identity,
         language,
         rulebookText,
         rulebookPages,
@@ -1375,9 +1397,19 @@ const fileInputRef = useRef(); // Ref for the hidden file input
 
  // --- Metadata Handling ---
   // Handle changes to metadata input fields
-  const handleMetadataChange = (field, value) => {
-    setMetadata(prev => ({ ...prev, [field]: value }));
-  };
+	 const handleMetadataChange = (field, value) => {
+	   setMetadata(prev => ({ ...prev, [field]: value }));
+	 };
+
+  const handleGameNameChange = (value) => {
+    setGameName(value);
+    setIdentity((previous) => ({
+      ...previous,
+      displayName: value,
+      operatorConfirmed: true,
+      pronunciationStatus: previous.spokenName ? previous.pronunciationStatus : 'deterministic-representation-pending',
+    }));
+  };
 
   // Handle submission of the theme prompt modal
   const handleThemeSubmit = async () => {
@@ -1508,6 +1540,7 @@ const fileInputRef = useRef(); // Ref for the hidden file input
     const scriptContext = {
       projectId,
       gameName,
+      identity,
       language,
       rulebookText,
       components: gameComponents,
@@ -1922,7 +1955,9 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               projectId={projectId}
               setProjectId={setProjectId}
               gameName={gameName}
-              setGameName={setGameName}
+              setGameName={handleGameNameChange}
+              identity={identity}
+              setIdentity={setIdentity}
               language={language}
               setLanguage={setLanguage}
               voice={voice}
@@ -1950,6 +1985,9 @@ const fileInputRef = useRef(); // Ref for the hidden file input
               bggUrl={bggUrl}
               setBggUrl={setBggUrl}
               metadata={metadata}
+              identity={identity}
+              setIdentity={setIdentity}
+              onDisplayNameChange={handleGameNameChange}
               handleMetadataChange={handleMetadataChange}
               gameName={gameName}
               file={file}

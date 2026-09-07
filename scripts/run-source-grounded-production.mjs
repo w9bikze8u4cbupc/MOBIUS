@@ -32,11 +32,15 @@ import {
   classifyVisualLanguage,
   estimateTeachingLayout,
   getEditorialContract,
+  getNarrationDeliveryProfile,
   getNarrationPreset,
+  formatOpeningMetadataNarration,
   prepareNarrationText,
+  sectionLabelFor,
   evaluateProfessionalReleaseGate,
 } from '../src/services/editorialStandard.cjs';
 import { analyzeProductionVideo, buildExternalReviewSummary } from '../src/services/twelveLabsVideoReview.js';
+import { resolveCanonicalGameIdentity, resolveCanonicalGameMetadata, sanitizeNarrationGameIdentity, titleFromRulebook } from '../src/services/gameIdentity.cjs';
 
 const { DEFAULT_BRAND, buildBrandIntro, buildBrandOutro } = presentation;
 const SCRIPT_NAME = 'production-script.json';
@@ -252,11 +256,37 @@ function normalizeProject(project, root, projectId, language) {
     }
     return { ...scene, source_pages: sourcePages };
   });
-  const gameName = persistedExtraction.gameName
-    || context.gameName
-    || project.name
-    || persistedProductionScript.game
-    || projectId;
+  const persistedIdentity = persistedProductionScript.identity || {};
+  const contextIdentity = context.identity || context.gameIdentity || {};
+  const explicitIdentity = contextIdentity.operatorConfirmed === true
+    ? contextIdentity
+    : (metadata.operatorIdentity || metadata.identityOverride || {});
+  const explicitMetadata = {
+    ...(persistedProductionScript.metadata || {}),
+    ...(metadata.gameMetadata || {}),
+    ...(context.metadata || {}),
+  };
+  const bggMetadata = metadata.bggMetadata || context.bggMetadata || metadata.bgg || context.bgg || {};
+  const rulebookIdentity = {
+    gameName: persistedExtraction.gameName || '',
+    title: titleFromRulebook(persistedExtraction.rulebookText || ''),
+    text: persistedExtraction.rulebookText || '',
+  };
+  const identity = resolveCanonicalGameIdentity({
+    explicitOverride: explicitIdentity,
+    projectMetadata: {
+      ...persistedIdentity,
+      identity: contextIdentity,
+      gameName: context.gameName || project.name || '',
+      identityConfirmed: contextIdentity.operatorConfirmed === true,
+    },
+    bgg: bggMetadata,
+    rulebook: rulebookIdentity,
+    filename: context.sourcePdf?.filename || persistedExtraction.source?.filename || projectId,
+    locale: language === 'french' ? 'fr-CA' : language,
+    sourceLanguage: context.sourceLanguage || 'en',
+  });
+  const gameName = identity.displayName;
   const audioDir = join(productionDir, 'audio');
   const sourceCandidates = [
     join(projectDir, 'source', 'rulebook.pdf'),
@@ -282,10 +312,12 @@ function normalizeProject(project, root, projectId, language) {
   const production = { ...(persistedProductionScript || {}), ...(context.production || {}) };
   const derivedMetadata = deriveRulebookMetadata(persistedExtraction.rulebookText);
   const gameMetadata = {
-    ...(persistedProductionScript.metadata || {}),
-    ...derivedMetadata,
-    ...(metadata.gameMetadata || {}),
-    ...(context.metadata || {}),
+    ...resolveCanonicalGameMetadata({ explicit: explicitMetadata, bgg: bggMetadata, rulebook: derivedMetadata }),
+    bggId: identity.bggId || explicitMetadata.bggId || bggMetadata.bggId || null,
+    metadataProvenance: {
+      practical: Object.keys(explicitMetadata).length ? 'project-metadata' : (Object.keys(bggMetadata).length ? 'bgg' : 'rulebook-fallback'),
+      bgg: Object.keys(bggMetadata).length > 0,
+    },
   };
   const voiceId = production.voiceId
     || process.env.ELEVENLABS_VOICE_ID_AMELIE
@@ -294,11 +326,13 @@ function normalizeProject(project, root, projectId, language) {
   getNarrationPreset(narrationPreset);
   return {
     project,
+    root,
     metadata,
     context,
     scenes: hydratedScenes,
     projectId,
     gameName,
+    identity,
     gameMetadata,
     language,
     projectDir,
@@ -320,28 +354,51 @@ function normalizeProject(project, root, projectId, language) {
 function metadataScriptScene(normalized) {
   const metadata = normalized.gameMetadata || {};
   const values = [
-    metadata.playerCount && `Joueurs: ${metadata.playerCount}`,
-    metadata.gameLength && `Durée: ${metadata.gameLength}`,
-    metadata.minimumAge && `Âge: ${metadata.minimumAge}`,
-    metadata.publisher && `Éditeur: ${metadata.publisher}`,
-    Array.isArray(metadata.designers) && metadata.designers.length ? `Auteur: ${metadata.designers.join(', ')}` : null,
-    metadata.weight && `Complexité: ${metadata.weight}`,
+    metadata.playerCount && `Joueurs : ${metadata.playerCount}`,
+    metadata.gameLength && `Durée : ${String(metadata.gameLength).replace(/\bmin\b/gi, 'minutes')}`,
+    metadata.minimumAge && `Âge minimum : ${String(metadata.minimumAge).replace(/\+?$/, '+')}`,
+    metadata.weight && `Complexité : ${String(metadata.weight).replace(/\./g, ',').replace(/\/?5$/, '')}/5`,
+    metadata.publisher && `Éditeur : ${metadata.publisher}`,
+    Array.isArray(metadata.designers) && metadata.designers.length ? `Auteur : ${metadata.designers.join(', ')}` : null,
+    metadata.weight && `Complexité : ${String(metadata.weight).replace(/\/?5$/, '')}/5`,
   ].filter(Boolean);
-  if (!values.length) return null;
   return {
     id: 'metadata-card',
     section: 'À propos du jeu',
-    narration: `Avant de commencer, voici ${normalized.gameName} et les informations essentielles pour vous installer à la table.`,
-    on_screen_text: values.join(' • '),
+    narration: buildOpeningNarration(normalized),
+    on_screen_text: values.join('\n') || 'Les informations essentielles pour commencer',
     source_pages: [1],
     visual_intent: 'box cover and game overview',
     metadata_card: true,
   };
 }
 
+function buildOpeningNarration(normalized) {
+  const identity = normalized.identity || {};
+  const teachingScenes = (normalized.scenes || []).filter((scene) => scene?.id !== 'metadata-card');
+  const themeSource = teachingScenes[0]?.spokenText || teachingScenes[0]?.narration || '';
+  const objectiveScene = teachingScenes.find((scene) => /objectif|but|win|goal/i.test(`${scene?.title || ''} ${scene?.section || ''}`));
+  const objectiveSource = objectiveScene?.spokenText
+    || objectiveScene?.narration
+    || '';
+  const theme = sanitizeNarrationGameIdentity(prepareNarrationText(themeSource), identity).split(/(?<=[.!?])\s+/)[0];
+  const objective = sanitizeNarrationGameIdentity(prepareNarrationText(objectiveSource), identity).split(/(?<=[.!?])\s+/)[0];
+  return formatOpeningMetadataNarration({
+    identity,
+    metadata: normalized.gameMetadata || {},
+    themeHook: theme && theme.length < 180 ? theme : '',
+  }) + (objective && objective.length < 180 ? ` Pour gagner, ${objective.charAt(0).toLowerCase()}${objective.slice(1)}` : '');
+}
+
 function productionScenes(normalized) {
   const metadata = metadataScriptScene(normalized);
-  if (!metadata || normalized.scenes.some((scene) => scene?.id === 'metadata-card')) return normalized.scenes;
+  const existingMetadata = normalized.scenes.find((scene) => scene?.id === 'metadata-card');
+  if (existingMetadata) {
+    return normalized.scenes.map((scene) => scene?.id === 'metadata-card'
+      ? { ...scene, ...metadata, id: 'metadata-card', metadata_card: true }
+      : scene);
+  }
+  if (!metadata) return normalized.scenes;
   return [metadata, ...normalized.scenes];
 }
 
@@ -358,7 +415,7 @@ function sourcePagesForScene(scene) {
   return [...new Set(pages)].length ? [...new Set(pages)] : [1];
 }
 
-function scriptSceneFromCanonical(scene, index) {
+function scriptSceneFromCanonical(scene, index, identity = {}) {
   const directions = Array.isArray(scene.visualDirections) ? scene.visualDirections : [];
   const overlay = scene.overlay || {};
   const firstDirection = directions[0] || {};
@@ -368,13 +425,13 @@ function scriptSceneFromCanonical(scene, index) {
       || scene.onScreenText
       || scene.on_screen_text
       || scene.title;
-  const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop', 'focused-page-region'].includes(scene.renderVisual?.kind)
+  const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'automatic-visual-plan-composite', 'focused-page-crop', 'focused-page-region'].includes(scene.renderVisual?.kind)
     && scene.renderVisual?.path
     && existsSync(scene.renderVisual.path);
-  const sourceNarration = scene.spokenText || scene.narration || '';
+  const sourceNarration = sanitizeNarrationGameIdentity(scene.spokenText || scene.narration || '', identity);
   return {
     id: scene.id,
-    section: scene.title || scene.section || scene.sectionId || `Section ${index + 1}`,
+    section: sectionLabelFor(scene.title || scene.section || scene.sectionId, index === 0 ? 'Présentation' : 'Tutoriel'),
     narration: prepareNarrationText(sourceNarration),
     source_narration: sourceNarration,
     on_screen_text: onScreenText,
@@ -396,6 +453,7 @@ function canonicalInput(normalized) {
   return {
     projectId: normalized.projectId,
     gameName: normalized.gameName,
+    identity: normalized.identity,
     language: normalized.language,
     voiceId: normalized.voiceId,
     voiceName: normalized.voiceName,
@@ -404,7 +462,7 @@ function canonicalInput(normalized) {
     sourcePdfSha256: normalized.sourcePdfSha256,
     metadata: normalized.gameMetadata,
     scenes: productionScenes(normalized).map((scene, index) => ({
-      ...scriptSceneFromCanonical(scene, index),
+      ...scriptSceneFromCanonical(scene, index, normalized.identity),
       renderKind: scene.renderVisual?.kind || 'missing',
     })),
   };
@@ -424,7 +482,7 @@ function inspectVisuals(normalized) {
   for (const [index, scene] of productionScenes(normalized).entries()) {
     const pages = sourcePagesForScene(scene);
     const fallback = join(normalized.pageDir, `page-${pages[0]}.png`);
-    const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop', 'focused-page-region'].includes(scene.renderVisual?.kind) && scene.renderVisual?.path;
+    const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'automatic-visual-plan-composite', 'focused-page-crop', 'focused-page-region'].includes(scene.renderVisual?.kind) && scene.renderVisual?.path;
     const selection = selectSourceVisual(
       explicit ? {
         language: normalized.language,
@@ -494,7 +552,7 @@ function buildEditorialReport(config, normalized, visuals, narration) {
   return {
     version: 'mobius-editorial-report-v2',
     contract: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
-    brandedIntroAudioPresent: Boolean(narration.records.find((record) => record.sceneId === 'brand-intro')?.brandAudioContract),
+    brandedIntroAudioPresent: Boolean(narration.brandSignaturePath),
     brandedOutroAudioPresent: Boolean(narration.records.find((record) => record.sceneId === 'brand-outro')?.brandAudioContract),
     narrationPreset: normalized.narrationPreset,
     narrationPresetHash: narration.presetHash,
@@ -516,12 +574,15 @@ function buildEditorialReport(config, normalized, visuals, narration) {
 }
 
 function audioSpecs(normalized) {
-  const intro = buildBrandIntro({ audio: null, gameName: normalized.gameName, themeHook: normalized.scenes[0]?.spokenText || '' });
   const outro = buildBrandOutro({ audio: null });
   return [
-    { id: 'brand-intro-voice', sceneId: 'brand-intro', text: prepareNarrationText(intro.narrationText) },
-    ...productionScenes(normalized).map((scene) => ({ id: scene.id, sceneId: scene.id, text: prepareNarrationText(scene.narration || scene.spokenText) })),
-    { id: 'brand-outro-voice', sceneId: 'brand-outro', text: prepareNarrationText(outro.narrationText) },
+    ...productionScenes(normalized).map((scene) => ({
+      id: scene.id,
+      sceneId: scene.id,
+      text: prepareNarrationText(sanitizeNarrationGameIdentity(scene.narration || scene.spokenText, normalized.identity)),
+      deliveryProfile: scene.metadata_card ? 'AMELIE_METADATA' : (scene.deliveryProfile || scene.teaching?.profile || 'AMELIE_TEACHING_WARM_R10'),
+    })),
+    { id: 'brand-outro-voice', sceneId: 'brand-outro', text: prepareNarrationText(outro.narrationText), deliveryProfile: 'AMELIE_OUTRO' },
   ];
 }
 
@@ -537,36 +598,16 @@ function ensureBrandAudioMix(normalized, tools, records, presetHash) {
   const signatureMetaPath = join(normalized.audioDir, 'mobius-signature-bed.json');
   const transitionPath = join(normalized.audioDir, 'mobius-transition-bed.wav');
   const mixHash = hashValue({ brandAudio: BRAND_AUDIO_CONTRACT, presetHash });
-  const introVoice = records.find((record) => record.sceneId === 'brand-intro');
   const outroVoice = records.find((record) => record.sceneId === 'brand-outro');
-  if (!introVoice || !outroVoice) throw new Error('Branded bookend narration records are missing.');
+  if (!outroVoice) throw new Error('Branded outro narration record is missing.');
 
   const signatureMeta = readJsonIfPresent(signatureMetaPath, {});
   if (!existsSync(signaturePath) || signatureMeta.contractHash !== mixHash) {
-    const duration = BRAND_AUDIO_CONTRACT.durationSec;
-    const bedFilter = [
-      '[0:a]volume=0.075[motif1]',
-      '[1:a]volume=0.045[motif2]',
-      '[2:a]volume=0.03[motif3]',
-      '[3:a]lowpass=f=1100,volume=0.06[room]',
-      '[4:a]adelay=900|900,volume=0.08[cup1]',
-      '[5:a]adelay=2600|2600,volume=0.06[cup2]',
-      '[6:a]lowpass=f=700,volume=0.035[water]',
-      '[motif1][motif2][motif3][room][cup1][cup2][water]amix=inputs=7:duration=longest:normalize=0,atrim=0:' + duration + ',afade=t=in:st=0:d=0.18,afade=t=out:st=' + Math.max(0, duration - 0.72).toFixed(2) + ':d=0.72,alimiter=limit=0.8[a]',
-    ].join(';');
-    execFileSync(tools.ffmpeg, [
-      '-hide_banner', '-loglevel', 'error', '-y',
-      '-f', 'lavfi', '-i', `sine=frequency=261.63:duration=${duration}:sample_rate=48000`,
-      '-f', 'lavfi', '-i', `sine=frequency=329.63:duration=${duration}:sample_rate=48000`,
-      '-f', 'lavfi', '-i', `sine=frequency=392.00:duration=${duration}:sample_rate=48000`,
-      '-f', 'lavfi', '-i', `anoisesrc=color=pink:amplitude=0.02:duration=${duration}:sample_rate=48000`,
-      '-f', 'lavfi', '-i', 'aevalsrc=0.18*sin(2*PI*90*t)*exp(-35*t):s=48000:d=0.18',
-      '-f', 'lavfi', '-i', 'aevalsrc=0.14*sin(2*PI*120*t)*exp(-42*t):s=48000:d=0.16',
-      '-f', 'lavfi', '-i', `anoisesrc=color=brown:amplitude=0.018:duration=${duration}:sample_rate=48000`,
-      '-filter_complex', bedFilter,
-      '-map', '[a]', '-ar', '48000', '-ac', '2', signaturePath,
-    ], { stdio: 'pipe', windowsHide: true });
-    jsonFile(signatureMetaPath, { version: BRAND_AUDIO_CONTRACT.version, contract: BRAND_AUDIO_CONTRACT.id, contractHash: mixHash, path: signaturePath, layers: BRAND_AUDIO_CONTRACT.layers });
+    execFileSync(process.execPath, [resolve(normalized.root, 'scripts/build-cafe-sonic-signature.mjs'), '--out', signaturePath, '--meta', signatureMetaPath], {
+      stdio: 'pipe', windowsHide: true,
+      env: { ...process.env, MOBIUS_FFMPEG_PATH: tools.ffmpeg, MOBIUS_FFPROBE_PATH: tools.ffprobe },
+    });
+    jsonFile(signatureMetaPath, { ...readJsonIfPresent(signatureMetaPath, {}), version: BRAND_AUDIO_CONTRACT.version, contract: BRAND_AUDIO_CONTRACT.id, contractHash: mixHash, path: signaturePath, layers: BRAND_AUDIO_CONTRACT.layers });
   }
 
   const transitionMetaHash = hashValue({ mixHash, transition: BRAND_AUDIO_CONTRACT.transition });
@@ -575,14 +616,14 @@ function ensureBrandAudioMix(normalized, tools, records, presetHash) {
   if (!existsSync(transitionPath) || transitionMeta.contractHash !== transitionMetaHash) {
     execFileSync(tools.ffmpeg, [
       '-hide_banner', '-loglevel', 'error', '-y', '-i', signaturePath,
-      '-filter_complex', `[0:a]atrim=0:${BRAND_AUDIO_CONTRACT.transitionBedSec},volume=0.24,afade=t=in:st=0:d=0.18,afade=t=out:st=1.8:d=4.0,alimiter=limit=0.7[a]`,
+      '-filter_complex', `[0:a]atrim=0:${BRAND_AUDIO_CONTRACT.transitionBedSec},volume=0.24,afade=t=in:st=0:d=0.18,afade=t=out:st=${Math.max(0.5, BRAND_AUDIO_CONTRACT.transitionBedSec - 0.72).toFixed(2)}:d=0.72,alimiter=limit=0.7[a]`,
       '-map', '[a]', '-ar', '48000', '-ac', '2', transitionPath,
     ], { stdio: 'pipe', windowsHide: true });
     jsonFile(transitionMetaPath, { version: BRAND_AUDIO_CONTRACT.version, contract: BRAND_AUDIO_CONTRACT.id, contractHash: transitionMetaHash, path: transitionPath, durationSec: BRAND_AUDIO_CONTRACT.transitionBedSec });
   }
 
   const mixed = new Map();
-  for (const [sceneId, voiceRecord] of [['brand-intro', introVoice], ['brand-outro', outroVoice]]) {
+  for (const [sceneId, voiceRecord] of [['brand-outro', outroVoice]]) {
     const outputPath = join(normalized.audioDir, `${sceneId}.mp3`);
     const voicePath = voiceRecord.rawFilePath || voiceRecord.filePath;
     const outputHash = hashValue({ mixHash, sceneId, voice: hashFile(voicePath) });
@@ -635,6 +676,9 @@ async function ensureNarration(normalized, tools, checkpoint, inputHash) {
     const target = join(normalized.audioDir, `${spec.id}.mp3`);
     const existing = index.get(spec.sceneId) || index.get(spec.id);
     const sourcePath = existing?.rawFilePath || existing?.filePath || existing?.path;
+    const deliveryProfile = getNarrationDeliveryProfile(spec.deliveryProfile, normalized.narrationPreset);
+    const voiceSettings = preset[deliveryProfile.voiceSettingsKey] || preset.voiceSettings;
+    const voiceSettingsHash = hashValue(voiceSettings);
     const compatible = existing
       && existing.sourceText === spec.text
       && existing.providerVoiceId === normalized.voiceId
@@ -642,13 +686,15 @@ async function ensureNarration(normalized, tools, checkpoint, inputHash) {
       && existing.modelId === preset.modelId
       && existing.narrationPreset === preset.id
       && existing.narrationPresetHash === presetHash
+      && existing.deliveryProfile === spec.deliveryProfile
+      && existing.voiceSettingsHash === voiceSettingsHash
       && sourcePath && existsSync(sourcePath);
     if (compatible && !existsSync(target)) copyFileSync(sourcePath, target);
     const valid = compatible && existsSync(target);
     if (!valid) {
       await generateNarration(spec.text, normalized.voiceId, target, {
         modelId: preset.modelId,
-        voiceSettings: preset.voiceSettings,
+        voiceSettings,
       });
       generated += 1;
     } else reused += 1;
@@ -663,7 +709,10 @@ async function ensureNarration(normalized, tools, checkpoint, inputHash) {
       sourceText: spec.text,
       narrationPreset: preset.id,
       narrationPresetHash: presetHash,
-      sourceTextHash: hashValue({ text: spec.text, voiceId: normalized.voiceId, language: normalized.language, modelId: preset.modelId, narrationPreset: preset.id, voiceSettings: preset.voiceSettings }),
+      deliveryProfile: spec.deliveryProfile,
+      deliveryProfileContract: deliveryProfile.contract || null,
+      sourceTextHash: hashValue({ text: spec.text, voiceId: normalized.voiceId, language: normalized.language, modelId: preset.modelId, narrationPreset: preset.id, deliveryProfile: spec.deliveryProfile, voiceSettings }),
+      voiceSettingsHash,
       filePath: target,
       rawFilePath: target,
       durationMs: Math.round(probe.durationSec * 1000),
@@ -677,18 +726,19 @@ async function ensureNarration(normalized, tools, checkpoint, inputHash) {
   jsonFile(join(normalized.productionDir, AUDIO_NAME), {
     provider: 'elevenlabs', voiceName: normalized.voiceName, voiceId: normalized.voiceId,
     language: normalized.language, modelId: preset.modelId, narrationPreset: preset.id,
-    narrationPresetHash: presetHash, voiceSettings: preset.voiceSettings, inputHash, assets: finalRecords,
+    narrationPresetHash: presetHash, voiceSettings: preset.voiceSettings, openingVoiceSettings: preset.openingVoiceSettings || null, inputHash, assets: finalRecords,
   });
   checkpoint.stages.narration = { inputHash, reused, generated, outputs: [join(normalized.productionDir, AUDIO_NAME)] };
-  return { reused, generated, records: finalRecords, preset, presetHash, brandTransitionPath: brandMix.transitionPath, brandTransitionHash: brandMix.transitionHash };
+  return { reused, generated, records: finalRecords, preset, presetHash, brandSignaturePath: join(normalized.audioDir, 'mobius-signature-bed.wav'), brandTransitionPath: brandMix.transitionPath, brandTransitionHash: brandMix.transitionHash };
 }
 
 function materializeScript(normalized, inputHash) {
   const output = join(normalized.productionDir, SCRIPT_NAME);
-  const scenes = productionScenes(normalized).map(scriptSceneFromCanonical);
+  const scenes = productionScenes(normalized).map((scene, index) => scriptSceneFromCanonical(scene, index, normalized.identity));
   const value = {
     version: 1,
     game: normalized.gameName,
+    identity: normalized.identity,
     language: normalized.language,
     voiceName: normalized.voiceName,
     voiceId: normalized.voiceId,
@@ -833,7 +883,7 @@ export async function runProduction(options = {}) {
     // previously selected cover/page visual after a visual-quality repair.
     sourceVisualSelectionContract: 'source-visual-selection-v7-provenance-handoff-v1',
     editorial: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
-    branding: { bannerPath: resolve(root, DEFAULT_BRAND.bannerPath), transitionHash: narration.brandTransitionHash },
+    branding: { bannerPath: resolve(root, DEFAULT_BRAND.bannerPath), signatureHash: hashFile(narration.brandSignaturePath) },
     sourceVisualContracts: {
       manifest: normalized.visualManifestPath ? hashFile(normalized.visualManifestPath) : null,
       quality: normalized.visualQualityReportPath ? hashFile(normalized.visualQualityReportPath) : null,
@@ -855,7 +905,7 @@ export async function runProduction(options = {}) {
       '--language', language, '--voice-name', normalized.voiceName, '--voice-id', normalized.voiceId,
       '--narration-provider', 'elevenlabs', '--narration-preset', normalized.narrationPreset,
       '--brand-banner', resolve(root, DEFAULT_BRAND.bannerPath),
-      '--brand-transition-audio', narration.brandTransitionPath,
+      '--brand-transition-audio', narration.brandSignaturePath,
       ...(normalized.visualManifestPath ? ['--asset-manifest', normalized.visualManifestPath] : []),
       ...(normalized.visualQualityReportPath ? ['--visual-quality-report', normalized.visualQualityReportPath] : []),
       ...(normalized.semanticVisualReportPath ? ['--semantic-visual-report', normalized.semanticVisualReportPath] : []),
@@ -895,6 +945,7 @@ export async function runProduction(options = {}) {
   const loudness = measureLoudness(tools, outputPath);
   const physicalReview = readJsonIfPresent(join(normalized.productionDir, 'professional-physical-review.json'), {});
   const calibration = readJsonIfPresent(join(normalized.productionDir, 'twelvelabs-calibration.json'), {});
+  const requiredNarrationSceneCount = config.scenes.filter((scene) => scene.narrationText && scene.audio?.speechRequired !== false).length;
   const professionalGate = evaluateProfessionalReleaseGate({
     deterministicPass: true,
     visuals,
@@ -902,7 +953,7 @@ export async function runProduction(options = {}) {
     media: { ...media, valid: true },
     captions: { ...captions, valid: true },
     chapters: { count: chapterList.length, order: 'valid' },
-    narration: { total: narration.records.length, complete: narration.records.length === config.scenes.length },
+    narration: { total: narration.records.length, complete: narration.records.length === requiredNarrationSceneCount },
     provenance: { sourceGrounded: true, complete: normalized.scenes.every((scene) => sourcePagesForScene(scene).length > 0) },
     branding: { bannerPresent: true, introPresent: true, outroPresent: true },
     physicalReview,
@@ -910,8 +961,12 @@ export async function runProduction(options = {}) {
   });
   const report = {
     status: 'PASS',
+    technicalVerdict: 'TECHNICAL_PASS',
+    humanReviewRequired: true,
     projectId,
     language,
+    identity: normalized.identity,
+    metadataProvenance: normalized.gameMetadata?.metadataProvenance || null,
     voice: {
       name: normalized.voiceName,
       id: normalized.voiceId,
@@ -928,15 +983,19 @@ export async function runProduction(options = {}) {
     handoff: { configPath, captionsPath, chaptersPath, reused: handoffReuse },
     branding: {
       bannerPath: resolve(root, DEFAULT_BRAND.bannerPath),
+      bannerSha256: hashFile(resolve(root, DEFAULT_BRAND.bannerPath)),
+      signatureAudioPath: narration.brandSignaturePath,
+      signatureSha256: hashFile(narration.brandSignaturePath),
       transitionAudioPath: narration.brandTransitionPath,
       transitionHash: narration.brandTransitionHash,
+      introDurationSec: Number(config.scenes.find((scene) => scene.id === 'brand-intro')?.durationSec || 0),
       introPresent: true,
       outroPresent: true,
     },
-    render: { outputPath, reused: renderReused, durationSec: media.durationSec, resolution: `${media.video.width}x${media.video.height}`, fps: media.video.avg_frame_rate, status: 'complete' },
+    render: { outputPath, outputSha256: hashFile(outputPath), reused: renderReused, durationSec: media.durationSec, resolution: `${media.video.width}x${media.video.height}`, fps: media.video.avg_frame_rate, status: 'complete' },
     media: { ...media, loudness },
     captions,
-    chapters: { count: chapterList.length, order: 'valid' },
+    chapters: { count: chapterList.length, order: 'valid', boundaries: chapterList },
     editorial: editorialReport,
     professionalGate,
     checkpoint: checkpointPath,
@@ -966,7 +1025,7 @@ export async function runProduction(options = {}) {
       media: { ...media, valid: true },
       captions: { ...captions, valid: true },
       chapters: { count: chapterList.length, order: 'valid' },
-      narration: { total: narration.records.length, complete: narration.records.length === config.scenes.length },
+      narration: { total: narration.records.length, complete: narration.records.length === requiredNarrationSceneCount },
       provenance: { sourceGrounded: true, complete: normalized.scenes.every((scene) => sourcePagesForScene(scene).length > 0) },
       branding: { bannerPresent: true, introPresent: true, outroPresent: true },
       physicalReview,

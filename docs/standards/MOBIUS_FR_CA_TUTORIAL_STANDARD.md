@@ -44,6 +44,14 @@ Pour une mise en place, le tutoriel explique une étape à la fois. Il montre d�
 
 Les assets destinés à la démonstration sont des composants extraits ou des recadrages de grande qualité, avec leur source et leur hash. MOBIUS sélectionne l’asset correspondant à l’action et peut utiliser un recadrage de livret comme solution de repli explicitement identifiée. Les pages entières de PDF pixelisées ou miniaturisées ne satisfont pas le niveau de production premium lorsque l’élément de jeu concerné peut être extrait.
 
+### Verrous de précision visuelle et parlée
+
+- Des cartes présentées comme exemples équivalents doivent provenir des meilleurs maîtres autorisés disponibles et conserver une définition effective, une échelle et un cadrage comparables. Un petit XObject agrandi échoue si un maître officiel ou exact-édition plus détaillé est disponible.
+- Une carte présentée comme objet physique doit conserver sa silhouette complète, ses quatre limites, son rapport d’aspect et l’absence de composant voisin. Un recadrage accidentellement incomplet ne représente pas une carte complète.
+- Une structure de cartes superposées doit reproduire les états qui gouvernent la règle : face visible, face cachée, recouvrement et accessibilité. Une démonstration entièrement face visible est interdite lorsque l’orientation fait partie du mécanisme.
+- Un plateau montré en situation de jeu doit être physiquement cohérent : marqueurs et jetons occupent les emplacements et orientations vérifiés par la source. Un marqueur à déclenchement unique disparaît de l’état suivant après consommation et ne se redéclenche pas lors d’un retour.
+- Les nombres romains restent canoniques à l’écran (`Âge I`, `Âge II`, `Âge III`). Dans le texte transmis à Amélie, un contexte d’âge, de phase, de chapitre ou de paquet les transforme en nombres naturels (`âge un`, `âge deux`, `âge trois`; `un, deux et trois`). Une lettre `I` hors de ces contextes n’est pas réécrite.
+
 ## Temps de rendu et observabilité
 
 Le système doit mesurer séparément l’ingestion, l’extraction d’assets, l’écriture du script, la synthèse vocale, le rendu et le QA. Un rendu long est acceptable s’il est reproductible, résumable, observable et proportionné à la durée et à la complexité de la vidéo. MOBIUS doit afficher ou enregistrer les étapes et leurs durées afin que l’opérateur puisse savoir où le temps est passé.
@@ -51,3 +59,14 @@ Le système doit mesurer séparément l’ingestion, l’extraction d’assets, 
 ## Garde de livraison
 
 Avant une livraison, MOBIUS vérifie au minimum : résolution 1080p ou plus, présence et décodage valide de l’audio, durée de chaque segment audio, sous-titres français, niveau sonore de programme, absence de chevauchement critique entre texte et zone de démonstration, présence des chapitres, intro et outro, source des assets, manifeste et checksums. Une scène sans image pertinente, une narration manquante ou une page de livret masquée par du texte volumineux doit être signalée comme une exception à réviser, pas considérée automatiquement conforme.
+## Generator productization and Autopilot convergence (2026-09-07)
+
+- Normal production compiles `Rulebook Knowledge → VisualRequirements → physical game state → canonical source resolution → VisualPlan → Cockpit review/acceptance → storyboard → narration → render → production QA`.
+- A physical instructional RuleAtom must derive its visual requirements from source-grounded knowledge. Missing or ambiguous evidence becomes a Cockpit review item; it must never silently become a decorative or weak page fallback.
+- Source selection considers authority and true detail at intended display size. Exact-edition publisher/press masters outrank authorized BGG originals, which outrank native PDF objects and clean PDF crops when identity and provenance are otherwise equivalent.
+- Physical state includes location, orientation, face state, visibility, ownership, quantity, covered/accessible relationships, track position, and consumed/removed transitions where applicable.
+- Equivalent instructional assets share peer scale and source-quality expectations. Mobile composition enlarges meaningful evidence before leaving dead space or shrinking text.
+- The canonical teaching delivery is `AMELIE_TEACHING_WARM_R10`, with natural fr-CA display/spoken separation, contextual Roman-numeral normalization, transcript/performance QA, and selective cache-aware regeneration.
+- The canonical signature keeps the approved banner, café-room ambience, continuous coffee pour, and dice cue, with no narration during the signature.
+- Iteration-specific 7 Wonders Duel builders and publishability QA scripts are benchmark/history fixtures only. They are not normal production dependencies.
+- `CODEX_REQUIRED_FOR_NORMAL_PRODUCTION = FALSE`: uncertainty is resolved by the normal Cockpit workflow, not bespoke engineering intervention.

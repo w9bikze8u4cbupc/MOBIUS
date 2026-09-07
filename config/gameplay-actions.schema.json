@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mobius-gameplay-actions-v1",
+  "type": "object",
+  "required": ["contract", "projectId", "gameLoop", "actions", "visualBindings", "confidence", "reviewState"],
+  "properties": {
+    "contract": { "const": "mobius-gameplay-actions-v1" },
+    "projectId": { "type": ["string", "null"] },
+    "gameLoop": {
+      "type": "object",
+      "required": ["loopUnit", "phases", "activePlayerRule", "repeatRule", "advanceRule", "sourceRefs", "confidence", "reviewState"],
+      "properties": {
+        "loopUnit": { "enum": ["turn", "round", "age", "generation"] },
+        "phases": { "type": "array", "items": { "type": "string" } },
+        "activePlayerRule": { "type": "string" },
+        "repeatRule": { "type": "string" },
+        "advanceRule": { "type": "string" },
+        "sourceRefs": { "type": "array" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reviewState": { "enum": ["accepted", "needs_review", "rejected"] }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "purpose", "prerequisites", "cost", "componentRefs", "sourceRefs", "stateChange", "nextState", "confidence", "reviewState"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "purpose": { "type": "string" },
+          "prerequisites": { "type": "array" },
+          "cost": { "type": ["object", "null"] },
+          "componentRefs": { "type": "array" },
+          "sourceRefs": { "type": "array", "minItems": 1 },
+          "stateChange": { "type": "object", "required": ["before", "action", "after"] },
+          "nextState": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "reviewState": { "enum": ["accepted", "needs_review", "rejected"] }
+        }
+      }
+    },
+    "visualBindings": { "type": "array" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "reviewState": { "enum": ["accepted", "needs_review", "rejected"] }
+  }
+}

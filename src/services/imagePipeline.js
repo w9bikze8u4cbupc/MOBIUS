@@ -168,6 +168,12 @@ async function searchBggByName(gameName) {
   }
 }
 
+let bggHttpClient = axios;
+
+function setBggHttpClientForTests(client) {
+  bggHttpClient = client || axios;
+}
+
 async function fetchBggImages(projectId, bggIdOrUrl) {
   let bggId = parseBggId(bggIdOrUrl);
   
@@ -183,7 +189,7 @@ async function fetchBggImages(projectId, bggIdOrUrl) {
   }
 
   console.log('Fetching BGG images for ID:', bggId);
-  const response = await axios.get(`https://boardgamegeek.com/xmlapi2/thing?id=${bggId}&stats=1`);
+  const response = await bggHttpClient.get(`https://boardgamegeek.com/xmlapi2/thing?id=${bggId}&stats=1`);
   const parsed = xmlParser.parse(response.data || '');
   const item = parsed?.items?.item || {};
   const candidates = [];
@@ -532,10 +538,10 @@ export {
   prepareImagesForRenderer,
   SUPPORTED_IMAGE_EXTENSIONS,
   fetchBggImages,
+  setBggHttpClientForTests,
   extractRulebookImages,
   ingestManualImage,
   runImageEnhancement,
   searchWebForComponentImages,
   matchComponentsToImages,
 };
-

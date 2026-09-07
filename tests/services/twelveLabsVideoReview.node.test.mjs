@@ -7,6 +7,8 @@ import {
   TWELVELABS_RUBRIC_VERSION,
   analyzeProductionVideo,
   getTwelveLabsConfig,
+  parseCanonicalEditorialReviewJson,
+  runTwelveLabsEditorialAnalysis,
   parseStrictReviewJson,
   safeTwelveLabsConfig,
   validateReviewResult,
@@ -105,4 +107,194 @@ test('unconfigured access is advisory unavailable and does not make a network re
   assert.equal(result.status, 'unavailable');
   assert.equal(result.classification, 'not_configured');
   assert.equal(called, false);
+});
+
+function canonicalReviewFixture() {
+  return {
+    schema_version: 'mobius-twelvelabs-editorial-qa-v1', provider: 'twelvelabs', model_name: 'pegasus1.5', verdict: 'PASS_WITH_WARNINGS', overall_score_10: 8,
+    category_scores: Object.fromEntries(['intro_and_sonic_identity', 'voice_consistency', 'fr_ca_pronunciation', 'script_progression', 'text_containment_and_legibility', 'space_optimization', 'visual_narration_correspondence', 'section_transitions', 'brand_consistency'].map((name) => [name, 8])),
+    findings: [{ id: 'TL-001', severity: 'P2', category: 'pacing', start_sec: 4, end_sec: 5, scene_id: 'metadata-card', observation: 'Une pause courte.', evidence: 'Pause audible.', expected_behavior: 'Transition fluide.', recommended_outcome: 'Raccourcir la pause.', confidence: 0.8, requires_human_judgment: false }],
+    pronunciation_checks: [], scene_boundary_checks: [], strengths_to_preserve: ['Bannière claire'], human_review_required: true, human_review_reason: 'Avis consultatif seulement.',
+  };
+}
+
+test('canonical R2 parser enforces provider, model and TL finding provenance shape', () => {
+  const parsed = parseCanonicalEditorialReviewJson(JSON.stringify(canonicalReviewFixture()));
+  assert.equal(parsed.provider, 'twelvelabs');
+  assert.throws(() => parseCanonicalEditorialReviewJson(JSON.stringify({ ...canonicalReviewFixture(), model_name: 'pegasus1.2' })), /unexpected model/);
+});
+
+test('canonical v1.1 keeps positive checks out of findings and requires an actionable defect outcome', () => {
+  const positive = {
+    ...canonicalReviewFixture(),
+    schema_version: 'mobius-twelvelabs-editorial-qa-v1.1',
+    findings: [],
+    pronunciation_checks: [{ term: 'Seven Wonders Duel', timestamp_sec: 7, heard_as: 'Seven Wonders duèl', natural_in_fr_ca: true, awkward_internal_pause: false, recognizable: true, confidence: 0.9 }],
+    scene_boundary_checks: [{ from_scene: 'metadata-card', to_scene: 'scene-section-01-1', timestamp_sec: 21, voice_level_change: 'NONE', voice_character_change: 'NONE', transition_quality: 'PASS', evidence: 'La continuité vocale est stable.' }],
+    strengths_to_preserve: ['La signature visuelle est cohérente.'],
+  };
+  assert.equal(parseCanonicalEditorialReviewJson(JSON.stringify(positive)).findings.length, 0);
+  const defect = { ...positive, findings: [{ ...canonicalReviewFixture().findings[0], action: 'CORRECT' }] };
+  assert.equal(parseCanonicalEditorialReviewJson(JSON.stringify(defect)).findings[0].action, 'CORRECT');
+  assert.throws(() => parseCanonicalEditorialReviewJson(JSON.stringify({ ...defect, findings: [{ ...defect.findings[0], action: 'PASS' }] })), /invalid action/);
+  assert.throws(() => parseCanonicalEditorialReviewJson(JSON.stringify({ ...defect, findings: [{ ...defect.findings[0], action: undefined }] })), /invalid action/);
+});
+
+test('canonical v1.1 response is also validated against the requested strict schema', async () => {
+  const schema = JSON.parse(await fs.readFile(path.resolve('config/qa/mobius-twelvelabs-editorial-qa-v1.1.schema.json'), 'utf8'));
+  const value = { ...canonicalReviewFixture(), schema_version: 'mobius-twelvelabs-editorial-qa-v1.1', findings: [] };
+  assert.equal(parseCanonicalEditorialReviewJson(JSON.stringify(value), schema).schema_version, 'mobius-twelvelabs-editorial-qa-v1.1');
+  assert.throws(() => parseCanonicalEditorialReviewJson(JSON.stringify({ ...value, unexpected: true }), schema), /JSON schema/);
+  assert.throws(() => parseCanonicalEditorialReviewJson(JSON.stringify({ ...value, human_review_required: 'yes' }), schema), /JSON schema/);
+});
+
+test('canonical analysis text is recovered from nested provider payloads', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'mobius-twelvelabs-nested-'));
+  const videoPath = path.join(directory, 'preview.mp4');
+  await fs.writeFile(videoPath, 'nested-test-video');
+  const fetchImpl = async (url) => {
+    if (url.endsWith('/assets')) return response({ _id: 'asset-nested' }, 201);
+    if (url.endsWith('/assets/asset-nested')) return response({ status: 'ready' });
+    if (url.endsWith('/analyze')) return response({ data: { result: { data: JSON.stringify(canonicalReviewFixture()) } } });
+    throw new Error(`unexpected URL ${url}`);
+  };
+  const result = await runTwelveLabsEditorialAnalysis({ videoPath, promptText: 'Review.', schema: {}, cachePath: path.join(directory, 'cache.json'), cacheKey: 'nested-key', promptSha256: 'p', schemaSha256: 's', expectedContextSha256: 'c', env: { TWELVELABS_API_KEY: 'secret' }, fetchImpl, pollMs: 0 });
+  assert.equal(result.status, 'complete');
+  assert.equal(result.result.provider, 'twelvelabs');
+});
+
+test('canonical analysis text is recovered from structured response fragments', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'mobius-twelvelabs-fragments-'));
+  const videoPath = path.join(directory, 'preview.mp4');
+  await fs.writeFile(videoPath, 'fragment-test-video');
+  const canonical = JSON.stringify(canonicalReviewFixture());
+  const splitAt = Math.floor(canonical.length / 2);
+  const result = await runTwelveLabsEditorialAnalysis({
+    videoPath,
+    promptText: 'Review.',
+    schema: {},
+    cachePath: path.join(directory, 'cache.json'),
+    cacheKey: 'fragment-key',
+    promptSha256: 'p',
+    schemaSha256: 's',
+    expectedContextSha256: 'c',
+    env: { TWELVELABS_API_KEY: 'secret' },
+    fetchImpl: async (url) => {
+      if (url.endsWith('/assets')) return response({ _id: 'asset-fragments' }, 201);
+      if (url.endsWith('/assets/asset-fragments')) return response({ status: 'ready' });
+      if (url.endsWith('/analyze')) return response({ data: [{ text: canonical.slice(0, splitAt) }, { text: canonical.slice(splitAt) }] });
+      throw new Error(`unexpected URL ${url}`);
+    },
+    pollMs: 0,
+  });
+  assert.equal(result.status, 'complete');
+  assert.equal(result.result.provider, 'twelvelabs');
+});
+
+test('redacted provider envelope fixture parses while an asset response cannot masquerade as analysis', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'mobius-twelvelabs-fixtures-'));
+  const videoPath = path.join(directory, 'preview.mp4');
+  await fs.writeFile(videoPath, 'fixture-test-video');
+  const analysisFixture = JSON.parse(await fs.readFile(path.resolve('tests/fixtures/twelvelabs/provider-analysis-envelope-data.redacted.json'), 'utf8'));
+  const assetFixture = JSON.parse(await fs.readFile(path.resolve('tests/fixtures/twelvelabs/provider-asset-response.redacted.json'), 'utf8'));
+  const call = async (analysisPayload) => runTwelveLabsEditorialAnalysis({
+    videoPath,
+    promptText: 'Review.',
+    schema: {},
+    cachePath: path.join(directory, `${analysisPayload === assetFixture ? 'asset' : 'analysis'}.cache.json`),
+    cacheKey: `fixture-${analysisPayload === assetFixture ? 'asset' : 'analysis'}`,
+    promptSha256: 'p',
+    schemaSha256: 's',
+    expectedContextSha256: 'c',
+    env: { TWELVELABS_API_KEY: 'secret' },
+    fetchImpl: async (url) => {
+      if (url.endsWith('/assets')) return response({ _id: 'asset-fixture' }, 201);
+      if (url.endsWith('/assets/asset-fixture')) return response({ status: 'ready' });
+      if (url.endsWith('/analyze')) return response(analysisPayload);
+      throw new Error(`unexpected URL ${url}`);
+    },
+    pollMs: 0,
+  });
+  const parsed = await call(analysisFixture);
+  assert.equal(parsed.status, 'complete');
+  const rejected = await call(assetFixture);
+  assert.equal(rejected.status, 'unavailable');
+  assert.equal(rejected.classification, 'invalid_structured_output');
+  assert.equal(rejected.analysisResponse.payload._id, 'asset-id-redacted');
+});
+
+test('structured-output rejection preserves the successful analysis envelope separately from asset responses', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'mobius-twelvelabs-analysis-rejection-'));
+  const videoPath = path.join(directory, 'preview.mp4');
+  await fs.writeFile(videoPath, 'analysis-rejection-video');
+  const result = await runTwelveLabsEditorialAnalysis({
+    videoPath,
+    promptText: 'Review.',
+    schema: {},
+    cachePath: path.join(directory, 'cache.json'),
+    cacheKey: 'analysis-rejection-key',
+    promptSha256: 'p',
+    schemaSha256: 's',
+    expectedContextSha256: 'c',
+    env: { TWELVELABS_API_KEY: 'secret' },
+    fetchImpl: async (url) => {
+      if (url.endsWith('/assets')) return response({ _id: 'asset-rejection' }, 201);
+      if (url.endsWith('/assets/asset-rejection')) return response({ status: 'ready' });
+      if (url.endsWith('/analyze')) return response({ id: 'analysis-rejection', data: 'not-json-review' }, 201);
+      throw new Error(`unexpected URL ${url}`);
+    },
+    pollMs: 0,
+  });
+  assert.equal(result.status, 'unavailable');
+  assert.equal(result.classification, 'invalid_structured_output');
+  assert.equal(result.assetCreateResponse.status, 201);
+  assert.equal(result.assetFinalResponse.status, 200);
+  assert.equal(result.analysisResponse.status, 201);
+  assert.match(result.analysisResponse.bodyText, /analysis-rejection/);
+  assert.equal(result.analysisResponse.payload.id, 'analysis-rejection');
+});
+
+test('R2 analysis sends synchronous Pegasus 1.5 prompt_v2 and preserves cache reuse', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'mobius-twelvelabs-r2-'));
+  const videoPath = path.join(directory, 'preview.mp4');
+  const cachePath = path.join(directory, 'cache.json');
+  await fs.writeFile(videoPath, 'r2-test-video');
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, method: init.method, body: init.body });
+    if (url.endsWith('/assets')) return response({ _id: 'asset-r2' }, 201);
+    if (url.endsWith('/assets/asset-r2')) return response({ status: 'ready' });
+    if (url.endsWith('/analyze')) {
+      const body = JSON.parse(init.body);
+      assert.equal(body.model_name, 'pegasus1.5');
+      assert.equal(body.analysis_mode, 'general');
+      assert.deepEqual(body.video, { type: 'asset_id', asset_id: 'asset-r2' });
+      assert.equal(typeof body.prompt_v2.input_text, 'string');
+      assert.equal(body.stream, false);
+      return response({ id: 'analysis-r2', data: JSON.stringify(canonicalReviewFixture()), usage: { input_tokens: 10, output_tokens: 20 } });
+    }
+    throw new Error(`unexpected URL ${url}`);
+  };
+  const first = await runTwelveLabsEditorialAnalysis({ videoPath, promptText: 'Review.', schema: {}, cachePath, cacheKey: 'r2-key', promptSha256: 'p', schemaSha256: 's', expectedContextSha256: 'c', env: { TWELVELABS_API_KEY: 'secret' }, fetchImpl, pollMs: 0 });
+  const second = await runTwelveLabsEditorialAnalysis({ videoPath, promptText: 'Review.', schema: {}, cachePath, cacheKey: 'r2-key', promptSha256: 'p', schemaSha256: 's', expectedContextSha256: 'c', env: { TWELVELABS_API_KEY: 'secret' }, fetchImpl, pollMs: 0 });
+  assert.equal(first.status, 'complete');
+  assert.equal(first.cached, false);
+  assert.equal(second.cached, true);
+  assert.equal(calls.filter((call) => call.url.endsWith('/analyze')).length, 1);
+});
+
+test('R2 preserves a real authentication error envelope without exposing the key', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'mobius-twelvelabs-auth-'));
+  const videoPath = path.join(directory, 'preview.mp4');
+  await fs.writeFile(videoPath, 'auth-test-video');
+  const result = await runTwelveLabsEditorialAnalysis({
+    videoPath, promptText: 'Review.', schema: {}, cachePath: path.join(directory, 'cache.json'), cacheKey: 'auth-key',
+    env: { TWELVELABS_API_KEY: 'secret-value' },
+    fetchImpl: async () => ({ ok: false, status: 401, statusText: 'Unauthorized', headers: { forEach(callback) { callback('0', 'x-ratelimit-remaining'); } }, async text() { return JSON.stringify({ message: 'API key invalid or expired.' }); } }),
+  });
+  assert.equal(result.status, 'unavailable');
+  assert.equal(result.classification, 'auth_failed');
+  assert.equal(result.assetCreateResponse.status, 401);
+  assert.match(result.assetCreateResponse.bodyText, /invalid or expired/);
+  assert.equal(JSON.stringify(result).includes('secret-value'), false);
 });

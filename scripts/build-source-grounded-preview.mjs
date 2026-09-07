@@ -16,9 +16,12 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
+import ffmpegStatic from 'ffmpeg-static';
+import ffprobeStatic from 'ffprobe-static';
 import presentation from '../src/storyboard/tutorial_presentation.cjs';
 import { loadSourceVisualCatalog, selectSourceVisual } from '../src/services/sourceVisualSelection.js';
-import { DEFAULT_NARRATION_PRESET, getEditorialContract, getNarrationPreset } from '../src/services/editorialStandard.cjs';
+import { DEFAULT_NARRATION_PRESET, formatOpeningMetadataNarration, getEditorialContract, getNarrationPreset } from '../src/services/editorialStandard.cjs';
+import { resolveCanonicalGameIdentity, resolveCanonicalGameMetadata, sanitizeNarrationGameIdentity } from '../src/services/gameIdentity.cjs';
 
 const {
   DEFAULT_BRAND,
@@ -30,6 +33,7 @@ const {
 } = presentation;
 
 const AUDIO_EXTENSIONS = ['.wav', '.mp3', '.m4a', '.aac'];
+const FFPROBE_BIN = process.env.MOBIUS_FFPROBE_PATH || ffprobeStatic.path || 'ffprobe';
 
 function requiredArg(name) {
   const index = process.argv.indexOf(`--${name}`);
@@ -62,7 +66,7 @@ function formatSrtTime(seconds) {
 }
 
 function getDurationSeconds(audioPath) {
-  const output = execFileSync('ffprobe', [
+  const output = execFileSync(FFPROBE_BIN, [
     '-v', 'error', '-show_entries', 'format=duration',
     '-of', 'default=noprint_wrappers=1:nokey=1', audioPath,
   ], { encoding: 'utf8' }).trim();
@@ -116,6 +120,39 @@ function requireAudio(audioDir, id, label) {
   return path;
 }
 
+function selectIdentityBoxArt({ script, metadata, pageDir, explicitPath = null } = {}) {
+  const candidates = [
+    explicitPath,
+    script?.identity?.boxArtPath,
+    script?.identity?.boxArt,
+    metadata?.boxArtPath,
+    metadata?.boxArt,
+  ].filter(Boolean).map((value) => resolve(String(value)));
+  const selected = candidates.find((value) => existsSync(value));
+  if (selected) {
+    const manifestPath = resolve('src/assets/games/presentation-box-art-manifest.json');
+    const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')) : {};
+    const gameKey = String(script?.game || script?.gameName || script?.identity?.displayName || '').toLowerCase().includes('7 wonders') ? '7-wonders-duel' : 'terraforming-mars';
+    const quality = manifest.assets?.[gameKey] || null;
+    return {
+      path: selected,
+      kind: 'exact-edition-box-art',
+      confidence: 0.98,
+      reason: 'confirmed operator/authoritative edition asset',
+      provenance: { source: 'operator-confirmed-or-authoritative-metadata', edition: script?.identity?.edition || null, quality },
+    };
+  }
+  const fallback = join(pageDir, 'page-1.png');
+  if (!existsSync(fallback)) throw new Error(`No exact-edition box art and no rulebook fallback at ${fallback}`);
+  return {
+    path: fallback,
+    kind: 'rulebook-cover-fallback',
+    confidence: 0.2,
+    reason: 'exact-edition box art unavailable; explicit fallback only',
+    provenance: { source: 'rulebook-cover-fallback', boxArtClaim: false },
+  };
+}
+
 function main() {
   const scriptPath = resolve(requiredArg('script'));
   const pageDir = resolve(requiredArg('page-dir'));
@@ -135,9 +172,13 @@ function main() {
   const canonicalBannerPath = resolve(process.cwd(), DEFAULT_BRAND.bannerPath);
   const bannerPath = optionalArg('brand-banner', canonicalBannerPath);
   const transitionAudioPath = optionalArg('brand-transition-audio', null);
+  const brandAmbiencePath = optionalArg('brand-ambience-audio', transitionAudioPath);
+  const narrationBedPath = optionalArg('narration-bed-audio', resolve('src/assets/branding/sonic/cafe-ambience-freesound-25813.mp3'));
   const assetManifestPath = optionalArg('asset-manifest', null);
   const visualQualityReportPath = optionalArg('visual-quality-report', null);
   const semanticVisualReportPath = optionalArg('semantic-visual-report', null);
+  const requestedMaxScenes = Number(optionalArg('max-scenes', '0'));
+  const maxScenes = Number.isInteger(requestedMaxScenes) && requestedMaxScenes > 0 ? requestedMaxScenes : null;
   const includeBrand = !hasFlag('no-brand');
   const preset = getNarrationPreset(narrationPreset);
 
@@ -149,6 +190,8 @@ function main() {
   if (!Array.isArray(script.scenes) || script.scenes.length === 0) {
     throw new Error('The reviewed script must contain a non-empty scenes array');
   }
+  const scriptScenes = maxScenes ? script.scenes.slice(0, maxScenes) : script.scenes;
+  const requestedBoxArtPath = optionalArg('box-art', null);
 
   const cursor = { value: 0 };
   const captions = { blocks: [], scene: null };
@@ -162,41 +205,58 @@ function main() {
     : { manifestPath: null, assets: [], warnings: [] };
   visualWarnings.push(...(visualCatalog.warnings || []));
   const metadata = script.metadata && typeof script.metadata === 'object' ? script.metadata : {};
-  const metadataValues = Object.values(metadata).filter((value) => value && value !== 'Not specified');
+  const identity = resolveCanonicalGameIdentity({
+    explicitOverride: script.identity || {},
+    projectMetadata: { identity: script.identity || {}, gameName: script.game || script.gameName || projectId },
+    bgg: metadata,
+    rulebook: { gameName: script.sourceTitle, title: script.sourceTitle },
+    filename: script.sourcePdf || projectId,
+    locale: language === 'french' ? 'fr-CA' : language,
+    sourceLanguage: script.sourceLanguage || 'en',
+  });
+  const canonicalMetadata = resolveCanonicalGameMetadata({ explicit: metadata, bgg: metadata });
+  const metadataValues = Object.values(canonicalMetadata).filter((value) => value && value !== 'Not specified');
 
   if (includeBrand) {
-    const introAudio = requireAudio(audioDir, 'brand-intro', 'The branded intro');
     const intro = buildBrandIntro({
       bannerPath: bannerPath && existsSync(resolve(bannerPath)) ? resolve(bannerPath) : null,
-      audio: { file: introAudio, provider: narrationProvider, providerVoiceId: voiceId, language, narrationPreset },
-      gameName: script.game || projectId,
-      themeHook: script.scenes[0]?.narration || '',
+      audio: {
+        ...(brandAmbiencePath && existsSync(resolve(brandAmbiencePath))
+          ? { ambientFile: resolve(brandAmbiencePath), ambientGain: 1.0, ambientFadeOutSec: 0.72 }
+          : {}),
+        provider: narrationProvider, providerVoiceId: voiceId, language, narrationPreset,
+      },
     });
-    intro.durationSec = getDurationSeconds(introAudio);
-    captions.scene = intro;
-    addCaption(captions, cursor, intro.narrationText);
+    intro.durationSec = getEditorialContract({ narrationPreset }).brandAudio.durationSec;
     scenes.push(intro);
   }
 
-  const hasCanonicalMetadataScene = script.scenes.some((scene) => scene?.id === 'metadata-card');
-  if (metadataValues.length > 0 && !hasCanonicalMetadataScene) {
+  const hasCanonicalMetadataScene = scriptScenes.some((scene) => scene?.id === 'metadata-card');
+  if (!hasCanonicalMetadataScene) {
     const metadataAudio = requireAudio(audioDir, 'metadata-card', 'The metadata opening scene');
     const metadataSource = {
       id: 'metadata-card',
       section: 'À propos du jeu',
-      narration: `Avant de commencer, voici ${script.game || projectId} et les informations essentielles pour vous installer à la table.`,
-      on_screen_text: metadataValues.slice(0, 6).map((value) => Array.isArray(value) ? value.join(', ') : value).join(' • '),
+      narration: formatOpeningMetadataNarration({ identity, metadata: canonicalMetadata }),
+      on_screen_text: [
+        canonicalMetadata.playerCount && `Joueurs : ${canonicalMetadata.playerCount}`,
+        canonicalMetadata.gameLength && `Durée : ${String(canonicalMetadata.gameLength).replace(/\bmin\b/gi, 'minutes')}`,
+        canonicalMetadata.minimumAge && `Âge minimum : ${String(canonicalMetadata.minimumAge).replace(/\+?$/, '+')}`,
+        canonicalMetadata.weight && `Complexité : ${String(canonicalMetadata.weight).replace(/\/?5$/, '')}/5`,
+      ].filter(Boolean).join('\n') || metadataValues.slice(0, 4).map((value) => Array.isArray(value) ? value.join(', ') : value).join('\n'),
       source_pages: [1],
       source_pdf_sha256: script.sourcePdfSha256 || null,
       visual_intent: 'box cover and game overview',
       metadata_card: true,
     };
-    const metadataVisual = selectSourceVisual({ ...metadataSource, language }, visualCatalog, resolveRulebookFallback(metadataSource, pageDir));
+    const boxArt = selectIdentityBoxArt({ script, metadata, pageDir, explicitPath: requestedBoxArtPath });
+    const metadataVisual = { path: boxArt.path, kind: boxArt.kind, confidence: boxArt.confidence, reason: boxArt.reason, provenance: boxArt.provenance, languageAudit: null };
     if (!metadataVisual.path) throw new Error('Metadata scene has no renderable visual');
     const metadataDuration = getDurationSeconds(metadataAudio);
     const metadataScene = buildMetadataScene({
-      gameName: script.game || projectId,
-      metadata,
+      gameName: identity.displayName,
+      identity,
+      metadata: canonicalMetadata,
       narration: metadataSource.narration,
       sourcePages: metadataSource.source_pages,
       background: {
@@ -207,7 +267,11 @@ function main() {
         languageAudit: metadataVisual.languageAudit || null,
         provenance: metadataVisual.provenance || null,
       },
-      audio: { file: metadataAudio, provider: narrationProvider, providerVoiceId: voiceId, language, narrationPreset },
+      audio: {
+        file: metadataAudio,
+        ...(narrationBedPath && existsSync(resolve(narrationBedPath)) ? { ambientFile: resolve(narrationBedPath), ambientGain: 0.07, ambientFadeOutSec: 1.0 } : {}),
+        provider: narrationProvider, providerVoiceId: voiceId, language, narrationPreset,
+      },
       visualKind: metadataVisual.kind,
       durationSec: metadataDuration,
     });
@@ -218,23 +282,27 @@ function main() {
     scenes.push(metadataScene);
   }
 
-  for (const [index, scene] of script.scenes.entries()) {
+  for (const [index, scene] of scriptScenes.entries()) {
     assertScene(scene, index);
     const audioPath = requireAudio(audioDir, scene.id, `Scene ${scene.id}`);
     const durationSec = getDurationSeconds(audioPath);
-    const visual = selectSourceVisual({
-      ...scene,
-      language,
-      source_pdf_sha256: scene.source_pdf_sha256 || script.sourcePdfSha256 || null,
-    }, visualCatalog, resolveRulebookFallback(scene, pageDir));
+    const visual = scene.metadata_card
+      ? selectIdentityBoxArt({ script, metadata, pageDir, explicitPath: requestedBoxArtPath })
+      : selectSourceVisual({
+        ...scene,
+        language,
+        source_pdf_sha256: scene.source_pdf_sha256 || script.sourcePdfSha256 || null,
+      }, visualCatalog, resolveRulebookFallback(scene, pageDir));
     if (!visual.path) throw new Error(`Scene ${scene.id} has no renderable visual`);
     if (visual.warning) visualWarnings.push(visual.warning);
-    const teaching = buildTeachingScene({
+    const commonScene = {
       id: scene.id,
       index,
-      total: script.scenes.length,
+      total: scriptScenes.length,
       section: scene.section,
-      narration: scene.narration,
+      narration: scene.metadata_card
+        ? formatOpeningMetadataNarration({ identity, metadata: canonicalMetadata })
+        : sanitizeNarrationGameIdentity(scene.narration, identity),
       onScreenText: scene.on_screen_text,
       sourcePages: scene.source_pages,
       background: {
@@ -245,25 +313,31 @@ function main() {
         languageAudit: visual.languageAudit || null,
         fallbackReason: visual.fallbackReason || null,
         alternativesConsidered: visual.alternativesConsidered || [],
-        fallbackMitigation: visual.fallbackMitigation || null,
         provenance: visual.provenance || null,
       },
       audio: {
         file: audioPath,
-        ...(index === 0 && transitionAudioPath && existsSync(resolve(transitionAudioPath))
-          ? { ambientFile: resolve(transitionAudioPath), ambientGain: 0.24, ambientFadeOutSec: 5.8 }
+        ...(narrationBedPath && existsSync(resolve(narrationBedPath))
+          ? { ambientFile: resolve(narrationBedPath), ambientGain: 0.07, ambientFadeOutSec: 1.0 }
           : {}),
         provider: narrationProvider,
         providerVoiceId: voiceId,
         language,
         narrationPreset,
       },
-      callouts: scene.callouts || scene.visual_callouts || [],
-      completedSteps: scene.completed_steps || [],
       visualKind: visual.kind,
-      visualFocus: scene.visual_focus || null,
       durationSec,
-    });
+      preserveLineBreaks: scene.preserve_line_breaks === true,
+    };
+    const teaching = scene.metadata_card
+      ? buildMetadataScene({ ...commonScene, gameName: identity.displayName, identity, metadata: canonicalMetadata })
+      : buildTeachingScene({
+        ...commonScene,
+        callouts: scene.callouts || scene.visual_callouts || [],
+        completedSteps: scene.completed_steps || [],
+        visualFocus: scene.visual_focus || null,
+        preserveLineBreaks: scene.preserve_line_breaks === true,
+      });
     teaching.durationSec = durationSec;
     teaching.visualSelection = visual;
     teaching.layout.visualFocus = teaching.layout.visualFocus || scene.visual_focus || null;
@@ -276,7 +350,13 @@ function main() {
     const outroAudio = requireAudio(audioDir, 'brand-outro', 'The branded outro');
     const outro = buildBrandOutro({
       bannerPath: bannerPath && existsSync(resolve(bannerPath)) ? resolve(bannerPath) : null,
-      audio: { file: outroAudio, provider: narrationProvider, providerVoiceId: voiceId, language, narrationPreset },
+      audio: {
+        file: outroAudio,
+        ...(narrationBedPath && existsSync(resolve(narrationBedPath))
+          ? { ambientFile: resolve(narrationBedPath), ambientGain: 0.07, ambientFadeOutSec: 0.72 }
+          : {}),
+        provider: narrationProvider, providerVoiceId: voiceId, language, narrationPreset,
+      },
     });
     outro.durationSec = getDurationSeconds(outroAudio);
     captions.scene = outro;
@@ -287,7 +367,9 @@ function main() {
   const chapters = buildChapters(scenes);
   const renderConfig = {
     projectId,
-    gameName: script.game || projectId,
+    gameName: identity.displayName,
+    identity,
+    ...(maxScenes ? { boundedPreview: { maxScenes, sourceSceneCount: script.scenes.length } } : {}),
     language,
     video: { resolution: { width, height }, fps },
     narration: {
@@ -318,6 +400,7 @@ function main() {
     branding: {
       bannerPath: bannerPath && existsSync(resolve(bannerPath)) ? resolve(bannerPath) : null,
       transitionAudioPath: transitionAudioPath && existsSync(resolve(transitionAudioPath)) ? resolve(transitionAudioPath) : null,
+      brandAmbiencePath: brandAmbiencePath && existsSync(resolve(brandAmbiencePath)) ? resolve(brandAmbiencePath) : null,
       contract: getEditorialContract({ narrationPreset }).brandAudio,
     },
   };

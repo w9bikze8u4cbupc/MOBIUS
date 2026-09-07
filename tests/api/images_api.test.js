@@ -43,6 +43,7 @@ import axios from 'axios';
 import express from 'express';
 import { registerImageRoutes } from '../../src/api/imageRoutes.js';
 import { appendImages, linkImagesToComponent, resetImageStore } from '../../src/services/imageStore.js';
+import { setBggHttpClientForTests } from '../../src/services/imagePipeline.js';
 
 const contextualEvidence = {
   persistUpload: jest.fn(),
@@ -106,6 +107,7 @@ describe('images api routes', () => {
     fs.writeFileSync(privateSourceUploadPath, sourceBytes);
     resetImageStore();
     jest.resetAllMocks();
+    setBggHttpClientForTests(axios);
     contextualEvidence.inventory.mockImplementation(async () => { throw { code: 'CONTEXTUAL_EVIDENCE_UNAVAILABLE' }; });
     projectSource.inspect.mockRejectedValue({ code: 'SOURCE_PDF_MISSING', status: 404, message: 'No stored source PDF is available for this project.' });
     contextualAdoption.discover.mockResolvedValue({ projectId: 'demo', status: 'none', code: 'CONTEXTUAL_ADOPTION_NO_CANDIDATE', candidates: [], eligibleCandidate: null });

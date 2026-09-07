@@ -329,14 +329,15 @@ test('hydrates canonical Abyss context and sends it unchanged to the summary API
   await waitFor(() => {
     expect(axios.post).toHaveBeenCalledWith(
       expect.stringContaining('/summarize'),
-      {
+      expect.objectContaining({
         projectId: 'abyss-approved-project',
         gameName: 'Abyss',
+        identity: expect.objectContaining({ displayName: 'Abyss' }),
         language: 'english',
         rulebookText,
         components,
         metadata,
-      },
+      }),
     );
   });
   expect(screen.getByText('Script generated successfully')).toBeInTheDocument();

@@ -425,6 +425,7 @@ app.get('/api/bgg-search', async (req, res) => {
     
     const links = Array.isArray(item.link) ? item.link : [item.link].filter(Boolean);
     const publishers = links.filter(l => l?.$.type === 'boardgamepublisher').map(l => l.$.value);
+    const designers = links.filter(l => l?.$.type === 'boardgamedesigner').map(l => l.$.value);
     const categories = links.filter(l => l?.$.type === 'boardgamecategory').map(l => l.$.value);
     
     const metadata = {
@@ -432,6 +433,8 @@ app.get('/api/bgg-search', async (req, res) => {
       bggId: gameId,
       bggUrl: `https://boardgamegeek.com/boardgame/${gameId}`,
       gameName: item.name?.$?.value || (Array.isArray(item.name) ? item.name[0]?.$?.value : gameName),
+      officialEditionTitle: item.name?.$?.value || (Array.isArray(item.name) ? item.name[0]?.$?.value : gameName),
+      designers,
       publisher: publishers.join(', ') || '',
       playerCount: `${item.minplayers?.$?.value || '?'}-${item.maxplayers?.$?.value || '?'} players`,
       gameLength: `${item.minplaytime?.$?.value || item.playingtime?.$?.value || '?'}-${item.maxplaytime?.$?.value || item.playingtime?.$?.value || '?'} minutes`,
@@ -2550,6 +2553,9 @@ app.post('/summarize', async (req, res) => {
     try {
       providerRun = createAiProviderRun({ task: 'source-grounded-script' });
       providerRun.assertConfigured();
+      if (providerRun.providers.length === 1 && providerRun.providers[0].name === 'openai') {
+        await requireAiReady({ checkAccess: true });
+      }
     } catch (error) {
       return res.status(error.statusCode || 422).json({ error: error.message, code: error.code });
     }
@@ -2762,6 +2768,10 @@ console.log('Generating final English script using the configured AI provider ru
       englishPackage = completion.value;
       englishProvenance = completion.provenance;
     } catch (error) {
+      const compatibilityError = error?.code === 'AI_GENERATION_OPTION_UNSUPPORTED'
+        ? error
+        : getGenerationOptionCompatibilityError(error);
+      if (compatibilityError) throw compatibilityError;
       const classification = error?.code === 'SCRIPT_PACKAGE_WORD_CAP_EXCEEDED'
         ? 'spoken_word_cap_exceeded'
         : error?.code === 'SCRIPT_PACKAGE_INVALID' ? 'script_package_invalid' : error?.classification;

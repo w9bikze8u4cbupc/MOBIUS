@@ -209,6 +209,16 @@ export function createAiProviderRun({ env = process.env, providerOrder, provider
           };
           return { response, value, model: provider.model, provenance, attempts: [...attempts] };
         } catch (error) {
+          const providerCode = String(error?.code || error?.error?.code || error?.response?.data?.error?.code || '').toLowerCase();
+          const providerMessage = String(error?.message || error?.error?.message || error?.response?.data?.error?.message || '');
+          if (['unsupported_value', 'unsupported_parameter', 'unsupported-parameter'].includes(providerCode)
+              || /unsupported[-_ ]?(?:value|parameter)|does not support/i.test(providerMessage)) {
+            // Request-shape incompatibility is deterministic. Preserve the
+            // provider payload so the API can map it to its stable public
+            // compatibility error instead of retrying or misclassifying it as
+            // provider availability.
+            throw error;
+          }
           lastFailure = error;
           const category = classifyProviderError(error, provider.name);
           attempts.push({ provider: provider.name, model: provider.model, attempt, category, status: statusOf(error) || null });

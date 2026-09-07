@@ -1,0 +1,1975 @@
+{
+  "contract": "mobius-project-visual-plan-v1.1",
+  "projectId": "7-wonders-duel",
+  "edition": "7 Wonders Duel — Repos Production, 2015",
+  "sourcePdfSha256": "8b05c4ce1c4f211fd04d39627dd26593085faa16b6eb85aaac8f6cf89e6958f2",
+  "sourcePdfPath": "C:/mobius-games-tutorial-generator-runtime/data/6b-7-wonders-duel-8b05c4ce1c4f/source/rulebook.pdf",
+  "identityBackground": "src/assets/games/7-wonders-duel-box-art-asmodee.jpg",
+  "pageRenderRoot": "out/publishability-r5/7-wonders-duel/source-pages",
+  "pageRenderDpi": 600,
+  "assetOutputRoot": "out/publishability-r7/7-wonders-duel/component-library",
+  "defaultReviewState": "accepted",
+  "assets": [
+    {
+      "id": "r6-components-spread",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\02_PRODUCT\\_ECLATE\\DUEL_CONTENT_3D.png",
+      "visualClassification": "REAL_SETUP_STATE",
+      "semanticTags": [
+        "composants",
+        "plateau",
+        "cartes Âge",
+        "Merveilles",
+        "pièces",
+        "jetons Progrès"
+      ],
+      "visibleLabels": [],
+      "sourceRefs": [
+        {
+          "page": 2
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET"
+    },
+    {
+      "id": "r6-military-board",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\02_PRODUCT\\_LAYOUT\\7DU_Board.tif",
+      "visualClassification": "REAL_BOARD_OR_TRACK",
+      "semanticTags": [
+        "plateau militaire",
+        "piste de conflit",
+        "seuils",
+        "capitales"
+      ],
+      "visibleLabels": [],
+      "sourceRefs": [
+        {
+          "page": 4
+        },
+        {
+          "page": 12
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET"
+    },
+    {
+      "id": "r6-age-i-cards",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\03_CONTENT\\_CARDS\\7DU_age1_FR.png",
+      "visualClassification": "REAL_CARD_OR_WONDER",
+      "semanticTags": [
+        "cartes Âge I"
+      ],
+      "visibleLabels": [
+        "Âge I"
+      ],
+      "sourceRefs": [
+        {
+          "page": 7
+        },
+        {
+          "page": 10
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET"
+    },
+    {
+      "id": "r6-age-ii-cards",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\03_CONTENT\\_CARDS\\7DU_age2_FR.png",
+      "visualClassification": "REAL_CARD_OR_WONDER",
+      "semanticTags": [
+        "cartes Âge II"
+      ],
+      "visibleLabels": [
+        "Âge II"
+      ],
+      "sourceRefs": [
+        {
+          "page": 10
+        },
+        {
+          "page": 20
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET"
+    },
+    {
+      "id": "r6-age-iii-cards",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\03_CONTENT\\_CARDS\\7DU_age3_FR.png",
+      "visualClassification": "REAL_CARD_OR_WONDER",
+      "semanticTags": [
+        "cartes Âge III"
+      ],
+      "visibleLabels": [
+        "Âge III"
+      ],
+      "sourceRefs": [
+        {
+          "page": 10
+        },
+        {
+          "page": 20
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET"
+    },
+    {
+      "id": "r6-wonder-cards",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\03_CONTENT\\_CARDS\\7DU_wonders_FR.png",
+      "visualClassification": "REAL_CARD_OR_WONDER",
+      "semanticTags": [
+        "cartes Merveille"
+      ],
+      "visibleLabels": [],
+      "sourceRefs": [
+        {
+          "page": 7
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET"
+    },
+    {
+      "id": "r6-wonder-cards-second-group",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\03_CONTENT\\_CARDS\\7DU_wonders_FR.png",
+      "visualClassification": "REAL_CARD_OR_WONDER",
+      "semanticTags": [
+        "second groupe de cartes Merveille"
+      ],
+      "visibleLabels": [],
+      "sourceRefs": [
+        {
+          "page": 7
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET"
+    },
+    {
+      "id": "r6-card-production-brown",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\03_CONTENT\\_CARDS\\7DU_FR_Cards_1.tiff",
+      "visualClassification": "REAL_CARD_OR_WONDER",
+      "semanticTags": [
+        "carte brune",
+        "production de ressource",
+        "bois"
+      ],
+      "visibleLabels": [],
+      "sourceRefs": [
+        {
+          "page": 5
+        },
+        {
+          "page": 8
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET"
+    },
+    {
+      "id": "r6-card-trade-yellow",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\03_CONTENT\\_CARDS\\7DU_FR_Cards_20.tiff",
+      "visualClassification": "REAL_CARD_OR_WONDER",
+      "semanticTags": [
+        "carte jaune",
+        "commerce",
+        "ressource manquante",
+        "pièces"
+      ],
+      "visibleLabels": [],
+      "sourceRefs": [
+        {
+          "page": 8
+        },
+        {
+          "page": 9
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET"
+    },
+    {
+      "id": "r6-card-science-green",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\03_CONTENT\\_CARDS\\7DU_FR_Cards_37.tiff",
+      "visualClassification": "REAL_CARD_OR_WONDER",
+      "semanticTags": [
+        "carte verte",
+        "symbole scientifique",
+        "lauriers",
+        "points"
+      ],
+      "visibleLabels": [],
+      "sourceRefs": [
+        {
+          "page": 5
+        },
+        {
+          "page": 12
+        },
+        {
+          "page": 13
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET"
+    },
+    {
+      "id": "r6-card-military-red",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\03_CONTENT\\_CARDS\\7DU_FR_Cards_47.tiff",
+      "visualClassification": "REAL_CARD_OR_WONDER",
+      "semanticTags": [
+        "carte rouge",
+        "boucliers",
+        "symbole de chaînage"
+      ],
+      "visibleLabels": [],
+      "sourceRefs": [
+        {
+          "page": 5
+        },
+        {
+          "page": 9
+        },
+        {
+          "page": 11
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET"
+    },
+    {
+      "id": "r6-card-vp-blue",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\03_CONTENT\\_CARDS\\7DU_FR_Cards_63.tiff",
+      "visualClassification": "REAL_CARD_OR_WONDER",
+      "semanticTags": [
+        "carte bleue",
+        "lauriers",
+        "points de victoire",
+        "coût"
+      ],
+      "visibleLabels": [],
+      "sourceRefs": [
+        {
+          "page": 5
+        },
+        {
+          "page": 13
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET"
+    },
+    {
+      "id": "r6-card-vp-blue-city",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\03_CONTENT\\_CARDS\\7DU_FR_Cards_63.tiff",
+      "visualClassification": "REAL_CARD_OR_WONDER",
+      "semanticTags": [
+        "carte bleue construite dans la cité",
+        "lauriers",
+        "points de victoire"
+      ],
+      "visibleLabels": [],
+      "sourceRefs": [
+        {
+          "page": 5
+        },
+        {
+          "page": 8
+        },
+        {
+          "page": 13
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET"
+    },
+    {
+      "id": "r6-coins-isolated",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\02_PRODUCT\\_ECLATE\\DUEL_CONTENT_3D.png",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET",
+      "sourceRefs": [
+        {
+          "page": 2
+        }
+      ],
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "visualClassification": "REAL_COMPONENT",
+      "semanticTags": [
+        "pièces",
+        "trésorerie"
+      ],
+      "objectCrop": {
+        "intendedObjects": [
+          {
+            "id": "coin-cluster",
+            "bounds": {
+              "x": 3310,
+              "y": 1280,
+              "width": 1620,
+              "height": 390
+            }
+          }
+        ],
+        "forbiddenObjects": [
+          {
+            "id": "wonder-card-edge",
+            "bounds": {
+              "x": 3900,
+              "y": 1730,
+              "width": 1050,
+              "height": 680
+            }
+          },
+          {
+            "id": "board-edge",
+            "bounds": {
+              "x": 0,
+              "y": 1710,
+              "width": 3900,
+              "height": 360
+            }
+          }
+        ],
+        "paddingPx": 12
+      },
+      "cropCompleteness": "complete",
+      "cropPurity": "clean"
+    },
+    {
+      "id": "r6-progress-tokens-isolated",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\02_PRODUCT\\_ECLATE\\DUEL_CONTENT_3D.png",
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET",
+      "sourceRefs": [
+        {
+          "page": 2
+        }
+      ],
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "visualClassification": "REAL_COMPONENT",
+      "semanticTags": [
+        "jetons Progrès"
+      ],
+      "objectCrop": {
+        "intendedObjects": [
+          {
+            "id": "progress-token-row",
+            "bounds": {
+              "x": 1840,
+              "y": 1480,
+              "width": 1430,
+              "height": 270
+            }
+          }
+        ],
+        "forbiddenObjects": [
+          {
+            "id": "military-board",
+            "bounds": {
+              "x": 1200,
+              "y": 1790,
+              "width": 2700,
+              "height": 280
+            }
+          }
+        ],
+        "paddingPx": 24
+      },
+      "cropCompleteness": "complete",
+      "cropPurity": "clean"
+    },
+    {
+      "id": "r6-coins-clean-composite",
+      "sourceType": "DETERMINISTIC_COMPOSITE_WITH_REAL_ASSETS",
+      "visualClassification": "REAL_COMPONENT",
+      "semanticTags": [
+        "pièces",
+        "trésorerie"
+      ],
+      "sourceRefs": [
+        {
+          "page": 2
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "maxDisplayScale": 1,
+      "composite": {
+        "width": 480,
+        "height": 130,
+        "background": {
+          "r": 0,
+          "g": 0,
+          "b": 0,
+          "alpha": 0
+        },
+        "layers": [
+          {
+            "id": "silver-coin-one-a",
+            "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\02_PRODUCT\\_ECLATE\\DUEL_CONTENT_3D.png",
+            "sourceType": "OFFICIAL_HIGH_RES",
+            "objectCrop": {
+              "intendedObjects": [
+                {
+                  "id": "silver-coin-one-a",
+                  "bounds": {
+                    "x": 4154,
+                    "y": 1427,
+                    "width": 115,
+                    "height": 75
+                  }
+                }
+              ],
+              "paddingPx": 8
+            },
+            "x": 12,
+            "y": 12,
+            "width": 135,
+            "height": 95,
+            "maskShape": "ellipse",
+            "maskRadiusXRatio": 0.48,
+            "maskRadiusYRatio": 0.43,
+            "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip"
+          },
+          {
+            "id": "silver-coin-one-b",
+            "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\02_PRODUCT\\_ECLATE\\DUEL_CONTENT_3D.png",
+            "sourceType": "OFFICIAL_HIGH_RES",
+            "objectCrop": {
+              "intendedObjects": [
+                {
+                  "id": "silver-coin-one-b",
+                  "bounds": {
+                    "x": 4154,
+                    "y": 1427,
+                    "width": 115,
+                    "height": 75
+                  }
+                }
+              ],
+              "paddingPx": 8
+            },
+            "x": 172,
+            "y": 12,
+            "width": 135,
+            "height": 95,
+            "maskShape": "ellipse",
+            "maskRadiusXRatio": 0.48,
+            "maskRadiusYRatio": 0.43,
+            "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip"
+          },
+          {
+            "id": "silver-coin-one-c",
+            "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\02_PRODUCT\\_ECLATE\\DUEL_CONTENT_3D.png",
+            "sourceType": "OFFICIAL_HIGH_RES",
+            "objectCrop": {
+              "intendedObjects": [
+                {
+                  "id": "silver-coin-one-c",
+                  "bounds": {
+                    "x": 4154,
+                    "y": 1427,
+                    "width": 115,
+                    "height": 75
+                  }
+                }
+              ],
+              "paddingPx": 8
+            },
+            "x": 332,
+            "y": 12,
+            "width": 135,
+            "height": 95,
+            "maskShape": "ellipse",
+            "maskRadiusXRatio": 0.48,
+            "maskRadiusYRatio": 0.43,
+            "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip"
+          }
+        ]
+      }
+    },
+    {
+      "id": "r6-progress-token-examples",
+      "sourceType": "DETERMINISTIC_COMPOSITE_WITH_REAL_ASSETS",
+      "visualClassification": "REAL_COMPONENT",
+      "semanticTags": [
+        "jetons Progrès"
+      ],
+      "sourceRefs": [
+        {
+          "page": 2
+        },
+        {
+          "page": 6
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "maxDisplayScale": 1,
+      "composite": {
+        "width": 840,
+        "height": 180,
+        "background": {
+          "r": 0,
+          "g": 0,
+          "b": 0,
+          "alpha": 0
+        },
+        "layers": [
+          {
+            "id": "progress-agriculture",
+            "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\02_PRODUCT\\_ECLATE\\DUEL_CONTENT_3D.png",
+            "sourceType": "OFFICIAL_HIGH_RES",
+            "objectCrop": {
+              "intendedObjects": [
+                {
+                  "id": "progress-agriculture",
+                  "bounds": {
+                    "x": 1890,
+                    "y": 1545,
+                    "width": 225,
+                    "height": 130
+                  }
+                }
+              ],
+              "paddingPx": 8
+            },
+            "x": 20,
+            "y": 10,
+            "width": 240,
+            "height": 145,
+            "maskShape": "ellipse",
+            "maskRadiusXRatio": 0.49,
+            "maskRadiusYRatio": 0.43,
+            "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip"
+          },
+          {
+            "id": "progress-philosophy",
+            "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\02_PRODUCT\\_ECLATE\\DUEL_CONTENT_3D.png",
+            "sourceType": "OFFICIAL_HIGH_RES",
+            "objectCrop": {
+              "intendedObjects": [
+                {
+                  "id": "progress-philosophy",
+                  "bounds": {
+                    "x": 2165,
+                    "y": 1545,
+                    "width": 225,
+                    "height": 130
+                  }
+                }
+              ],
+              "paddingPx": 8
+            },
+            "x": 300,
+            "y": 10,
+            "width": 240,
+            "height": 145,
+            "maskShape": "ellipse",
+            "maskRadiusXRatio": 0.49,
+            "maskRadiusYRatio": 0.43,
+            "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip"
+          },
+          {
+            "id": "progress-law",
+            "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\02_PRODUCT\\_ECLATE\\DUEL_CONTENT_3D.png",
+            "sourceType": "OFFICIAL_HIGH_RES",
+            "objectCrop": {
+              "intendedObjects": [
+                {
+                  "id": "progress-law",
+                  "bounds": {
+                    "x": 2855,
+                    "y": 1545,
+                    "width": 225,
+                    "height": 130
+                  }
+                }
+              ],
+              "paddingPx": 8
+            },
+            "x": 580,
+            "y": 10,
+            "width": 240,
+            "height": 145,
+            "maskShape": "ellipse",
+            "maskRadiusXRatio": 0.49,
+            "maskRadiusYRatio": 0.43,
+            "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip"
+          }
+        ]
+      }
+    },
+    {
+      "id": "7wd-progress-tokens-clean",
+      "sourceType": "DETERMINISTIC_COMPOSITE_WITH_REAL_ASSETS",
+      "visualClassification": "REAL_COMPONENT",
+      "semanticTags": [
+        "cinq jetons Progrès",
+        "jetons Progrès"
+      ],
+      "sourceRefs": [
+        {
+          "page": 2
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "composite": {
+        "width": 1160,
+        "height": 250,
+        "background": "#f2dfbd",
+        "layers": [
+          {
+            "page": 2,
+            "cropNormalized": {
+              "left": 0.76,
+              "top": 0.2255,
+              "width": 0.075,
+              "height": 0.075
+            },
+            "x": 25,
+            "y": 25,
+            "width": 200,
+            "height": 200,
+            "maskShape": "circle",
+            "maskRadiusRatio": 0.41,
+            "maskCenterYRatio": 0.6
+          },
+          {
+            "page": 2,
+            "cropNormalized": {
+              "left": 0.84,
+              "top": 0.2185,
+              "width": 0.075,
+              "height": 0.075
+            },
+            "x": 250,
+            "y": 25,
+            "width": 200,
+            "height": 200,
+            "maskShape": "circle",
+            "maskRadiusRatio": 0.41,
+            "maskCenterYRatio": 0.6
+          },
+          {
+            "page": 2,
+            "cropNormalized": {
+              "left": 0.8035,
+              "top": 0.2785,
+              "width": 0.075,
+              "height": 0.075
+            },
+            "x": 475,
+            "y": 25,
+            "width": 200,
+            "height": 200,
+            "maskShape": "circle",
+            "maskRadiusRatio": 0.41,
+            "maskCenterYRatio": 0.58
+          },
+          {
+            "page": 2,
+            "cropNormalized": {
+              "left": 0.8855,
+              "top": 0.2905,
+              "width": 0.075,
+              "height": 0.075
+            },
+            "x": 700,
+            "y": 25,
+            "width": 200,
+            "height": 200,
+            "maskShape": "circle",
+            "maskRadiusRatio": 0.37,
+            "maskCenterYRatio": 0.52
+          },
+          {
+            "page": 2,
+            "cropNormalized": {
+              "left": 0.8475,
+              "top": 0.3475,
+              "width": 0.075,
+              "height": 0.075
+            },
+            "x": 925,
+            "y": 25,
+            "width": 200,
+            "height": 200,
+            "maskShape": "circle",
+            "maskRadiusRatio": 0.41,
+            "maskCenterYRatio": 0.55
+          }
+        ]
+      },
+      "qualityState": "REVIEWED_ENHANCED_DERIVATIVE",
+      "maxDisplayScale": 1,
+      "enhancement": {
+        "tool": "PyMuPDF page rasterization",
+        "version": "repository environment",
+        "parameters": {
+          "pageDpi": 600,
+          "additionalSharpening": false,
+          "semanticPixelsChanged": false
+        },
+        "reviewState": "PASS",
+        "reason": "R5 Director-approved source-faithful relationship retained at a bounded display scale; original PDF remains canonical."
+      }
+    },
+    {
+      "id": "7wd-age-layouts-real-cards",
+      "sourceType": "DETERMINISTIC_COMPOSITE_WITH_REAL_ASSETS",
+      "visualClassification": "SOURCE_FAITHFUL_DIAGRAM_WITH_REAL_ASSETS",
+      "semanticTags": [
+        "structure Âge I",
+        "structure Âge II",
+        "structure Âge III",
+        "cartes réelles",
+        "face visible",
+        "face cachée"
+      ],
+      "visibleLabels": [
+        "Âge I",
+        "Âge II",
+        "Âge III",
+        "Face visible",
+        "Face cachée"
+      ],
+      "sourceRefs": [
+        {
+          "page": 20
+        },
+        {
+          "page": 2
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "composite": {
+        "width": 1800,
+        "height": 700,
+        "background": "#f0d3a9",
+        "layers": [
+          {
+            "sourcePath": "out/publishability-r5/7-wonders-duel/source-pages/page-20-600dpi.png",
+            "cropNormalized": {
+              "left": 0.062,
+              "top": 0.202,
+              "width": 0.42,
+              "height": 0.315
+            },
+            "x": 10,
+            "y": 10,
+            "width": 560,
+            "height": 515
+          },
+          {
+            "sourcePath": "out/publishability-r5/7-wonders-duel/source-pages/page-20-600dpi.png",
+            "cropNormalized": {
+              "left": 0.478,
+              "top": 0.202,
+              "width": 0.49,
+              "height": 0.315
+            },
+            "x": 620,
+            "y": 10,
+            "width": 560,
+            "height": 515
+          },
+          {
+            "sourcePath": "out/publishability-r5/7-wonders-duel/source-pages/page-20-600dpi.png",
+            "cropNormalized": {
+              "left": 0.345,
+              "top": 0.515,
+              "width": 0.32,
+              "height": 0.405
+            },
+            "x": 1230,
+            "y": 10,
+            "width": 560,
+            "height": 515
+          },
+          {
+            "sourcePath": "out/publishability-r2/7-wonders-duel/native-extraction/images/all/component_p1_img17_xref75.jpg",
+            "x": 70,
+            "y": 548,
+            "width": 74,
+            "height": 116
+          },
+          {
+            "sourcePath": "out/publishability-r2/7-wonders-duel/native-extraction/images/all/component_p1_img10_xref61.jpg",
+            "x": 165,
+            "y": 548,
+            "width": 74,
+            "height": 116
+          },
+          {
+            "sourcePath": "out/publishability-r2/7-wonders-duel/native-extraction/images/all/component_p1_img16_xref73.jpg",
+            "x": 680,
+            "y": 548,
+            "width": 74,
+            "height": 116
+          },
+          {
+            "sourcePath": "out/publishability-r2/7-wonders-duel/native-extraction/images/all/component_p7_img1_xref385.jpg",
+            "x": 775,
+            "y": 548,
+            "width": 74,
+            "height": 116
+          },
+          {
+            "sourcePath": "out/publishability-r2/7-wonders-duel/native-extraction/images/all/component_p1_img15_xref71.jpg",
+            "x": 1290,
+            "y": 548,
+            "width": 74,
+            "height": 116
+          },
+          {
+            "sourcePath": "out/publishability-r2/7-wonders-duel/native-extraction/images/all/component_p11_img0_xref589.jpg",
+            "x": 1385,
+            "y": 548,
+            "width": 74,
+            "height": 116
+          },
+          {
+            "sourcePath": "out/publishability-r2/7-wonders-duel/native-extraction/images/all/component_p1_img14_xref69.jpg",
+            "x": 1480,
+            "y": 548,
+            "width": 74,
+            "height": 116
+          }
+        ]
+      },
+      "qualityState": "REVIEWED_ENHANCED_DERIVATIVE",
+      "maxDisplayScale": 1,
+      "enhancement": {
+        "tool": "PyMuPDF page rasterization",
+        "version": "repository environment",
+        "parameters": {
+          "pageDpi": 600,
+          "additionalSharpening": false,
+          "semanticPixelsChanged": false
+        },
+        "reviewState": "PASS",
+        "reason": "R5 Director-approved source-faithful relationship retained at a bounded display scale; original PDF remains canonical."
+      }
+    },
+    {
+      "id": "7wd-chain-example",
+      "sourceType": "HIGH_DPI_PAGE_CROP",
+      "page": 9,
+      "cropNormalized": {
+        "left": 0.79,
+        "top": 0.76,
+        "width": 0.18,
+        "height": 0.17
+      },
+      "visualClassification": "SOURCE_FAITHFUL_DIAGRAM_WITH_REAL_ASSETS",
+      "semanticTags": [
+        "bâtiment construit",
+        "symbole blanc",
+        "nouvelle carte",
+        "construction gratuite"
+      ],
+      "sourceRefs": [
+        {
+          "page": 9
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "REVIEWED_ENHANCED_DERIVATIVE",
+      "maxDisplayScale": 1,
+      "enhancement": {
+        "tool": "PyMuPDF page rasterization",
+        "version": "repository environment",
+        "parameters": {
+          "pageDpi": 600,
+          "additionalSharpening": false,
+          "semanticPixelsChanged": false
+        },
+        "reviewState": "PASS",
+        "reason": "R5 Director-approved source-faithful relationship retained at a bounded display scale; original PDF remains canonical."
+      }
+    },
+    {
+      "id": "7wd-accessible-cards",
+      "sourceType": "HIGH_DPI_PAGE_CROP",
+      "page": 10,
+      "cropNormalized": {
+        "left": 0.17,
+        "top": 0.72,
+        "width": 0.25,
+        "height": 0.085
+      },
+      "visualClassification": "REAL_SETUP_STATE",
+      "semanticTags": [
+        "structure Âge I",
+        "cartes accessibles",
+        "cartes recouvertes",
+        "carte choisie"
+      ],
+      "sourceRefs": [
+        {
+          "page": 10
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "REVIEWED_ENHANCED_DERIVATIVE",
+      "maxDisplayScale": 1,
+      "enhancement": {
+        "tool": "PyMuPDF page rasterization",
+        "version": "repository environment",
+        "parameters": {
+          "pageDpi": 600,
+          "additionalSharpening": false,
+          "semanticPixelsChanged": false
+        },
+        "reviewState": "PASS",
+        "reason": "R5 Director-approved source-faithful relationship retained at a bounded display scale; original PDF remains canonical."
+      }
+    },
+    {
+      "id": "7wd-science-symbols",
+      "sourceType": "HIGH_DPI_PAGE_CROP",
+      "page": 12,
+      "cropNormalized": {
+        "left": 0.51,
+        "top": 0.15,
+        "width": 0.46,
+        "height": 0.06
+      },
+      "visualClassification": "REAL_COMPONENT",
+      "semanticTags": [
+        "sept symboles scientifiques",
+        "six symboles différents",
+        "paire identique"
+      ],
+      "sourceRefs": [
+        {
+          "page": 12
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "REVIEWED_ENHANCED_DERIVATIVE",
+      "maxDisplayScale": 1,
+      "enhancement": {
+        "tool": "PyMuPDF page rasterization",
+        "version": "repository environment",
+        "parameters": {
+          "pageDpi": 600,
+          "additionalSharpening": false,
+          "semanticPixelsChanged": false
+        },
+        "reviewState": "PASS",
+        "reason": "R5 Director-approved source-faithful relationship retained at a bounded display scale; original PDF remains canonical."
+      }
+    },
+    {
+      "id": "r7-conflict-pawn-cutout",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\02_PRODUCT\\_ECLATE\\DUEL_CONTENT_3D.png",
+      "visualClassification": "REAL_COMPONENT",
+      "semanticTags": [
+        "pion Conflit rouge"
+      ],
+      "sourceRefs": [
+        {
+          "page": 4
+        },
+        {
+          "page": 11
+        },
+        {
+          "page": 12
+        }
+      ],
+      "objectCrop": {
+        "intendedObjects": [
+          {
+            "id": "conflict-pawn",
+            "bounds": {
+              "x": 2580,
+              "y": 1420,
+              "width": 410,
+              "height": 520
+            }
+          }
+        ],
+        "paddingPx": 10
+      },
+      "colorMask": {
+        "channel": "red-dominant",
+        "minimumRed": 70,
+        "redGreenRatio": 1.13,
+        "redBlueRatio": 1.16
+      },
+      "maxDisplayScale": 1,
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "cropCompleteness": "complete",
+      "cropPurity": "clean"
+    },
+    {
+      "id": "r7-age-i-card-back",
+      "sourceType": "OFFICIAL_HIGH_RES",
+      "sourcePath": "C:\\mobius-games-tutorial-generator-quality-fix\\out\\publishability-r6\\authorized-source-audit\\repos-production\\fr\\7WD_Press_FR\\02_PRODUCT\\_ECLATE\\DUEL_CONTENT_3D.png",
+      "visualClassification": "REAL_CARD_OR_WONDER",
+      "semanticTags": [
+        "carte Âge I",
+        "dos de carte",
+        "défausse face cachée"
+      ],
+      "visibleLabels": [
+        "Âge I"
+      ],
+      "sourceRefs": [
+        {
+          "page": 2
+        },
+        {
+          "page": 10
+        }
+      ],
+      "objectCrop": {
+        "intendedObjects": [
+          {
+            "id": "age-i-card-back-stack",
+            "bounds": {
+              "x": 620,
+              "y": 1425,
+              "width": 225,
+              "height": 220
+            }
+          }
+        ],
+        "paddingPx": 6
+      },
+      "maxDisplayScale": 1,
+      "sourceUrl": "https://cdn.svc.asmodee.net/production-rprod/storage/downloads/games/7wonders-duel/press/7wd-press-fr-1632402556SavqL.zip",
+      "publisher": "Repos Production",
+      "licenseProvenanceState": "OFFICIAL_PUBLISHER_PRESS_ASSET",
+      "qualityState": "SOURCE_DETAIL_PASS",
+      "cropCompleteness": "complete",
+      "cropPurity": "clean"
+    },
+    {
+      "id": "r7-chain-example-complete",
+      "sourceType": "HIGH_DPI_PAGE_CROP",
+      "page": 9,
+      "cropNormalized": {
+        "left": 0.785,
+        "top": 0.735,
+        "width": 0.205,
+        "height": 0.245
+      },
+      "visualClassification": "SOURCE_FAITHFUL_DIAGRAM_WITH_REAL_ASSETS",
+      "semanticTags": [
+        "cartes complètes",
+        "symboles blancs correspondants",
+        "construction gratuite"
+      ],
+      "sourceRefs": [
+        {
+          "page": 5
+        },
+        {
+          "page": 9
+        }
+      ],
+      "cropCompleteness": "complete",
+      "cropPurity": "clean",
+      "qualityState": "REVIEWED_ENHANCED_DERIVATIVE",
+      "maxDisplayScale": 0.92,
+      "enhancement": {
+        "tool": "PyMuPDF page rasterization",
+        "version": "repository environment",
+        "parameters": {
+          "pageDpi": 600,
+          "semanticPixelsChanged": false
+        },
+        "reviewState": "PASS",
+        "reason": "Complete source-faithful chain example retained at bounded scale; the small embedded card rasters are not misrepresented as new detail."
+      }
+    }
+  ],
+  "plans": [
+    {
+      "ruleAtomId": "identity-theme",
+      "compositionType": "REAL_COMPONENT_GRID",
+      "actualGameAssetIds": [
+        "r6-components-spread"
+      ],
+      "labels": [
+        "Âge I • Âge II • Âge III"
+      ],
+      "visualAreaTarget": 0.72,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-components-spread"
+    },
+    {
+      "ruleAtomId": "objective-victory-overview",
+      "compositionType": "REAL_SYMBOL_COMPARISON",
+      "actualGameAssetIds": [
+        "r6-military-board",
+        "r6-card-science-green",
+        "r6-card-vp-blue"
+      ],
+      "labels": [
+        "Militaire",
+        "Science",
+        "Points"
+      ],
+      "visualAreaTarget": 0.75,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-military-board"
+    },
+    {
+      "ruleAtomId": "components-overview",
+      "compositionType": "REAL_COMPONENT_HERO",
+      "actualGameAssetIds": [
+        "r6-components-spread"
+      ],
+      "visualAreaTarget": 0.78,
+      "reuseJustification": "Same official component spread is reused from the opening mental model because this scene explicitly inventories those components.",
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "backgroundAssetId": "r6-components-spread"
+    },
+    {
+      "ruleAtomId": "setup-central",
+      "compositionType": "REAL_SETUP_LAYOUT",
+      "actualGameAssetIds": [
+        "r6-military-board",
+        "r6-progress-token-examples",
+        "r6-coins-clean-composite"
+      ],
+      "labels": [
+        "Plateau et pion",
+        "Jetons Progrès",
+        "Pièces"
+      ],
+      "visualAreaTarget": 0.72,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-military-board"
+    },
+    {
+      "ruleAtomId": "setup-wonder-selection",
+      "compositionType": "REAL_COMPONENT_SEQUENCE",
+      "actualGameAssetIds": [
+        "r6-wonder-cards",
+        "r6-wonder-cards-second-group"
+      ],
+      "labels": [
+        "Premier groupe : 1 → 2 → 1",
+        "Deuxième groupe : ordre inversé"
+      ],
+      "visualAreaTarget": 0.72,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-wonder-cards"
+    },
+    {
+      "ruleAtomId": "setup-age-decks",
+      "compositionType": "REAL_COMPONENT_GRID",
+      "actualGameAssetIds": [
+        "r6-age-i-cards",
+        "r6-age-ii-cards",
+        "r6-age-iii-cards"
+      ],
+      "visualAreaTarget": 0.68,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-age-i-cards"
+    },
+    {
+      "ruleAtomId": "setup-age-layouts",
+      "compositionType": "SOURCE_FAITHFUL_DIAGRAM",
+      "actualGameAssetIds": [
+        "7wd-age-layouts-real-cards"
+      ],
+      "labels": [
+        "Structures officielles • dos et faces de cartes réels"
+      ],
+      "visualAreaTarget": 0.78,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": null,
+      "backgroundAssetId": "7wd-age-layouts-real-cards"
+    },
+    {
+      "ruleAtomId": "setup-later-age-layouts",
+      "compositionType": "SOURCE_FAITHFUL_DIAGRAM",
+      "actualGameAssetIds": [
+        "7wd-age-layouts-real-cards"
+      ],
+      "labels": [
+        "Face visible",
+        "Face cachée",
+        "Cartes réelles de l’édition"
+      ],
+      "visualAreaTarget": 0.78,
+      "reuseJustification": "The same official player aid is the authoritative structure for Ages II and III.",
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "backgroundAssetId": "7wd-age-layouts-real-cards"
+    },
+    {
+      "ruleAtomId": "age-loop",
+      "compositionType": "REAL_COMPONENT_GRID",
+      "actualGameAssetIds": [
+        "r6-age-i-cards",
+        "r6-age-ii-cards",
+        "r6-age-iii-cards"
+      ],
+      "labels": [
+        "Une structure complète par Âge"
+      ],
+      "visualAreaTarget": 0.78,
+      "reuseJustification": "The official player aid reinforces progression through the same three Age structures.",
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "backgroundAssetId": "r6-age-i-cards"
+    },
+    {
+      "ruleAtomId": "accessible-card",
+      "compositionType": "REAL_COMPONENT_SEQUENCE",
+      "actualGameAssetIds": [
+        "7wd-accessible-cards"
+      ],
+      "visualAreaTarget": 0.72,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": null,
+      "backgroundAssetId": "7wd-accessible-cards"
+    },
+    {
+      "ruleAtomId": "construct-building",
+      "compositionType": "REAL_CARD_COST_FOCUS",
+      "actualGameAssetIds": [
+        "r6-card-vp-blue",
+        "r6-card-vp-blue-city"
+      ],
+      "labels": [
+        "Carte accessible et coût",
+        "Construite dans votre cité"
+      ],
+      "visualAreaTarget": 0.72,
+      "lowerZonePurpose": null,
+      "focusCues": [
+        {
+          "narrationClause": "coût de construction",
+          "assetId": "r6-card-vp-blue",
+          "semanticRegion": "constructionCost",
+          "startRatio": 0.08,
+          "endRatio": 0.42
+        },
+        {
+          "narrationClause": "placez-la face visible dans votre cité",
+          "assetId": "r6-card-vp-blue-city",
+          "semanticRegion": "fullCard",
+          "startRatio": 0.52,
+          "endRatio": 0.86
+        }
+      ],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-card-vp-blue"
+    },
+    {
+      "ruleAtomId": "resource-production",
+      "compositionType": "REAL_COMPONENT_HERO",
+      "actualGameAssetIds": [
+        "r6-card-production-brown"
+      ],
+      "labels": [
+        "Ressources produites par votre cité"
+      ],
+      "visualAreaTarget": 0.72,
+      "lowerZonePurpose": null,
+      "focusCues": [
+        {
+          "narrationClause": "production de ressources",
+          "assetId": "r6-card-production-brown",
+          "semanticRegion": "productionOrEffect",
+          "startRatio": 0.18,
+          "endRatio": 0.82
+        }
+      ],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-card-production-brown"
+    },
+    {
+      "ruleAtomId": "trade-missing-resources",
+      "compositionType": "REAL_CARD_COST_FOCUS",
+      "actualGameAssetIds": [
+        "r6-card-trade-yellow",
+        "r6-coins-clean-composite"
+      ],
+      "visualAreaTarget": 0.72,
+      "lowerZonePurpose": null,
+      "focusCues": [
+        {
+          "narrationClause": "ressource manquante",
+          "assetId": "r6-card-trade-yellow",
+          "semanticRegion": "constructionCost",
+          "startRatio": 0.08,
+          "endRatio": 0.4
+        },
+        {
+          "narrationClause": "achat avec des pièces",
+          "assetId": "r6-card-trade-yellow",
+          "semanticRegion": "productionOrEffect",
+          "startRatio": 0.48,
+          "endRatio": 0.88
+        }
+      ],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-card-trade-yellow"
+    },
+    {
+      "ruleAtomId": "chain-construction",
+      "compositionType": "REAL_COMPONENT_HERO",
+      "actualGameAssetIds": [
+        "r7-chain-example-complete"
+      ],
+      "labels": [
+        "Cartes complètes · même symbole blanc · construction gratuite"
+      ],
+      "visualAreaTarget": 0.75,
+      "lowerZonePurpose": null,
+      "focusCues": [
+        {
+          "narrationClause": "symboles de chaînage identiques",
+          "semanticRegion": "chainSymbol",
+          "startRatio": 0.22,
+          "endRatio": 0.82
+        }
+      ],
+      "reuseJustification": null,
+      "backgroundAssetId": "r7-chain-example-complete"
+    },
+    {
+      "ruleAtomId": "discard-for-coins",
+      "compositionType": "REAL_COMPONENT_FLOW",
+      "actualGameAssetIds": [
+        "r6-card-production-brown",
+        "r7-age-i-card-back",
+        "r6-coins-clean-composite"
+      ],
+      "labels": [
+        "Carte accessible",
+        "Défausse face cachée",
+        "2 pièces + 1 par carte jaune"
+      ],
+      "visualAreaTarget": 0.75,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": null,
+      "summaryLine": "Gain : 2 pièces + 1 pièce par carte jaune déjà construite",
+      "backgroundAssetId": "r6-card-production-brown"
+    },
+    {
+      "ruleAtomId": "construct-wonder",
+      "compositionType": "REAL_COMPONENT_SEQUENCE",
+      "actualGameAssetIds": [
+        "r6-wonder-cards",
+        "r6-age-i-cards"
+      ],
+      "labels": [
+        "Carte Âge glissée face cachée sous la Merveille"
+      ],
+      "visualAreaTarget": 0.75,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-wonder-cards"
+    },
+    {
+      "ruleAtomId": "end-of-age",
+      "compositionType": "REAL_COMPONENT_GRID",
+      "actualGameAssetIds": [
+        "r6-age-i-cards",
+        "r6-age-ii-cards",
+        "r6-age-iii-cards"
+      ],
+      "visualAreaTarget": 0.78,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": "The three official Age families recur here because advancing between those same decks is the exact rule being taught.",
+      "backgroundAssetId": "r6-age-i-cards"
+    },
+    {
+      "ruleAtomId": "military-system",
+      "compositionType": "REAL_MILITARY_DEMONSTRATION",
+      "actualGameAssetIds": [
+        "r6-military-board",
+        "r7-conflict-pawn-cutout"
+      ],
+      "labels": [
+        "Bouclier → déplacement",
+        "Première entrée : perte de 2 ou 5 pièces",
+        "Capitale : victoire immédiate"
+      ],
+      "visualAreaTarget": 0.78,
+      "lowerZonePurpose": "Source-grounded movement and scoring threshold labels occupy the lower visual zone.",
+      "focusCues": [],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-military-board"
+    },
+    {
+      "ruleAtomId": "science-pair-progress",
+      "compositionType": "REAL_COMPONENT_SEQUENCE",
+      "actualGameAssetIds": [
+        "r6-card-science-green",
+        "r6-progress-token-examples"
+      ],
+      "labels": [
+        "Paire identique → choisir un jeton Progrès"
+      ],
+      "visualAreaTarget": 0.75,
+      "lowerZonePurpose": null,
+      "focusCues": [
+        {
+          "narrationClause": "symbole scientifique identique",
+          "semanticRegion": "scienceSymbol",
+          "startRatio": 0.1,
+          "endRatio": 0.58
+        }
+      ],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-card-science-green"
+    },
+    {
+      "ruleAtomId": "science-supremacy",
+      "compositionType": "REAL_SYMBOL_COMPARISON",
+      "actualGameAssetIds": [
+        "7wd-science-symbols",
+        "r6-progress-token-examples"
+      ],
+      "labels": [
+        "Réunir six symboles scientifiques différents"
+      ],
+      "visualAreaTarget": 0.75,
+      "lowerZonePurpose": null,
+      "focusCues": [
+        {
+          "narrationClause": "six symboles scientifiques distincts",
+          "semanticRegion": "scienceSymbol",
+          "startRatio": 0.1,
+          "endRatio": 0.76
+        }
+      ],
+      "reuseJustification": null,
+      "backgroundAssetId": "7wd-science-symbols"
+    },
+    {
+      "ruleAtomId": "endgame-trigger",
+      "compositionType": "REAL_SYMBOL_COMPARISON",
+      "actualGameAssetIds": [
+        "r6-military-board",
+        "r6-card-science-green",
+        "r6-card-vp-blue"
+      ],
+      "labels": [
+        "Militaire",
+        "Science",
+        "Décompte"
+      ],
+      "visualAreaTarget": 0.75,
+      "reuseJustification": "The same three real evidence families intentionally return when the tutorial distinguishes immediate victories from final scoring.",
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "backgroundAssetId": "r6-military-board"
+    },
+    {
+      "ruleAtomId": "scoring-ledger",
+      "compositionType": "REAL_SCORING_LEDGER",
+      "actualGameAssetIds": [
+        "r6-military-board",
+        "r6-card-vp-blue",
+        "r6-wonder-cards",
+        "r6-progress-token-examples",
+        "r6-coins-clean-composite"
+      ],
+      "labels": [
+        "Militaire",
+        "Bâtiments",
+        "Merveilles",
+        "Progrès",
+        "Trésorerie"
+      ],
+      "visualAreaTarget": 0.75,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-card-vp-blue"
+    },
+    {
+      "ruleAtomId": "scoring-military",
+      "compositionType": "REAL_BOARD_TRACK_FOCUS",
+      "actualGameAssetIds": [
+        "r6-military-board"
+      ],
+      "labels": [
+        "Zone centrale : 0",
+        "Première zone : 2",
+        "Deuxième zone : 5",
+        "Capitale : 10"
+      ],
+      "visualAreaTarget": 0.78,
+      "reuseJustification": "The track is the exact object used both during military play and final military scoring.",
+      "lowerZonePurpose": "Source-grounded movement and scoring threshold labels occupy the lower visual zone.",
+      "focusCues": [],
+      "backgroundAssetId": "r6-military-board"
+    },
+    {
+      "ruleAtomId": "scoring-buildings",
+      "compositionType": "REAL_COMPONENT_GRID",
+      "actualGameAssetIds": [
+        "r6-card-vp-blue",
+        "r6-card-science-green"
+      ],
+      "labels": [
+        "Repérer les lauriers imprimés sur les bâtiments"
+      ],
+      "visualAreaTarget": 0.75,
+      "lowerZonePurpose": null,
+      "focusCues": [
+        {
+          "narrationClause": "lauriers et points imprimés",
+          "semanticRegion": "victoryPoints",
+          "startRatio": 0.12,
+          "endRatio": 0.52
+        }
+      ],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-card-vp-blue"
+    },
+    {
+      "ruleAtomId": "scoring-wonders",
+      "compositionType": "REAL_COMPONENT_HERO",
+      "actualGameAssetIds": [
+        "r6-wonder-cards"
+      ],
+      "labels": [
+        "Additionner les points imprimés sur les Merveilles construites"
+      ],
+      "visualAreaTarget": 0.75,
+      "reuseJustification": "The same real Wonder spread first teaches selection and later anchors the distinct final-scoring operation.",
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "backgroundAssetId": "r6-wonder-cards"
+    },
+    {
+      "ruleAtomId": "scoring-progress",
+      "compositionType": "REAL_COMPONENT_HERO",
+      "actualGameAssetIds": [
+        "r6-progress-token-examples"
+      ],
+      "labels": [
+        "Jetons Progrès"
+      ],
+      "visualAreaTarget": 0.72,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-progress-token-examples"
+    },
+    {
+      "ruleAtomId": "scoring-treasury",
+      "compositionType": "REAL_COMPONENT_HERO",
+      "actualGameAssetIds": [
+        "r6-coins-clean-composite"
+      ],
+      "labels": [
+        "3 pièces = 1 point"
+      ],
+      "visualAreaTarget": 0.72,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": null,
+      "backgroundAssetId": "r6-coins-clean-composite"
+    },
+    {
+      "ruleAtomId": "winner-resolution",
+      "compositionType": "REAL_SCORING_LEDGER",
+      "actualGameAssetIds": [
+        "r6-military-board",
+        "r6-card-vp-blue",
+        "r6-wonder-cards",
+        "r6-progress-token-examples",
+        "r6-coins-clean-composite"
+      ],
+      "labels": [
+        "Militaire",
+        "Bâtiments",
+        "Merveilles",
+        "Progrès",
+        "Trésorerie",
+        "Total"
+      ],
+      "visualAreaTarget": 0.75,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": "The same verified scoring objects intentionally recur when their category totals are combined.",
+      "backgroundAssetId": "r6-military-board"
+    },
+    {
+      "ruleAtomId": "tie-breaker",
+      "compositionType": "REAL_COMPONENT_SEQUENCE",
+      "actualGameAssetIds": [
+        "r6-card-vp-blue"
+      ],
+      "labels": [
+        "Points des bâtiments bleus",
+        "Carte bleue"
+      ],
+      "visualAreaTarget": 0.68,
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "reuseJustification": "The same official blue card used for civilian scoring is the exact card family counted by the tie-breaker.",
+      "backgroundAssetId": "r6-card-vp-blue"
+    },
+    {
+      "ruleAtomId": "scorebook-reference",
+      "compositionType": "REAL_SCORING_LEDGER",
+      "actualGameAssetIds": [
+        "r6-military-board",
+        "r6-card-vp-blue",
+        "r6-wonder-cards",
+        "r6-progress-token-examples",
+        "r6-coins-clean-composite"
+      ],
+      "labels": [
+        "Militaire",
+        "Bâtiments",
+        "Merveilles",
+        "Progrès",
+        "Trésorerie",
+        "Total"
+      ],
+      "visualAreaTarget": 0.75,
+      "reuseJustification": "The closing reference intentionally repeats the same verified ledger introduced at the start of scoring.",
+      "lowerZonePurpose": null,
+      "focusCues": [],
+      "backgroundAssetId": "r6-military-board"
+    }
+  ],
+  "version": "r7",
+  "cardSemanticRegions": {
+    "r6-card-production-brown": {
+      "fullCard": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "productionOrEffect": [
+        0.28,
+        0.02,
+        0.72,
+        0.24
+      ],
+      "cardName": [
+        0.12,
+        0.88,
+        0.88,
+        0.97
+      ]
+    },
+    "r6-card-trade-yellow": {
+      "fullCard": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "constructionCost": [
+        0.02,
+        0.23,
+        0.28,
+        0.38
+      ],
+      "productionOrEffect": [
+        0.25,
+        0.02,
+        0.75,
+        0.24
+      ],
+      "cardName": [
+        0.12,
+        0.88,
+        0.88,
+        0.97
+      ]
+    },
+    "r6-card-science-green": {
+      "fullCard": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "scienceSymbol": [
+        0.1,
+        0.02,
+        0.48,
+        0.24
+      ],
+      "victoryPoints": [
+        0.5,
+        0.02,
+        0.86,
+        0.24
+      ],
+      "constructionCost": [
+        0.02,
+        0.23,
+        0.6,
+        0.38
+      ],
+      "chainSymbol": [
+        0.02,
+        0.36,
+        0.23,
+        0.52
+      ]
+    },
+    "r6-card-military-red": {
+      "fullCard": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "militarySymbol": [
+        0.16,
+        0.02,
+        0.78,
+        0.24
+      ],
+      "constructionCost": [
+        0.02,
+        0.23,
+        0.64,
+        0.38
+      ],
+      "chainSymbol": [
+        0.02,
+        0.36,
+        0.23,
+        0.52
+      ]
+    },
+    "r6-card-vp-blue": {
+      "fullCard": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "victoryPoints": [
+        0.26,
+        0.02,
+        0.74,
+        0.24
+      ],
+      "constructionCost": [
+        0.02,
+        0.23,
+        0.72,
+        0.38
+      ],
+      "chainSymbol": [
+        0.02,
+        0.36,
+        0.23,
+        0.52
+      ]
+    },
+    "r6-card-vp-blue-city": {
+      "fullCard": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "victoryPoints": [
+        0.26,
+        0.02,
+        0.74,
+        0.24
+      ],
+      "constructionCost": [
+        0.02,
+        0.23,
+        0.72,
+        0.38
+      ],
+      "chainSymbol": [
+        0.02,
+        0.36,
+        0.23,
+        0.52
+      ]
+    },
+    "7wd-chain-example": {
+      "fullCard": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "chainSymbol": [
+        0.18,
+        0.41,
+        0.82,
+        0.78
+      ]
+    },
+    "7wd-science-symbols": {
+      "fullCard": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "scienceSymbol": [
+        0.02,
+        0.05,
+        0.98,
+        0.95
+      ]
+    },
+    "r7-chain-example-complete": {
+      "fullCard": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "chainSymbol": [
+        0.1,
+        0.18,
+        0.94,
+        0.82
+      ]
+    }
+  },
+  "policy": {
+    "trueSourceDetail": {
+      "preferredRatio": 1,
+      "warnBelow": 1,
+      "failBelow": 0.8,
+      "maxUpscale": 1.25
+    },
+    "crop": {
+      "requireCompleteness": true,
+      "requirePurity": true,
+      "requireOpticalCenter": true
+    },
+    "staticVisualAlignment": {
+      "horizontal": "CENTER",
+      "vertical": "CENTER",
+      "fit": "CONTAIN"
+    },
+    "referenceSafeZone": {
+      "x": 1450,
+      "y": 986,
+      "width": 350,
+      "height": 42
+    },
+    "sceneMatchedBackground": true,
+    "sequenceArrowStyle": "RESTRAINED_GOLD",
+    "lowerCaption": {
+      "horizontal": "CENTER",
+      "enlargeBoxBeforeShrinkingText": true,
+      "referenceExclusionBottomPx": 110
+    }
+  }
+}

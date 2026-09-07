@@ -192,8 +192,10 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
   const payload = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   const qualityReportPath = options.qualityReportPath;
   const semanticReportPath = options.semanticReportPath;
+  const hephaestusEvidencePath = options.hephaestusEvidencePath;
   const qualityByAssetId = new Map();
   const semanticBySceneId = new Map();
+  const evidenceByAssetId = new Map();
   if (qualityReportPath && fs.existsSync(qualityReportPath)) {
     const qualityReport = JSON.parse(fs.readFileSync(qualityReportPath, 'utf8'));
     for (const judgement of qualityReport.assets || []) {
@@ -206,6 +208,12 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
       if (sceneMatch?.scene_id) semanticBySceneId.set(sceneMatch.scene_id, sceneMatch);
     }
   }
+  if (hephaestusEvidencePath && fs.existsSync(hephaestusEvidencePath)) {
+    const evidence = JSON.parse(fs.readFileSync(hephaestusEvidencePath, 'utf8'));
+    for (const asset of evidence.assets || []) {
+      if (asset?.id) evidenceByAssetId.set(asset.id, asset);
+    }
+  }
   const rawAssets = Array.isArray(payload.images) ? payload.images : [];
   const curated = curateHephaestusAssets(rawAssets);
   const assets = curated.assets
@@ -213,8 +221,9 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
       ...asset,
       renderPath: resolveAssetPath(asset, manifestPath),
       visualQuality: qualityByAssetId.get(asset.id) || null,
+      componentEvidence: evidenceByAssetId.get(asset.id) || null,
     }))
-    .filter((asset) => Boolean(asset.renderPath));
+    .filter((asset) => Boolean(asset.renderPath) && asset.componentEvidence?.reviewState !== 'rejected');
   const warnings = [];
   if (assets.length === 0) warnings.push('asset manifest contains no readable component images');
   if (qualityReportPath && !fs.existsSync(qualityReportPath)) warnings.push('visual quality report unavailable');
@@ -223,6 +232,7 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
     manifestPath,
     qualityReportPath: qualityReportPath || null,
     semanticReportPath: semanticReportPath || null,
+    hephaestusEvidencePath: hephaestusEvidencePath || null,
     semanticBySceneId,
     assets,
     warnings,
@@ -352,6 +362,7 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
       sourcePage,
       visualTypes: desiredTypes,
       visualQuality: best.asset.visualQuality || null,
+      componentEvidence: best.asset.componentEvidence || null,
       languageAudit: best.languageAudit,
       semanticMatch: semanticMatch || null,
       provenance: {

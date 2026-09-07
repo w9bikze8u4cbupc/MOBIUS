@@ -30,6 +30,9 @@ export function MetadataInputStep({
   bggUrl,
   setBggUrl,
   metadata,
+  identity = {},
+  setIdentity = () => {},
+  onDisplayNameChange = null,
   handleMetadataChange,
   gameName,
   file,
@@ -59,6 +62,34 @@ export function MetadataInputStep({
           <div style={{ fontSize: 20, fontWeight: 'bold', color: '#1565c0' }}>{gameName}</div>
         </div>
       )}
+
+      <div className="pipeline-card" style={{ marginBottom: 20 }}>
+        <h4 style={{ margin: '0 0 12px' }}>Canonical game identity</h4>
+        <p style={{ margin: '0 0 12px', fontSize: 13, color: '#666' }}>
+          Confirm the title Amélie will say. Product names stay in their official form; pronunciation is a separate, editable representation.
+        </p>
+        <div className="pipeline-grid-two" style={{ gap: 12 }}>
+          <label>Display game title
+            <input value={identity.displayName || gameName || ''} onChange={(e) => {
+              if (onDisplayNameChange) onDisplayNameChange(e.target.value);
+              else setIdentity((previous) => ({ ...previous, displayName: e.target.value, operatorConfirmed: true }));
+            }} />
+          </label>
+          <label>Official edition title
+            <input value={identity.officialEditionTitle || ''} onChange={(e) => setIdentity((previous) => ({ ...previous, officialEditionTitle: e.target.value }))} placeholder="Optional confirmed edition title" />
+          </label>
+          <label>Spoken name
+            <input value={identity.spokenName || ''} onChange={(e) => setIdentity((previous) => ({ ...previous, spokenName: e.target.value, pronunciationStatus: 'operator-override' }))} placeholder="Optional spoken representation" />
+          </label>
+          <label>Pronunciation override
+            <input value={typeof identity.pronunciationOverride === 'string' ? identity.pronunciationOverride : (identity.pronunciationOverride?.representation || '')} onChange={(e) => setIdentity((previous) => ({ ...previous, pronunciationOverride: e.target.value, pronunciationStatus: 'operator-override' }))} placeholder="Optional phonetic/voice hint" />
+          </label>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+          <input type="checkbox" checked={identity.preserveOriginalTitle !== false} onChange={(e) => setIdentity((previous) => ({ ...previous, preserveOriginalTitle: e.target.checked }))} />
+          Preserve the official product title on screen
+        </label>
+      </div>
       
       <div className="pipeline-card" style={{ marginBottom: 20 }}>
         <h4 style={{ margin: '0 0 16px 0' }}>

@@ -4,8 +4,12 @@ import * as os from 'os';
 import * as path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import ffmpegStatic from 'ffmpeg-static';
+import ffprobeStatic from 'ffprobe-static';
 
 const execFileAsync = promisify(execFile);
+const FFMPEG_BIN = process.env.MOBIUS_FFMPEG_PATH || ffmpegStatic || 'ffmpeg';
+const FFPROBE_BIN = process.env.MOBIUS_FFPROBE_PATH || ffprobeStatic.path || 'ffprobe';
 
 const CONFIG_DIR = path.join(process.cwd(), 'config');
 const LOCALIZATION_GENERATED_PATH = path.join(CONFIG_DIR, 'localization.generated.json');
@@ -74,7 +78,7 @@ async function detectToolVersion(binary) {
 
 async function probeMedia(filePath) {
   try {
-    const { stdout } = await execFileAsync('ffprobe', [
+    const { stdout } = await execFileAsync(FFPROBE_BIN, [
       '-v',
       'quiet',
       '-print_format',
@@ -143,8 +147,8 @@ function buildEnvSection() {
 
 async function buildToolsSection() {
   const [ffmpeg, ffprobe] = await Promise.all([
-    detectToolVersion('ffmpeg'),
-    detectToolVersion('ffprobe'),
+    detectToolVersion(FFMPEG_BIN),
+    detectToolVersion(FFPROBE_BIN),
   ]);
   return {
     ffmpeg,

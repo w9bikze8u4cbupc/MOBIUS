@@ -22,11 +22,20 @@ import { loadSourceVisualCatalog, selectSourceVisual } from '../src/services/sou
 import { runProduction } from './run-source-grounded-production.mjs';
 import editorialStandard from '../src/services/editorialStandard.cjs';
 import { listConfiguredProviders, resolveConfiguredProviderModels } from '../src/services/aiProviderExecutor.js';
+import { resolveCanonicalGameIdentity, titleFromRulebook } from '../src/services/gameIdentity.cjs';
+import { buildHephaestusEvidence, writeHephaestusEvidence } from '../src/services/hephaestusEvidence.js';
+import { buildGameplayModel, buildGameplayTeachingPlan, writeGameplayModel } from '../src/services/gameplayActions.js';
+import { buildEndgameModel, buildEndgameTeachingPlan, writeEndgameModel } from '../src/services/scoringEndgame.js';
 
 const require = createRequire(import.meta.url);
 const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor.js');
 const { COMPONENT_INVENTORY_CONTRACT_VERSION, extractComponentInventory } = await import('../src/services/componentInventory.js');
 const { generateStoryboard } = require('../src/storyboard/generator.js');
+const { buildKnowledgeTeachingPlan, buildTutorialCoverageMatrix, runMultiPassRulebookIntelligence } = require('../src/services/rulebookKnowledge.cjs');
+const { compileCanonicalProductionState } = require('../src/services/canonicalProductionCompiler.cjs');
+const { recoverAuthorizedBggCandidates, rectifyAuthorizedCandidate } = require('../src/services/sourceAssetResolver.cjs');
+const { buildPhoneScaleQaSheet } = require('../src/services/phoneScaleQa.cjs');
+const { materializeVisualPlanFrames } = require('../src/services/visualPlanMaterializer.cjs');
 
 const VOICE_ID = process.env.ELEVENLABS_VOICE_ID_AMELIE || 'UJCi4DDncuo0VJDSIegj';
 const VOICE_NAME = 'Amélie';
@@ -63,6 +72,62 @@ async function saveJson(filePath, value) {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
+
+function findProjectKnowledgeSeed(root, projectId, sourcePdfSha256) {
+  const preferred = path.join(root, 'config', 'projects', projectId, 'rulebook-knowledge.v1.json');
+  if (exists(preferred)) return preferred;
+  const projectsRoot = path.join(root, 'config', 'projects');
+  if (!exists(projectsRoot)) return null;
+  for (const directory of fs.readdirSync(projectsRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory())) {
+    const candidate = path.join(projectsRoot, directory.name, 'rulebook-knowledge.v1.json');
+    const seed = jsonIf(candidate);
+    if (seed?.sourcePdfSha256 === sourcePdfSha256) return candidate;
+  }
+  return null;
+}
+
+function fallbackKnowledgeSeed({ projectId, identity, sourcePdfSha256, components, storyboardManifest, ranges }) {
+  const ruleAtoms = (storyboardManifest.scenes || []).map((scene, index) => {
+    const pages = teachingSourcePages(scene, ranges).map((page) => ({ page }));
+    const setup = scene.type === 'setup_step' || /mise en place|setup/i.test(`${scene.title || ''} ${scene.section || ''}`);
+    return {
+      id: `source-section-${scene.id || index + 1}`,
+      domain: setup ? 'setup' : 'source_section',
+      coverageDomains: setup ? ['complete_setup', 'component_placement_orientation'] : [],
+      title: scene.title || scene.section || `Règle ${index + 1}`,
+      mandatoryOrOptional: 'mandatory',
+      procedureSteps: [scene.spokenText || scene.narration || scene.text].filter(Boolean),
+      stateChange: scene.spokenText || scene.narration || scene.text || null,
+      stateAfter: 'La règle expliquée est appliquée.',
+      result: 'La partie peut poursuivre selon la source.',
+      componentRefs: scene.componentRefs || scene.visualPlan?.componentRefs || [],
+      sourceRefs: pages,
+      confidence: pages.length ? 0.72 : 0.4,
+      reviewState: 'review-required',
+      visualRequirement: {
+        purpose: scene.title || scene.section || 'Expliquer la règle source.',
+        requiredObjects: scene.componentRefs?.length ? scene.componentRefs : [scene.title || scene.section || 'élément de jeu'],
+        preferredComposition: setup ? 'WIDE_SETUP' : 'SPLIT_CONTAIN_CENTERED',
+      },
+      teaching: {
+        majorSection: scene.section || scene.title || 'Règles',
+        heading: scene.title || scene.section || 'Règle',
+        narration: scene.spokenText || scene.narration || scene.text || '',
+        displayLines: (scene.visualDirections || []).map((direction) => direction.onScreenText).filter(Boolean),
+        sequence: (index + 1) * 10,
+      },
+    };
+  });
+  return {
+    projectId,
+    sourcePdfSha256,
+    extractionModel: 'existing-provider-plus-mobius-multipass-critic',
+    gameIdentity: { displayName: identity.displayName, spokenName: identity.spokenName, locale: identity.locale, edition: identity.edition },
+    components,
+    ruleAtoms,
+    uncertainties: [{ code: 'UNREVIEWED_AUTOMATIC_EXTRACTION', reviewState: 'review-required' }],
+  };
+}
 function slug(value) {
   return String(value || 'rulebook').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/\.pdf$/i, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'rulebook';
@@ -73,17 +138,7 @@ function gameNameFromPdf(filePath) {
   return withoutEdition.split(' ').map((word) => word ? word[0].toUpperCase() + word.slice(1).toLowerCase() : word).join(' ') || 'Rulebook';
 }
 function gameNameFromRulebookText(text, fallback) {
-  const source = String(text || '').replace(/\s+/g, ' ').trim();
-  const patterns = [
-    /\bIn\s+([A-Z][A-Za-z0-9'’:-]*(?:\s+[A-Z][A-Za-z0-9'’:-]*){0,5}),\s+you\s+(?:control|play|are)\b/,
-    /\bWelcome\s+to\s+([A-Z][A-Za-z0-9'’:-]*(?:\s+[A-Z][A-Za-z0-9'’:-]*){0,5})\b/i,
-    /\bDans\s+([A-ZÀ-ÖØ-Þ][^,.!?]{1,60}),\s+vous\b/i,
-  ];
-  for (const pattern of patterns) {
-    const candidate = source.match(pattern)?.[1]?.replace(/[\s,:;]+$/g, '').trim();
-    if (candidate && candidate.length <= 64) return candidate;
-  }
-  return fallback;
+  return titleFromRulebook(text) || fallback;
 }
 function headers(apiKey) {
   return { 'content-type': 'application/json', ...(apiKey ? { 'x-api-key': apiKey } : {}) };
@@ -215,11 +270,25 @@ async function reserveProject({ baseUrl, apiKey, projectId, gameName, language, 
   }, apiKey);
 }
 
-async function persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components, scriptPackage, storyboardManifest, scenes, images, production = {}, audioAssets = [], gameMetadata = {} }) {
+async function persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components, scriptPackage, storyboardManifest, scenes, images, production = {}, audioAssets = [], gameMetadata = {}, gameplayModel = null, endgameModel = null, rulebookKnowledgeModel = null, tutorialCoverage = null, canonicalProductionState = null }) {
   const context = {
     projectId, gameName, language, metadata: gameMetadata, sourcePdf: descriptor, sourceSha256: descriptor.sha256,
     rulebookText: manifest.text.full, ingestionManifest: manifest.ingestion,
     storyboardManifest, scriptPackage, audioAssets, status: production.status || 'processing',
+    gameplayModel,
+    endgameModel,
+    rulebookKnowledgeModel,
+    tutorialCoverage,
+    visualPlans: canonicalProductionState?.visualPlans || [],
+    physicalGameStates: canonicalProductionState?.physicalStates || [],
+    visualReviewItems: canonicalProductionState?.reviewItems || [],
+    productionQa: canonicalProductionState?.qa || null,
+    generatorProductization: canonicalProductionState ? {
+      contract: canonicalProductionState.contract,
+      sourceResolverContract: canonicalProductionState.sourceResolverContract,
+      codeRequiredForNormalProduction: false,
+      status: canonicalProductionState.status,
+    } : null,
     production: { voiceName: VOICE_NAME, voiceId: VOICE_ID, modelId: MODEL_ID, narrationPreset: DEFAULT_NARRATION_PRESET, editorial: getEditorialContract({ narrationPreset: DEFAULT_NARRATION_PRESET }), ...production },
   };
   return postJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/production-state`, {
@@ -279,7 +348,16 @@ async function runZeroState(options = {}) {
       body: JSON.stringify({ documentId: projectId, metadata: { title: gameName, gameId: projectId, source: 'canonical-local-project' }, pages: input.pages, ocr: input.ocr, bggMetadata: {} }),
     });
     extraction = {
-      projectId, gameName, source: identity, rulebookText: text, pages: input.pages,
+      projectId,
+      gameName,
+      identity: resolveCanonicalGameIdentity({
+        projectMetadata: { gameName },
+        rulebook: { gameName, text },
+        filename: descriptor.filename,
+        locale: 'fr-CA',
+        sourceLanguage: 'en',
+      }),
+      source: identity, rulebookText: text, pages: input.pages,
       extractionMetadata: input.metadata, diagnostics: input.diagnostics,
       ingestion: manifest.manifest, components,
       pageRanges: pageRanges(input.pages),
@@ -320,7 +398,7 @@ async function runZeroState(options = {}) {
   if (await stopIfRequested(options, checkpoint, 'script', checkpointPath, { projectId })) return { status: 'stopped', stage: 'script' };
 
   const storyboardPath = path.join(productionDir, 'zero-state-storyboard.json');
-  const storyboardHash = hashValue({ scriptHash, ingestion: hashValue(extraction.ingestion), language });
+  let storyboardHash = hashValue({ scriptHash, ingestion: hashValue(extraction.ingestion), language });
   let storyboardManifest;
   if (stageReady(checkpoint, 'storyboard', storyboardHash, [storyboardPath])) {
     storyboardManifest = jsonIf(storyboardPath);
@@ -344,12 +422,139 @@ async function runZeroState(options = {}) {
   const hephDir = path.join(projectDir, 'hephaestus');
   const hephManifestPath = path.join(hephDir, 'manifest.json');
   const hephStatePath = path.join(hephDir, 'extraction-state.json');
+  const hephEvidencePath = path.join(hephDir, 'component-evidence.json');
   const hephHash = identity.sha256;
   if (!stageReady(checkpoint, 'hephaestus', hephHash, [hephManifestPath]) || jsonIf(hephStatePath)?.sourceSha256 !== identity.sha256) {
     await postJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/images/extract-hephaestus`, {}, apiKey);
     await saveJson(hephStatePath, { sourceSha256: identity.sha256, extractedAt: new Date().toISOString() });
   }
-  markStage(checkpoint, 'hephaestus', hephHash, [hephManifestPath], { reused: checkpoint.stages.hephaestus?.inputHash === hephHash && jsonIf(hephStatePath)?.sourceSha256 === identity.sha256 });
+  const hephEvidence = buildHephaestusEvidence({
+    manifestPath: hephManifestPath,
+    projectId,
+    sourcePdfSha256: identity.sha256,
+    gameIdentity: extraction.identity || { displayName: gameName },
+    components: extraction.components.components || extraction.components,
+    setupSteps: storyboardManifest.scenes.filter((scene) => scene.type === 'setup_step').map((scene) => ({
+      id: scene.id,
+      text: scene.spokenText || scene.text,
+      componentRefs: scene.componentRefs || scene.visualPlan?.componentRefs || [],
+    })),
+  });
+  await writeHephaestusEvidence(hephEvidencePath, hephEvidence);
+  markStage(checkpoint, 'hephaestus', hephHash, [hephManifestPath, hephEvidencePath], { reused: checkpoint.stages.hephaestus?.inputHash === hephHash && jsonIf(hephStatePath)?.sourceSha256 === identity.sha256, evidenceContract: hephEvidence.contract, acceptedVisuals: hephEvidence.acceptedVisuals.length, reviewQueue: hephEvidence.reviewQueue.length });
+
+  const gameplayModelPath = path.join(productionDir, 'gameplay-actions.json');
+  const gameplayHash = hashValue({ sourceSha256: identity.sha256, scriptHash, hephEvidence: hashValue(hephEvidence), contract: 'mobius-gameplay-actions-v1' });
+  let gameplayModel;
+  if (stageReady(checkpoint, 'gameplay-actions', gameplayHash, [gameplayModelPath])) {
+    gameplayModel = jsonIf(gameplayModelPath);
+    checkpoint.stages['gameplay-actions'].reused = true;
+  } else {
+    gameplayModel = buildGameplayModel({
+      projectId,
+      gameIdentity: extraction.identity || { displayName: gameName },
+      sections: scriptPackage.sections || [],
+      components: extraction.components.components || extraction.components,
+      evidence: hephEvidence,
+    });
+    writeGameplayModel(gameplayModelPath, gameplayModel);
+  }
+  markStage(checkpoint, 'gameplay-actions', gameplayHash, [gameplayModelPath], { reused: checkpoint.stages['gameplay-actions']?.reused === true, contract: gameplayModel.contract, actions: gameplayModel.actions.length, acceptedBindings: gameplayModel.visualBindings.filter((binding) => binding.reviewState === 'accepted').length, reviewRequired: gameplayModel.reviewRequired });
+  const endgameModelPath = path.join(productionDir, 'scoring-endgame.json');
+  const endgameHash = hashValue({ sourceSha256: identity.sha256, scriptHash, hephEvidence: hashValue(hephEvidence), gameplay: hashValue(gameplayModel), contract: 'mobius-scoring-endgame-v1' });
+  let endgameModel;
+  if (stageReady(checkpoint, 'scoring-endgame', endgameHash, [endgameModelPath])) {
+    endgameModel = jsonIf(endgameModelPath);
+    checkpoint.stages['scoring-endgame'].reused = true;
+  } else {
+    endgameModel = buildEndgameModel({
+      projectId,
+      gameIdentity: extraction.identity || { displayName: gameName },
+      sections: scriptPackage.sections || [],
+      components: extraction.components.components || extraction.components,
+      evidence: hephEvidence,
+    });
+    writeEndgameModel(endgameModelPath, endgameModel);
+  }
+  markStage(checkpoint, 'scoring-endgame', endgameHash, [endgameModelPath], { reused: checkpoint.stages['scoring-endgame']?.reused === true, contract: endgameModel.contract, categories: endgameModel.scoringCategories.length, immediateVictoryConditions: endgameModel.endGameModel.immediateVictoryConditions.length, reviewRequired: endgameModel.reviewRequired });
+
+  // Canonical rule intelligence sits between extraction and tutorial writing.
+  // A source-SHA-specific reviewed seed may contribute verified project facts,
+  // while unseen games enter through the same model and completeness critic.
+  const rulebookKnowledgePath = path.join(productionDir, 'rulebook-knowledge-model.json');
+  const tutorialCoveragePath = path.join(productionDir, 'tutorial-coverage-matrix.json');
+  const reviewedSeedPath = findProjectKnowledgeSeed(root, projectId, identity.sha256);
+  const projectSeed = reviewedSeedPath
+    ? jsonIf(reviewedSeedPath)
+    : fallbackKnowledgeSeed({
+      projectId,
+      identity: extraction.identity || { displayName: gameName, locale: language },
+      sourcePdfSha256: identity.sha256,
+      components: extraction.components.components || extraction.components,
+      storyboardManifest,
+      ranges: extraction.pageRanges,
+    });
+  const knowledgeHash = hashValue({
+    sourceSha256: identity.sha256,
+    projectSeed,
+    gameplay: hashValue(gameplayModel),
+    endgame: hashValue(endgameModel),
+    contract: 'mobius-rulebook-intelligence-multipass-v1',
+  });
+  const intelligence = await runMultiPassRulebookIntelligence({
+    projectSeed,
+    pages: extraction.pages.map((page) => ({ page: page.number, text: page.blocks.map((block) => block.text || '').join('\n') })),
+    gameplayModel,
+    endgameModel,
+    cachePath: rulebookKnowledgePath,
+  });
+  const rulebookKnowledgeModel = intelligence.model;
+  const knowledgeTeachingPlan = buildKnowledgeTeachingPlan(rulebookKnowledgeModel);
+  const knowledgeReady = rulebookKnowledgeModel.completenessCritic.incompleteAtoms.length === 0
+    && rulebookKnowledgeModel.contradictionCheck.status === 'PASS'
+    && rulebookKnowledgeModel.uncertainties.length === 0;
+  const knowledgeScenes = knowledgeTeachingPlan.scenes.map((item) => ({
+    id: `knowledge-${item.atomId}`,
+    atomId: item.atomId,
+    type: 'teaching_atom',
+    title: item.heading,
+    section: item.majorSection,
+    spokenText: item.narration,
+    narration: item.narration,
+    deliveryProfile: item.profile || 'AMELIE_TEACHING_WARM_R10',
+    on_screen_text: item.displayLines.join('\n'),
+    source_pages: item.sourceRefs.map((ref) => ref.page).filter(Boolean),
+    sourceRefs: item.sourceRefs,
+    visualRequirement: item.visualRequirement,
+  }));
+  if (knowledgeReady && knowledgeScenes.length) storyboardManifest.scenes = knowledgeScenes;
+  const initialKnowledgeIds = knowledgeScenes.map((scene) => scene.atomId);
+  let tutorialCoverage = buildTutorialCoverageMatrix(rulebookKnowledgeModel, {
+    includedAtomIds: initialKnowledgeIds,
+    storyboardAtomIds: knowledgeReady ? initialKnowledgeIds : [],
+  });
+  await saveJson(tutorialCoveragePath, tutorialCoverage);
+  markStage(checkpoint, 'rulebook-knowledge', knowledgeHash, [rulebookKnowledgePath, tutorialCoveragePath], {
+    reused: intelligence.cacheHit,
+    passesExecuted: intelligence.passesExecuted,
+    reviewedSeedPath,
+    knowledgeReady,
+    atoms: rulebookKnowledgeModel.ruleAtoms.length,
+    incompleteAtoms: rulebookKnowledgeModel.completenessCritic.incompleteAtoms.length,
+    missingHighPriorityDomains: tutorialCoverage.missingHighPriorityDomains,
+  });
+  storyboardManifest = {
+    ...storyboardManifest,
+    gameplayTeachingPlan: buildGameplayTeachingPlan(gameplayModel),
+    endgameTeachingPlan: buildEndgameTeachingPlan(endgameModel),
+    knowledgeTeachingPlan,
+    rulebookKnowledgePath,
+    tutorialCoveragePath,
+  };
+  await saveJson(storyboardPath, storyboardManifest);
+  storyboardHash = hashValue({ scriptHash, ingestion: hashValue(extraction.ingestion), language, gameplay: hashValue(storyboardManifest.gameplayTeachingPlan), endgame: hashValue(storyboardManifest.endgameTeachingPlan), knowledge: hashValue(knowledgeTeachingPlan) });
+  markStage(checkpoint, 'storyboard', storyboardHash, [storyboardPath], { reused: false, scenes: storyboardManifest.scenes.length, gameplayTeachingScenes: storyboardManifest.gameplayTeachingPlan.scenes.length, endgameTeachingScenes: storyboardManifest.endgameTeachingPlan.scenes.length, knowledgeTeachingScenes: knowledgeTeachingPlan.scenes.length });
+  if (await stopIfRequested(options, checkpoint, 'gameplay-actions', checkpointPath, { projectId, actions: gameplayModel.actions.length })) return { status: 'stopped', stage: 'gameplay-actions' };
 
   const visualScriptPath = path.join(productionDir, 'zero-state-visual-review-script.json');
   const visualScript = {
@@ -381,51 +586,136 @@ async function runZeroState(options = {}) {
   }
   markStage(checkpoint, 'visual-review', visualReviewHash, [qualityPath, semanticPath, combinedVisualManifestPath, focusedCropManifestPath]);
 
-  const catalog = loadSourceVisualCatalog(combinedVisualManifestPath, { qualityReportPath: qualityPath, semanticReportPath: semanticPath });
-  const boundScenes = storyboardManifest.scenes.map((scene) => {
-    const productionScene = sceneForProduction(scene, extraction.pageRanges, extraction.pages);
-    const selection = selectSourceVisual({
-      ...productionScene,
-      source_pdf_sha256: identity.sha256,
-    }, catalog, sourcePageFallback(root, projectId, productionScene.source_pages[0]));
-    if (!selection.path || !exists(selection.path)) throw new Error(`No renderable visual for ${scene.id}`);
-    return {
-      ...scene,
-      renderVisual: {
-        path: selection.path, assetId: selection.assetId || null,
-        kind: selection.kind === 'component' ? 'automatic-component' : selection.kind,
-        confidence: selection.confidence, reason: selection.reason, sourcePage: selection.sourcePage || productionScene.source_pages[0],
-        semanticMatch: selection.semanticMatch || null,
-        provenance: selection.provenance || null,
-        fallbackReason: selection.fallbackReason || null,
-        alternativesConsidered: selection.alternativesConsidered || [],
-        fallbackMitigation: selection.fallbackMitigation || null,
-        languageAudit: selection.languageAudit || null,
-      },
-    };
+  const catalog = loadSourceVisualCatalog(combinedVisualManifestPath, { qualityReportPath: qualityPath, semanticReportPath: semanticPath, hephaestusEvidencePath: hephEvidencePath });
+  const canonicalStatePath = path.join(productionDir, 'canonical-production-state.json');
+  const visualPlansPath = path.join(productionDir, 'visual-plans.json');
+  const physicalStatesPath = path.join(productionDir, 'physical-game-states.json');
+  const visualReviewItemsPath = path.join(productionDir, 'visual-review-items.json');
+  const productionQaPath = path.join(productionDir, 'production-qa.json');
+  const phoneScaleQaPath = path.join(productionDir, 'phone-scale-qa.png');
+  const authorizedManifestIndex = jsonIf(path.join(root, 'config', 'projects', projectId, 'authorized-source-manifests.json'), {});
+  const authorizedCandidateManifestPaths = (authorizedManifestIndex.manifests || [])
+    .map((entry) => path.resolve(root, entry.path || entry))
+    .filter(exists);
+  const recoveryConfig = jsonIf(path.join(root, 'config', 'projects', projectId, 'authorized-source-recovery.json'), {});
+  if (recoveryConfig.enabled === true && recoveryConfig.exactGameVerified === true && recoveryConfig.targetsPath
+      && (recoveryConfig.bggObjectId || gameMetadata.bggId)) {
+    const recovered = recoverAuthorizedBggCandidates({
+      root,
+      objectId: recoveryConfig.bggObjectId || gameMetadata.bggId,
+      targetsPath: path.resolve(root, recoveryConfig.targetsPath),
+      outputDir: path.resolve(projectDir, 'source', 'authorized-bgg-candidates'),
+      python: process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3'),
+      pages: recoveryConfig.pages || 9,
+    });
+    authorizedCandidateManifestPaths.push(recovered.originalManifest);
+  }
+  if (recoveryConfig.enabled === true && recoveryConfig.exactGameVerified === true
+      && Array.isArray(recoveryConfig.rectifications) && recoveryConfig.rectifications.length) {
+    const rectifiedCandidates = recoveryConfig.rectifications.map((entry) => rectifyAuthorizedCandidate({
+      root,
+      id: entry.id,
+      sourcePath: path.resolve(root, entry.sourcePath),
+      outputPath: path.resolve(projectDir, entry.outputPath || path.join('source', 'rectified-candidates', `${entry.id}.png`)),
+      reportPath: path.resolve(projectDir, entry.reportPath || path.join('source', 'rectified-candidates', `${entry.id}.report.json`)),
+      templatePath: entry.templatePath ? path.resolve(root, entry.templatePath) : null,
+      points: entry.points || null,
+      width: entry.width,
+      height: entry.height,
+      padding: entry.padding,
+      minimumInliers: entry.minimumInliers,
+      python: process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3'),
+      sourceAuthority: entry.sourceAuthority,
+      semanticObjects: entry.semanticObjects,
+      sourceRefs: entry.sourceRefs,
+    }));
+    const rectifiedManifestPath = path.resolve(projectDir, 'source', 'rectified-candidates', 'authorized-rectified-candidates.json');
+    await saveJson(rectifiedManifestPath, {
+      contract: 'mobius-authorized-rectified-source-candidates-v1',
+      authority: 'AUTHORIZED_EXACT_EDITION_HIGH_RES',
+      candidates: rectifiedCandidates,
+    });
+    authorizedCandidateManifestPaths.push(rectifiedManifestPath);
+  }
+  let canonicalProductionState = compileCanonicalProductionState({
+    projectId,
+    knowledgeModel: rulebookKnowledgeModel,
+    coverageMatrix: tutorialCoverage,
+    componentEvidence: hephEvidence,
+    sourceAssets: catalog.assets,
+    authorizedCandidateManifestPaths,
+    displayBounds: { width: 1080, height: 760 },
   });
+  const materialized = await materializeVisualPlanFrames({
+    state: canonicalProductionState,
+    outputDir: path.join(productionDir, 'visual-plan-frames'),
+  });
+  canonicalProductionState = {
+    ...canonicalProductionState,
+    scenes: materialized.scenes,
+    visualPlanMaterialization: {
+      contract: materialized.contract,
+      outputDir: materialized.outputDir,
+      records: materialized.records,
+    },
+  };
+  await saveJson(canonicalStatePath, canonicalProductionState);
+  await saveJson(visualPlansPath, { contract: 'mobius-canonical-visual-plans-v1', plans: canonicalProductionState.visualPlans });
+  await saveJson(physicalStatesPath, { contract: 'mobius-physical-game-state-collection-v1', states: canonicalProductionState.physicalStates });
+  await saveJson(visualReviewItemsPath, { contract: 'mobius-cockpit-visual-review-queue-v1', items: canonicalProductionState.reviewItems });
+  await saveJson(productionQaPath, canonicalProductionState.qa);
+  const phoneScaleQa = await buildPhoneScaleQaSheet({ scenes: canonicalProductionState.scenes, outputPath: phoneScaleQaPath });
+  const boundScenes = canonicalProductionState.scenes;
   const visualCounts = boundScenes.reduce((counts, scene) => {
-    const kind = scene.renderVisual.kind;
-    if (kind === 'automatic-component' || kind === 'automatic-asset' || kind === 'component') counts.automaticComponent += 1;
+    const kind = scene.renderVisual?.kind || 'missing';
+    if (kind === 'automatic-component' || kind === 'automatic-asset' || kind === 'component' || kind === 'automatic-visual-plan-composite') counts.automaticComponent += 1;
     else if (['focused-page-crop', 'focused-page-region'].includes(kind)) counts.automaticFocusedCrop += 1;
     else if (kind === 'explicit-asset') counts.explicit += 1;
     else if (kind === 'missing') counts.missing += 1;
     else counts.fallback += 1;
     return counts;
   }, { explicit: 0, automaticComponent: 0, automaticFocusedCrop: 0, fallback: 0, missing: 0 });
-  if (visualCounts.missing) throw new Error('Zero-state visual contract has missing bindings.');
-  markStage(checkpoint, 'visual-bindings', hashValue({ visualScriptHash, semantic: jsonIf(semanticPath) }), [hephManifestPath, qualityPath, semanticPath], { counts: visualCounts });
+  const unresolvedVisuals = boundScenes.filter((scene) => !scene.renderVisual?.path || scene.visualReviewState === 'needs_visual_review');
+  markStage(checkpoint, 'visual-bindings', hashValue({ visualScriptHash, semantic: jsonIf(semanticPath), canonicalCompiler: canonicalProductionState.contract }), [hephManifestPath, qualityPath, semanticPath, canonicalStatePath, visualPlansPath, physicalStatesPath, visualReviewItemsPath, productionQaPath, phoneScaleQaPath], { counts: visualCounts, unresolved: unresolvedVisuals.length, phoneScaleQa });
+
+  const visualizedKnowledgeIds = boundScenes.filter((scene) => scene.atomId && scene.renderVisual?.path).map((scene) => scene.atomId);
+  tutorialCoverage = buildTutorialCoverageMatrix(rulebookKnowledgeModel, {
+    includedAtomIds: initialKnowledgeIds,
+    storyboardAtomIds: knowledgeReady ? initialKnowledgeIds : [],
+    visualizedAtomIds: visualizedKnowledgeIds,
+  });
+  await saveJson(tutorialCoveragePath, tutorialCoverage);
 
   const imagesResponse = await apiJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/images`, { apiKey });
   const initialStateHash = hashValue({ identity: identity.sha256, scriptHash, storyboardHash, visualCounts });
-  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], gameMetadata, production: { status: 'ready_for_production', sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, inputHash: initialStateHash } });
-  markStage(checkpoint, 'canonical-state', initialStateHash, [storyboardPath], { reused: false, visualCounts });
+  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], gameMetadata, gameplayModel, endgameModel, rulebookKnowledgeModel, tutorialCoverage, canonicalProductionState, production: { status: unresolvedVisuals.length ? 'review_required' : 'ready_for_production', sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, hephaestusEvidencePath: hephEvidencePath, hephaestusEvidenceContract: hephEvidence.contract, gameplayModelPath, gameplayModelContract: gameplayModel.contract, endgameModelPath, endgameModelContract: endgameModel.contract, rulebookKnowledgePath, rulebookKnowledgeContract: rulebookKnowledgeModel.contract, tutorialCoveragePath, tutorialCoverageContract: tutorialCoverage.contract, canonicalStatePath, visualPlansPath, physicalStatesPath, visualReviewItemsPath, productionQaPath, phoneScaleQaPath, inputHash: initialStateHash } });
+  markStage(checkpoint, 'canonical-state', initialStateHash, [storyboardPath, canonicalStatePath, visualPlansPath, physicalStatesPath, visualReviewItemsPath, productionQaPath, phoneScaleQaPath], { reused: false, visualCounts, reviewItems: canonicalProductionState.reviewItems.length });
   await saveJson(checkpointPath, checkpoint);
   if (await stopIfRequested(options, checkpoint, 'canonical-state', checkpointPath, { projectId, visualCounts })) return { status: 'stopped', stage: 'canonical-state' };
+
+  if (unresolvedVisuals.length) {
+    return {
+      status: 'review_required',
+      stage: 'canonical-state',
+      projectId,
+      reviewItems: canonicalProductionState.reviewItems.length,
+      reviewQueuePath: visualReviewItemsPath,
+      codeRequiredForNormalProduction: false,
+      message: 'Canonical source resolution requires Cockpit review before narration/render; no weak fallback was silently accepted.',
+    };
+  }
 
   const production = await runProduction({ projectId, language, root, baseUrl, apiKey, forceRender: Boolean(options.forceRender) });
   const audioSidecar = jsonIf(path.join(productionDir, 'narration-assets.json'), {});
   const report = jsonIf(path.join(productionDir, 'production-report.json'), production);
+  const narratedKnowledgeIds = (audioSidecar.assets || []).map((asset) => asset.sceneId).filter((id) => initialKnowledgeIds.includes(id) || initialKnowledgeIds.includes(String(id).replace(/^knowledge-/, ''))).map((id) => String(id).replace(/^knowledge-/, ''));
+  tutorialCoverage = buildTutorialCoverageMatrix(rulebookKnowledgeModel, {
+    includedAtomIds: initialKnowledgeIds,
+    storyboardAtomIds: knowledgeReady ? initialKnowledgeIds : [],
+    visualizedAtomIds: visualizedKnowledgeIds,
+    narratedAtomIds: narratedKnowledgeIds,
+  });
+  await saveJson(tutorialCoveragePath, tutorialCoverage);
   const qualityReport = jsonIf(qualityPath, {});
   const semanticReport = jsonIf(semanticPath, {});
   report.visuals = {
@@ -440,7 +730,7 @@ async function runZeroState(options = {}) {
     rejectedForSemantic: (semanticReport.scenes || []).filter((scene) => ['no-qualified-source-asset', 'no-semantic-match'].includes(scene.status)).length,
   };
   await saveJson(path.join(productionDir, 'production-report.json'), report);
-  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], audioAssets: audioSidecar.assets || [], gameMetadata, production: { status: 'complete', sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, reportPath: path.join(productionDir, 'production-report.json'), report }, });
+  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], audioAssets: audioSidecar.assets || [], gameMetadata, gameplayModel, endgameModel, rulebookKnowledgeModel, tutorialCoverage, canonicalProductionState, production: { status: 'complete', sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, hephaestusEvidencePath: hephEvidencePath, hephEvidenceContract: hephEvidence.contract, gameplayModelPath, gameplayModelContract: gameplayModel.contract, endgameModelPath, endgameModelContract: endgameModel.contract, rulebookKnowledgePath, rulebookKnowledgeContract: rulebookKnowledgeModel.contract, tutorialCoveragePath, tutorialCoverageContract: tutorialCoverage.contract, canonicalStatePath, visualPlansPath, physicalStatesPath, visualReviewItemsPath, productionQaPath, reportPath: path.join(productionDir, 'production-report.json'), report }, });
   checkpoint.stages.production = { inputHash: hashValue({ initialStateHash, report: report.render?.outputSha256 || null }), reused: report.render?.reused === true, reportPath: path.join(productionDir, 'production-report.json'), ttsReused: report.narration?.reused || 0, ttsGenerated: report.narration?.generated || 0 };
   checkpoint.stages.qa = { status: report.status, output: report.render?.outputPath, media: report.media, visuals: visualCounts };
   delete checkpoint.stoppedAfter;

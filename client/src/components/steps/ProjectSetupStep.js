@@ -128,7 +128,7 @@ export function ProjectSetupStep({
               or click to browse
             </div>
             <div style={{ marginTop: 16, padding: '8px 16px', backgroundColor: '#bbdefb', borderRadius: 8, display: 'inline-block' }}>
-              Your game name is derived locally from the filename, and you can edit it before continuing
+              The filename is provisional. Confirm the source/BGG game identity before continuing.
             </div>
           </div>
         )}
@@ -169,7 +169,7 @@ export function ProjectSetupStep({
           <div style={{ marginTop: 16, padding: 14, backgroundColor: '#f5f5f5', borderRadius: 8 }}>
             <strong style={{ display: 'block', marginBottom: 6 }}>Optional AI game-info extraction</strong>
             <p style={{ margin: '0 0 10px', fontSize: 13, color: '#555' }}>
-              The filename is only a provisional identity. Confirm the canonical game name and enrich the metadata before generating the tutorial.
+              The filename is only provisional. Confirm the canonical game title and pronunciation, then enrich the metadata before generating the tutorial.
             </p>
             <button type="button" onClick={onExtractGameInfo} disabled={extractingName || !rulebookText.trim()}>
               {extractingName ? 'Requesting AI metadata...' : 'Extract optional AI metadata'}

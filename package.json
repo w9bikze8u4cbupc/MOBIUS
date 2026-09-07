@@ -63,7 +63,10 @@
     "tutorial:inbox:status": "node scripts/run-rulebook-inbox.mjs status",
     "editorial:review": "node scripts/analyze-production-video.mjs",
     "editorial:calibrate": "node scripts/calibrate-twelvelabs-review.mjs",
-    "editorial:compare": "node scripts/compare-twelvelabs-reviews.mjs"
+    "editorial:compare": "node scripts/compare-twelvelabs-reviews.mjs",
+    "qa:twelvelabs": "node scripts/qa-twelvelabs.mjs",
+    "qa:production": "node scripts/qa-production.mjs",
+    "qa:visual-first": "node scripts/qa-visual-first-r5.mjs"
   },
   "keywords": [
     "game",

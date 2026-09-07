@@ -1,5 +1,7 @@
 const mockRetrieve = jest.fn();
 const mockCompletionCreate = jest.fn();
+const fs = require('node:fs');
+const path = require('node:path');
 
 jest.mock('openai', () => ({
   __esModule: true,
@@ -38,6 +40,7 @@ describe('AI preflight routes', () => {
   });
 
   beforeEach(() => {
+    fs.rmSync(path.join(process.cwd(), 'data', 'abyss-test'), { recursive: true, force: true });
     process.env.OPENAI_API_KEY = 'test-key';
     process.env.OPENAI_MODEL = 'inaccessible-model';
     delete process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
