@@ -207,6 +207,67 @@ async function archiveSource(paths, source, identity, directory) {
   return target;
 }
 
+function isWithin(directory, candidate) {
+  const relative = path.relative(path.resolve(directory), path.resolve(candidate));
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+export async function requeueInboxItem(options = {}) {
+  const root = path.resolve(options.root || process.cwd());
+  const paths = await ensureInbox(path.resolve(options.inboxRoot || path.join(root, 'data', 'rulebook-inbox')));
+  const sha256 = String(options.sha256 || options.sha || '').trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error('Use requeue --sha <64-character source SHA-256>.');
+  const state = await loadState(paths);
+  const item = state.items[sha256];
+  if (!item || !['failed-terminal', 'failed-retryable'].includes(item.status)) {
+    throw new Error(`Inbox source ${sha256} is not in a failed state.`);
+  }
+
+  const filename = path.basename(item.source?.filename || 'rulebook.pdf');
+  const archivedName = `${sha256.slice(0, 16)}-${filename}`;
+  const candidates = [
+    sourceForRecord(item),
+    path.join(paths.failedTerminal, archivedName),
+    path.join(paths.failedRetryable, archivedName),
+  ].filter(Boolean).map((candidate) => path.resolve(candidate));
+  const sourcePath = candidates.find((candidate) => existsSync(candidate)
+    && [paths.waiting, paths.failedTerminal, paths.failedRetryable].some((directory) => isWithin(directory, candidate))
+    && hashFile(candidate) === sha256);
+  if (!sourcePath) throw new Error(`No verified failed source PDF is available for ${sha256}.`);
+
+  const waitingPath = path.join(paths.waiting, filename);
+  if (existsSync(waitingPath) && hashFile(waitingPath) !== sha256) {
+    throw new Error(`Waiting destination already contains different bytes: ${filename}`);
+  }
+  if (!existsSync(waitingPath)) await fs.rename(sourcePath, waitingPath);
+
+  const previousFailure = {
+    status: item.status,
+    failedAt: item.failedAt || null,
+    retryCount: Number(item.retryCount || 0),
+    diagnosticPath: item.diagnosticPath || null,
+    lastError: item.lastError || null,
+  };
+  const requeued = await updateItem(paths, state, sha256, {
+    status: 'waiting',
+    stage: 'waiting',
+    source: { ...item.source, path: waitingPath },
+    sourcePath: waitingPath,
+    retryCount: 0,
+    lastError: null,
+    diagnosticPath: null,
+    ownerId: null,
+    pid: null,
+    claimedAt: null,
+    startedAt: null,
+    failedAt: null,
+    requeuedAt: now(),
+    failureHistory: [...(Array.isArray(item.failureHistory) ? item.failureHistory : []), previousFailure],
+  });
+  await appendEvent(paths, 'requeued', { sha256, previousStatus: previousFailure.status, sourcePath: waitingPath });
+  return { status: 'waiting', sha256, sourcePath: waitingPath, item: requeued };
+}
+
 function activeItem(state) {
   return Object.entries(state.items).find(([, item]) => ACTIVE_STATUSES.includes(item.status));
 }
@@ -474,7 +535,13 @@ function parseCli(argv) {
 async function main() {
   const { command, values } = parseCli(process.argv.slice(2));
   const options = { ...values, language: values.lang || values.language || 'fr-CA', leaseMs: values['lease-ms'], retryLimit: values['retry-limit'], pollMs: values['poll-ms'], forceRender: Boolean(values['force-render']), reprocess: Boolean(values.reprocess) };
-  const result = command === 'status' ? await inboxStatus(options) : command === 'watch' ? await runInboxWatch(options) : await runInboxOnce(options);
+  const result = command === 'status'
+    ? await inboxStatus(options)
+    : command === 'watch'
+      ? await runInboxWatch(options)
+      : command === 'requeue'
+        ? await requeueInboxItem({ ...options, sha256: values.sha || values['source-sha'] })
+        : await runInboxOnce(options);
   console.log(JSON.stringify(result, null, 2));
   if (result.status === 'failed-terminal') process.exitCode = 2;
 }

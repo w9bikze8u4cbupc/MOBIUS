@@ -10,6 +10,7 @@ import {
   classifyInboxError,
   ensureInbox,
   inboxStatus,
+  requeueInboxItem,
   runInboxOnce,
   validateRelease,
 } from '../../scripts/run-rulebook-inbox.mjs';
@@ -107,6 +108,32 @@ test('worker interruption is retained as retryable state and a concurrent worker
 test('terminal parser failures are quarantined and not retried forever', () => {
   assert.deepEqual(classifyInboxError(new Error('PDF extraction produced no usable text')), { class: 'terminal', retryable: false });
   assert.deepEqual(classifyInboxError(new Error('ElevenLabs network timeout')), { class: 'retryable', retryable: true });
+});
+
+test('a corrected engineering failure is requeued through the canonical lifecycle without running production', async () => {
+  const root = await tempRoot();
+  const source = path.join(root, 'fresh-unseen.pdf');
+  await fs.writeFile(source, Buffer.from('%PDF-1.4\n1 0 obj << /Type /Page >> endobj\n'));
+  const paths = await ensureInbox(path.join(root, 'data', 'rulebook-inbox'));
+  await fs.copyFile(source, path.join(paths.waiting, 'fresh-unseen.pdf'));
+  const identity = await computePdfIdentity(source);
+  let productionCalls = 0;
+  const failure = Object.assign(new Error('canonical source descriptor does not match project storage'), { code: 'SOURCE_PDF_INVALID' });
+  const failed = await runInboxOnce({ root, runner: async () => { productionCalls += 1; throw failure; } });
+
+  assert.equal(failed.status, 'failed-terminal');
+  assert.equal(productionCalls, 1);
+  assert.equal((await fs.readdir(paths.waiting)).length, 0);
+  const diagnosticPath = failed.diagnosticPath;
+
+  const requeued = await requeueInboxItem({ root, sha256: identity.sha256 });
+  assert.equal(requeued.status, 'waiting');
+  assert.equal(productionCalls, 1);
+  assert.equal(await fs.readFile(requeued.sourcePath, 'utf8'), await fs.readFile(source, 'utf8'));
+  assert.equal((await inboxStatus({ root })).waiting, 1);
+  assert.equal((await fs.stat(diagnosticPath)).isFile(), true);
+  assert.equal(requeued.item.failureHistory.at(-1).status, 'failed-terminal');
+  assert.equal(requeued.item.retryCount, 0);
 });
 
 test('release validation checks every declared payload checksum', async () => {

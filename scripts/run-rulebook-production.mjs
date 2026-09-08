@@ -17,7 +17,11 @@ import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { computePdfIdentity, discoverRulebooks, findProcessedBySha } from './rulebook-library.mjs';
-import { projectSourceService } from '../src/services/projectSourceService.js';
+import {
+  createProjectSourceService,
+  normalizeDurableProjectSource,
+  sameDurableProjectSource,
+} from '../src/services/projectSourceService.js';
 import { loadSourceVisualCatalog, selectSourceVisual } from '../src/services/sourceVisualSelection.js';
 import { runProduction } from './run-source-grounded-production.mjs';
 import editorialStandard from '../src/services/editorialStandard.cjs';
@@ -140,18 +144,25 @@ function gameNameFromPdf(filePath) {
 function gameNameFromRulebookText(text, fallback) {
   return titleFromRulebook(text) || fallback;
 }
-function headers(apiKey) {
-  return { 'content-type': 'application/json', ...(apiKey ? { 'x-api-key': apiKey } : {}) };
+function headers(apiKey, { json = true } = {}) {
+  return { ...(json ? { 'content-type': 'application/json' } : {}), ...(apiKey ? { 'x-api-key': apiKey } : {}) };
 }
 async function apiJson(baseUrl, route, options = {}) {
   const url = `${baseUrl.replace(/\/$/, '')}${route}`;
+  const {
+    apiKey = process.env.API_KEY,
+    fetchImpl = fetch,
+    headers: providedHeaders = {},
+    ...requestOptions
+  } = options;
+  const multipart = typeof FormData !== 'undefined' && requestOptions.body instanceof FormData;
   let response;
   let lastError;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      response = await fetch(url, {
-        ...options,
-        headers: { ...headers(options.apiKey || process.env.API_KEY), ...(options.headers || {}) },
+      response = await fetchImpl(url, {
+        ...requestOptions,
+        headers: { ...headers(apiKey, { json: !multipart }), ...providedHeaders },
       });
       break;
     } catch (error) {
@@ -159,7 +170,7 @@ async function apiJson(baseUrl, route, options = {}) {
       if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 250));
     }
   }
-  if (!response) throw new Error(`${options.method || 'GET'} ${route} network request failed after 3 attempts: ${lastError?.message || 'unknown error'}`);
+  if (!response) throw new Error(`${requestOptions.method || 'GET'} ${route} network request failed after 3 attempts: ${lastError?.message || 'unknown error'}`);
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(`${options.method || 'GET'} ${route} failed (${response.status}): ${body.error || body.code || 'unknown error'}`);
@@ -171,8 +182,39 @@ async function apiJson(baseUrl, route, options = {}) {
   }
   return body;
 }
-async function postJson(baseUrl, route, body, apiKey) {
-  return apiJson(baseUrl, route, { method: 'POST', body: JSON.stringify(body), apiKey });
+async function postJson(baseUrl, route, body, apiKey, fetchImpl = fetch) {
+  return apiJson(baseUrl, route, { method: 'POST', body: JSON.stringify(body), apiKey, fetchImpl });
+}
+
+async function synchronizeProjectSourceWithApi({
+  baseUrl,
+  apiKey,
+  projectId,
+  pdfPath,
+  filename,
+  expectedDescriptor,
+  fetchImpl = fetch,
+}) {
+  const expected = normalizeDurableProjectSource(expectedDescriptor, projectId);
+  if (!expected) {
+    const error = new Error('The locally persisted canonical source descriptor is invalid.');
+    error.code = 'SOURCE_DESCRIPTOR_INVALID';
+    throw error;
+  }
+  const bytes = await readFile(pdfPath);
+  const form = new FormData();
+  form.append('file', new Blob([bytes], { type: 'application/pdf' }), filename || expected.filename);
+  const result = await apiJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/source-pdf`, {
+    method: 'POST', body: form, apiKey, fetchImpl,
+  });
+  const persisted = normalizeDurableProjectSource(result.sourcePdf, projectId);
+  if (!persisted || !sameDurableProjectSource(expected, persisted)) {
+    const error = new Error('The API-persisted source descriptor does not match the canonical local source descriptor.');
+    error.code = 'SOURCE_DESCRIPTOR_MISMATCH';
+    error.status = 409;
+    throw error;
+  }
+  return { descriptor: persisted, idempotent: result.idempotent === true };
 }
 
 function stageReady(checkpoint, name, inputHash, outputs) {
@@ -258,7 +300,7 @@ async function chooseNext(root) {
   return { candidates: rows, next: rows.find((row) => row.processed.length === 0) || null };
 }
 
-async function reserveProject({ baseUrl, apiKey, projectId, gameName, language, descriptor }) {
+async function reserveProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, fetchImpl = fetch }) {
   return postJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/production-state`, {
     name: gameName,
     projectContext: {
@@ -267,7 +309,7 @@ async function reserveProject({ baseUrl, apiKey, projectId, gameName, language, 
       production: { voiceName: VOICE_NAME, voiceId: VOICE_ID, modelId: MODEL_ID, narrationPreset: DEFAULT_NARRATION_PRESET, editorial: getEditorialContract({ narrationPreset: DEFAULT_NARRATION_PRESET }) },
     },
     components: [], images: [], script: '', audio: '', scenes: [],
-  }, apiKey);
+  }, apiKey, fetchImpl);
 }
 
 async function persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components, scriptPackage, storyboardManifest, scenes, images, production = {}, audioAssets = [], gameMetadata = {}, gameplayModel = null, endgameModel = null, rulebookKnowledgeModel = null, tutorialCoverage = null, canonicalProductionState = null }) {
@@ -301,6 +343,8 @@ async function persistProject({ baseUrl, apiKey, projectId, gameName, language, 
 
 async function runZeroState(options = {}) {
   const root = path.resolve(options.root || process.cwd());
+  const sourceService = options.projectSource || createProjectSourceService({ dataRoot: path.join(root, 'data') });
+  const fetchImpl = options.fetchImpl || fetch;
   const baseUrl = options.baseUrl || DEFAULT_BASE_URL;
   const apiKey = options.apiKey || process.env.API_KEY;
   const language = options.language || 'fr-CA';
@@ -321,12 +365,25 @@ async function runZeroState(options = {}) {
   checkpoint.source = identity;
 
   let descriptor;
-  if (prior) descriptor = await projectSourceService.readDescriptor(projectId);
-  else descriptor = (await projectSourceService.persistUpload(projectId, requested, { filename: identity.filename })).descriptor;
+  if (prior) descriptor = await sourceService.readDescriptor(projectId);
+  else descriptor = (await sourceService.persistUpload(projectId, requested, { filename: identity.filename })).descriptor;
+  const sourceSync = await synchronizeProjectSourceWithApi({
+    baseUrl,
+    apiKey,
+    projectId,
+    pdfPath: await sourceService.resolveFile(projectId),
+    filename: descriptor.filename,
+    expectedDescriptor: descriptor,
+    fetchImpl,
+  });
+  descriptor = sourceSync.descriptor;
   let persistedProject = null;
-  try { persistedProject = await apiJson(baseUrl, `/load-project/${encodeURIComponent(projectId)}`, { apiKey }); } catch { /* New source: reserve below. */ }
-  if (!persistedProject) await reserveProject({ baseUrl, apiKey, projectId, gameName, language, descriptor });
-  markStage(checkpoint, 'source', identity.sha256, [path.join(projectDir, 'source', 'rulebook.pdf')], { reused: Boolean(prior) });
+  try { persistedProject = await apiJson(baseUrl, `/load-project/${encodeURIComponent(projectId)}`, { apiKey, fetchImpl }); } catch { /* New source: reserve below. */ }
+  if (!persistedProject) await reserveProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, fetchImpl });
+  markStage(checkpoint, 'source', identity.sha256, [path.join(projectDir, 'source', 'rulebook.pdf')], {
+    reused: Boolean(prior),
+    apiSourceIdempotent: sourceSync.idempotent,
+  });
   await saveJson(checkpointPath, checkpoint);
   if (await stopIfRequested(options, checkpoint, 'source', checkpointPath, { projectId })) return { status: 'stopped', stage: 'source' };
 
@@ -337,7 +394,7 @@ async function runZeroState(options = {}) {
     extraction = jsonIf(extractionPath);
     checkpoint.stages.extraction.reused = true;
   } else {
-    const sourcePath = await projectSourceService.resolveFile(projectId);
+    const sourcePath = await sourceService.resolveFile(projectId);
     const input = await extractPdfToIngestionInput(sourcePath, { source: descriptor.filename, mergeLines: false });
     const text = pageText(input.pages);
     if (!text) throw new Error('PDF extraction produced no usable text; the source requires OCR before production can continue.');
@@ -415,7 +472,7 @@ async function runZeroState(options = {}) {
   const pageDir = path.join(root, 'data', 'rulebook-images', projectId);
   const pageManifestHash = identity.sha256;
   if (!stageReady(checkpoint, 'page-visuals', pageManifestHash, [path.join(pageDir, 'page-1.png')])) {
-    await postJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/images/extract-rulebook`, { pdfPath: await projectSourceService.resolveFile(projectId) }, apiKey);
+    await postJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/images/extract-rulebook`, { pdfPath: await sourceService.resolveFile(projectId) }, apiKey);
   }
   markStage(checkpoint, 'page-visuals', pageManifestHash, [path.join(pageDir, 'page-1.png')], { reused: checkpoint.stages['page-visuals']?.inputHash === pageManifestHash });
 
@@ -758,4 +815,13 @@ if (pathToFileURL(path.resolve(process.argv[1] || '')).href === import.meta.url)
   main().catch((error) => { console.error(`[run-rulebook-production] ${error.message}`); process.exitCode = 1; });
 }
 
-export { chooseNext, gameNameFromRulebookText, pagesForSources, sceneForProduction, teachingSourcePages, runZeroState, stageReady };
+export {
+  chooseNext,
+  gameNameFromRulebookText,
+  pagesForSources,
+  runZeroState,
+  sceneForProduction,
+  stageReady,
+  synchronizeProjectSourceWithApi,
+  teachingSourcePages,
+};

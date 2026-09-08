@@ -2,7 +2,11 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { setProjectState } from './renderJobConfig.js';
-import { projectSourceService } from '../services/projectSourceService.js';
+import {
+  normalizeDurableProjectSource,
+  projectSourceService,
+  sameDurableProjectSource,
+} from '../services/projectSourceService.js';
 
 const ingestionRequire = createRequire(path.join(process.cwd(), 'src', 'api', 'projectPersistenceRoutes.js'));
 const { validateIngestionManifest } = ingestionRequire('../validators/ingestionValidator');
@@ -45,24 +49,8 @@ export function normalizeRecoveryProjectId(value) {
 
 export function validateDurableProjectSource(sourcePdf, projectId) {
   if (sourcePdf === undefined || sourcePdf === null) return { valid: true, sourcePdf: null };
-  const source = sourcePdf && typeof sourcePdf === 'object' && !Array.isArray(sourcePdf) ? sourcePdf : null;
-  if (!source || source.documentId !== projectId || !/^source-[a-f0-9]{32}$/.test(source.sourceId || '')
-    || !/^document-[a-f0-9]{32}$/.test(source.documentFingerprint || '') || !/^[a-f0-9]{64}$/.test(source.sha256 || '')
-    || typeof source.filename !== 'string' || !source.filename || source.filename.length > 200 || /[\\/\r\n\u0000-\u001f]/.test(source.filename)
-    || !Number.isInteger(source.bytes) || source.bytes < 1 || !Number.isInteger(source.pageCount) || source.pageCount < 1
-    || source.provenance !== 'direct_project_upload') {
-    return { valid: false, sourcePdf: null };
-  }
-  return { valid: true, sourcePdf: {
-    sourceId: source.sourceId, documentId: source.documentId, documentFingerprint: source.documentFingerprint,
-    filename: source.filename, sha256: source.sha256, bytes: source.bytes, pageCount: source.pageCount,
-    provenance: source.provenance, status: source.status === 'available' ? 'available' : 'pending_contextual_render',
-  } };
-}
-
-function sameDurableProjectSource(left, right) {
-  return ['sourceId', 'documentId', 'documentFingerprint', 'filename', 'sha256', 'bytes', 'pageCount', 'provenance']
-    .every((field) => left?.[field] === right?.[field]);
+  const source = normalizeDurableProjectSource(sourcePdf, projectId);
+  return source ? { valid: true, sourcePdf: source } : { valid: false, sourcePdf: null };
 }
 
 async function resolvePersistedProjectSource(sourcePdf, projectId, projectSource) {
