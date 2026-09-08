@@ -3,8 +3,8 @@ describe('zero-state production contracts', () => {
     const { execFileSync } = require('child_process');
     const { pathToFileURL } = require('url');
     const script = pathToFileURL(require('path').resolve(__dirname, '../../scripts/run-rulebook-production.mjs')).href;
-    const output = execFileSync(process.execPath, ['--input-type=module', '-e', `import {stageReady} from '${script}'; const c={stages:{extraction:{inputHash:'same'}}}; console.log(JSON.stringify([stageReady(c,'extraction','same',[]),stageReady(c,'extraction','changed',[])]));`], { encoding: 'utf8' });
-    expect(JSON.parse(output.trim().split(/\r?\n/).pop())).toEqual([true, false]);
+    const output = execFileSync(process.execPath, ['--input-type=module', '-e', `import {stageReady} from '${script}'; const c={stages:{extraction:{status:'READY',inputHash:'same'},legacy:{inputHash:'same'}}}; console.log(JSON.stringify([stageReady(c,'extraction','same',[]),stageReady(c,'extraction','changed',[]),stageReady(c,'legacy','same',[])]));`], { encoding: 'utf8' });
+    expect(JSON.parse(output.trim().split(/\r?\n/).pop())).toEqual([true, false, false]);
   });
 
   test('the library computes stable source identity independent of the filename used later', async () => {

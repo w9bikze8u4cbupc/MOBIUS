@@ -105,9 +105,34 @@ test('worker interruption is retained as retryable state and a concurrent worker
   assert.equal((await inboxStatus({ root })).counts['failed-retryable'], 1);
 });
 
+test('Cockpit review boundary is preserved without attempting release packaging or rerunning the PDF', async () => {
+  const root = await tempRoot();
+  const source = path.join(root, 'review-game.pdf');
+  await fs.writeFile(source, Buffer.from('%PDF-review-source'));
+  let calls = 0;
+  const result = await runInboxOnce({
+    root,
+    pdf: source,
+    runner: async () => {
+      calls += 1;
+      return { status: 'review_required', stage: 'coverage', projectId: 'review-game-project', reviewItems: 3, reviewQueuePath: 'review-items.json' };
+    },
+  });
+  assert.equal(result.status, 'review_required');
+  assert.equal(result.item.status, 'review-required');
+  assert.equal(result.item.reviewItems, 3);
+  assert.equal((await inboxStatus({ root })).waiting, 0);
+  const second = await runInboxOnce({ root, runner: async () => { calls += 1; } });
+  assert.equal(second.status, 'idle');
+  assert.equal(calls, 1);
+});
+
 test('terminal parser failures are quarantined and not retried forever', () => {
   assert.deepEqual(classifyInboxError(new Error('PDF extraction produced no usable text')), { class: 'terminal', retryable: false });
   assert.deepEqual(classifyInboxError(new Error('ElevenLabs network timeout')), { class: 'retryable', retryable: true });
+  const hephaestusError = new Error('HEPHAESTUS materialization failed');
+  hephaestusError.code = 'HEPHAESTUS_MATERIALIZATION_FAILED';
+  assert.deepEqual(classifyInboxError(hephaestusError), { class: 'retryable', retryable: true });
 });
 
 test('a corrected engineering failure is requeued through the canonical lifecycle without running production', async () => {

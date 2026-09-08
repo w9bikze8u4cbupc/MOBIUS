@@ -11,9 +11,10 @@ import { computePdfIdentity, discoverRulebooks, findProcessedBySha } from './rul
 import { runZeroState } from './run-rulebook-production.mjs';
 
 export const INBOX_STATUSES = Object.freeze([
-  'waiting', 'claimed', 'processing', 'qa', 'completed', 'failed-retryable', 'failed-terminal',
+  'waiting', 'claimed', 'processing', 'qa', 'review-required', 'completed', 'failed-retryable', 'failed-terminal',
 ]);
 export const ACTIVE_STATUSES = Object.freeze(['claimed', 'processing', 'qa']);
+export const REVIEW_STATUSES = Object.freeze(['review-required']);
 export const DEFAULT_RETRY_LIMIT = 3;
 export const DEFAULT_LEASE_MS = 15 * 60 * 1000;
 export const DEFAULT_POLL_MS = 30 * 1000;
@@ -109,7 +110,10 @@ export function classifyInboxError(error) {
   const providerAvailability = error?.code === 'AI_PROVIDER_ALL_FAILED'
     || error?.classification === 'provider_unavailable'
     || /all configured .*provider|provider_unavailable|quota_exhausted|credit_balance_exhausted|credit.*exhausted/i.test(message);
-  const retryable = providerAvailability || /econn|etimedout|enotfound|network|timeout|\b429\b|rate limit|\b5\d\d\b|temporar|elevenlabs|openai/i.test(message);
+  const materializationBoundary = String(error?.code || '').startsWith('HEPHAESTUS_')
+    || error?.classification === 'retryable_engineering'
+    || /hephaestus_(materialization|manifest|synchronization|asset_transport)/i.test(message);
+  const retryable = providerAvailability || materializationBoundary || /econn|etimedout|enotfound|network|timeout|\b429\b|rate limit|\b5\d\d\b|temporar|elevenlabs|openai/i.test(message);
   const terminal = /ai_not_configured|no usable text|ocr before production|invalid.*(pdf|script|storyboard)|missing.*(credential|api key)|unknown narration preset|not found/i.test(message);
   if (terminal && !retryable) return { class: 'terminal', retryable: false };
   return { class: retryable ? 'retryable' : 'terminal', retryable };
@@ -175,7 +179,7 @@ export async function discoverInbox(root, { dataRoot = path.join(path.dirname(pa
       || existsSync(path.join(dataRoot, record.documentId || '', 'production', 'production-report.json')));
     rows.push({ identity, state: known, processed, completedProjectId: complete?.documentId || null });
   }
-  const waiting = rows.filter((row) => !ACTIVE_STATUSES.includes(row.state?.status)
+  const waiting = rows.filter((row) => !ACTIVE_STATUSES.includes(row.state?.status) && !REVIEW_STATUSES.includes(row.state?.status)
     && row.state?.status !== 'completed' && row.state?.status !== 'failed-terminal' && !row.completedProjectId);
   const duplicates = rows.filter((row) => !ACTIVE_STATUSES.includes(row.state?.status)
     && row.state?.status !== 'failed-terminal' && (row.completedProjectId || row.state?.status === 'completed'));
@@ -446,6 +450,15 @@ export async function runInboxOnce(options = {}) {
     const runner = options.runner || runZeroState;
     const result = await runner({ root, pdf: work.sourcePath, language: options.language || 'fr-CA', baseUrl: options.baseUrl, apiKey: options.apiKey, forceRender: Boolean(options.forceRender) });
     const projectId = result.projectId || result.zeroState?.projectId;
+    if (result.status === 'review_required') {
+      const reviewItem = await updateItem(paths, state, work.identity.sha256, {
+        status: 'review-required', stage: result.stage || 'cockpit-review', projectId,
+        reviewItems: Number(result.reviewItems || 0), reviewQueuePath: result.reviewQueuePath || null,
+        lastError: null,
+      });
+      await appendEvent(paths, 'review_required', { sha256: work.identity.sha256, projectId, stage: reviewItem.stage, reviewItems: reviewItem.reviewItems });
+      return { status: 'review_required', projectId, item: reviewItem, result };
+    }
     await updateItem(paths, state, work.identity.sha256, { status: 'qa', stage: 'release-package', projectId });
     const release = await packageRelease({ root, paths, identity: work.identity, result, item: { ...item, projectId } });
     const finalItem = await updateItem(paths, state, work.identity.sha256, {

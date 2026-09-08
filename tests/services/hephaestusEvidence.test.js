@@ -29,3 +29,19 @@ test('builds one canonical evidence contract with accepted, review and rejected 
   expect(result.setupBindings[0]).toMatchObject({ setupStepId: 'setup-1', componentRefs: ['component-1'] });
   expect(result.validation.acceptedFilesExist).toBe(true);
 });
+
+test('rejects a canonical manifest belonging to another project source', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-heph-mismatch-'));
+  const manifest = path.join(temp, 'manifest.json');
+  fs.writeFileSync(manifest, JSON.stringify({
+    contract: 'mobius-hephaestus-materialization-v1',
+    projectId: 'wrong-project',
+    sourcePdfSha256: 'b'.repeat(64),
+    images: [],
+  }));
+  expect(() => buildHephaestusEvidence({
+    manifestPath: manifest,
+    projectId: 'fixture-game',
+    sourcePdfSha256: 'a'.repeat(64),
+  })).toThrow(/HEPHAESTUS_MANIFEST_IDENTITY_MISMATCH/);
+});

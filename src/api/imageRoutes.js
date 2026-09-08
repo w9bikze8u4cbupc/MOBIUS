@@ -54,6 +54,10 @@ import {
   isHephaestusAvailable,
   withHephaestusProjectLock,
 } from '../services/hephaestusService.js';
+import {
+  ensureCanonicalHephaestusMaterialization,
+  HephaestusMaterializationError,
+} from '../services/hephaestusMaterialization.js';
 import { curateHephaestusAssets } from '../services/hephaestusCuration.js';
 import { hybridMatch } from '../services/hybridMatcher.js';
 import { isEligibleComponentForMatching } from '../services/componentInventory.js';
@@ -773,23 +777,22 @@ export function registerImageRoutes(app, {
         await projectSource.persistUpload(projectId, req.file.path, { filename: req.file.originalname });
       }
       const canonicalPdfPath = await projectSource.resolveFile(projectId);
-
-      const available = await isHephaestusAvailable();
-      if (!available) {
-        return res.status(500).json({ error: 'HEPHAESTUS system not available' });
-      }
+      const canonicalSource = await projectSource.inspect(projectId);
 
       const payload = await withHephaestusProjectLock(projectId, async () => {
         const outputDir = path.join(process.cwd(), 'data', projectId, 'hephaestus');
-        const result = await extractWithHephaestus(canonicalPdfPath, outputDir, {
-          minWidth: 1,
-          minHeight: 1,
+        const materialization = await ensureCanonicalHephaestusMaterialization({
+          projectId,
+          sourceDescriptor: canonicalSource,
+          sourcePdfPath: canonicalPdfPath,
+          outputDir,
+          extractor: async (...args) => {
+            if (!(await isHephaestusAvailable())) throw new Error('HEPHAESTUS system not available');
+            return extractWithHephaestus(...args);
+          },
+          assetUrlFor: (assetId, variant) => `/api/projects/${encodeURIComponent(projectId)}/images/${encodeURIComponent(assetId)}/file${variant === 'thumbnail' ? '?variant=thumbnail' : ''}`,
         });
-        if (!result.success && result.error) {
-          const error = new Error(result.error);
-          error.code = 'HEPHAESTUS_EXTRACTION_FAILED';
-          throw error;
-        }
+        const result = materialization.manifest;
 
         removeImagesBySource(projectId, 'hephaestus');
         const nativeImages = result.images || [];
@@ -804,6 +807,8 @@ export function registerImageRoutes(app, {
             images: state.images,
             componentImages: state.componentImages,
             componentImageLinkDetails: state.componentImageLinkDetails,
+            hephaestusManifest: result,
+            materialization: { reused: materialization.reused, regenerated: materialization.regenerated, upgraded: materialization.upgraded === true },
           };
         }
 
@@ -818,8 +823,8 @@ export function registerImageRoutes(app, {
             name: img.label,
             label: img.label,
             type,
-            fileKey: img.file_path,
-            thumbnailKey: img.thumbnail_path,
+            fileKey: path.resolve(outputDir, img.file_path),
+            thumbnailKey: img.thumbnail_path ? path.resolve(outputDir, img.thumbnail_path) : null,
             localUrl,
             thumbnailUrl: `${localUrl}?variant=thumbnail`,
             width: img.dimensions?.width,
@@ -857,12 +862,17 @@ export function registerImageRoutes(app, {
           images: updatedState.images,
           componentImages: updatedState.componentImages,
           componentImageLinkDetails: updatedState.componentImageLinkDetails,
+          hephaestusManifest: result,
+          materialization: { reused: materialization.reused, regenerated: materialization.regenerated, upgraded: materialization.upgraded === true },
         };
       });
       return res.json(payload);
     } catch (err) {
       if (err instanceof ProjectSourceError || String(err?.code || '').startsWith('SOURCE_PDF_')) {
         return projectSourceErrorResponse(res, err);
+      }
+      if (err instanceof HephaestusMaterializationError) {
+        return res.status(503).json({ code: err.code, classification: err.classification, error: err.message });
       }
       console.error('[HEPHAESTUS]', JSON.stringify({
         event: 'extraction-failed',

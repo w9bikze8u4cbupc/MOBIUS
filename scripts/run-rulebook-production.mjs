@@ -28,6 +28,19 @@ import editorialStandard from '../src/services/editorialStandard.cjs';
 import { listConfiguredProviders, resolveConfiguredProviderModels } from '../src/services/aiProviderExecutor.js';
 import { resolveCanonicalGameIdentity, titleFromRulebook } from '../src/services/gameIdentity.cjs';
 import { buildHephaestusEvidence, writeHephaestusEvidence } from '../src/services/hephaestusEvidence.js';
+import {
+  readCanonicalHephaestusManifest,
+  synchronizeCanonicalHephaestusMaterialization,
+  validateCanonicalHephaestusManifest,
+} from '../src/services/hephaestusMaterialization.js';
+import {
+  assertCanonicalStagePrerequisites,
+  canonicalStageReady,
+  markCanonicalStage,
+  markPreEvidenceDraft,
+  preEvidenceDraftReady,
+  PRODUCTION_STAGE_STATUS,
+} from '../src/services/canonicalProductionStages.js';
 import { buildGameplayModel, buildGameplayTeachingPlan, writeGameplayModel } from '../src/services/gameplayActions.js';
 import { buildEndgameModel, buildEndgameTeachingPlan, writeEndgameModel } from '../src/services/scoringEndgame.js';
 
@@ -186,6 +199,28 @@ async function postJson(baseUrl, route, body, apiKey, fetchImpl = fetch) {
   return apiJson(baseUrl, route, { method: 'POST', body: JSON.stringify(body), apiKey, fetchImpl });
 }
 
+async function apiBuffer(baseUrl, route, { apiKey = process.env.API_KEY, fetchImpl = fetch } = {}) {
+  const url = /^https?:\/\//i.test(String(route || '')) ? route : `${baseUrl.replace(/\/$/, '')}${route}`;
+  let response;
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      response = await fetchImpl(url, { headers: headers(apiKey, { json: false }) });
+      break;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 250));
+    }
+  }
+  if (!response) throw new Error(`GET ${route} network request failed after 3 attempts: ${lastError?.message || 'unknown error'}`);
+  if (!response.ok) {
+    const error = new Error(`GET ${route} failed (${response.status})`);
+    error.status = response.status;
+    throw error;
+  }
+  return Buffer.from(await response.arrayBuffer());
+}
+
 async function synchronizeProjectSourceWithApi({
   baseUrl,
   apiKey,
@@ -218,11 +253,10 @@ async function synchronizeProjectSourceWithApi({
 }
 
 function stageReady(checkpoint, name, inputHash, outputs) {
-  return checkpoint.stages?.[name]?.inputHash === inputHash && outputs.every(exists);
+  return canonicalStageReady(checkpoint, name, inputHash, outputs);
 }
 function markStage(checkpoint, name, inputHash, outputs, extra = {}) {
-  checkpoint.stages = checkpoint.stages || {};
-  checkpoint.stages[name] = { inputHash, outputs, ...extra };
+  return markCanonicalStage(checkpoint, name, inputHash, outputs, extra);
 }
 async function stopIfRequested(options, checkpoint, name, checkpointPath, result = {}) {
   if (options.stopAfter !== name) return false;
@@ -312,7 +346,7 @@ async function reserveProject({ baseUrl, apiKey, projectId, gameName, language, 
   }, apiKey, fetchImpl);
 }
 
-async function persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components, scriptPackage, storyboardManifest, scenes, images, production = {}, audioAssets = [], gameMetadata = {}, gameplayModel = null, endgameModel = null, rulebookKnowledgeModel = null, tutorialCoverage = null, canonicalProductionState = null }) {
+async function persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components, scriptPackage, storyboardManifest, scenes, images, production = {}, audioAssets = [], gameMetadata = {}, gameplayModel = null, endgameModel = null, rulebookKnowledgeModel = null, tutorialCoverage = null, canonicalProductionState = null, ruleReviewItems = [] }) {
   const context = {
     projectId, gameName, language, metadata: gameMetadata, sourcePdf: descriptor, sourceSha256: descriptor.sha256,
     rulebookText: manifest.text.full, ingestionManifest: manifest.ingestion,
@@ -324,6 +358,7 @@ async function persistProject({ baseUrl, apiKey, projectId, gameName, language, 
     visualPlans: canonicalProductionState?.visualPlans || [],
     physicalGameStates: canonicalProductionState?.physicalStates || [],
     visualReviewItems: canonicalProductionState?.reviewItems || [],
+    ruleReviewItems,
     productionQa: canonicalProductionState?.qa || null,
     generatorProductization: canonicalProductionState ? {
       contract: canonicalProductionState.contract,
@@ -428,14 +463,85 @@ async function runZeroState(options = {}) {
   await saveJson(checkpointPath, checkpoint);
   if (await stopIfRequested(options, checkpoint, 'extraction', checkpointPath, { projectId })) return { status: 'stopped', stage: 'extraction' };
 
+  // HEPHAESTUS is a canonical source-evidence stage, not an optional visual
+  // enhancement. The API owns extraction/Cockpit assets; this worker mirrors
+  // the exact validated artifact set into its project cache through API asset
+  // URLs so separate process roots cannot create a false missing manifest.
+  const hephDir = path.join(projectDir, 'hephaestus');
+  const hephManifestPath = path.join(hephDir, 'manifest.json');
+  const hephStatePath = path.join(hephDir, 'extraction-state.json');
+  const hephEvidencePath = path.join(hephDir, 'component-evidence.json');
+  const hephHash = hashValue({ sourceSha256: identity.sha256, projectId, contract: 'mobius-hephaestus-materialization-v1' });
+  assertCanonicalStagePrerequisites(checkpoint, 'hephaestus');
+  let hephManifest = readCanonicalHephaestusManifest(hephManifestPath);
+  let hephValidation = validateCanonicalHephaestusManifest(hephManifest, {
+    manifestPath: hephManifestPath, projectId, sourceDescriptor: descriptor,
+  });
+  let hephReused = stageReady(checkpoint, 'hephaestus', hephHash, [hephManifestPath, hephEvidencePath]) && hephValidation.valid;
+  let hephSynchronized = false;
+  if (!hephReused) {
+    const response = await postJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/images/extract-hephaestus`, {}, apiKey, fetchImpl);
+    if (!response.hephaestusManifest) {
+      const error = new Error('HEPHAESTUS_MATERIALIZATION_UNAVAILABLE: API did not return the canonical HEPHAESTUS manifest.');
+      error.code = 'HEPHAESTUS_MATERIALIZATION_UNAVAILABLE';
+      error.classification = 'retryable_engineering';
+      throw error;
+    }
+    const synchronized = await synchronizeCanonicalHephaestusMaterialization({
+      remoteManifest: response.hephaestusManifest,
+      outputDir: hephDir,
+      projectId,
+      sourceDescriptor: descriptor,
+      fetchAsset: (assetUrl) => apiBuffer(baseUrl, assetUrl, { apiKey, fetchImpl }),
+    });
+    hephManifest = synchronized.manifest;
+    hephValidation = synchronized.validation;
+    hephSynchronized = true;
+  }
+  if (!hephValidation.valid) {
+    const error = new Error(`HEPHAESTUS_MANIFEST_INVALID: ${hephValidation.errors.join(', ')}`);
+    error.code = 'HEPHAESTUS_MANIFEST_INVALID';
+    error.classification = 'retryable_engineering';
+    throw error;
+  }
+  const hephEvidence = buildHephaestusEvidence({
+    manifestPath: hephManifestPath,
+    projectId,
+    sourcePdfSha256: identity.sha256,
+    gameIdentity: extraction.identity || { displayName: gameName },
+    components: extraction.components.components || extraction.components,
+    setupSteps: [],
+  });
+  await writeHephaestusEvidence(hephEvidencePath, hephEvidence);
+  await saveJson(hephStatePath, {
+    contract: 'mobius-hephaestus-checkpoint-v1',
+    projectId,
+    sourceSha256: identity.sha256,
+    manifestContract: hephManifest.contract,
+    manifestCheckpointIdentity: hephManifest.checkpointIdentity,
+    manifestSha256: hephEvidence.sourceManifestSha256,
+    status: PRODUCTION_STAGE_STATUS.READY,
+    materializedAt: hephManifest.generatedAt,
+  });
+  markStage(checkpoint, 'hephaestus', hephHash, [hephManifestPath, hephEvidencePath, hephStatePath], {
+    reused: hephReused,
+    synchronized: hephSynchronized,
+    evidenceContract: hephEvidence.contract,
+    manifestContract: hephManifest.contract,
+    acceptedVisuals: hephEvidence.acceptedVisuals.length,
+    reviewQueue: hephEvidence.reviewQueue.length,
+  });
+  await saveJson(checkpointPath, checkpoint);
+  if (await stopIfRequested(options, checkpoint, 'hephaestus', checkpointPath, { projectId })) return { status: 'stopped', stage: 'hephaestus' };
+
   const scriptPath = path.join(productionDir, 'zero-state-script-package.json');
   const providerResolution = await resolveConfiguredProviderModels({ providers: listConfiguredProviders() });
   const providerContract = providerResolution.providers.map(({ name, model }) => ({ name, model }));
   const scriptHash = hashValue({ sourceSha256: identity.sha256, componentHash, language, providerContract, editorialContract: 'metadata-card-v1-section-labels-v1' });
   let scriptPackage;
-  if (stageReady(checkpoint, 'script', scriptHash, [scriptPath])) {
+  if (preEvidenceDraftReady(checkpoint, 'draft-script', scriptHash, [scriptPath])) {
     scriptPackage = jsonIf(scriptPath);
-    checkpoint.stages.script.reused = true;
+    checkpoint.stages['draft-script'].reused = true;
   } else {
     const response = await postJson(baseUrl, '/summarize', {
       projectId, rulebookText: extraction.rulebookText, language: 'french', gameName,
@@ -450,24 +556,28 @@ async function runZeroState(options = {}) {
     await saveJson(scriptPath, scriptPackage);
   }
   const gameMetadata = scriptPackage.metadata || {};
-  markStage(checkpoint, 'script', scriptHash, [scriptPath], { reused: checkpoint.stages.script?.reused === true, sections: scriptPackage.sections.length });
+  scriptPackage.lifecycleState = PRODUCTION_STAGE_STATUS.DRAFT_PRE_EVIDENCE;
+  await saveJson(scriptPath, scriptPackage);
+  markPreEvidenceDraft(checkpoint, 'draft-script', scriptHash, [scriptPath], { reused: checkpoint.stages['draft-script']?.reused === true, sections: scriptPackage.sections.length });
   await saveJson(checkpointPath, checkpoint);
-  if (await stopIfRequested(options, checkpoint, 'script', checkpointPath, { projectId })) return { status: 'stopped', stage: 'script' };
+  if (await stopIfRequested(options, checkpoint, 'draft-script', checkpointPath, { projectId })) return { status: 'stopped', stage: 'draft-script' };
 
   const storyboardPath = path.join(productionDir, 'zero-state-storyboard.json');
   let storyboardHash = hashValue({ scriptHash, ingestion: hashValue(extraction.ingestion), language });
   let storyboardManifest;
-  if (stageReady(checkpoint, 'storyboard', storyboardHash, [storyboardPath])) {
+  if (preEvidenceDraftReady(checkpoint, 'draft-storyboard', storyboardHash, [storyboardPath])) {
     storyboardManifest = jsonIf(storyboardPath);
-    checkpoint.stages.storyboard.reused = true;
+    checkpoint.stages['draft-storyboard'].reused = true;
   } else {
     const storyboard = generateStoryboard(extraction.ingestion, { scriptPackage, language: 'french' });
     storyboardManifest = storyboard;
     await saveJson(storyboardPath, storyboardManifest);
   }
-  markStage(checkpoint, 'storyboard', storyboardHash, [storyboardPath], { reused: checkpoint.stages.storyboard?.reused === true, scenes: storyboardManifest.scenes.length });
+  storyboardManifest.lifecycleState = PRODUCTION_STAGE_STATUS.DRAFT_PRE_EVIDENCE;
+  await saveJson(storyboardPath, storyboardManifest);
+  markPreEvidenceDraft(checkpoint, 'draft-storyboard', storyboardHash, [storyboardPath], { reused: checkpoint.stages['draft-storyboard']?.reused === true, scenes: storyboardManifest.scenes.length });
   await saveJson(checkpointPath, checkpoint);
-  if (await stopIfRequested(options, checkpoint, 'storyboard', checkpointPath, { projectId })) return { status: 'stopped', stage: 'storyboard' };
+  if (await stopIfRequested(options, checkpoint, 'draft-storyboard', checkpointPath, { projectId })) return { status: 'stopped', stage: 'draft-storyboard' };
 
   const pageDir = path.join(root, 'data', 'rulebook-images', projectId);
   const pageManifestHash = identity.sha256;
@@ -475,30 +585,6 @@ async function runZeroState(options = {}) {
     await postJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/images/extract-rulebook`, { pdfPath: await sourceService.resolveFile(projectId) }, apiKey);
   }
   markStage(checkpoint, 'page-visuals', pageManifestHash, [path.join(pageDir, 'page-1.png')], { reused: checkpoint.stages['page-visuals']?.inputHash === pageManifestHash });
-
-  const hephDir = path.join(projectDir, 'hephaestus');
-  const hephManifestPath = path.join(hephDir, 'manifest.json');
-  const hephStatePath = path.join(hephDir, 'extraction-state.json');
-  const hephEvidencePath = path.join(hephDir, 'component-evidence.json');
-  const hephHash = identity.sha256;
-  if (!stageReady(checkpoint, 'hephaestus', hephHash, [hephManifestPath]) || jsonIf(hephStatePath)?.sourceSha256 !== identity.sha256) {
-    await postJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/images/extract-hephaestus`, {}, apiKey);
-    await saveJson(hephStatePath, { sourceSha256: identity.sha256, extractedAt: new Date().toISOString() });
-  }
-  const hephEvidence = buildHephaestusEvidence({
-    manifestPath: hephManifestPath,
-    projectId,
-    sourcePdfSha256: identity.sha256,
-    gameIdentity: extraction.identity || { displayName: gameName },
-    components: extraction.components.components || extraction.components,
-    setupSteps: storyboardManifest.scenes.filter((scene) => scene.type === 'setup_step').map((scene) => ({
-      id: scene.id,
-      text: scene.spokenText || scene.text,
-      componentRefs: scene.componentRefs || scene.visualPlan?.componentRefs || [],
-    })),
-  });
-  await writeHephaestusEvidence(hephEvidencePath, hephEvidence);
-  markStage(checkpoint, 'hephaestus', hephHash, [hephManifestPath, hephEvidencePath], { reused: checkpoint.stages.hephaestus?.inputHash === hephHash && jsonIf(hephStatePath)?.sourceSha256 === identity.sha256, evidenceContract: hephEvidence.contract, acceptedVisuals: hephEvidence.acceptedVisuals.length, reviewQueue: hephEvidence.reviewQueue.length });
 
   const gameplayModelPath = path.join(productionDir, 'gameplay-actions.json');
   const gameplayHash = hashValue({ sourceSha256: identity.sha256, scriptHash, hephEvidence: hashValue(hephEvidence), contract: 'mobius-gameplay-actions-v1' });
@@ -558,6 +644,7 @@ async function runZeroState(options = {}) {
     endgame: hashValue(endgameModel),
     contract: 'mobius-rulebook-intelligence-multipass-v1',
   });
+  assertCanonicalStagePrerequisites(checkpoint, 'rulebook-knowledge');
   const intelligence = await runMultiPassRulebookIntelligence({
     projectSeed,
     pages: extraction.pages.map((page) => ({ page: page.number, text: page.blocks.map((block) => block.text || '').join('\n') })),
@@ -600,8 +687,15 @@ async function runZeroState(options = {}) {
     incompleteAtoms: rulebookKnowledgeModel.completenessCritic.incompleteAtoms.length,
     missingHighPriorityDomains: tutorialCoverage.missingHighPriorityDomains,
   });
+  const coverageHash = hashValue({ knowledgeHash, coverage: tutorialCoverage });
+  assertCanonicalStagePrerequisites(checkpoint, 'coverage');
+  markStage(checkpoint, 'coverage', coverageHash, [tutorialCoveragePath], {
+    missingHighPriorityDomains: tutorialCoverage.missingHighPriorityDomains,
+    complete: knowledgeReady,
+  });
   storyboardManifest = {
     ...storyboardManifest,
+    lifecycleState: knowledgeReady ? 'CANONICAL_SOURCE_GROUNDED' : PRODUCTION_STAGE_STATUS.DRAFT_PRE_EVIDENCE,
     gameplayTeachingPlan: buildGameplayTeachingPlan(gameplayModel),
     endgameTeachingPlan: buildEndgameTeachingPlan(endgameModel),
     knowledgeTeachingPlan,
@@ -610,7 +704,49 @@ async function runZeroState(options = {}) {
   };
   await saveJson(storyboardPath, storyboardManifest);
   storyboardHash = hashValue({ scriptHash, ingestion: hashValue(extraction.ingestion), language, gameplay: hashValue(storyboardManifest.gameplayTeachingPlan), endgame: hashValue(storyboardManifest.endgameTeachingPlan), knowledge: hashValue(knowledgeTeachingPlan) });
-  markStage(checkpoint, 'storyboard', storyboardHash, [storyboardPath], { reused: false, scenes: storyboardManifest.scenes.length, gameplayTeachingScenes: storyboardManifest.gameplayTeachingPlan.scenes.length, endgameTeachingScenes: storyboardManifest.endgameTeachingPlan.scenes.length, knowledgeTeachingScenes: knowledgeTeachingPlan.scenes.length });
+  if (!knowledgeReady || !knowledgeScenes.length) {
+    const knowledgeReviewItemsPath = path.join(productionDir, 'rulebook-review-items.json');
+    const reviewItems = [
+      ...(rulebookKnowledgeModel.completenessCritic.incompleteAtoms || []).map((item) => ({ category: 'incomplete-rule-atom', item })),
+      ...(rulebookKnowledgeModel.uncertainties || []).map((item) => ({ category: 'rule-uncertainty', item })),
+      ...(tutorialCoverage.missingHighPriorityDomains || []).map((item) => ({ category: 'missing-high-priority-domain', item })),
+    ];
+    await saveJson(knowledgeReviewItemsPath, { contract: 'mobius-cockpit-rule-review-queue-v1', projectId, sourceSha256: identity.sha256, items: reviewItems });
+    markPreEvidenceDraft(checkpoint, 'draft-storyboard', storyboardHash, [storyboardPath, knowledgeReviewItemsPath], {
+      scenes: storyboardManifest.scenes.length,
+      reason: 'canonical-rulebook-knowledge-review-required',
+      reviewItems: reviewItems.length,
+    });
+    await saveJson(checkpointPath, checkpoint);
+    const imagesResponse = await apiJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/images`, { apiKey, fetchImpl });
+    await persistProject({
+      baseUrl, apiKey, projectId, gameName, language, descriptor, manifest,
+      components: extraction.components.components || extraction.components,
+      scriptPackage, storyboardManifest, scenes: storyboardManifest.scenes,
+      images: imagesResponse.images || [], gameMetadata, gameplayModel, endgameModel,
+      rulebookKnowledgeModel, tutorialCoverage, ruleReviewItems: reviewItems,
+      production: {
+        status: 'review_required',
+        stage: 'coverage',
+        hephaestusManifestPath: hephManifestPath,
+        hephaestusManifestContract: hephManifest.contract,
+        hephaestusEvidencePath: hephEvidencePath,
+        hephaestusEvidenceContract: hephEvidence.contract,
+        rulebookKnowledgePath,
+        tutorialCoveragePath,
+        ruleReviewItemsPath: knowledgeReviewItemsPath,
+      },
+    });
+    return {
+      status: 'review_required',
+      stage: 'coverage',
+      projectId,
+      reviewItems: reviewItems.length,
+      reviewQueuePath: knowledgeReviewItemsPath,
+      codeRequiredForNormalProduction: false,
+      message: 'Canonical Rulebook Knowledge requires Cockpit review before physical state, VisualPlan, narration, or render.',
+    };
+  }
   if (await stopIfRequested(options, checkpoint, 'gameplay-actions', checkpointPath, { projectId, actions: gameplayModel.actions.length })) return { status: 'stopped', stage: 'gameplay-actions' };
 
   const visualScriptPath = path.join(productionDir, 'zero-state-visual-review-script.json');
@@ -733,6 +869,27 @@ async function runZeroState(options = {}) {
     return counts;
   }, { explicit: 0, automaticComponent: 0, automaticFocusedCrop: 0, fallback: 0, missing: 0 });
   const unresolvedVisuals = boundScenes.filter((scene) => !scene.renderVisual?.path || scene.visualReviewState === 'needs_visual_review');
+  const physicalStateHash = hashValue({ knowledgeHash, states: canonicalProductionState.physicalStates });
+  assertCanonicalStagePrerequisites(checkpoint, 'physical-state');
+  markStage(checkpoint, 'physical-state', physicalStateHash, [physicalStatesPath], {
+    states: canonicalProductionState.physicalStates.length,
+  });
+  const visualPlanHash = hashValue({ physicalStateHash, plans: canonicalProductionState.visualPlans, sourceManifest: hashValue(jsonIf(combinedVisualManifestPath, {})) });
+  assertCanonicalStagePrerequisites(checkpoint, 'visual-plan');
+  markStage(checkpoint, 'visual-plan', visualPlanHash, [visualPlansPath, canonicalStatePath, visualReviewItemsPath], {
+    plans: canonicalProductionState.visualPlans.length,
+    unresolved: unresolvedVisuals.length,
+  });
+  storyboardManifest = { ...storyboardManifest, lifecycleState: 'CANONICAL_SOURCE_GROUNDED', scenes: boundScenes };
+  await saveJson(storyboardPath, storyboardManifest);
+  assertCanonicalStagePrerequisites(checkpoint, 'storyboard');
+  markStage(checkpoint, 'storyboard', storyboardHash, [storyboardPath], {
+    reused: false,
+    scenes: boundScenes.length,
+    gameplayTeachingScenes: storyboardManifest.gameplayTeachingPlan.scenes.length,
+    endgameTeachingScenes: storyboardManifest.endgameTeachingPlan.scenes.length,
+    knowledgeTeachingScenes: storyboardManifest.knowledgeTeachingPlan.scenes.length,
+  });
   markStage(checkpoint, 'visual-bindings', hashValue({ visualScriptHash, semantic: jsonIf(semanticPath), canonicalCompiler: canonicalProductionState.contract }), [hephManifestPath, qualityPath, semanticPath, canonicalStatePath, visualPlansPath, physicalStatesPath, visualReviewItemsPath, productionQaPath, phoneScaleQaPath], { counts: visualCounts, unresolved: unresolvedVisuals.length, phoneScaleQa });
 
   const visualizedKnowledgeIds = boundScenes.filter((scene) => scene.atomId && scene.renderVisual?.path).map((scene) => scene.atomId);
@@ -788,8 +945,29 @@ async function runZeroState(options = {}) {
   };
   await saveJson(path.join(productionDir, 'production-report.json'), report);
   await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], audioAssets: audioSidecar.assets || [], gameMetadata, gameplayModel, endgameModel, rulebookKnowledgeModel, tutorialCoverage, canonicalProductionState, production: { status: 'complete', sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, hephaestusEvidencePath: hephEvidencePath, hephEvidenceContract: hephEvidence.contract, gameplayModelPath, gameplayModelContract: gameplayModel.contract, endgameModelPath, endgameModelContract: endgameModel.contract, rulebookKnowledgePath, rulebookKnowledgeContract: rulebookKnowledgeModel.contract, tutorialCoveragePath, tutorialCoverageContract: tutorialCoverage.contract, canonicalStatePath, visualPlansPath, physicalStatesPath, visualReviewItemsPath, productionQaPath, reportPath: path.join(productionDir, 'production-report.json'), report }, });
-  checkpoint.stages.production = { inputHash: hashValue({ initialStateHash, report: report.render?.outputSha256 || null }), reused: report.render?.reused === true, reportPath: path.join(productionDir, 'production-report.json'), ttsReused: report.narration?.reused || 0, ttsGenerated: report.narration?.generated || 0 };
-  checkpoint.stages.qa = { status: report.status, output: report.render?.outputPath, media: report.media, visuals: visualCounts };
+  const narrationPath = path.join(productionDir, 'narration-assets.json');
+  const narrationHash = hashValue({ storyboardHash, assets: audioSidecar.assets || [] });
+  assertCanonicalStagePrerequisites(checkpoint, 'narration');
+  markStage(checkpoint, 'narration', narrationHash, [narrationPath], {
+    reused: report.narration?.generated === 0,
+    ttsReused: report.narration?.reused || 0,
+    ttsGenerated: report.narration?.generated || 0,
+  });
+  const renderHash = hashValue({ narrationHash, outputSha256: report.render?.outputSha256 || null });
+  assertCanonicalStagePrerequisites(checkpoint, 'render');
+  markStage(checkpoint, 'render', renderHash, [report.render?.outputPath], {
+    reused: report.render?.reused === true,
+    reportPath: path.join(productionDir, 'production-report.json'),
+    media: report.media,
+  });
+  const qaHash = hashValue({ renderHash, status: report.status, visuals: visualCounts });
+  assertCanonicalStagePrerequisites(checkpoint, 'qa');
+  markStage(checkpoint, 'qa', qaHash, [path.join(productionDir, 'production-report.json')], {
+    qaStatus: report.status,
+    output: report.render?.outputPath,
+    media: report.media,
+    visuals: visualCounts,
+  });
   delete checkpoint.stoppedAfter;
   await saveJson(checkpointPath, checkpoint);
   const final = { ...report, zeroState: { projectId, gameName, source: identity, extraction: { pages: extraction.pages.length, diagnostics: extraction.diagnostics, components: (extraction.components.components || extraction.components).length, scenes: storyboardManifest.scenes.length }, visuals: visualCounts, checkpoint: checkpointPath } };

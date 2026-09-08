@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { curateHephaestusAssets } from './hephaestusCuration.js';
+import { HEPHAESTUS_MANIFEST_CONTRACT } from './hephaestusMaterialization.js';
 
 export const HEPHAESTUS_EVIDENCE_CONTRACT = 'hephaestus-component-evidence-v1';
 
@@ -13,7 +14,7 @@ function resolveAssetPath(asset, manifestPath) {
   const dir = path.dirname(manifestPath);
   const candidates = [asset.file_path, asset.filePath, asset.fileKey, asset.renderPath]
     .filter(Boolean)
-    .flatMap((value) => [String(value), path.join(dir, 'images', 'all', path.basename(String(value))), path.join(dir, path.basename(String(value)))]);
+    .flatMap((value) => [path.resolve(dir, String(value)), String(value), path.join(dir, 'images', 'all', path.basename(String(value))), path.join(dir, path.basename(String(value)))]);
   return candidates.map((value) => path.resolve(value)).find((value) => fs.existsSync(value)) || null;
 }
 
@@ -123,6 +124,12 @@ function bindOneComponent(component, assets) {
 export function buildHephaestusEvidence({ manifestPath, projectId, sourcePdfSha256, gameIdentity, components = [], setupSteps = [] } = {}) {
   if (!manifestPath || !fs.existsSync(manifestPath)) throw new Error(`HEPHAESTUS_MANIFEST_MISSING: ${manifestPath}`);
   const payload = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  if (payload.contract === HEPHAESTUS_MANIFEST_CONTRACT
+    && (payload.projectId !== projectId || payload.sourcePdfSha256 !== sourcePdfSha256)) {
+    const error = new Error('HEPHAESTUS_MANIFEST_IDENTITY_MISMATCH: manifest does not belong to the canonical project source.');
+    error.code = 'HEPHAESTUS_MANIFEST_IDENTITY_MISMATCH';
+    throw error;
+  }
   const curated = curateHephaestusAssets(Array.isArray(payload.images) ? payload.images : []);
   const assets = curated.assets.map((asset) => canonicalAsset(asset, manifestPath, { projectId, sourcePdfSha256, gameIdentity }));
   const componentBindings = components.map((component) => bindOneComponent(component, assets));
@@ -149,6 +156,13 @@ export function buildHephaestusEvidence({ manifestPath, projectId, sourcePdfSha2
     sourcePdfSha256: sourcePdfSha256 || null,
     sourceManifestPath: path.resolve(manifestPath),
     sourceManifestSha256: sha256File(manifestPath),
+    sourceManifestContract: payload.contract || 'legacy-hephaestus-native-extraction',
+    sourceManifestSchemaVersion: payload.schemaVersion || null,
+    sourcePdfIdentity: payload.sourcePdfIdentity || payload.source || null,
+    pageCount: payload.pageCount || payload.source?.pageCount || null,
+    extractionRoot: payload.extractionRoot || path.dirname(path.resolve(manifestPath)),
+    generatedAt: payload.generatedAt || null,
+    checkpointIdentity: payload.checkpointIdentity || null,
     extractionStats: payload.stats || {},
     curationStats: curated.stats,
     assets,
