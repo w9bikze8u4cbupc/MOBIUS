@@ -114,7 +114,7 @@ if (-not (Test-Path (Join-Path $deployment '.git'))) {
     try {
         & git -C $deployment reset --hard $target
         if ($LASTEXITCODE -ne 0) { throw 'Unable to refresh the isolated MOBIUS worktree.' }
-        & git -C $deployment clean -fdx -e data/ -e src/api/uploads/
+        & git -C $deployment clean -fdx -e data/ -e src/api/uploads/ -e node_modules/ -e client/node_modules/
         if ($LASTEXITCODE -ne 0) { throw 'Unable to clean stale build artifacts from the isolated worktree.' }
     } finally {
         Restore-RuntimeData

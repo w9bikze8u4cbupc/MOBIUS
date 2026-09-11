@@ -326,7 +326,7 @@ function Invoke-IsolatedDeployment {
     Preserve-RuntimeData
     try {
         Invoke-Git $deployment @('reset', '--hard', $target) | Out-Null
-        Invoke-Git $deployment @('clean', '-fdx', '-e', 'data/', '-e', 'src/api/uploads/', '-e', '.env') | Out-Null
+        Invoke-Git $deployment @('clean', '-fdx', '-e', 'data/', '-e', 'src/api/uploads/', '-e', '.env', '-e', 'node_modules/', '-e', 'client/node_modules/') | Out-Null
     } finally {
         Restore-RuntimeData
     }

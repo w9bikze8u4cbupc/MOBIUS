@@ -80,10 +80,10 @@ const bootstrapRuntimePreservation = /Preserve-RuntimeData\s+try \{\s+& git -C \
 if (!bootstrapRuntimePreservation.test(bootstrap)) {
   throw new Error('Bootstrap must preserve canonical runtime data across reset and cleanup.');
 }
-if (!bootstrap.includes('git -C $deployment clean -fdx -e data/ -e src/api/uploads/')) {
+if (!bootstrap.includes('git -C $deployment clean -fdx -e data/ -e src/api/uploads/ -e node_modules/ -e client/node_modules/')) {
   throw new Error('Bootstrap must preserve canonical runtime data and legacy local assets while cleaning builds.');
 }
-if (!agent.includes("Invoke-Git $deployment @('clean', '-fdx', '-e', 'data/', '-e', 'src/api/uploads/', '-e', '.env')")) {
+if (!agent.includes("Invoke-Git $deployment @('clean', '-fdx', '-e', 'data/', '-e', 'src/api/uploads/', '-e', '.env', '-e', 'node_modules/', '-e', 'client/node_modules/')")) {
   throw new Error('Normal isolated updates must preserve canonical runtime data and legacy local assets.');
 }
 
