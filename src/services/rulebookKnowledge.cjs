@@ -960,12 +960,16 @@ async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gamep
   const unresolvedAfterCorrective = model.coverage.domains.filter((entry) => entry.applicable && entry.qaState !== 'PASS').map((entry) => entry.domain);
 
   // A bounded expansion is for evidence scarcity, not for retrying the same
-  // structurally rejected claim. It only uses neighboring or same-heading
+  // structurally rejected claim. A failed validator-guided repair is itself
+  // evidence that the original packet could not support the missing field, so
+  // it may use this single expansion. It only uses neighboring or same-heading
   // source pages and runs at most once per unresolved domain.
   for (const domain of unresolvedAfterCorrective) {
     const initial = packetRecords.find((record) => record.kind === 'initial' && record.packet.domains.includes(domain));
     const hadStructuredCandidate = Boolean(initial?.rawAtoms?.some((atom) => (atom.coverageDomains || []).includes(domain)));
-    if (!initial || hadStructuredCandidate) continue;
+    const corrective = packetRecords.find((record) => record.kind === 'corrective' && record.packet.originalPacketHash === initial?.packet?.cacheKey && record.packet.domains.includes(domain));
+    const correctiveFailed = Boolean(corrective && !corrective.validation.accepted.some((atom) => atom.coverageDomains.includes(domain)));
+    if (!initial || (hadStructuredCandidate && !correctiveFailed)) continue;
     const evidence = expandDomainEvidence(base.documentMap, domain, initial.packet.evidence.filter((entry) => entry.domain === domain));
     if (evidence.length <= initial.packet.evidence.filter((entry) => entry.domain === domain).length) continue;
     const expanded = buildExpandedRetrievalPacket({ packet: { ...initial.packet, domains: [domain] }, evidence });

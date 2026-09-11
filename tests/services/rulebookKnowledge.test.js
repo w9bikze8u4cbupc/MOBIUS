@@ -243,6 +243,35 @@ describe('canonical rulebook intelligence', () => {
     expect(result.model.ruleAtoms.flatMap((atom) => atom.sourceRefs).every((ref) => ref.page > 0)).toBe(true);
   });
 
+  test('a failed structural correction may use one bounded evidence expansion before Cockpit review', async () => {
+    const seed = { projectId: 'corrective-then-expanded-retrieval', sourcePdfSha256: '7'.repeat(64), coverageApplicability: { mandatory_actions: true } };
+    const pages = [
+      { page: 1, text: 'TAKE ACTION: On your turn, take the required action.' },
+      { page: 2, text: 'Then resolve it, advance the marker, and pass play clockwise.' },
+    ];
+    let correctiveCalls = 0; let expansionCalls = 0;
+    const result = await runMultiPassRulebookIntelligence({
+      projectSeed: seed, pages, providerContract: [{ name: 'test', model: 'test' }],
+      domainSynthesize: async (packet) => {
+        const evidence = packet.evidence.find((entry) => entry.domain === 'mandatory_actions');
+        if (!evidence) return { result: { atoms: [] } };
+        if (packet.mode === 'validator-guided-corrective') {
+          correctiveCalls += 1;
+          return { result: { atoms: [] } };
+        }
+        if (packet.mode === 'expanded-retrieval') {
+          expansionCalls += 1;
+          const expanded = packet.evidence.find((entry) => entry.page === 2);
+          return { result: { atoms: [{ domain: 'action', coverageDomains: ['mandatory_actions'], title: 'Resolve the required action', procedureSteps: ['Take the required action.', 'Advance the turn marker after it resolves.'], stateChange: 'The turn marker advances.', result: 'Play passes to the next player.', sourceRefs: [{ evidenceId: evidence.id }, { evidenceId: expanded.id }] }] } };
+        }
+        return { result: { atoms: [{ domain: 'action', coverageDomains: ['mandatory_actions'], title: 'Take the required action', procedureSteps: ['Take the required action.'], sourceRefs: [{ evidenceId: evidence.id }] }] } };
+      },
+    });
+    expect(correctiveCalls).toBe(1);
+    expect(expansionCalls).toBe(1);
+    expect(result.model.coverage.domains.find((entry) => entry.domain === 'mandatory_actions').qaState).toBe('PASS');
+  });
+
   test('domains without positive evidence remain unknown instead of becoming universally mandatory', () => {
     const model = buildRulebookKnowledgeModel({ projectSeed: { projectId: 'applicability-fixture', sourcePdfSha256: '6'.repeat(64) }, pages: [{ page: 1, text: 'A short abstract with no turn, payment, or starting-player rules.' }] });
     const firstPlayer = model.coverage.domains.find((entry) => entry.domain === 'first_player_rule');
