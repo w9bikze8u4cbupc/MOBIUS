@@ -57,6 +57,18 @@ if ($listeners.Count -gt 0) {
         throw "Runtime port $runtimePort ownership is ambiguous; refusing to stop PID $($apiProcess.ProcessId)."
     }
     Stop-Process -Id $apiProcess.ProcessId -Force -ErrorAction Stop
+} elseif (Test-Path $ownershipPath) {
+    # A previous managed startup may have failed before binding the configured
+    # port. Its exact PID is recoverable from the ownership record; never scan
+    # or terminate unrelated Node processes.
+    try {
+        $orphanOwnership = Get-Content -Raw -LiteralPath $ownershipPath | ConvertFrom-Json
+        $orphan = Get-CimInstance Win32_Process -Filter "ProcessId = $([int]$orphanOwnership.pid)" -ErrorAction SilentlyContinue
+        if ($orphan -and $orphan.Name -eq 'node.exe' -and $orphan.CommandLine -match '(^|\s)src[\\/]api[\\/]index\.js(\s|$)') {
+            Stop-Process -Id $orphan.ProcessId -Force -ErrorAction Stop
+        }
+        Remove-Item -LiteralPath $ownershipPath -Force -ErrorAction SilentlyContinue
+    } catch { throw "Unable to safely reconcile the recorded MOBIUS runtime owner: $($_.Exception.Message)" }
 }
 Start-Sleep -Seconds 3
 

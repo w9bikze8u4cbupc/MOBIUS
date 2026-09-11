@@ -153,12 +153,14 @@ function Start-MobiusApi {
         MOBIUS_RUNTIME_DEPLOYMENT_ROOT = $env:MOBIUS_RUNTIME_DEPLOYMENT_ROOT
         MOBIUS_RUNTIME_OWNERSHIP_TOKEN = $env:MOBIUS_RUNTIME_OWNERSHIP_TOKEN
         MOBIUS_BUILD_SHA = $env:MOBIUS_BUILD_SHA
+        PORT = $env:PORT
     }
     try {
         $env:MOBIUS_RUNTIME_MANAGER = 'mobius-isolated-agent-v2'
         $env:MOBIUS_RUNTIME_DEPLOYMENT_ROOT = $deployment
         $env:MOBIUS_RUNTIME_OWNERSHIP_TOKEN = $token
         $env:MOBIUS_BUILD_SHA = $ExpectedCommit
+        $env:PORT = [string]$runtimePort
         $process = Start-Process -FilePath 'node' `
             -ArgumentList 'src/api/index.js' `
             -WorkingDirectory $deployment `
@@ -181,6 +183,11 @@ function Start-MobiusApi {
             return
         }
     }
+    $spawned = Get-CimInstance Win32_Process -Filter "ProcessId = $($process.Id)" -ErrorAction SilentlyContinue
+    if ($spawned -and $spawned.Name -eq 'node.exe' -and $spawned.CommandLine -match '(^|\s)src[\\/]api[\\/]index\.js(\s|$)') {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    }
+    Remove-Item -LiteralPath $ownershipPath -Force -ErrorAction SilentlyContinue
     throw "MOBIUS isolated API failed its HTTP readiness check. Inspect $serverErrLog"
 }
 

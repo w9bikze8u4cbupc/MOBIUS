@@ -19,6 +19,8 @@ const requiredAgentTokens = [
   'Resolve-NpmCommand',
   'Get-Command npm.cmd -All',
   '[Security.Cryptography.SHA256]::Create()',
+  '$env:PORT = [string]$runtimePort',
+  'Remove-Item -LiteralPath $ownershipPath -Force',
   "node_modules\\ffmpeg-static\\ffmpeg.exe",
   "$npmCommand rebuild ffmpeg-static --foreground-scripts",
   '$npmCommand run build',
@@ -54,6 +56,7 @@ const requiredBootstrapTokens = [
   '[switch]$AdoptLegacyRuntime',
   'Runtime port $runtimePort ownership is ambiguous; refusing to stop PID',
   '-Mode Align',
+  'A previous managed startup may have failed before binding the configured',
 ];
 for (const token of requiredBootstrapTokens) {
   if (!bootstrap.includes(token)) throw new Error(`Missing bootstrap safety contract: ${token}`);
