@@ -77,6 +77,19 @@ function Get-PortOwnerProcess {
     return Get-CimInstance Win32_Process -Filter "ProcessId = $($pids[0])" -ErrorAction SilentlyContinue
 }
 
+function Resolve-NpmCommand {
+    $candidates = @(Get-Command npm.cmd -All -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -Unique)
+    foreach ($candidate in $candidates) {
+        $savedErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $null = & $candidate --version 2>&1
+            if ($LASTEXITCODE -eq 0) { return $candidate }
+        } finally { $ErrorActionPreference = $savedErrorActionPreference }
+    }
+    throw 'A functional npm.cmd is required but every discovered npm command failed its version probe.'
+}
+
 function Get-MobiusCapabilities {
     try {
         return Invoke-RestMethod -Uri "$($BaseUrl.TrimEnd('/'))/api/runtime/capabilities" -TimeoutSec 4
@@ -248,11 +261,12 @@ function Install-RootDependenciesIfNeeded {
         Write-AgentLog 'INFO' 'Installing isolated server dependencies.'
         Push-Location $deployment
         try {
-            & npm ci --ignore-scripts
+            $npmCommand = Resolve-NpmCommand
+            & $npmCommand ci --ignore-scripts
             if ($LASTEXITCODE -ne 0) { throw 'Server dependency installation failed.' }
             if (-not (Test-Path $portableFfmpeg)) {
                 Write-AgentLog 'INFO' 'Installing the required portable FFmpeg binary.'
-                & npm rebuild ffmpeg-static --foreground-scripts
+                & $npmCommand rebuild ffmpeg-static --foreground-scripts
                 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $portableFfmpeg)) { throw 'Portable FFmpeg installation failed.' }
             }
         } finally { Pop-Location }
@@ -271,7 +285,8 @@ function Install-ClientDependenciesIfNeeded {
         Write-AgentLog 'INFO' 'Installing isolated client dependencies.'
         Push-Location $clientDir
         try {
-            & npm ci --ignore-scripts
+            $npmCommand = Resolve-NpmCommand
+            & $npmCommand ci --ignore-scripts
             if ($LASTEXITCODE -ne 0) { throw 'Client dependency installation failed.' }
         } finally { Pop-Location }
     }
