@@ -155,7 +155,7 @@ function Assert-OwnedRuntimeProcess {
     $ownership = Read-RuntimeOwnership
     $capabilities = Get-MobiusCapabilities
     $isNodeApi = $process.Name -eq 'node.exe' -and $process.CommandLine -match '(^|\s)src[\\/]api[\\/]index\.js(\s|$)'
-    $deploymentFingerprint = Get-Sha256Fingerprint (([System.IO.Path]::GetFullPath($deployment)).Replace('\\', '/').ToLowerInvariant())
+    $deploymentFingerprint = Get-Sha256Fingerprint (([System.IO.Path]::GetFullPath($deployment)).Replace('\', '/').ToLowerInvariant())
     $tokenAndDeploymentMatch = $ownership -and $capabilities -and
         $capabilities.contract -eq $requiredCapabilityContract -and
         $capabilities.ownership.manager -eq 'mobius-isolated-agent-v2' -and
