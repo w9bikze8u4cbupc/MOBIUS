@@ -142,9 +142,9 @@ function Repair-StaleRuntimeOwnershipPid {
     # the owned long-lived listener. Repair only after the caller has verified
     # the API's ownership token, deployment fingerprint, command and runtime
     # identity. This does not broaden the destructive ownership boundary.
-    $Ownership.pid = [int]$Process.ProcessId
-    $Ownership.repairedAt = (Get-Date).ToUniversalTime().ToString('o')
-    $Ownership.repairReason = 'stale-launcher-pid-with-matching-runtime-ownership'
+    $Ownership | Add-Member -NotePropertyName pid -NotePropertyValue ([int]$Process.ProcessId) -Force
+    $Ownership | Add-Member -NotePropertyName repairedAt -NotePropertyValue ((Get-Date).ToUniversalTime().ToString('o')) -Force
+    $Ownership | Add-Member -NotePropertyName repairReason -NotePropertyValue 'stale-launcher-pid-with-matching-runtime-ownership' -Force
     $Ownership | ConvertTo-Json | Set-Content -LiteralPath $ownershipPath -Encoding utf8
     Write-AgentLog 'WARN' "Repaired stale owned-runtime PID to $($Process.ProcessId) after token and deployment verification."
 }
