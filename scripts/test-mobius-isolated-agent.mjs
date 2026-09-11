@@ -20,6 +20,7 @@ const requiredAgentTokens = [
   'Get-Command npm.cmd -All',
   "node_modules\\ffmpeg-static\\ffmpeg.exe",
   "$npmCommand rebuild ffmpeg-static --foreground-scripts",
+  '$npmCommand run build',
   "Sync-LocalConfiguration",
   "Copy-Item -Force -Path $primaryEnv -Destination $runtimeEnv",
   "-e', '.env'",

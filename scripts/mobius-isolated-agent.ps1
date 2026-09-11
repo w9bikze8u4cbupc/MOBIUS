@@ -328,7 +328,8 @@ function Invoke-IsolatedDeployment {
     Write-AgentLog 'INFO' 'Building the isolated MOBIUS client.'
     Push-Location $clientDir
     try {
-        & npm run build
+        $npmCommand = Resolve-NpmCommand
+        & $npmCommand run build
         if ($LASTEXITCODE -ne 0) { throw 'Client build failed.' }
     } finally { Pop-Location }
 
