@@ -126,20 +126,46 @@ function Read-RuntimeOwnership {
     try { return Get-Content -Raw -LiteralPath $ownershipPath | ConvertFrom-Json } catch { return $null }
 }
 
+function Get-Sha256Fingerprint {
+    param([string]$Value)
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha256.ComputeHash([Text.Encoding]::UTF8.GetBytes($Value)))).Replace('-', '').ToLowerInvariant()
+    } finally { $sha256.Dispose() }
+}
+
+function Repair-StaleRuntimeOwnershipPid {
+    param($Ownership, $Process)
+    if (-not $Ownership -or -not $Process) { return }
+    if ([int]$Ownership.pid -eq [int]$Process.ProcessId) { return }
+    # Start-Process can report an intermediary launcher PID while Node remains
+    # the owned long-lived listener. Repair only after the caller has verified
+    # the API's ownership token, deployment fingerprint, command and runtime
+    # identity. This does not broaden the destructive ownership boundary.
+    $Ownership.pid = [int]$Process.ProcessId
+    $Ownership.repairedAt = (Get-Date).ToUniversalTime().ToString('o')
+    $Ownership.repairReason = 'stale-launcher-pid-with-matching-runtime-ownership'
+    $Ownership | ConvertTo-Json | Set-Content -LiteralPath $ownershipPath -Encoding utf8
+    Write-AgentLog 'WARN' "Repaired stale owned-runtime PID to $($Process.ProcessId) after token and deployment verification."
+}
+
 function Assert-OwnedRuntimeProcess {
     $process = Get-PortOwnerProcess
     if (-not $process) { return $null }
     $ownership = Read-RuntimeOwnership
     $capabilities = Get-MobiusCapabilities
     $isNodeApi = $process.Name -eq 'node.exe' -and $process.CommandLine -match '(^|\s)src[\\/]api[\\/]index\.js(\s|$)'
-    $owned = $ownership -and $capabilities -and
+    $deploymentFingerprint = Get-Sha256Fingerprint (([System.IO.Path]::GetFullPath($deployment)).Replace('\\', '/').ToLowerInvariant())
+    $tokenAndDeploymentMatch = $ownership -and $capabilities -and
         $capabilities.contract -eq $requiredCapabilityContract -and
         $capabilities.ownership.manager -eq 'mobius-isolated-agent-v2' -and
         $capabilities.ownership.tokenFingerprint -eq $ownership.tokenFingerprint -and
-        [int]$ownership.pid -eq [int]$process.ProcessId
-    if (-not $isNodeApi -or -not $owned) {
+        $capabilities.ownership.deploymentRootFingerprint -eq $deploymentFingerprint -and
+        $capabilities.runtimeIdentity -eq $ownership.commit
+    if (-not $isNodeApi -or -not $tokenAndDeploymentMatch) {
         throw "Runtime port $runtimePort is occupied by a process whose MOBIUS ownership is ambiguous; refusing destructive restart."
     }
+    Repair-StaleRuntimeOwnershipPid -Ownership $ownership -Process $process
     return $process
 }
 
