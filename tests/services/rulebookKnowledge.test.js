@@ -156,4 +156,24 @@ describe('canonical rulebook intelligence', () => {
     expect(reviews).toEqual(expect.arrayContaining([expect.objectContaining({ scopeType: 'DOMAIN', domain: 'final_scoring', affectedRuleAtomIds: [] })]));
     expect(reviews.every((item) => reviewItemContractIssues(item).length === 0)).toBe(true);
   });
+
+  test('a successful batch does not falsely mark a sibling missing domain as accepted', async () => {
+    const seed = {
+      projectId: 'batch-status', sourcePdfSha256: '2'.repeat(64),
+      coverageApplicability: { identity_theme: true, objective: true },
+    };
+    const pages = [{ page: 1, text: 'GAME OVERVIEW: The objective is to collect the most stars.' }];
+    const result = await runMultiPassRulebookIntelligence({
+      projectSeed: seed,
+      pages,
+      providerContract: [{ name: 'test', model: 'test' }],
+      domainSynthesize: async (packet) => ({ result: { atoms: [{
+        domain: 'source_evidence', coverageDomains: ['identity_theme'], title: 'Game overview',
+        result: 'The game is introduced.', sourceRefs: [{ evidenceId: packet.evidence[0].id }],
+      }] } }),
+    });
+    const objectiveAttempt = result.model.coverageDrivenRetrieval.objective.attempts.find((attempt) => attempt.method === 'domain-specific-source-synthesis-v1');
+    expect(objectiveAttempt.status).toBe('NO_STRUCTURED_RULE_FOUND');
+    expect(objectiveAttempt.reason).toMatch(/no complete source-grounded RuleAtom/i);
+  });
 });

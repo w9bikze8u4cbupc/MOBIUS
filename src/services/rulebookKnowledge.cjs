@@ -7,7 +7,7 @@ const {
 } = require('./rulebookDomainSynthesis.cjs');
 
 const RULEBOOK_KNOWLEDGE_MODEL_VERSION = 'mobius-rulebook-knowledge-v1.2';
-const RULEBOOK_INTELLIGENCE_PIPELINE_VERSION = 'mobius-rulebook-intelligence-multipass-v1.3.0';
+const RULEBOOK_INTELLIGENCE_PIPELINE_VERSION = 'mobius-rulebook-intelligence-multipass-v1.3.1';
 const RULEATOM_CONTRACT_VERSION = 'mobius-rule-atom-v1.1';
 const TUTORIAL_COVERAGE_VERSION = 'mobius-tutorial-coverage-v1.2';
 const RULEBOOK_DOCUMENT_MAP_VERSION = 'mobius-rulebook-document-map-v1';
@@ -594,7 +594,8 @@ function reviewItem({ model, category, domain = null, atomId = null, scopeType =
   const normalizedDomain = clean(domain) || null;
   const normalizedAtomId = clean(atomId) || null;
   const normalizedScopeType = scopeType || (normalizedAtomId ? 'RULE_ATOM' : normalizedDomain ? 'DOMAIN' : 'CROSS_DOMAIN');
-  const sourceRefs = normalizeSourceRefs(reviewSourceRefs(model, normalizedAtomId, normalizedDomain));
+  const sourceRefs = normalizeSourceRefs(reviewSourceRefs(model, normalizedAtomId, normalizedDomain))
+    .map((ref) => ({ ...ref, sourcePdfSha256: ref.sourcePdfSha256 || model.sourcePdfSha256 }));
   const key = [model.sourcePdfSha256, category, normalizedDomain, normalizedAtomId, ...missingFields].join('|');
   return {
     id: `rule-review-${crypto.createHash('sha256').update(key).digest('hex').slice(0, 16)}`,
@@ -705,7 +706,11 @@ function validateProviderAtoms({ rawAtoms = [], packet, sourcePdfSha256 }) {
     if (!normalized.coverageDomains.length) validation.issues.push('coverage-domain-not-requested');
     if (!normalized.sourceRefs.length) validation.issues.push('citation-not-in-evidence-packet');
     if (validation.issues.length || domainIssues.length) {
-      rejected.push({ title: clean(raw?.title) || `atom-${index + 1}`, issues: unique([...validation.issues, ...domainIssues]) });
+      rejected.push({
+        title: clean(raw?.title) || `atom-${index + 1}`,
+        coverageDomains: unique((raw?.coverageDomains || []).map(clean)),
+        issues: unique([...validation.issues, ...domainIssues]),
+      });
       continue;
     }
     accepted.push({ ...normalized, teaching: canonicalTeaching(normalized, index + 1) });
@@ -769,7 +774,16 @@ async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gamep
     const usage = response?.usage || response?.provenance?.usage || {};
     telemetry.inputTokens += Number(usage.input_tokens || usage.prompt_tokens || 0);
     telemetry.outputTokens += Number(usage.output_tokens || usage.completion_tokens || 0);
-    telemetry.packets.push({ batchId: packet.batchId, domains: packet.domains, cacheKey: packet.cacheKey, cacheHit, accepted: validation.accepted.length, rejected: validation.rejected, providerAttempts: response?.providerAttempts || response?.provenance?.attempts || [] });
+    telemetry.packets.push({
+      batchId: packet.batchId,
+      domains: packet.domains,
+      cacheKey: packet.cacheKey,
+      cacheHit,
+      accepted: validation.accepted.length,
+      acceptedDomains: unique(validation.accepted.flatMap((atom) => atom.coverageDomains)),
+      rejected: validation.rejected,
+      providerAttempts: response?.providerAttempts || response?.provenance?.attempts || [],
+    });
   }
   const model = buildRulebookKnowledgeModel({ projectSeed, pages, gameplayModel, endgameModel, synthesizedAtoms: accepted, synthesisTelemetry: telemetry });
   // The persisted model cache is keyed by the complete production dependency
@@ -780,11 +794,18 @@ async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gamep
     const synthesis = entry.attempts?.find((attempt) => attempt.method === 'domain-specific-source-synthesis-v1');
     const packetTelemetry = telemetry.packets.find((packet) => packet.domains.includes(domain));
     if (synthesis && packetTelemetry) {
-      synthesis.status = packetTelemetry.accepted ? 'ACCEPTED' : packetTelemetry.rejected.length ? 'REJECTED_OR_INCOMPLETE' : 'NO_STRUCTURED_RULE_FOUND';
+      const acceptedForDomain = packetTelemetry.acceptedDomains?.includes(domain);
+      const rejectedForDomain = packetTelemetry.rejected.filter((entry) => !entry.coverageDomains?.length || entry.coverageDomains.includes(domain));
+      synthesis.status = acceptedForDomain ? 'ACCEPTED' : rejectedForDomain.length ? 'REJECTED_OR_INCOMPLETE' : 'NO_STRUCTURED_RULE_FOUND';
       synthesis.providerBacked = true;
       synthesis.batchId = packetTelemetry.batchId;
       synthesis.cacheHit = packetTelemetry.cacheHit;
-      synthesis.rejected = packetTelemetry.rejected;
+      synthesis.rejected = rejectedForDomain;
+      synthesis.reason = acceptedForDomain
+        ? 'Structured provider synthesis produced an accepted, evidence-bound RuleAtom for this domain.'
+        : rejectedForDomain.length
+          ? 'Structured provider synthesis returned claims that failed the domain-aware canonical RuleAtom validator.'
+          : 'Structured provider synthesis found no complete source-grounded RuleAtom for this domain.';
     }
   }
   if (cachePath) {
