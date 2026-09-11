@@ -18,6 +18,7 @@ const requiredAgentTokens = [
   "$npmCommand ci --ignore-scripts",
   'Resolve-NpmCommand',
   'Get-Command npm.cmd -All',
+  '[Security.Cryptography.SHA256]::Create()',
   "node_modules\\ffmpeg-static\\ffmpeg.exe",
   "$npmCommand rebuild ffmpeg-static --foreground-scripts",
   '$npmCommand run build',

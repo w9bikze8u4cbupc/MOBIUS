@@ -144,7 +144,10 @@ function Start-MobiusApi {
     New-Item -ItemType Directory -Force -Path $serverLogDir | Out-Null
     $token = [Guid]::NewGuid().ToString('N')
     $tokenBytes = [Text.Encoding]::UTF8.GetBytes($token)
-    $tokenFingerprint = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($tokenBytes)).ToLowerInvariant()
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $tokenFingerprint = ([BitConverter]::ToString($sha256.ComputeHash($tokenBytes))).Replace('-', '').ToLowerInvariant()
+    } finally { $sha256.Dispose() }
     $saved = @{
         MOBIUS_RUNTIME_MANAGER = $env:MOBIUS_RUNTIME_MANAGER
         MOBIUS_RUNTIME_DEPLOYMENT_ROOT = $env:MOBIUS_RUNTIME_DEPLOYMENT_ROOT
