@@ -127,6 +127,31 @@ test('Cockpit review boundary is preserved without attempting release packaging 
   assert.equal(calls, 1);
 });
 
+test('Cockpit review can be explicitly reopened after a generator revision without manual PDF movement', async () => {
+  const root = await tempRoot();
+  const source = path.join(root, 'review-game.pdf');
+  await fs.writeFile(source, Buffer.from('%PDF-review-reopen-source'));
+  const identity = await computePdfIdentity(source);
+  await runInboxOnce({
+    root,
+    pdf: source,
+    runner: async () => ({
+      status: 'review_required', stage: 'coverage', projectId: 'review-game-project', reviewItems: 3, reviewQueuePath: 'review-items.json',
+    }),
+  });
+
+  await assert.rejects(
+    () => requeueInboxItem({ root, sha256: identity.sha256 }),
+    /Use --reopen-review/,
+  );
+  const reopened = await requeueInboxItem({ root, sha256: identity.sha256, reopenReview: true });
+  assert.equal(reopened.status, 'waiting');
+  assert.equal(reopened.item.reviewReopenHistory.at(-1).status, 'review-required');
+  assert.equal(reopened.item.reviewReopenHistory.at(-1).reviewItems, 3);
+  assert.equal(await fs.readFile(reopened.sourcePath, 'utf8'), '%PDF-review-reopen-source');
+  assert.equal((await inboxStatus({ root })).waiting, 1);
+});
+
 test('terminal parser failures are quarantined and not retried forever', () => {
   assert.deepEqual(classifyInboxError(new Error('PDF extraction produced no usable text')), { class: 'terminal', retryable: false });
   assert.deepEqual(classifyInboxError(new Error('ElevenLabs network timeout')), { class: 'retryable', retryable: true });

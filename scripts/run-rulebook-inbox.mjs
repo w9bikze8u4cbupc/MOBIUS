@@ -231,8 +231,11 @@ export async function requeueInboxItem(options = {}) {
   if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error('Use requeue --sha <64-character source SHA-256>.');
   const state = await loadState(paths);
   const item = state.items[sha256];
-  if (!item || !['failed-terminal', 'failed-retryable'].includes(item.status)) {
-    throw new Error(`Inbox source ${sha256} is not in a failed state.`);
+  const reopenReview = options.reopenReview === true || options['reopen-review'] === true;
+  const requeueableFailure = ['failed-terminal', 'failed-retryable'].includes(item?.status);
+  const explicitlyReopenedReview = item?.status === 'review-required' && reopenReview;
+  if (!item || (!requeueableFailure && !explicitlyReopenedReview)) {
+    throw new Error(`Inbox source ${sha256} is not in a failed state. Use --reopen-review to explicitly rerun a Cockpit review boundary after a generator change.`);
   }
 
   const filename = path.basename(item.source?.filename || 'rulebook.pdf');
@@ -245,7 +248,7 @@ export async function requeueInboxItem(options = {}) {
   const sourcePath = candidates.find((candidate) => existsSync(candidate)
     && [paths.waiting, paths.failedTerminal, paths.failedRetryable].some((directory) => isWithin(directory, candidate))
     && hashFile(candidate) === sha256);
-  if (!sourcePath) throw new Error(`No verified failed source PDF is available for ${sha256}.`);
+  if (!sourcePath) throw new Error(`No verified source PDF is available for ${sha256}.`);
 
   const waitingPath = path.join(paths.waiting, filename);
   if (existsSync(waitingPath) && hashFile(waitingPath) !== sha256) {
@@ -253,13 +256,17 @@ export async function requeueInboxItem(options = {}) {
   }
   if (!existsSync(waitingPath)) await fs.rename(sourcePath, waitingPath);
 
-  const previousFailure = {
+  const previousState = {
     status: item.status,
     failedAt: item.failedAt || null,
     retryCount: Number(item.retryCount || 0),
     diagnosticPath: item.diagnosticPath || null,
     lastError: item.lastError || null,
+    reviewItems: Number(item.reviewItems || 0),
+    reviewQueuePath: item.reviewQueuePath || null,
+    stage: item.stage || null,
   };
+  const historyField = explicitlyReopenedReview ? 'reviewReopenHistory' : 'failureHistory';
   const requeued = await updateItem(paths, state, sha256, {
     status: 'waiting',
     stage: 'waiting',
@@ -274,9 +281,14 @@ export async function requeueInboxItem(options = {}) {
     startedAt: null,
     failedAt: null,
     requeuedAt: now(),
-    failureHistory: [...(Array.isArray(item.failureHistory) ? item.failureHistory : []), previousFailure],
+    [historyField]: [...(Array.isArray(item[historyField]) ? item[historyField] : []), previousState],
   });
-  await appendEvent(paths, 'requeued', { sha256, previousStatus: previousFailure.status, sourcePath: waitingPath });
+  await appendEvent(paths, explicitlyReopenedReview ? 'review-reopened' : 'requeued', {
+    sha256,
+    previousStatus: previousState.status,
+    sourcePath: waitingPath,
+    reviewItems: previousState.reviewItems,
+  });
   return { status: 'waiting', sha256, sourcePath: waitingPath, item: requeued };
 }
 
@@ -563,7 +575,7 @@ async function main() {
     : command === 'watch'
       ? await runInboxWatch(options)
       : command === 'requeue'
-        ? await requeueInboxItem({ ...options, sha256: values.sha || values['source-sha'] })
+        ? await requeueInboxItem({ ...options, sha256: values.sha || values['source-sha'], reopenReview: Boolean(values['reopen-review']) })
         : await runInboxOnce(options);
   console.log(JSON.stringify(result, null, 2));
   if (result.status === 'failed-terminal') process.exitCode = 2;
