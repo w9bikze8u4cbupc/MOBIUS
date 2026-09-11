@@ -7,6 +7,7 @@ import test from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { runZeroState } from '../../scripts/run-rulebook-production.mjs';
 import { buildCanonicalHephaestusManifest } from '../../src/services/hephaestusMaterialization.js';
+import { buildApiRuntimeCapabilities } from '../../src/services/runtimeCompatibility.js';
 
 test('fresh PDF invokes canonical HEPHAESTUS materialization before script or storyboard generation', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-production-heph-boundary-'));
@@ -36,6 +37,7 @@ test('fresh PDF invokes canonical HEPHAESTUS materialization before script or st
       response.writeHead(status, { 'content-type': 'application/json' });
       response.end(JSON.stringify(body));
     };
+    if (route === '/api/runtime/capabilities') return sendJson(buildApiRuntimeCapabilities({ cwd: process.cwd() }));
     if (route.endsWith('/source-pdf') && method === 'POST') {
       const descriptor = JSON.parse(fs.readFileSync(path.join(root, 'data', projectId, 'source', 'source.json'), 'utf8'));
       return sendJson({ sourcePdf: descriptor, idempotent: false }, 201);

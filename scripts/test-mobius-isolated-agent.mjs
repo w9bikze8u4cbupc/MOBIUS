@@ -24,6 +24,13 @@ const requiredAgentTokens = [
   "Preserve-RuntimeData",
   "Restore-RuntimeData",
   'MOBIUS isolated deployment is current and responding on port 5001.',
+  "[ValidateSet('Watch', 'Sync', 'Align', 'Status')]",
+  'mobius-runtime-ownership.json',
+  'mobius-runtime-alignment-request.json',
+  'Runtime port $runtimePort is occupied by a process whose MOBIUS ownership is ambiguous; refusing destructive restart.',
+  "MOBIUS_RUNTIME_MANAGER = 'mobius-isolated-agent-v2'",
+  '-WindowStyle Hidden',
+  "$Mode -eq 'Align'",
 ];
 for (const token of requiredAgentTokens) {
   if (!agent.includes(token)) throw new Error(`Missing isolated-agent safety contract: ${token}`);
@@ -31,15 +38,18 @@ for (const token of requiredAgentTokens) {
 
 const requiredBootstrapTokens = [
   "'MOBIUS Isolated Local Agent'",
-  "worktree add --detach $deployment origin/main",
-  "git -C $deployment reset --hard origin/main",
+  "worktree add --detach $deployment $target",
+  "git -C $deployment reset --hard $target",
   "Copy-DirectoryContents $primaryData $deploymentData",
   "Copy-Item -Force -Path $primaryEnv -Destination $runtimeEnv",
   "Stop-ScheduledTask -TaskName 'MOBIUS Local Agent'",
-  "Get-CimInstance Win32_Process -Filter \"Name = 'node.exe'\"",
+  'Get-CimInstance Win32_Process -Filter "ProcessId = $($pids[0])"',
   "Start-Sleep -Seconds 3",
   'Primary checkout preserved:',
   '-DeploymentRoot $deployment',
+  '[switch]$AdoptLegacyRuntime',
+  'Runtime port $runtimePort ownership is ambiguous; refusing to stop PID',
+  '-Mode Align',
 ];
 for (const token of requiredBootstrapTokens) {
   if (!bootstrap.includes(token)) throw new Error(`Missing bootstrap safety contract: ${token}`);
@@ -47,6 +57,9 @@ for (const token of requiredBootstrapTokens) {
 
 if (bootstrap.includes('git -C $repo pull') || bootstrap.includes('git -C $repo reset')) {
   throw new Error('Bootstrap must never mutate the primary checkout.');
+}
+if (/Get-CimInstance Win32_Process[^\n]+\|[\s\S]{0,200}ForEach-Object \{ Stop-Process/.test(bootstrap)) {
+  throw new Error('Bootstrap must never stop every matching Node process.');
 }
 
 const bootstrapDataSeed = /if \(\$createdDeployment -and \(Test-Path \$primaryData\)\) \{\s+Copy-DirectoryContents \$primaryData \$deploymentData\s+\}/s;
@@ -56,7 +69,7 @@ if (!bootstrapDataSeed.test(bootstrap)) {
 if (bootstrap.includes('& robocopy $primaryData $deploymentData')) {
   throw new Error('Bootstrap must not directly overlay primary project data onto an existing runtime.');
 }
-const bootstrapRuntimePreservation = /Preserve-RuntimeData\s+try \{\s+& git -C \$deployment reset --hard origin\/main[\s\S]*?\} finally \{\s+Restore-RuntimeData\s+\}/;
+const bootstrapRuntimePreservation = /Preserve-RuntimeData\s+try \{\s+& git -C \$deployment reset --hard \$target[\s\S]*?\} finally \{\s+Restore-RuntimeData\s+\}/;
 if (!bootstrapRuntimePreservation.test(bootstrap)) {
   throw new Error('Bootstrap must preserve canonical runtime data across reset and cleanup.');
 }

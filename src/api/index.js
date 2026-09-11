@@ -68,6 +68,7 @@ import { registerRemotionRenderRoutes } from './remotionRenderRoutes.js';
 import { createRequire } from 'module';
 import { registerPhaseERoutes } from './ingestionRoutes.js';
 import { registerImageRoutes } from './imageRoutes.js';
+import { buildApiRuntimeCapabilities } from '../services/runtimeCompatibility.js';
 import {
   appendImages,
   linkImagesToComponent,
@@ -100,6 +101,7 @@ console.log(`AI provider: ${configuredAiProvider}; configured: ${aiConfigured ? 
 console.log('API file loaded!');
 
 const app = express();
+const apiStartedAt = new Date().toISOString();
 // Port configuration - use single source of truth
 // In production, serve on port 5000 (same as frontend build)
 // In development, use port 8000 (backend API only)
@@ -173,6 +175,13 @@ console.warn = function (...args) {
 // --- Health check (unauthenticated) ---
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
+});
+
+// Runtime compatibility is intentionally available before authenticated or
+// expensive routes. It contains contract/build fingerprints, not project data
+// or credentials, and lets workers fail or safely align before provider calls.
+app.get('/api/runtime/capabilities', (_req, res) => {
+  res.json(buildApiRuntimeCapabilities({ cwd: process.cwd(), env: process.env, startedAt: apiStartedAt }));
 });
 
 // Safe local configuration status. `?check=1` performs one cached model-metadata check.

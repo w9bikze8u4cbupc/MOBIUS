@@ -113,7 +113,10 @@ export function classifyInboxError(error) {
   const materializationBoundary = String(error?.code || '').startsWith('HEPHAESTUS_')
     || error?.classification === 'retryable_engineering'
     || /hephaestus_(materialization|manifest|synchronization|asset_transport)/i.test(message);
-  const retryable = providerAvailability || materializationBoundary || /econn|etimedout|enotfound|network|timeout|\b429\b|rate limit|\b5\d\d\b|temporar|elevenlabs|openai/i.test(message);
+  const runtimeBoundary = String(error?.code || '').startsWith('RUNTIME_')
+    || error?.classification === 'retryable_runtime'
+    || /runtime_contract_mismatch|runtime api.*unavailable/i.test(message);
+  const retryable = providerAvailability || materializationBoundary || runtimeBoundary || /econn|etimedout|enotfound|network|timeout|\b429\b|rate limit|\b5\d\d\b|temporar|elevenlabs|openai/i.test(message);
   const terminal = /ai_not_configured|no usable text|ocr before production|invalid.*(pdf|script|storyboard)|missing.*(credential|api key)|unknown narration preset|not found/i.test(message);
   if (terminal && !retryable) return { class: 'terminal', retryable: false };
   return { class: retryable ? 'retryable' : 'terminal', retryable };

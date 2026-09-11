@@ -1,11 +1,13 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Watch', 'Sync', 'Status')]
+    [ValidateSet('Watch', 'Sync', 'Align', 'Status')]
     [string]$Mode = 'Watch',
     [string]$RepoRoot = 'C:\mobius-games-tutorial-generator',
     [string]$DeploymentRoot = 'C:\mobius-games-tutorial-generator-runtime',
     [ValidateRange(30, 3600)]
     [int]$IntervalSeconds = 90,
+    [string]$BaseUrl = 'http://127.0.0.1:5001',
+    [string]$TargetRevision = '',
     [switch]$ForceBuild
 )
 
@@ -18,8 +20,13 @@ $agentLog = Join-Path $controlLogDir 'mobius-isolated-agent.log'
 $serverLogDir = Join-Path $deployment 'data\logs'
 $serverOutLog = Join-Path $serverLogDir 'mobius-server.out.log'
 $serverErrLog = Join-Path $serverLogDir 'mobius-server.err.log'
+$ownershipPath = Join-Path $serverLogDir 'mobius-runtime-ownership.json'
+$alignmentRequestPath = Join-Path $serverLogDir 'mobius-runtime-alignment-request.json'
 $runtimeDataBackup = Join-Path (Split-Path $deployment -Parent) 'mobius-games-tutorial-generator-runtime-data'
 $mutexName = 'Local\MOBIUS_Isolated_Agent_v1'
+$runtimeUri = [Uri]$BaseUrl
+$runtimePort = $runtimeUri.Port
+$requiredCapabilityContract = 'mobius-runtime-capabilities-v1'
 
 function Write-AgentLog {
     param([string]$Level, [string]$Message)
@@ -62,43 +69,99 @@ function Invoke-Git {
     return @($output)
 }
 
-function Get-MobiusApiProcesses {
-    return @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -match '(^|\s)src[\\/]api[\\/]index\.js(\s|$)' })
+function Get-PortOwnerProcess {
+    $listener = @(Get-NetTCPConnection -State Listen -LocalPort $runtimePort -ErrorAction SilentlyContinue)
+    if ($listener.Count -eq 0) { return $null }
+    $pids = @($listener | Select-Object -ExpandProperty OwningProcess -Unique)
+    if ($pids.Count -ne 1) { throw "Ambiguous process ownership on runtime port $runtimePort." }
+    return Get-CimInstance Win32_Process -Filter "ProcessId = $($pids[0])" -ErrorAction SilentlyContinue
 }
 
-function Test-MobiusHttp {
+function Get-MobiusCapabilities {
     try {
-        $response = Invoke-WebRequest -Uri 'http://127.0.0.1:5001/' -UseBasicParsing -TimeoutSec 4
-        return $response.StatusCode -eq 200
+        return Invoke-RestMethod -Uri "$($BaseUrl.TrimEnd('/'))/api/runtime/capabilities" -TimeoutSec 4
     } catch {
-        return $false
+        return $null
     }
 }
 
+function Read-RuntimeOwnership {
+    if (-not (Test-Path $ownershipPath)) { return $null }
+    try { return Get-Content -Raw -LiteralPath $ownershipPath | ConvertFrom-Json } catch { return $null }
+}
+
+function Assert-OwnedRuntimeProcess {
+    $process = Get-PortOwnerProcess
+    if (-not $process) { return $null }
+    $ownership = Read-RuntimeOwnership
+    $capabilities = Get-MobiusCapabilities
+    $isNodeApi = $process.Name -eq 'node.exe' -and $process.CommandLine -match '(^|\s)src[\\/]api[\\/]index\.js(\s|$)'
+    $owned = $ownership -and $capabilities -and
+        $capabilities.contract -eq $requiredCapabilityContract -and
+        $capabilities.ownership.manager -eq 'mobius-isolated-agent-v2' -and
+        $capabilities.ownership.tokenFingerprint -eq $ownership.tokenFingerprint -and
+        [int]$ownership.pid -eq [int]$process.ProcessId
+    if (-not $isNodeApi -or -not $owned) {
+        throw "Runtime port $runtimePort is occupied by a process whose MOBIUS ownership is ambiguous; refusing destructive restart."
+    }
+    return $process
+}
+
 function Stop-MobiusApi {
-    foreach ($process in Get-MobiusApiProcesses) {
-        Write-AgentLog 'INFO' "Stopping MOBIUS API PID $($process.ProcessId) for isolated deployment."
+    $process = Assert-OwnedRuntimeProcess
+    if ($process) {
+        Write-AgentLog 'INFO' "Stopping owned MOBIUS API PID $($process.ProcessId) for isolated deployment."
         Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
+        for ($attempt = 1; $attempt -le 20 -and (Get-PortOwnerProcess); $attempt++) { Start-Sleep -Milliseconds 250 }
+        if (Get-PortOwnerProcess) { throw "Owned MOBIUS API did not release port $runtimePort." }
+        Remove-Item -LiteralPath $ownershipPath -Force -ErrorAction SilentlyContinue
     }
 }
 
 function Start-MobiusApi {
-    $running = Get-MobiusApiProcesses
-    if ($running.Count -gt 0 -and (Test-MobiusHttp)) { return }
-    foreach ($process in $running) { Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop }
+    param([string]$ExpectedCommit)
+    $existing = Get-PortOwnerProcess
+    if ($existing) {
+        [void](Assert-OwnedRuntimeProcess)
+        $capabilities = Get-MobiusCapabilities
+        if ($capabilities.runtimeIdentity -eq $ExpectedCommit) { return }
+        Stop-MobiusApi
+    }
 
     New-Item -ItemType Directory -Force -Path $serverLogDir | Out-Null
-    $process = Start-Process -FilePath 'node' `
-        -ArgumentList 'src/api/index.js' `
-        -WorkingDirectory $deployment `
-        -RedirectStandardOutput $serverOutLog `
-        -RedirectStandardError $serverErrLog `
-        -PassThru
+    $token = [Guid]::NewGuid().ToString('N')
+    $tokenBytes = [Text.Encoding]::UTF8.GetBytes($token)
+    $tokenFingerprint = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($tokenBytes)).ToLowerInvariant()
+    $saved = @{
+        MOBIUS_RUNTIME_MANAGER = $env:MOBIUS_RUNTIME_MANAGER
+        MOBIUS_RUNTIME_DEPLOYMENT_ROOT = $env:MOBIUS_RUNTIME_DEPLOYMENT_ROOT
+        MOBIUS_RUNTIME_OWNERSHIP_TOKEN = $env:MOBIUS_RUNTIME_OWNERSHIP_TOKEN
+        MOBIUS_BUILD_SHA = $env:MOBIUS_BUILD_SHA
+    }
+    try {
+        $env:MOBIUS_RUNTIME_MANAGER = 'mobius-isolated-agent-v2'
+        $env:MOBIUS_RUNTIME_DEPLOYMENT_ROOT = $deployment
+        $env:MOBIUS_RUNTIME_OWNERSHIP_TOKEN = $token
+        $env:MOBIUS_BUILD_SHA = $ExpectedCommit
+        $process = Start-Process -FilePath 'node' `
+            -ArgumentList 'src/api/index.js' `
+            -WorkingDirectory $deployment `
+            -RedirectStandardOutput $serverOutLog `
+            -RedirectStandardError $serverErrLog `
+            -WindowStyle Hidden `
+            -PassThru
+    } finally {
+        foreach ($name in $saved.Keys) {
+            if ($null -eq $saved[$name]) { Remove-Item "Env:$name" -ErrorAction SilentlyContinue } else { Set-Item "Env:$name" $saved[$name] }
+        }
+    }
+    [ordered]@{ contract = 'mobius-runtime-ownership-v1'; pid = $process.Id; deploymentRoot = $deployment; commit = $ExpectedCommit; tokenFingerprint = $tokenFingerprint; startedAt = (Get-Date).ToUniversalTime().ToString('o') } |
+        ConvertTo-Json | Set-Content -LiteralPath $ownershipPath -Encoding utf8
     for ($attempt = 1; $attempt -le 20; $attempt++) {
         Start-Sleep -Seconds 2
-        if (Test-MobiusHttp) {
-            Write-AgentLog 'INFO' "MOBIUS isolated API ready on port 5001 (PID $($process.Id))."
+        $capabilities = Get-MobiusCapabilities
+        if ($capabilities -and $capabilities.runtimeIdentity -eq $ExpectedCommit -and $capabilities.ownership.tokenFingerprint -eq $tokenFingerprint) {
+            Write-AgentLog 'INFO' "MOBIUS isolated API ready on port $runtimePort (PID $($process.Id), build $ExpectedCommit)."
             return
         }
     }
@@ -115,7 +178,9 @@ function Copy-DirectoryContents {
 
 function Ensure-IsolatedWorktree {
     if (-not (Test-Path (Join-Path $repo '.git'))) { throw "MOBIUS repository not found: $repo" }
-    Invoke-Git $repo @('fetch', 'origin', 'main') | Out-Null
+    if (-not $TargetRevision -and -not (Test-Path $alignmentRequestPath)) {
+        Invoke-Git $repo @('fetch', 'origin', 'main') | Out-Null
+    }
     if (-not (Test-Path (Join-Path $deployment '.git'))) {
         if (Test-Path $deployment) {
             $contents = Get-ChildItem -Force -Path $deployment -ErrorAction SilentlyContinue
@@ -125,6 +190,23 @@ function Ensure-IsolatedWorktree {
         Invoke-Git $repo @('worktree', 'add', '--detach', $deployment, 'origin/main') | Out-Null
         Copy-DirectoryContents (Join-Path $repo 'data') (Join-Path $deployment 'data')
     }
+}
+
+function Resolve-DeploymentTarget {
+    if ($TargetRevision) {
+        Invoke-Git $repo @('cat-file', '-e', "$TargetRevision^{commit}") | Out-Null
+        return (Invoke-Git $repo @('rev-parse', $TargetRevision) | Select-Object -First 1).Trim()
+    }
+    if (Test-Path $alignmentRequestPath) {
+        try {
+            $request = Get-Content -Raw -LiteralPath $alignmentRequestPath | ConvertFrom-Json
+            if ($request.targetRevision) {
+                Invoke-Git $repo @('cat-file', '-e', "$($request.targetRevision)^{commit}") | Out-Null
+                return (Invoke-Git $repo @('rev-parse', $request.targetRevision) | Select-Object -First 1).Trim()
+            }
+        } catch { Write-AgentLog 'WARN' "Ignoring invalid runtime alignment request: $($_.Exception.Message)" }
+    }
+    return (Invoke-Git $repo @('rev-parse', 'origin/main') | Select-Object -First 1).Trim()
 }
 
 function Sync-LocalConfiguration {
@@ -201,11 +283,13 @@ function Invoke-IsolatedDeployment {
     if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw 'Node.js is required but was not found in PATH.' }
 
     Ensure-IsolatedWorktree
-    Invoke-Git $repo @('fetch', 'origin', 'main') | Out-Null
+    if (-not $TargetRevision -and -not (Test-Path $alignmentRequestPath)) {
+        Invoke-Git $repo @('fetch', 'origin', 'main') | Out-Null
+    }
     $current = (Invoke-Git $deployment @('rev-parse', 'HEAD') | Select-Object -First 1).Trim()
-    $target = (Invoke-Git $repo @('rev-parse', 'origin/main') | Select-Object -First 1).Trim()
+    $target = Resolve-DeploymentTarget
     if ($current -eq $target -and -not $ForceBuild) {
-        Start-MobiusApi
+        Start-MobiusApi -ExpectedCommit $target
         Write-AgentStatus 'ready' 'MOBIUS isolated deployment is current and responding on port 5001.' $current
         return $false
     }
@@ -233,7 +317,7 @@ function Invoke-IsolatedDeployment {
         if ($LASTEXITCODE -ne 0) { throw 'Client build failed.' }
     } finally { Pop-Location }
 
-    Start-MobiusApi
+    Start-MobiusApi -ExpectedCommit $target
     Write-AgentStatus 'ready' 'MOBIUS isolated deployment applied and API is responding on port 5001.' $target
     Write-AgentLog 'INFO' "Isolated deployment complete at $target."
     return $true
@@ -241,22 +325,36 @@ function Invoke-IsolatedDeployment {
 
 New-Item -ItemType Directory -Force -Path $controlLogDir | Out-Null
 $mutex = [System.Threading.Mutex]::new($false, $mutexName)
-$lockHeld = $false
-try {
-    try { $lockHeld = $mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $lockHeld = $true }
-    if (-not $lockHeld) { Write-AgentLog 'INFO' 'Another isolated MOBIUS agent is already active; exiting safely.'; exit 0 }
-    if ($Mode -eq 'Status') { if (Test-Path $statusPath) { Get-Content -Path $statusPath -Raw } else { Write-AgentStatus 'unknown' 'The isolated agent has not recorded a status yet.' }; exit 0 }
-    if ($Mode -eq 'Sync') { [void](Invoke-IsolatedDeployment -ForceBuild:$ForceBuild); exit 0 }
+function Invoke-WithAgentLock {
+    param([scriptblock]$Action, [int]$WaitMilliseconds = 0)
+    $held = $false
+    try {
+        try { $held = $mutex.WaitOne($WaitMilliseconds) } catch [System.Threading.AbandonedMutexException] { $held = $true }
+        if (-not $held) { throw 'Another isolated MOBIUS deployment operation is active.' }
+        & $Action
+    } finally { if ($held) { $mutex.ReleaseMutex() | Out-Null } }
+}
 
-    Write-AgentLog 'INFO' "MOBIUS isolated agent started; checking origin/main every $IntervalSeconds seconds."
+try {
+    if ($Mode -eq 'Status') { if (Test-Path $statusPath) { Get-Content -Path $statusPath -Raw } else { Write-AgentStatus 'unknown' 'The isolated agent has not recorded a status yet.' }; exit 0 }
+    if ($Mode -eq 'Align') {
+        if (-not $TargetRevision) { throw 'Align mode requires -TargetRevision.' }
+        New-Item -ItemType Directory -Force -Path $serverLogDir | Out-Null
+        [ordered]@{ contract = 'mobius-runtime-alignment-request-v1'; targetRevision = $TargetRevision; requestedAt = (Get-Date).ToUniversalTime().ToString('o') } |
+            ConvertTo-Json | Set-Content -LiteralPath $alignmentRequestPath -Encoding utf8
+        Invoke-WithAgentLock -WaitMilliseconds 60000 -Action { [void](Invoke-IsolatedDeployment -ForceBuild:$ForceBuild) }
+        exit 0
+    }
+    if ($Mode -eq 'Sync') { Invoke-WithAgentLock -WaitMilliseconds 60000 -Action { [void](Invoke-IsolatedDeployment -ForceBuild:$ForceBuild) }; exit 0 }
+
+    Write-AgentLog 'INFO' "MOBIUS isolated agent started; checking the canonical deployment target every $IntervalSeconds seconds."
     while ($true) {
-        try { [void](Invoke-IsolatedDeployment) } catch {
+        try { Invoke-WithAgentLock -Action { [void](Invoke-IsolatedDeployment) } } catch {
             Write-AgentStatus 'error' $_.Exception.Message
             Write-AgentLog 'ERROR' $_.Exception.Message
         }
         Start-Sleep -Seconds $IntervalSeconds
     }
 } finally {
-    if ($lockHeld) { $mutex.ReleaseMutex() | Out-Null }
     $mutex.Dispose()
 }

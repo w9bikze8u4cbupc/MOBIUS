@@ -15,7 +15,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { computePdfIdentity, discoverRulebooks, findProcessedBySha } from './rulebook-library.mjs';
 import {
   createProjectSourceService,
@@ -43,6 +43,8 @@ import {
 } from '../src/services/canonicalProductionStages.js';
 import { buildGameplayModel, buildGameplayTeachingPlan, writeGameplayModel } from '../src/services/gameplayActions.js';
 import { buildEndgameModel, buildEndgameTeachingPlan, writeEndgameModel } from '../src/services/scoringEndgame.js';
+import { buildWorkerRuntimeRequirements, preflightRuntimeCompatibility } from '../src/services/runtimeCompatibility.js';
+import { alignCanonicalRuntime } from '../src/services/canonicalRuntimeAlignment.js';
 
 const require = createRequire(import.meta.url);
 const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor.js');
@@ -385,6 +387,19 @@ async function runZeroState(options = {}) {
   const language = options.language || 'fr-CA';
   if (language !== 'fr-CA') throw new Error(`The zero-state production profile requires fr-CA; received ${language}.`);
 
+  // Runtime contracts are a hard prerequisite for every production stage.
+  // This must remain before source persistence, PDF extraction, AI,
+  // HEPHAESTUS, narration, and rendering so a stale API cannot spend work.
+  const runtimePreflight = await preflightRuntimeCompatibility({
+    baseUrl,
+    apiKey,
+    fetchImpl,
+    requirements: options.runtimeRequirements || buildWorkerRuntimeRequirements({ cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..') }),
+    alignRuntime: options.alignRuntime === false
+      ? null
+      : (options.alignRuntime || alignCanonicalRuntime),
+  });
+
   const requested = path.resolve(options.pdf);
   if (!exists(requested)) throw new Error(`Rulebook PDF not found: ${requested}`);
   const identity = await computePdfIdentity(requested);
@@ -398,6 +413,14 @@ async function runZeroState(options = {}) {
   const checkpoint = jsonIf(checkpointPath, { version: 1, projectId, stages: {} });
   checkpoint.projectId = projectId;
   checkpoint.source = identity;
+  checkpoint.runtimePreflight = {
+    checkedAt: new Date().toISOString(),
+    workerIdentity: runtimePreflight.requirements.workerIdentity,
+    apiRuntimeIdentity: runtimePreflight.capabilities.runtimeIdentity,
+    contracts: runtimePreflight.capabilities.contracts,
+    sameBuild: runtimePreflight.compatibility.sameBuild,
+    alignment: runtimePreflight.alignment,
+  };
 
   let descriptor;
   if (prior) descriptor = await sourceService.readDescriptor(projectId);

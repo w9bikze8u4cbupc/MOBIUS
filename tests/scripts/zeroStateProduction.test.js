@@ -60,6 +60,10 @@ describe('zero-state production contracts', () => {
         let uploadCount = 0;
         const fetchImpl = async (url, options = {}) => {
           const route = new URL(url).pathname;
+          if (route === '/api/runtime/capabilities') {
+            const { buildApiRuntimeCapabilities } = await import('${pathToFileURL(require('path').resolve(__dirname, '../../src/services/runtimeCompatibility.js')).href}');
+            return new Response(JSON.stringify(buildApiRuntimeCapabilities({ cwd: ${JSON.stringify(require('path').resolve(__dirname, '../..'))} })), { status: 200, headers: { 'content-type': 'application/json' } });
+          }
           if (route.endsWith('/source-pdf') && options.method === 'POST') {
             projectId = decodeURIComponent(route.split('/').at(-2));
             const file = options.body.get('file');
@@ -93,6 +97,30 @@ describe('zero-state production contracts', () => {
     expect(proof.reservationAccepted).toBe(true);
     expect(proof.uploadCount).toBe(2);
     expect(proof.remoteDescriptor.sha256).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  test('Attempt-3-style legacy API mismatch blocks every expensive production call', () => {
+    const { execFileSync } = require('child_process');
+    const { pathToFileURL } = require('url');
+    const path = require('path');
+    const production = pathToFileURL(path.resolve(__dirname, '../../scripts/run-rulebook-production.mjs')).href;
+    const script = `
+      import { runZeroState } from '${production}';
+      const calls = [];
+      try {
+        await runZeroState({
+          root: process.cwd(), pdf: 'must-not-be-read.pdf', baseUrl: 'http://legacy.fixture', alignRuntime: false,
+          fetchImpl: async (url) => { calls.push(new URL(url).pathname); return new Response(JSON.stringify({ status: 'ok' }), { status: 200, headers: { 'content-type': 'application/json' } }); },
+        });
+      } catch (error) {
+        console.log(JSON.stringify({ code: error.code, calls, hephaestusProviderCalls: calls.filter((value) => value.includes('extract-hephaestus')).length, llmCalls: calls.filter((value) => value.includes('summarize')).length, ttsCalls: calls.filter((value) => value.includes('narrat')).length, renderCalls: calls.filter((value) => value.includes('render')).length }));
+      }
+    `;
+    const output = execFileSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' });
+    expect(JSON.parse(output.trim().split(/\r?\n/).pop())).toEqual({
+      code: 'RUNTIME_CONTRACT_MISMATCH', calls: ['/api/runtime/capabilities'],
+      hephaestusProviderCalls: 0, llmCalls: 0, ttsCalls: 0, renderCalls: 0,
+    });
   });
 
 });
