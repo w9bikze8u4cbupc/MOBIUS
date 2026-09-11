@@ -1,7 +1,8 @@
 const crypto = require('node:crypto');
 
-const RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT = 'mobius-rulebook-domain-synthesis-v1';
-const RULEBOOK_DOMAIN_SYNTHESIS_PROMPT_VERSION = 'mobius-rulebook-domain-synthesis-prompt-v1';
+const RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT = 'mobius-rulebook-domain-synthesis-v1.1';
+const RULEBOOK_DOMAIN_SYNTHESIS_PROMPT_VERSION = 'mobius-rulebook-domain-synthesis-prompt-v1.1';
+const RULEBOOK_DOMAIN_CORRECTIVE_SYNTHESIS_CONTRACT = 'mobius-rulebook-domain-corrective-synthesis-v1';
 
 const clean = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
 const stable = (value) => Array.isArray(value)
@@ -66,7 +67,62 @@ function buildDomainSynthesisPackets({ sourcePdfSha256, documentMap, domainEvide
   }).filter((packet) => packet.evidence.length > 0);
 }
 
+function buildValidatorGuidedCorrectivePacket({ packet, candidates = [], domainRequirements = {} } = {}) {
+  if (!validateDomainSynthesisPacket(packet)) return null;
+  const repairs = (candidates || []).map((candidate) => ({
+    title: clean(candidate?.title),
+    coverageDomains: (candidate?.coverageDomains || []).map(clean).filter((domain) => packet.domains.includes(domain)),
+    candidate: candidate?.rawCandidate || candidate?.candidate || null,
+    validatorIssues: (candidate?.issues || []).map(clean).filter(Boolean),
+  })).filter((candidate) => candidate.title && candidate.coverageDomains.length && candidate.candidate && candidate.validatorIssues.length);
+  if (!repairs.length) return null;
+  const corrective = {
+    ...packet,
+    contract: RULEBOOK_DOMAIN_CORRECTIVE_SYNTHESIS_CONTRACT,
+    promptVersion: `${RULEBOOK_DOMAIN_SYNTHESIS_PROMPT_VERSION}-corrective`,
+    mode: 'validator-guided-corrective',
+    originalPacketHash: packet.cacheKey,
+    candidates: repairs,
+    domainRequirements,
+  };
+  return {
+    ...corrective,
+    cacheKey: hash({
+      sourcePdfSha256: corrective.sourcePdfSha256,
+      evidencePacketHash: packet.cacheKey,
+      originalCandidateHash: hash(repairs.map(({ candidate }) => candidate)),
+      validatorIssueHash: hash(repairs.map(({ validatorIssues }) => validatorIssues)),
+      ruleAtomContract: domainRequirements.contract || null,
+      providerContract: corrective.providerContract,
+      contract: corrective.contract,
+    }),
+  };
+}
+
+function buildExpandedRetrievalPacket({ packet, evidence = [] } = {}) {
+  if (!validateDomainSynthesisPacket(packet)) return null;
+  const expandedEvidence = (evidence || [])
+    .filter((entry) => Number.isInteger(Number(entry?.page)) && Number(entry.page) > 0 && clean(entry?.excerptHash) && clean(entry?.quote))
+    .map((entry) => ({
+      ...entry,
+      id: clean(entry.id) || `e-${packet.domains[0] || 'domain'}-${Number(entry.page)}-${clean(entry.excerptHash).slice(0, 12)}`,
+      domain: clean(entry.domain) || packet.domains[0],
+    }));
+  if (!expandedEvidence.length) return null;
+  const recovery = {
+    ...packet,
+    promptVersion: `${RULEBOOK_DOMAIN_SYNTHESIS_PROMPT_VERSION}-expanded-retrieval`,
+    mode: 'expanded-retrieval',
+    originalPacketHash: packet.cacheKey,
+    evidence: expandedEvidence,
+  };
+  return { ...recovery, cacheKey: hash({ ...recovery, providerContract: recovery.providerContract }) };
+}
+
 function buildDomainSynthesisPrompt(packet) {
+  if (packet?.mode === 'validator-guided-corrective') {
+    return `Return ONLY one JSON object matching this schema:\n{"atoms":[{"id":"stable-lowercase-id","domain":"setup|action|scoring|end_condition|triggered_effect|reference_aid|source_evidence","coverageDomains":["requested domain"],"title":"short factual title","actor":null,"trigger":null,"mandatoryOrOptional":"mandatory|optional|conditional","prerequisites":[],"choice":null,"costs":[{"description":"exact source-grounded cost or condition"}],"procedureSteps":["ordered source-grounded step"],"placement":null,"orientation":null,"stateBefore":null,"stateChange":null,"stateAfter":null,"result":null,"followUp":null,"exceptions":[],"componentRefs":["only supplied component IDs"],"sourceRefs":[{"evidenceId":"exact supplied evidence ID"}]}]}\n\nRepair STRUCTURE ONLY. Use ONLY the supplied official evidence and original candidate. Do not add facts, components, quantities, conditions, or outcomes not explicitly supported. For each validator issue, fill the field only when supplied evidence establishes it; otherwise omit that atom. Cite only exact supplied evidence IDs.\n\nDomain-specific required fields: ${JSON.stringify(packet.domainRequirements || {})}\nOriginal rejected candidates and exact validator issues: ${JSON.stringify(packet.candidates || [])}\nKnown source-grounded components: ${JSON.stringify(packet.components || [])}\nEvidence packets: ${JSON.stringify(packet.evidence || [])}`;
+  }
   return `Return ONLY one JSON object matching this schema:\n{"atoms":[{"id":"stable-lowercase-id","domain":"setup|action|scoring|end_condition|triggered_effect|reference_aid|source_evidence","coverageDomains":["one or more requested domains"],"title":"short factual title","actor":null,"trigger":null,"mandatoryOrOptional":"mandatory|optional|conditional","prerequisites":[],"choice":null,"costs":[{"description":"exact source-grounded cost or condition"}],"procedureSteps":["ordered source-grounded step"],"placement":null,"orientation":null,"stateBefore":null,"stateChange":null,"stateAfter":null,"result":null,"followUp":null,"exceptions":[],"componentRefs":["only component IDs from the supplied list"],"sourceRefs":[{"evidenceId":"exact supplied evidence ID"}]}]}\n\nYou are extracting canonical board-game rules from official evidence. Requested domains: ${packet.domains.join(', ')}.\n\nRules:\n- Use ONLY the supplied evidence. Do not use draft narration, outside knowledge, assumptions, or common board-game conventions.\n- Cite every atom with one or more exact evidenceId values. Do not cite a page or evidenceId that was not supplied.\n- Produce an empty atoms array when the evidence cannot support a complete claim.\n- Keep end conditions, scoring, and tiebreakers separate.\n- Preserve quantities, costs, conditions, face/orientation, placement, and state changes exactly when present.\n- For setup atoms, identify components and procedure/placement when the evidence supports them.\n- For action atoms, identify actor/action/state change/result when the evidence supports them.\n- Never invent a component ID; omit it if the supplied component list does not establish a match.\n\nDocument-map metadata: ${JSON.stringify(packet.documentMap)}\nKnown source-grounded components: ${JSON.stringify(packet.components)}\nEvidence packets: ${JSON.stringify(packet.evidence)}`;
 }
 
@@ -82,7 +138,7 @@ function parseDomainSynthesisJson(content) {
 }
 
 function validateDomainSynthesisPacket(packet) {
-  if (!packet || packet.contract !== RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT || !/^[a-f0-9]{64}$/i.test(clean(packet.sourcePdfSha256))) return false;
+  if (!packet || ![RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT, RULEBOOK_DOMAIN_CORRECTIVE_SYNTHESIS_CONTRACT].includes(packet.contract) || !/^[a-f0-9]{64}$/i.test(clean(packet.sourcePdfSha256))) return false;
   if (!Array.isArray(packet.domains) || packet.domains.length === 0 || !Array.isArray(packet.evidence) || packet.evidence.length === 0) return false;
   return packet.evidence.every((entry) => Number.isInteger(Number(entry?.page)) && Number(entry.page) > 0 && clean(entry.excerptHash) && clean(entry.quote));
 }
@@ -90,8 +146,11 @@ function validateDomainSynthesisPacket(packet) {
 module.exports = {
   DOMAIN_BATCHES,
   RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT,
+  RULEBOOK_DOMAIN_CORRECTIVE_SYNTHESIS_CONTRACT,
   RULEBOOK_DOMAIN_SYNTHESIS_PROMPT_VERSION,
   buildDomainSynthesisPackets,
+  buildValidatorGuidedCorrectivePacket,
+  buildExpandedRetrievalPacket,
   buildDomainSynthesisPrompt,
   parseDomainSynthesisJson,
   validateDomainSynthesisPacket,

@@ -176,4 +176,80 @@ describe('canonical rulebook intelligence', () => {
     expect(objectiveAttempt.status).toBe('NO_STRUCTURED_RULE_FOUND');
     expect(objectiveAttempt.reason).toMatch(/no complete source-grounded RuleAtom/i);
   });
+
+  test('first-player and turn-structure rules do not require fabricated component bindings', async () => {
+    const seed = { projectId: 'calibrated-domains', sourcePdfSha256: '3'.repeat(64), coverageApplicability: { first_player_rule: true, turn_round_age_structure: true } };
+    const pages = [
+      { page: 1, text: 'FIRST PLAYER: The player with the red marker starts the game.' },
+      { page: 2, text: 'PLAYING A TURN: Players take turns clockwise. On a turn, resolve the chosen action.' },
+    ];
+    const result = await runMultiPassRulebookIntelligence({
+      projectSeed: seed, pages, providerContract: [{ name: 'test', model: 'test' }],
+      domainSynthesize: async (packet) => ({ result: { atoms: packet.domains.flatMap((domain) => {
+        const evidence = packet.evidence.find((entry) => entry.domain === domain);
+        if (domain === 'first_player_rule') return [{ domain: 'setup', coverageDomains: [domain], title: 'Choose the starting player', procedureSteps: ['The player with the red marker starts.'], result: 'That player takes the first turn.', sourceRefs: [{ evidenceId: evidence.id }] }];
+        if (domain === 'turn_round_age_structure') return [{ domain: 'action', coverageDomains: [domain], title: 'Take turns clockwise', procedureSteps: ['Players take turns clockwise.', 'Resolve the chosen action.'], stateChange: 'Play advances to the next player.', sourceRefs: [{ evidenceId: evidence.id }] }];
+        return [];
+      }) } }),
+    });
+    const coverage = result.model.coverage.domains;
+    expect(coverage.find((entry) => entry.domain === 'first_player_rule').qaState).toBe('PASS');
+    expect(coverage.find((entry) => entry.domain === 'turn_round_age_structure').qaState).toBe('PASS');
+  });
+
+  test('one bounded corrective synthesis repairs only evidence-supported missing structure and replays from cache', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-corrective-synthesis-'));
+    const synthesisCacheDir = path.join(directory, 'packets');
+    const seed = { projectId: 'corrective-fixture', sourcePdfSha256: '4'.repeat(64), coverageApplicability: { mandatory_actions: true }, components: [{ id: 'card', name: 'Action card' }] };
+    const pages = [{ page: 1, text: 'ON YOUR TURN: Players play cards. Play one Action card and resolve its effect immediately.' }];
+    let initialCalls = 0; let correctiveCalls = 0;
+    const synthesize = async (packet) => {
+      const evidence = packet.evidence.find((entry) => entry.domain === 'mandatory_actions');
+      if (!evidence) return { result: { atoms: [] } };
+      if (packet.mode === 'validator-guided-corrective') {
+        correctiveCalls += 1;
+        return { result: { atoms: [{ domain: 'action', coverageDomains: ['mandatory_actions'], title: 'Play an Action card', procedureSteps: ['Play one Action card.', 'Resolve its effect immediately.'], stateChange: 'The card effect resolves.', result: 'The player completes the required action.', sourceRefs: [{ evidenceId: evidence.id }] }] } };
+      }
+      initialCalls += 1;
+      return { result: { atoms: [{ domain: 'action', coverageDomains: ['mandatory_actions'], title: 'Play an Action card', procedureSteps: ['Play one Action card.'], sourceRefs: [{ evidenceId: evidence.id }] }] } };
+    };
+    const first = await runMultiPassRulebookIntelligence({ projectSeed: seed, pages, synthesisCacheDir, providerContract: [{ name: 'test', model: 'test' }], domainSynthesize: synthesize });
+    expect(first.model.coverage.domains.find((entry) => entry.domain === 'mandatory_actions').qaState).toBe('PASS');
+    expect(initialCalls).toBe(1); expect(correctiveCalls).toBe(1);
+    const second = await runMultiPassRulebookIntelligence({ projectSeed: seed, pages, synthesisCacheDir, providerContract: [{ name: 'test', model: 'test' }], domainSynthesize: synthesize });
+    expect(second.telemetry.providerCalls).toBe(0);
+    expect(second.telemetry.cacheHits).toBeGreaterThanOrEqual(2);
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  test('bounded neighboring evidence expansion can recover an initially empty synthesis without inventing citations', async () => {
+    const seed = { projectId: 'expanded-retrieval', sourcePdfSha256: '5'.repeat(64), coverageApplicability: { first_player_rule: true } };
+    const pages = [
+      { page: 1, text: 'FIRST PLAYER: use the starting-player procedure.' },
+      { page: 2, text: 'The player nearest the red marker starts the game.' },
+    ];
+    let expandedCalls = 0;
+    const result = await runMultiPassRulebookIntelligence({
+      projectSeed: seed, pages, providerContract: [{ name: 'test', model: 'test' }],
+      domainSynthesize: async (packet) => {
+        if (packet.mode !== 'expanded-retrieval') return { result: { atoms: [] } };
+        expandedCalls += 1;
+        const evidence = packet.evidence.find((entry) => entry.page === 2);
+        return { result: { atoms: [{ domain: 'setup', coverageDomains: ['first_player_rule'], title: 'Select the first player', procedureSteps: ['The player nearest the red marker starts.'], result: 'That player begins the game.', sourceRefs: [{ evidenceId: evidence.id }] }] } };
+      },
+    });
+    expect(expandedCalls).toBe(1);
+    expect(result.model.coverage.domains.find((entry) => entry.domain === 'first_player_rule').qaState).toBe('PASS');
+    expect(result.model.ruleAtoms.flatMap((atom) => atom.sourceRefs).every((ref) => ref.page > 0)).toBe(true);
+  });
+
+  test('domains without positive evidence remain unknown instead of becoming universally mandatory', () => {
+    const model = buildRulebookKnowledgeModel({ projectSeed: { projectId: 'applicability-fixture', sourcePdfSha256: '6'.repeat(64) }, pages: [{ page: 1, text: 'A short abstract with no turn, payment, or starting-player rules.' }] });
+    const firstPlayer = model.coverage.domains.find((entry) => entry.domain === 'first_player_rule');
+    const costs = model.coverage.domains.find((entry) => entry.domain === 'costs_resources_payment');
+    expect(firstPlayer.applicabilityStatus).toBe('UNKNOWN');
+    expect(costs.applicabilityStatus).toBe('UNKNOWN');
+    expect(model.coverage.missingHighPriorityDomains).not.toContain('first_player_rule');
+    expect(model.coverage.missingHighPriorityDomains).not.toContain('costs_resources_payment');
+  });
 });

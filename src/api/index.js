@@ -2543,11 +2543,11 @@ app.post('/api/rulebook-knowledge/synthesize-domains', async (req, res) => {
       options: getGenerationOptions(config, {}, 'rulebook_domain_synthesis'),
       inputHash: packet.cacheKey,
       promptTemplateVersion: packet.promptVersion,
-      schemaContractVersion: RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT,
+      schemaContractVersion: packet.contract,
       validate: (response) => parseDomainSynthesisJson(typeof response?.choices?.[0]?.message?.content === 'string' ? response.choices[0].message.content : ''),
     });
     return res.json({
-      contract: RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT,
+      contract: packet.contract,
       cacheKey: packet.cacheKey,
       result: completion.value,
       provenance: completion.provenance,

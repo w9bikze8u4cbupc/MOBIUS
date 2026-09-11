@@ -4,12 +4,14 @@ const path = require('node:path');
 const {
   RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT,
   buildDomainSynthesisPackets,
+  buildValidatorGuidedCorrectivePacket,
+  buildExpandedRetrievalPacket,
 } = require('./rulebookDomainSynthesis.cjs');
 
-const RULEBOOK_KNOWLEDGE_MODEL_VERSION = 'mobius-rulebook-knowledge-v1.2';
-const RULEBOOK_INTELLIGENCE_PIPELINE_VERSION = 'mobius-rulebook-intelligence-multipass-v1.3.1';
-const RULEATOM_CONTRACT_VERSION = 'mobius-rule-atom-v1.1';
-const TUTORIAL_COVERAGE_VERSION = 'mobius-tutorial-coverage-v1.2';
+const RULEBOOK_KNOWLEDGE_MODEL_VERSION = 'mobius-rulebook-knowledge-v1.3';
+const RULEBOOK_INTELLIGENCE_PIPELINE_VERSION = 'mobius-rulebook-intelligence-multipass-v1.4';
+const RULEATOM_CONTRACT_VERSION = 'mobius-rule-atom-v1.2';
+const TUTORIAL_COVERAGE_VERSION = 'mobius-tutorial-coverage-v1.3';
 const RULEBOOK_DOCUMENT_MAP_VERSION = 'mobius-rulebook-document-map-v1';
 const RULE_REVIEW_QUEUE_VERSION = 'mobius-cockpit-rule-review-queue-v3';
 
@@ -241,10 +243,30 @@ function normalizeRuleAtom(atom = {}, sourcePdfSha256 = null) {
 function domainRequiredIssues(atom, coverageDomain = atom.domain) {
   const issues = [];
   if (coverageDomain === 'complete_setup' && (!atom.procedureSteps.length || !atom.componentRefs.length)) issues.push('setup-missing-procedure-or-components');
-  if (coverageDomain === 'mandatory_actions' && (!atom.choice || !atom.procedureSteps.length || !atom.stateChange || !atom.stateAfter || !atom.result || !atom.componentRefs.length)) issues.push('action-transition-incomplete');
+  // A domain's contract must reflect what the rule actually needs to teach,
+  // rather than forcing a source-supported statement into an unrelated visual
+  // state-machine shape. Physical binding remains required where it is
+  // intrinsic (setup/placement), not for every sentence about turn order.
+  if (coverageDomain === 'first_player_rule' && (!atom.procedureSteps.length || !(atom.result || atom.stateChange || atom.trigger))) issues.push('first-player-rule-incomplete');
+  if (coverageDomain === 'turn_round_age_structure' && (!atom.procedureSteps.length || !(atom.stateChange || atom.result || atom.trigger))) issues.push('turn-structure-incomplete');
+  if (coverageDomain === 'mandatory_actions' && (!atom.procedureSteps.length || !(atom.stateChange || atom.result))) issues.push('action-transition-incomplete');
+  if (coverageDomain === 'costs_resources_payment' && (!atom.costs.length || !(atom.procedureSteps.length || atom.trigger || atom.stateChange || atom.result))) issues.push('cost-payment-incomplete');
   if (coverageDomain === 'component_placement_orientation' && (!atom.componentRefs.length || !(atom.placement || atom.orientation || atom.stateChange))) issues.push('placement-orientation-incomplete');
   if (coverageDomain === 'final_scoring' && (!atom.result || !atom.sourceRefs.length)) issues.push('scoring-evidence-incomplete');
   return issues;
+}
+
+function domainRequirementGuidance() {
+  return {
+    contract: RULEATOM_CONTRACT_VERSION,
+    complete_setup: ['procedureSteps', 'componentRefs'],
+    first_player_rule: ['procedureSteps', 'one-of:result,stateChange,trigger'],
+    turn_round_age_structure: ['procedureSteps', 'one-of:stateChange,result,trigger'],
+    mandatory_actions: ['procedureSteps', 'one-of:stateChange,result'],
+    costs_resources_payment: ['costs', 'one-of:procedureSteps,trigger,stateChange,result'],
+    component_placement_orientation: ['componentRefs', 'one-of:placement,orientation,stateChange'],
+    final_scoring: ['result', 'sourceRefs'],
+  };
 }
 
 function validateRuleAtom(atom) {
@@ -257,8 +279,10 @@ function validateRuleAtom(atom) {
   // domains that intrinsically describe physical objects require those refs;
   // identity and objective atoms must not become artificial review work.
   if (['setup', 'action', 'triggered_effect', 'scoring', 'victory', 'end_condition'].includes(atom.domain) && !atom.visualRequirement.purpose) issues.push('missing-visual-purpose');
-  if (['setup', 'action'].includes(atom.domain) && !atom.visualRequirement.requiredObjects.length) issues.push('missing-required-objects');
-  if (atom.domain === 'action') {
+  const specializedCoverage = new Set(['first_player_rule', 'turn_round_age_structure', 'mandatory_actions', 'costs_resources_payment']);
+  const hasSpecializedCoverage = atom.coverageDomains.some((domain) => specializedCoverage.has(domain));
+  if (['setup', 'action'].includes(atom.domain) && !hasSpecializedCoverage && !atom.visualRequirement.requiredObjects.length) issues.push('missing-required-objects');
+  if (atom.domain === 'action' && !hasSpecializedCoverage) {
     if (!atom.choice) issues.push('missing-choice');
     if (!atom.procedureSteps.length) issues.push('missing-procedure');
     if (!atom.stateChange) issues.push('missing-state-change');
@@ -351,6 +375,64 @@ function classifyCoverageDomains(text) {
   return COVERAGE_DOMAINS.filter((domain) => DOMAIN_RETRIEVAL_PATTERNS[domain]?.test(text));
 }
 
+function normalizeApplicabilityDecision(value, fallbackEvidenceExists = false) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const status = clean(value.status).toUpperCase();
+    if (status === 'APPLICABLE') return { applicable: true, status, provenance: value.provenance || 'project-data' };
+    if (status === 'NOT_APPLICABLE') return { applicable: false, status, provenance: value.provenance || 'project-data' };
+    if (status === 'UNKNOWN') return { applicable: false, status, provenance: value.provenance || 'project-data', materiallyNecessary: value.materiallyNecessary === true };
+  }
+  if (typeof value === 'boolean') return { applicable: value, status: value ? 'APPLICABLE' : 'NOT_APPLICABLE', provenance: 'project-data' };
+  return fallbackEvidenceExists
+    ? { applicable: true, status: 'APPLICABLE', provenance: 'document-map-retrieval' }
+    : { applicable: false, status: 'UNKNOWN', provenance: 'no-positive-source-evidence' };
+}
+
+function inferCoverageApplicability(documentMap, explicit = {}) {
+  const values = {};
+  const provenance = {};
+  for (const domain of COVERAGE_DOMAINS) {
+    const decision = normalizeApplicabilityDecision(explicit?.[domain], retrieveDomainEvidence(documentMap, domain).length > 0);
+    values[domain] = decision.applicable;
+    provenance[domain] = decision;
+  }
+  return { values, provenance };
+}
+
+function evidenceForPage(page, domain) {
+  const text = clean(page?.normalizedText);
+  if (!text) return null;
+  const pattern = DOMAIN_RETRIEVAL_PATTERNS[domain];
+  const matched = pattern
+    ? text.match(new RegExp(`.{0,160}${pattern.source}.{0,220}`, pattern.flags.replace('g', '')))?.[0]
+    : null;
+  const quote = clean(matched || text.slice(0, 420)).slice(0, 420);
+  if (!quote) return null;
+  return {
+    page: page.humanPageNumber,
+    section: page.heading || page.title,
+    quote,
+    excerptHash: crypto.createHash('sha256').update(quote).digest('hex'),
+  };
+}
+
+function expandDomainEvidence(documentMap, domain, existingEvidence = [], { maxPages = 8 } = {}) {
+  const pages = documentMap?.pages || [];
+  const byNumber = new Map(pages.map((page) => [page.humanPageNumber, page]));
+  const seeds = unique((existingEvidence || []).map((evidence) => Number(evidence?.page)).filter((page) => Number.isInteger(page) && page > 0));
+  const candidateNumbers = new Set(seeds);
+  for (const pageNumber of seeds) {
+    for (const neighbor of [pageNumber - 1, pageNumber + 1]) if (byNumber.has(neighbor)) candidateNumbers.add(neighbor);
+    const heading = clean(byNumber.get(pageNumber)?.heading).toLowerCase();
+    if (heading) for (const page of pages) if (clean(page.heading).toLowerCase() === heading) candidateNumbers.add(page.humanPageNumber);
+  }
+  return [...candidateNumbers]
+    .sort((a, b) => a - b)
+    .map((pageNumber) => evidenceForPage(byNumber.get(pageNumber), domain))
+    .filter(Boolean)
+    .slice(0, Math.max(1, maxPages));
+}
+
 function atomsFromSourceSections(projectSeed, documentMap) {
   const sections = projectSeed.rulebookSections || projectSeed.scriptPackage?.sections || [];
   return sections.flatMap((section, index) => {
@@ -404,9 +486,11 @@ function buildTutorialCoverageMatrix(model, pipelineState = {}) {
   const visualizedAtomIds = new Set(pipelineState.visualizedAtomIds || []);
   const narratedAtomIds = new Set(pipelineState.narratedAtomIds || []);
   const applicability = model.coverageApplicability || {};
+  const applicabilityProvenance = model.coverageApplicabilityProvenance || {};
   const domains = COVERAGE_DOMAINS.map((domain) => {
     const atoms = model.ruleAtoms.filter((atom) => atom.coverageDomains.includes(domain));
-    const applicable = applicability[domain] !== undefined ? Boolean(applicability[domain]) : atoms.length > 0;
+    const applicabilityDecision = applicabilityProvenance[domain] || normalizeApplicabilityDecision(applicability[domain], atoms.length > 0);
+    const applicable = applicabilityDecision.status === 'APPLICABLE';
     const accepted = atoms.filter((atom) => atom.reviewState === 'accepted' && atom.confidence >= 0.8 && domainRequiredIssues(atom, domain).length === 0);
     // A domain is covered by an accepted, evidence-bound atom.  Draft or
     // superseded candidates must not poison coverage merely because they have
@@ -419,7 +503,23 @@ function buildTutorialCoverageMatrix(model, pipelineState = {}) {
     const visualized = knowledgeOnly || !applicable || accepted.every((atom) => visualizedAtomIds.has(atom.id));
     const narrationGenerated = knowledgeOnly || !applicable || accepted.every((atom) => narratedAtomIds.has(atom.id));
     const complete = sourceEvidenceExists && extracted && reviewed && includedInScript && includedInStoryboard && visualized && narrationGenerated;
-    return { domain, highPriority: HIGH_PRIORITY_DOMAINS.has(domain), applicable, atomIds: atoms.map((atom) => atom.id), sourceEvidenceExists, extracted, reviewed, includedInScript, includedInStoryboard, visualized, narrationGenerated, qaState: !applicable ? 'NOT_APPLICABLE' : complete ? 'PASS' : 'MISSING' };
+    return {
+      domain,
+      highPriority: HIGH_PRIORITY_DOMAINS.has(domain),
+      applicable,
+      applicabilityStatus: applicabilityDecision.status,
+      applicabilityProvenance: applicabilityDecision.provenance,
+      materiallyNecessaryWhenUnknown: applicabilityDecision.materiallyNecessary === true,
+      atomIds: atoms.map((atom) => atom.id),
+      sourceEvidenceExists,
+      extracted,
+      reviewed,
+      includedInScript,
+      includedInStoryboard,
+      visualized,
+      narrationGenerated,
+      qaState: applicabilityDecision.status === 'UNKNOWN' ? 'UNKNOWN' : !applicable ? 'NOT_APPLICABLE' : complete ? 'PASS' : 'MISSING',
+    };
   });
   return {
     contract: TUTORIAL_COVERAGE_VERSION,
@@ -427,7 +527,8 @@ function buildTutorialCoverageMatrix(model, pipelineState = {}) {
     sourcePdfSha256: model.sourcePdfSha256,
     domains,
     missingHighPriorityDomains: domains.filter((entry) => entry.applicable && entry.highPriority && entry.qaState !== 'PASS').map((entry) => entry.domain),
-    status: domains.some((entry) => entry.applicable && entry.highPriority && entry.qaState !== 'PASS') ? 'FAIL' : 'PASS',
+    unknownMaterialDomains: domains.filter((entry) => entry.applicabilityStatus === 'UNKNOWN' && entry.materiallyNecessaryWhenUnknown).map((entry) => entry.domain),
+    status: domains.some((entry) => (entry.applicable && entry.highPriority && entry.qaState !== 'PASS') || (entry.applicabilityStatus === 'UNKNOWN' && entry.materiallyNecessaryWhenUnknown)) ? 'FAIL' : 'PASS',
   };
 }
 
@@ -456,6 +557,7 @@ function normalizedLegacyAtom(raw, sourcePdfSha256) {
 function buildRulebookKnowledgeModel({ projectSeed = {}, pages = [], gameplayModel = null, endgameModel = null, synthesizedAtoms = [], synthesisTelemetry = null } = {}) {
   const sourcePdfSha256 = clean(projectSeed.sourcePdfSha256);
   const documentMap = buildDocumentMap(pages, projectSeed.documentMap || []);
+  const applicability = inferCoverageApplicability(documentMap, projectSeed.coverageApplicability || {});
   const rawAtoms = (projectSeed.ruleAtoms || []).map((atom) => normalizedLegacyAtom(atom, sourcePdfSha256)).filter(Boolean);
   // Draft sections are retrieval routing only. They are not source authority
   // and cannot become canonical atoms until provider synthesis binds them to
@@ -534,7 +636,8 @@ function buildRulebookKnowledgeModel({ projectSeed = {}, pages = [], gameplayMod
     diagramData: projectSeed.diagramData || {},
     ruleAtoms: atoms,
     documentMap,
-    coverageApplicability: projectSeed.coverageApplicability || Object.fromEntries(COVERAGE_DOMAINS.map((domain) => [domain, retrieveDomainEvidence(documentMap, domain).length > 0])),
+    coverageApplicability: applicability.values,
+    coverageApplicabilityProvenance: applicability.provenance,
     sourceMap: Object.fromEntries(atoms.map((atom) => [atom.id, atom.sourceRefs])),
     uncertainties,
     contradictionCheck: { status: contradictions.length ? 'REVIEW_REQUIRED' : 'PASS', conflicts: contradictions },
@@ -590,6 +693,28 @@ function reviewSourceRefs(model, atomId = null, domain = null) {
   return retrieval?.attempts?.flatMap((attempt) => attempt.evidence || []) || [];
 }
 
+function classifyDomainRecovery(model, domain) {
+  const coverage = model.coverage?.domains?.find((entry) => entry.domain === domain);
+  if (coverage?.applicabilityStatus === 'NOT_APPLICABLE') return 'FALSE_APPLICABILITY';
+  if (coverage?.applicabilityStatus === 'UNKNOWN') return 'TRUE_SOURCE_AMBIGUITY';
+  const attempts = model.coverageDrivenRetrieval?.[domain]?.attempts || [];
+  const initial = attempts.find((attempt) => attempt.method === 'domain-specific-source-synthesis-v1');
+  const corrective = attempts.find((attempt) => attempt.method === 'validator-guided-corrective-synthesis-v1');
+  const expanded = attempts.find((attempt) => attempt.method === 'bounded-retrieval-expansion-v1');
+  const initialIssues = initial?.rejected?.flatMap((candidate) => candidate.issues || []) || [];
+  if (!initial?.evidence?.length) return 'RETRIEVAL_WEAKNESS';
+  if (expanded && expanded.status !== 'ACCEPTED') return 'RETRIEVAL_WEAKNESS';
+  if (corrective && corrective.status !== 'ACCEPTED') return 'STRUCTURED_SYNTHESIS_WEAKNESS';
+  if (initialIssues.some((issue) => /missing-required-objects|missing-state-after|missing-choice/.test(issue))) return 'VALIDATOR_OVERCONSTRAINT';
+  return 'STRUCTURED_SYNTHESIS_WEAKNESS';
+}
+
+function recoveryFailureFields(model, domain) {
+  return unique((model.coverageDrivenRetrieval?.[domain]?.attempts || [])
+    .flatMap((attempt) => attempt.rejected || [])
+    .flatMap((candidate) => candidate.issues || []));
+}
+
 function reviewItem({ model, category, domain = null, atomId = null, scopeType = null, missingFields = [], reason, priority = null, candidates = [] }) {
   const normalizedDomain = clean(domain) || null;
   const normalizedAtomId = clean(atomId) || null;
@@ -610,6 +735,7 @@ function reviewItem({ model, category, domain = null, atomId = null, scopeType =
     sourceRefs,
     evidenceExcerpts: sourceRefs.map((ref) => ({ page: ref.page, section: ref.section, quote: ref.quote, excerptHash: ref.excerptHash })).filter((ref) => ref.quote),
     confidence: normalizedAtomId ? Number(model.ruleAtoms.find((atom) => atom.id === normalizedAtomId)?.confidence || 0) : 0,
+    recoveryClassification: normalizedDomain ? model.recoveryClassification?.[normalizedDomain] || null : null,
     automaticAttempts: normalizedDomain ? model.coverageDrivenRetrieval?.[normalizedDomain]?.attempts || [] : [],
     candidates: Array.isArray(candidates) ? candidates : [],
     recommendedOperatorAction: normalizedDomain
@@ -635,7 +761,11 @@ function buildRuleReviewItems(model, coverage = model.coverage) {
     items.push(reviewItem({ model, category: 'RULE_UNCERTAINTY', domain: atom?.coverageDomains?.[0] || atom?.domain, atomId: uncertainty.atomId, missingFields: uncertainty.issues, reason: 'Automatic extraction retained uncertainty rather than inventing a rule.' }));
   }
   for (const domain of coverage.missingHighPriorityDomains || []) {
-    items.push(reviewItem({ model, category: 'MISSING_HIGH_PRIORITY_DOMAIN', domain, scopeType: 'DOMAIN', missingFields: ['accepted-source-grounded-coverage'], reason: 'Bounded retrieval and structured source synthesis did not produce an accepted, complete rule atom.' }));
+    const fields = unique(['accepted-source-grounded-coverage', ...recoveryFailureFields(model, domain)]);
+    items.push(reviewItem({ model, category: 'MISSING_HIGH_PRIORITY_DOMAIN', domain, scopeType: 'DOMAIN', missingFields: fields, reason: 'Bounded retrieval, structured synthesis, and any allowed recovery pass did not produce an accepted, complete rule atom.' }));
+  }
+  for (const domain of coverage.unknownMaterialDomains || []) {
+    items.push(reviewItem({ model, category: 'UNCERTAIN_DOMAIN_APPLICABILITY', domain, scopeType: 'DOMAIN', missingFields: ['applicability-not-established'], reason: 'The authoritative source did not establish whether this materially necessary domain applies to the game.' }));
   }
   return [...new Map(items.map((item) => [item.id, item])).values()].sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -710,12 +840,22 @@ function validateProviderAtoms({ rawAtoms = [], packet, sourcePdfSha256 }) {
         title: clean(raw?.title) || `atom-${index + 1}`,
         coverageDomains: unique((raw?.coverageDomains || []).map(clean)),
         issues: unique([...validation.issues, ...domainIssues]),
+        rawCandidate: raw,
       });
       continue;
     }
     accepted.push({ ...normalized, teaching: canonicalTeaching(normalized, index + 1) });
   }
   return { accepted, rejected };
+}
+
+function recoveryCandidateIsStructural(candidate = {}) {
+  const issues = candidate.issues || [];
+  return issues.length > 0 && issues.every((issue) => /^(missing-|action-transition-incomplete|setup-missing-|placement-orientation-incomplete|first-player-rule-incomplete|turn-structure-incomplete|cost-payment-incomplete)/.test(issue));
+}
+
+function summarizeRejectedCandidate(candidate = {}) {
+  return { title: candidate.title, coverageDomains: candidate.coverageDomains, issues: candidate.issues };
 }
 
 async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gameplayModel = null, endgameModel = null, cachePath = null, synthesisCacheDir = null, providerContract = null, domainSynthesize = null } = {}) {
@@ -745,10 +885,20 @@ async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gamep
     providerContract,
   });
   const accepted = [];
-  const diagnostics = [];
-  const telemetry = { contract: RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT, providerCalls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, packets: [] };
-  for (const packet of packets) {
-    const localCachePath = synthesisCacheDir ? path.join(synthesisCacheDir, `${packet.cacheKey}.json`) : null;
+  const telemetry = {
+    contract: RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT,
+    providerCalls: 0,
+    initialProviderCalls: 0,
+    correctiveProviderCalls: 0,
+    expandedRetrievalProviderCalls: 0,
+    cacheHits: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    packets: [],
+  };
+  const packetRecords = [];
+  const executePacket = async (packet, kind = 'initial') => {
+    const localCachePath = synthesisCacheDir ? path.join(synthesisCacheDir, `${kind}-${packet.cacheKey}.json`) : null;
     let response = null;
     let cacheHit = false;
     if (localCachePath && fs.existsSync(localCachePath)) {
@@ -762,6 +912,9 @@ async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gamep
     if (!response && typeof domainSynthesize === 'function') {
       response = await domainSynthesize(packet);
       telemetry.providerCalls += 1;
+      if (kind === 'initial') telemetry.initialProviderCalls += 1;
+      if (kind === 'corrective') telemetry.correctiveProviderCalls += 1;
+      if (kind === 'expanded-retrieval') telemetry.expandedRetrievalProviderCalls += 1;
       if (localCachePath) {
         fs.mkdirSync(path.dirname(localCachePath), { recursive: true });
         fs.writeFileSync(localCachePath, `${JSON.stringify({ contract: RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT, cacheKey: packet.cacheKey, response }, null, 2)}\n`);
@@ -769,32 +922,70 @@ async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gamep
     }
     const rawAtoms = response?.result?.atoms || response?.atoms || [];
     const validation = response ? validateProviderAtoms({ rawAtoms, packet, sourcePdfSha256: base.sourcePdfSha256 }) : { accepted: [], rejected: [{ title: packet.batchId, issues: ['provider-synthesis-unavailable'] }] };
-    accepted.push(...validation.accepted);
-    diagnostics.push(...validation.rejected.map((entry) => ({ batchId: packet.batchId, ...entry })));
     const usage = response?.usage || response?.provenance?.usage || {};
     telemetry.inputTokens += Number(usage.input_tokens || usage.prompt_tokens || 0);
     telemetry.outputTokens += Number(usage.output_tokens || usage.completion_tokens || 0);
     telemetry.packets.push({
+      kind,
       batchId: packet.batchId,
       domains: packet.domains,
       cacheKey: packet.cacheKey,
       cacheHit,
       accepted: validation.accepted.length,
       acceptedDomains: unique(validation.accepted.flatMap((atom) => atom.coverageDomains)),
-      rejected: validation.rejected,
+      rejected: validation.rejected.map(summarizeRejectedCandidate),
       providerAttempts: response?.providerAttempts || response?.provenance?.attempts || [],
     });
+    return { packet, kind, response, rawAtoms, validation, cacheHit };
+  };
+  for (const packet of packets) {
+    const record = await executePacket(packet, 'initial');
+    accepted.push(...record.validation.accepted);
+    packetRecords.push(record);
   }
-  const model = buildRulebookKnowledgeModel({ projectSeed, pages, gameplayModel, endgameModel, synthesizedAtoms: accepted, synthesisTelemetry: telemetry });
+  let model = buildRulebookKnowledgeModel({ projectSeed, pages, gameplayModel, endgameModel, synthesizedAtoms: accepted, synthesisTelemetry: telemetry });
+  const unresolvedAfterInitial = new Set(model.coverage.domains.filter((entry) => entry.applicable && entry.qaState !== 'PASS').map((entry) => entry.domain));
+
+  // One repair packet per original evidence batch. It can only repair an
+  // existing source-grounded candidate and cannot bring in new evidence.
+  for (const initial of packetRecords.filter((record) => record.kind === 'initial')) {
+    const candidates = initial.validation.rejected.filter((candidate) => candidate.coverageDomains.some((domain) => unresolvedAfterInitial.has(domain)) && recoveryCandidateIsStructural(candidate));
+    const corrective = buildValidatorGuidedCorrectivePacket({ packet: initial.packet, candidates, domainRequirements: domainRequirementGuidance() });
+    if (!corrective) continue;
+    const record = await executePacket(corrective, 'corrective');
+    accepted.push(...record.validation.accepted);
+    packetRecords.push(record);
+  }
+  model = buildRulebookKnowledgeModel({ projectSeed, pages, gameplayModel, endgameModel, synthesizedAtoms: accepted, synthesisTelemetry: telemetry });
+  const unresolvedAfterCorrective = model.coverage.domains.filter((entry) => entry.applicable && entry.qaState !== 'PASS').map((entry) => entry.domain);
+
+  // A bounded expansion is for evidence scarcity, not for retrying the same
+  // structurally rejected claim. It only uses neighboring or same-heading
+  // source pages and runs at most once per unresolved domain.
+  for (const domain of unresolvedAfterCorrective) {
+    const initial = packetRecords.find((record) => record.kind === 'initial' && record.packet.domains.includes(domain));
+    const hadStructuredCandidate = Boolean(initial?.rawAtoms?.some((atom) => (atom.coverageDomains || []).includes(domain)));
+    if (!initial || hadStructuredCandidate) continue;
+    const evidence = expandDomainEvidence(base.documentMap, domain, initial.packet.evidence.filter((entry) => entry.domain === domain));
+    if (evidence.length <= initial.packet.evidence.filter((entry) => entry.domain === domain).length) continue;
+    const expanded = buildExpandedRetrievalPacket({ packet: { ...initial.packet, domains: [domain] }, evidence });
+    if (!expanded) continue;
+    const record = await executePacket(expanded, 'expanded-retrieval');
+    accepted.push(...record.validation.accepted);
+    packetRecords.push(record);
+  }
+  model = buildRulebookKnowledgeModel({ projectSeed, pages, gameplayModel, endgameModel, synthesizedAtoms: accepted, synthesisTelemetry: telemetry });
   // The persisted model cache is keyed by the complete production dependency
   // contract, including provider/model. The model's internal diagnostic key is
   // intentionally narrower; the on-disk replay key must never be.
   model.cacheKey = key;
   for (const [domain, entry] of Object.entries(model.coverageDrivenRetrieval || {})) {
     const synthesis = entry.attempts?.find((attempt) => attempt.method === 'domain-specific-source-synthesis-v1');
-    const packetTelemetry = telemetry.packets.find((packet) => packet.domains.includes(domain));
+    const records = packetRecords.filter((record) => record.packet.domains.includes(domain));
+    const initial = records.find((record) => record.kind === 'initial');
+    const packetTelemetry = initial && telemetry.packets.find((packet) => packet.kind === 'initial' && packet.cacheKey === initial.packet.cacheKey);
     if (synthesis && packetTelemetry) {
-      const acceptedForDomain = packetTelemetry.acceptedDomains?.includes(domain);
+      const acceptedForDomain = model.ruleAtoms.some((atom) => atom.coverageDomains.includes(domain) && atom.reviewState === 'accepted' && domainRequiredIssues(atom, domain).length === 0);
       const rejectedForDomain = packetTelemetry.rejected.filter((entry) => !entry.coverageDomains?.length || entry.coverageDomains.includes(domain));
       synthesis.status = acceptedForDomain ? 'ACCEPTED' : rejectedForDomain.length ? 'REJECTED_OR_INCOMPLETE' : 'NO_STRUCTURED_RULE_FOUND';
       synthesis.providerBacked = true;
@@ -807,12 +998,29 @@ async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gamep
           ? 'Structured provider synthesis returned claims that failed the domain-aware canonical RuleAtom validator.'
           : 'Structured provider synthesis found no complete source-grounded RuleAtom for this domain.';
     }
+    for (const record of records.filter((entry) => entry.kind !== 'initial')) {
+      const attempted = telemetry.packets.find((packet) => packet.kind === record.kind && packet.cacheKey === record.packet.cacheKey);
+      entry.attempts.push({
+        method: record.kind === 'corrective' ? 'validator-guided-corrective-synthesis-v1' : 'bounded-retrieval-expansion-v1',
+        status: model.coverage.domains.find((coverage) => coverage.domain === domain)?.qaState === 'PASS' ? 'ACCEPTED' : attempted?.rejected?.length ? 'REJECTED_OR_INCOMPLETE' : 'NO_STRUCTURED_RULE_FOUND',
+        evidence: record.packet.evidence,
+        providerBacked: true,
+        batchId: record.packet.batchId,
+        cacheHit: record.cacheHit,
+        rejected: attempted?.rejected || [],
+        reason: record.kind === 'corrective'
+          ? 'One validator-guided structural repair was attempted using only the original evidence packet.'
+          : 'One bounded neighboring/heading evidence expansion was attempted before Cockpit review.',
+      });
+    }
   }
+  model.recoveryClassification = Object.fromEntries(Object.keys(model.coverageDrivenRetrieval || {})
+    .map((domain) => [domain, classifyDomainRecovery(model, domain)]));
   if (cachePath) {
     fs.mkdirSync(path.dirname(cachePath), { recursive: true });
     fs.writeFileSync(cachePath, `${JSON.stringify(model, null, 2)}\n`);
   }
-  return { model, cacheHit: false, passesExecuted: 1 + packets.length, telemetry };
+  return { model, cacheHit: false, passesExecuted: 1 + packetRecords.length, telemetry };
 }
 
 function buildKnowledgeTeachingPlan(model) {
@@ -839,7 +1047,10 @@ module.exports = {
   buildTutorialCoverageMatrix,
   buildRuleReviewItems,
   reviewItemContractIssues,
+  classifyDomainRecovery,
   domainRequiredIssues,
+  domainRequirementGuidance,
+  expandDomainEvidence,
   normalizeRuleAtom,
   normalizeVisualRequirement,
   inferVisualRequirement,
