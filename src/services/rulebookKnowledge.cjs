@@ -949,7 +949,7 @@ async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gamep
   // One repair packet per original evidence batch. It can only repair an
   // existing source-grounded candidate and cannot bring in new evidence.
   for (const initial of packetRecords.filter((record) => record.kind === 'initial')) {
-    const candidates = initial.validation.rejected.filter((candidate) => candidate.coverageDomains.some((domain) => unresolvedAfterInitial.has(domain)) && recoveryCandidateIsStructural(candidate));
+    const candidates = initial.validation.rejected.filter((candidate) => (candidate.coverageDomains || []).some((domain) => unresolvedAfterInitial.has(domain)) && recoveryCandidateIsStructural(candidate));
     const corrective = buildValidatorGuidedCorrectivePacket({ packet: initial.packet, candidates, domainRequirements: domainRequirementGuidance() });
     if (!corrective) continue;
     const record = await executePacket(corrective, 'corrective');
@@ -1014,8 +1014,9 @@ async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gamep
       });
     }
   }
-  model.recoveryClassification = Object.fromEntries(Object.keys(model.coverageDrivenRetrieval || {})
-    .map((domain) => [domain, classifyDomainRecovery(model, domain)]));
+  model.recoveryClassification = Object.fromEntries(model.coverage.domains
+    .filter((entry) => entry.qaState !== 'PASS')
+    .map((entry) => [entry.domain, classifyDomainRecovery(model, entry.domain)]));
   if (cachePath) {
     fs.mkdirSync(path.dirname(cachePath), { recursive: true });
     fs.writeFileSync(cachePath, `${JSON.stringify(model, null, 2)}\n`);
