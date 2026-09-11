@@ -61,6 +61,8 @@ function titleFromFilename(filename) {
 function titleFromRulebook(text) {
   const source = String(text || '').replace(/\s+/g, ' ').trim();
   const patterns = [
+    /\bgame\s+overview\s+([A-Z0-9][A-Za-z0-9'’:&\- ]{1,80}?)\s+is\s+(?:a|an)\b/i,
+    /\b([A-Z0-9][A-Za-z0-9'’:&\- ]{1,80}?)\s+is\s+(?:a|an)\s+(?:competitive|cooperative|deckbuilding|board)\b/i,
     /\bIn\s+([A-Z0-9][A-Za-z0-9'’:&-]*(?:\s+[A-Z0-9][A-Za-z0-9'’:&-]*){0,6}),\s+you\s+(?:control|play|are)\b/,
     /\bWelcome\s+to\s+([A-Z0-9][A-Za-z0-9'’:&-]*(?:\s+[A-Z0-9][A-Za-z0-9'’:&-]*){0,6})\b/i,
     /\bDans\s+([A-ZÀ-ÖØ-Þ0-9][^,.!?]{1,64}),\s+vous\b/i,
@@ -163,6 +165,7 @@ function resolveCanonicalGameIdentity({
     bggName,
     displayName,
   );
+  const edition = firstText(explicit.edition, bgg.edition, bgg.version, rulebook.edition) || null;
 
   return {
     version: GAME_IDENTITY_CONTRACT_VERSION,
@@ -173,7 +176,8 @@ function resolveCanonicalGameIdentity({
     locale: clean(explicit.locale) || locale,
     sourceLanguage: clean(explicit.sourceLanguage) || sourceLanguage,
     bggId: firstText(explicit.bggId, bgg.bggId, bgg.bgg_id, bgg.id) || null,
-    edition: firstText(explicit.edition, bgg.edition, bgg.version, rulebook.edition) || null,
+    edition,
+    editionStatus: edition ? 'VERIFIED' : 'UNKNOWN_REVIEW_REQUIRED',
     versionName: firstText(explicit.versionName, bgg.versionName, bgg.version, rulebook.versionName, rulebook.version) || null,
     pronunciationOverride: pronunciationOverride || null,
     pronunciationRepresentation,

@@ -4,6 +4,7 @@ const {
   sanitizeSpokenGameName,
   sanitizeNarrationGameIdentity,
   spokenRepresentation,
+  titleFromRulebook,
 } = require('../../src/services/gameIdentity.cjs');
 
 describe('canonical game identity', () => {
@@ -55,6 +56,7 @@ describe('canonical game identity', () => {
     });
     expect(identity.version).toBe('game-identity-v1');
     expect(identity.versionName).toBeNull();
+    expect(identity.editionStatus).toBe('UNKNOWN_REVIEW_REQUIRED');
   });
 
   test('normalizes metadata with BGG as the fallback and keeps practical fields prominent', () => {
@@ -74,5 +76,15 @@ describe('canonical game identity', () => {
     });
     expect(sanitizeNarrationGameIdentity('Dans 7 Wonders Duel, bâtissez votre cité.', duel))
       .toBe('Dans Seven Wonders duel, bâtissez votre cité.');
+  });
+
+  test('content-derived overview title beats a technical intake prefix without stripping legitimate title tokens', () => {
+    expect(titleFromRulebook('GAME OVERVIEW Cowboy Bebop - Space Serenade is a competitive deckbuilding game.')).toBe('Cowboy Bebop - Space Serenade');
+    const identity = resolveCanonicalGameIdentity({
+      filename: 'C1-cowboy-bebop-space-serenade-rulebook.pdf',
+      rulebook: { text: 'GAME OVERVIEW Cowboy Bebop - Space Serenade is a competitive deckbuilding game.' },
+    });
+    expect(identity.displayName).toBe('Cowboy Bebop - Space Serenade');
+    expect(resolveCanonicalGameIdentity({ filename: 'C1.pdf' }).displayName).toBe('C1');
   });
 });

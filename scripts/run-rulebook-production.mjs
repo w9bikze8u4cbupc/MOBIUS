@@ -50,7 +50,7 @@ const require = createRequire(import.meta.url);
 const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor.js');
 const { COMPONENT_INVENTORY_CONTRACT_VERSION, extractComponentInventory } = await import('../src/services/componentInventory.js');
 const { generateStoryboard } = require('../src/storyboard/generator.js');
-const { buildKnowledgeTeachingPlan, buildTutorialCoverageMatrix, runMultiPassRulebookIntelligence } = require('../src/services/rulebookKnowledge.cjs');
+const { buildKnowledgeTeachingPlan, buildTutorialCoverageMatrix, buildRuleReviewItems, RULE_REVIEW_QUEUE_VERSION, runMultiPassRulebookIntelligence } = require('../src/services/rulebookKnowledge.cjs');
 const { compileCanonicalProductionState } = require('../src/services/canonicalProductionCompiler.cjs');
 const { recoverAuthorizedBggCandidates, rectifyAuthorizedCandidate } = require('../src/services/sourceAssetResolver.cjs');
 const { buildPhoneScaleQaSheet } = require('../src/services/phoneScaleQa.cjs');
@@ -105,46 +105,17 @@ function findProjectKnowledgeSeed(root, projectId, sourcePdfSha256) {
   return null;
 }
 
-function fallbackKnowledgeSeed({ projectId, identity, sourcePdfSha256, components, storyboardManifest, ranges }) {
-  const ruleAtoms = (storyboardManifest.scenes || []).map((scene, index) => {
-    const pages = teachingSourcePages(scene, ranges).map((page) => ({ page }));
-    const setup = scene.type === 'setup_step' || /mise en place|setup/i.test(`${scene.title || ''} ${scene.section || ''}`);
-    return {
-      id: `source-section-${scene.id || index + 1}`,
-      domain: setup ? 'setup' : 'source_section',
-      coverageDomains: setup ? ['complete_setup', 'component_placement_orientation'] : [],
-      title: scene.title || scene.section || `Règle ${index + 1}`,
-      mandatoryOrOptional: 'mandatory',
-      procedureSteps: [scene.spokenText || scene.narration || scene.text].filter(Boolean),
-      stateChange: scene.spokenText || scene.narration || scene.text || null,
-      stateAfter: 'La règle expliquée est appliquée.',
-      result: 'La partie peut poursuivre selon la source.',
-      componentRefs: scene.componentRefs || scene.visualPlan?.componentRefs || [],
-      sourceRefs: pages,
-      confidence: pages.length ? 0.72 : 0.4,
-      reviewState: 'review-required',
-      visualRequirement: {
-        purpose: scene.title || scene.section || 'Expliquer la règle source.',
-        requiredObjects: scene.componentRefs?.length ? scene.componentRefs : [scene.title || scene.section || 'élément de jeu'],
-        preferredComposition: setup ? 'WIDE_SETUP' : 'SPLIT_CONTAIN_CENTERED',
-      },
-      teaching: {
-        majorSection: scene.section || scene.title || 'Règles',
-        heading: scene.title || scene.section || 'Règle',
-        narration: scene.spokenText || scene.narration || scene.text || '',
-        displayLines: (scene.visualDirections || []).map((direction) => direction.onScreenText).filter(Boolean),
-        sequence: (index + 1) * 10,
-      },
-    };
-  });
+function fallbackKnowledgeSeed({ projectId, identity, sourcePdfSha256, components, scriptPackage }) {
+  // Draft sections are routing metadata only. The canonical knowledge service
+  // reconstructs their citations from the document map before atom synthesis.
   return {
     projectId,
     sourcePdfSha256,
     extractionModel: 'existing-provider-plus-mobius-multipass-critic',
     gameIdentity: { displayName: identity.displayName, spokenName: identity.spokenName, locale: identity.locale, edition: identity.edition },
     components,
-    ruleAtoms,
-    uncertainties: [{ code: 'UNREVIEWED_AUTOMATIC_EXTRACTION', reviewState: 'review-required' }],
+    rulebookSections: scriptPackage?.sections || [],
+    uncertainties: [],
   };
 }
 function slug(value) {
@@ -689,15 +660,14 @@ async function runZeroState(options = {}) {
       identity: extraction.identity || { displayName: gameName, locale: language },
       sourcePdfSha256: identity.sha256,
       components: extraction.components.components || extraction.components,
-      storyboardManifest,
-      ranges: extraction.pageRanges,
+      scriptPackage,
     });
   const knowledgeHash = hashValue({
     sourceSha256: identity.sha256,
     projectSeed,
     gameplay: hashValue(gameplayModel),
     endgame: hashValue(endgameModel),
-    contract: 'mobius-rulebook-intelligence-multipass-v1',
+    contract: 'mobius-rulebook-intelligence-multipass-v1.2',
   });
   assertCanonicalStagePrerequisites(checkpoint, 'rulebook-knowledge');
   const intelligence = await runMultiPassRulebookIntelligence({
@@ -761,12 +731,8 @@ async function runZeroState(options = {}) {
   storyboardHash = hashValue({ scriptHash, ingestion: hashValue(extraction.ingestion), language, gameplay: hashValue(storyboardManifest.gameplayTeachingPlan), endgame: hashValue(storyboardManifest.endgameTeachingPlan), knowledge: hashValue(knowledgeTeachingPlan) });
   if (!knowledgeReady || !knowledgeScenes.length) {
     const knowledgeReviewItemsPath = path.join(productionDir, 'rulebook-review-items.json');
-    const reviewItems = [
-      ...(rulebookKnowledgeModel.completenessCritic.incompleteAtoms || []).map((item) => ({ category: 'incomplete-rule-atom', item })),
-      ...(rulebookKnowledgeModel.uncertainties || []).map((item) => ({ category: 'rule-uncertainty', item })),
-      ...(tutorialCoverage.missingHighPriorityDomains || []).map((item) => ({ category: 'missing-high-priority-domain', item })),
-    ];
-    await saveJson(knowledgeReviewItemsPath, { contract: 'mobius-cockpit-rule-review-queue-v1', projectId, sourceSha256: identity.sha256, items: reviewItems });
+    const reviewItems = buildRuleReviewItems(rulebookKnowledgeModel, tutorialCoverage);
+    await saveJson(knowledgeReviewItemsPath, { contract: RULE_REVIEW_QUEUE_VERSION, projectId, sourceSha256: identity.sha256, items: reviewItems });
     markPreEvidenceDraft(checkpoint, 'draft-storyboard', storyboardHash, [storyboardPath, knowledgeReviewItemsPath], {
       scenes: storyboardManifest.scenes.length,
       reason: 'canonical-rulebook-knowledge-review-required',

@@ -2,9 +2,11 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const RULEBOOK_KNOWLEDGE_MODEL_VERSION = 'mobius-rulebook-knowledge-v1';
-const RULEBOOK_INTELLIGENCE_PIPELINE_VERSION = 'mobius-rulebook-intelligence-multipass-v1.1.1';
-const TUTORIAL_COVERAGE_VERSION = 'mobius-tutorial-coverage-v1';
+const RULEBOOK_KNOWLEDGE_MODEL_VERSION = 'mobius-rulebook-knowledge-v1.1';
+const RULEBOOK_INTELLIGENCE_PIPELINE_VERSION = 'mobius-rulebook-intelligence-multipass-v1.2.0';
+const TUTORIAL_COVERAGE_VERSION = 'mobius-tutorial-coverage-v1.1';
+const RULEBOOK_DOCUMENT_MAP_VERSION = 'mobius-rulebook-document-map-v1';
+const RULE_REVIEW_QUEUE_VERSION = 'mobius-cockpit-rule-review-queue-v2';
 
 const COVERAGE_DOMAINS = Object.freeze([
   'identity_theme',
@@ -49,12 +51,41 @@ const HIGH_PRIORITY_DOMAINS = Object.freeze(new Set([
 const clean = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
 const unique = (values) => [...new Set((values || []).filter(Boolean))];
 const hashValue = (value) => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const slug = (value) => clean(value).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'item';
+
+// These are retrieval hints, not game facts. They deliberately cover both the
+// source language and the fr-CA tutorial language so an English rulebook can
+// still produce a French production without losing evidence provenance.
+const DOMAIN_RETRIEVAL_PATTERNS = Object.freeze({
+  identity_theme: /\b(game overview|overview|introduction|theme|welcome|présentation|aperçu)\b/i,
+  objective: /\b(objective|goal|win|winner|victory|objectif|but|gagne|victoire)\b/i,
+  components: /\b(components?|contents?|component description|matériel|contenu)\b/i,
+  complete_setup: /\b(set[ -]?up|preparation|prepare|mise en place|installer)\b/i,
+  first_player_rule: /\b(first player|starting player|start the game|premier joueur)\b/i,
+  turn_round_age_structure: /\b(turn|round|phase|sequence|playing a turn|tour|manche|phase)\b/i,
+  mandatory_actions: /\b(actions?|play(?:ing)? cards?|move|purchase|confront|capture|jouer|déplacer|acheter|affronter|capturer)\b/i,
+  alternative_actions: /\b(instead|alternative|or you may|au lieu|alternativement)\b/i,
+  optional_actions: /\b(optional|may choose|not mandatory|facultatif|peut choisir|non obligatoire)\b/i,
+  costs_resources_payment: /\b(cost|pay|fuel|resource|money|coin|coût|payer|ressource|carburant|pièce)\b/i,
+  component_placement_orientation: /\b(place|position|face down|face up|orientation|discard pile|placer|positionner|face cachée|face visible)\b/i,
+  triggered_effects: /\b(when |whenever|after |trigger|effect|lorsque|quand|après|effet)\b/i,
+  major_special_systems: /\b(character|criminal|mission|bounty|track|gauge|deckbuilding|personnage|mission|piste|jauge)\b/i,
+  end_condition: /\b(end(?:ing)? the game|game ends|end of game|fin de partie|la partie se termine)\b/i,
+  immediate_victories: /\b(immediate victory|instantly win|victoire immédiate|gagne immédiatement)\b/i,
+  final_scoring: /\b(score|scoring|points?|renown|décompte|points?|score)\b/i,
+  tie_breakers: /\b(tie|tiebreak|égalité|départage)\b/i,
+  first_game_pitfalls: /\b(important|remember|note that|warning|attention|rappel)\b/i,
+  reference_aids_score_sheet: /\b(reference|score sheet|aid|résumé|feuille de score|aide)\b/i,
+});
 
 function normalizeSourceRefs(sourceRefs = []) {
   return (Array.isArray(sourceRefs) ? sourceRefs : []).map((ref) => ({
     page: Number.isInteger(Number(ref?.page)) && Number(ref.page) > 0 ? Number(ref.page) : null,
     section: clean(ref?.section) || null,
     quote: clean(ref?.quote) || null,
+    excerptHash: clean(ref?.excerptHash) || null,
+    startOffset: Number.isInteger(Number(ref?.startOffset)) && Number(ref.startOffset) >= 0 ? Number(ref.startOffset) : null,
+    endOffset: Number.isInteger(Number(ref?.endOffset)) && Number(ref.endOffset) >= 0 ? Number(ref.endOffset) : null,
     sourcePdfSha256: clean(ref?.sourcePdfSha256) || null,
   })).filter((ref) => ref.page || ref.section);
 }
@@ -199,6 +230,15 @@ function normalizeRuleAtom(atom = {}, sourcePdfSha256 = null) {
   };
 }
 
+function domainRequiredIssues(atom, coverageDomain = atom.domain) {
+  const issues = [];
+  if (coverageDomain === 'complete_setup' && (!atom.procedureSteps.length || !atom.componentRefs.length)) issues.push('setup-missing-procedure-or-components');
+  if (coverageDomain === 'mandatory_actions' && (!atom.choice || !atom.procedureSteps.length || !atom.stateChange || !atom.stateAfter || !atom.result || !atom.componentRefs.length)) issues.push('action-transition-incomplete');
+  if (coverageDomain === 'component_placement_orientation' && (!atom.componentRefs.length || !(atom.placement || atom.orientation || atom.stateChange))) issues.push('placement-orientation-incomplete');
+  if (coverageDomain === 'final_scoring' && (!atom.result || !atom.sourceRefs.length)) issues.push('scoring-evidence-incomplete');
+  return issues;
+}
+
 function validateRuleAtom(atom) {
   const issues = [];
   if (!atom.id) issues.push('missing-id');
@@ -218,20 +258,114 @@ function validateRuleAtom(atom) {
   return { valid: issues.length === 0, issues };
 }
 
+function detectPageHeading(text) {
+  const normalized = clean(text);
+  const first = normalized.slice(0, 260);
+  const match = first.match(/^(?:\d+\s*)?([A-Z][A-Za-zÀ-ÿ'’:&\- ]{2,80})(?=\s+(?:is|are|the|a|an|to|for|:|–|-)|$)/);
+  return clean(match?.[1]) || null;
+}
+
 function buildDocumentMap(pages = [], seedSections = []) {
-  const map = [];
-  for (const section of seedSections || []) {
-    map.push({ title: clean(section.title), pageStart: Number(section.pageStart), pageEnd: Number(section.pageEnd || section.pageStart), role: clean(section.role) || null, source: 'reviewed-project-seed' });
-  }
-  for (const page of pages || []) {
+  let cursor = 0;
+  const pageEntries = (pages || []).map((page, index) => {
+    const physicalPage = Number(page.page ?? page.number);
+    // The public/source-facing contract is one-based. Page 0 may exist in
+    // parser diagnostics but is never a citeable rulebook page.
+    const humanPage = Number.isInteger(physicalPage) && physicalPage > 0 ? physicalPage : index + 1;
     const text = clean(page.text || page.content || '');
-    if (!text) continue;
-    const heading = text.match(/^(CONTENTS|PREPARATION|GAME OVERVIEW|END OF GAME|MILITARY|SCIENCE|SCORING|SETUP|COMPONENTS?)[^.!?]*/i)?.[0];
-    if (heading && !map.some((entry) => entry.pageStart === Number(page.page || page.number))) {
-      map.push({ title: clean(heading), pageStart: Number(page.page || page.number), pageEnd: Number(page.page || page.number), role: 'detected', source: 'deterministic-heading-map' });
+    const startOffset = cursor;
+    cursor += text.length + 2;
+    const endOffset = cursor;
+    const heading = clean(page.heading) || detectPageHeading(text);
+    return {
+      id: `pdf-page-${humanPage}`,
+      pdfPageIndex: humanPage - 1,
+      physicalPage,
+      humanPageNumber: humanPage,
+      pageStart: humanPage,
+      pageEnd: humanPage,
+      title: heading || `Page ${humanPage}`,
+      heading,
+      normalizedText: text,
+      textHash: crypto.createHash('sha256').update(text).digest('hex'),
+      startOffset,
+      endOffset,
+      extractionConfidence: text ? 1 : 0,
+      contentKind: !text ? 'empty' : text.length < 80 ? 'image-dominant' : 'text-rich',
+      role: 'source-page',
+      provenance: { source: 'pdf-extraction', physicalPage: humanPage, citationConvention: 'one-based-pdf-page' },
+    };
+  }).filter((entry) => entry.humanPageNumber > 0);
+  const sections = (seedSections || []).map((section, index) => ({
+    id: clean(section.id) || `seed-section-${index + 1}`,
+    title: clean(section.title) || `Section ${index + 1}`,
+    pageStart: Math.max(1, Number(section.pageStart) || 1),
+    pageEnd: Math.max(1, Number(section.pageEnd || section.pageStart) || 1),
+    role: clean(section.role) || 'reviewed-project-seed',
+    source: 'reviewed-project-seed',
+    atomIds: Array.isArray(section.atomIds) ? section.atomIds : [],
+  }));
+  const detectedSections = [...sections, ...pageEntries.filter((entry) => entry.heading).map((entry) => ({ title: entry.heading, pageStart: entry.humanPageNumber, pageEnd: entry.humanPageNumber, role: 'detected', source: 'deterministic-heading-map', atomIds: [] }))]
+    .sort((a, b) => a.pageStart - b.pageStart || a.title.localeCompare(b.title));
+  return { contract: RULEBOOK_DOCUMENT_MAP_VERSION, citationConvention: 'one-based-pdf-page', pages: pageEntries, sections: detectedSections };
+}
+
+function sourceRefsForOffsets(sourceRefs, documentMap) {
+  const pages = documentMap?.pages || [];
+  const found = new Map();
+  for (const ref of sourceRefs || []) {
+    const start = Number(ref?.startOffset);
+    const end = Number(ref?.endOffset);
+    for (const page of pages) {
+      if (Number.isFinite(start) && Number.isFinite(end) && end >= page.startOffset && start <= page.endOffset) {
+        const quote = clean(page.normalizedText.slice(Math.max(0, start - page.startOffset), Math.min(page.normalizedText.length, end - page.startOffset))) || page.normalizedText.slice(0, 320);
+        found.set(page.humanPageNumber, { page: page.humanPageNumber, section: page.heading || page.title, quote: quote.slice(0, 420), excerptHash: crypto.createHash('sha256').update(quote).digest('hex'), startOffset: start, endOffset: end });
+      }
     }
   }
-  return map.sort((a, b) => a.pageStart - b.pageStart || a.title.localeCompare(b.title));
+  return [...found.values()].sort((a, b) => a.page - b.page);
+}
+
+function retrieveDomainEvidence(documentMap, domain) {
+  const pattern = DOMAIN_RETRIEVAL_PATTERNS[domain];
+  if (!pattern) return [];
+  return (documentMap?.pages || []).filter((page) => pattern.test(`${page.heading || ''} ${page.normalizedText}`)).slice(0, 5).map((page) => {
+    const matched = page.normalizedText.match(new RegExp(`.{0,160}${pattern.source}.{0,220}`, pattern.flags.replace('g', '')))?.[0] || page.normalizedText.slice(0, 420);
+    const quote = clean(matched).slice(0, 420);
+    return { page: page.humanPageNumber, section: page.heading || page.title, quote, excerptHash: crypto.createHash('sha256').update(quote).digest('hex') };
+  });
+}
+
+function classifyCoverageDomains(text) {
+  return COVERAGE_DOMAINS.filter((domain) => DOMAIN_RETRIEVAL_PATTERNS[domain]?.test(text));
+}
+
+function atomsFromSourceSections(projectSeed, documentMap) {
+  const sections = projectSeed.rulebookSections || projectSeed.scriptPackage?.sections || [];
+  return sections.flatMap((section, index) => {
+    const text = clean([section.title, section.spokenText, section.narration, ...(section.visualDirections || []).map((item) => item.instruction || item.onScreenText || '')].join(' '));
+    const coverageDomains = unique([...(section.coverageDomains || []), ...classifyCoverageDomains(text)]);
+    if (!coverageDomains.length) return [];
+    const refs = sourceRefsForOffsets(section.sources || section.sourceRefs || [], documentMap);
+    const componentRefs = unique([...(section.componentRefs || []), ...(section.visualDirections || []).flatMap((item) => item.componentRefs || [])]);
+    return coverageDomains.map((coverageDomain) => ({
+      id: `source-evidence-${slug(section.id || section.title || index + 1)}-${coverageDomain}`,
+      domain: coverageDomain === 'mandatory_actions' ? 'action' : coverageDomain === 'final_scoring' ? 'scoring' : coverageDomain === 'complete_setup' ? 'setup' : 'source_evidence',
+      coverageDomains: [coverageDomain],
+      title: clean(section.title) || coverageDomain,
+      actor: null,
+      choice: coverageDomain === 'mandatory_actions' ? clean(section.title) : null,
+      procedureSteps: text ? [text] : [],
+      stateChange: coverageDomain === 'mandatory_actions' ? text : null,
+      stateAfter: null,
+      result: coverageDomain === 'final_scoring' ? text : null,
+      componentRefs,
+      sourceRefs: refs,
+      confidence: refs.length ? 0.68 : 0.35,
+      reviewState: 'review-required',
+      provenance: { stage: 'source-section-evidence', sectionId: section.id || null },
+    }));
+  });
 }
 
 function resolveCrossReferences(atoms, terminology) {
@@ -261,10 +395,10 @@ function buildTutorialCoverageMatrix(model, pipelineState = {}) {
   const domains = COVERAGE_DOMAINS.map((domain) => {
     const atoms = model.ruleAtoms.filter((atom) => atom.coverageDomains.includes(domain));
     const applicable = applicability[domain] !== undefined ? Boolean(applicability[domain]) : atoms.length > 0;
-    const accepted = atoms.filter((atom) => atom.reviewState === 'accepted' && atom.confidence >= 0.8);
+    const accepted = atoms.filter((atom) => atom.reviewState === 'accepted' && atom.confidence >= 0.8 && domainRequiredIssues(atom, domain).length === 0);
     const sourceEvidenceExists = !applicable || (atoms.length > 0 && atoms.every((atom) => atom.sourceRefs.length > 0));
-    const extracted = !applicable || accepted.length === atoms.length;
-    const reviewed = !applicable || atoms.every((atom) => atom.reviewState === 'accepted');
+    const extracted = !applicable || (atoms.length > 0 && accepted.length === atoms.length);
+    const reviewed = !applicable || (atoms.length > 0 && atoms.every((atom) => atom.reviewState === 'accepted' && domainRequiredIssues(atom, domain).length === 0));
     const includedInScript = !applicable || atoms.every((atom) => includedAtomIds.has(atom.id));
     const includedInStoryboard = !applicable || atoms.every((atom) => storyboardAtomIds.has(atom.id));
     const visualized = !applicable || atoms.every((atom) => visualizedAtomIds.has(atom.id));
@@ -284,7 +418,9 @@ function buildTutorialCoverageMatrix(model, pipelineState = {}) {
 
 function buildRulebookKnowledgeModel({ projectSeed = {}, pages = [], gameplayModel = null, endgameModel = null } = {}) {
   const sourcePdfSha256 = clean(projectSeed.sourcePdfSha256);
+  const documentMap = buildDocumentMap(pages, projectSeed.documentMap || []);
   const rawAtoms = [...(projectSeed.ruleAtoms || [])];
+  if (!rawAtoms.length) rawAtoms.push(...atomsFromSourceSections(projectSeed, documentMap));
   if (gameplayModel) {
     for (const action of gameplayModel.actions || []) {
       if (rawAtoms.some((atom) => atom.id === action.id)) continue;
@@ -355,19 +491,37 @@ function buildRulebookKnowledgeModel({ projectSeed = {}, pages = [], gameplayMod
     referenceAids: atoms.filter((atom) => atom.domain === 'reference_aid'),
     diagramData: projectSeed.diagramData || {},
     ruleAtoms: atoms,
-    documentMap: buildDocumentMap(pages, projectSeed.documentMap || []),
+    documentMap,
     coverageApplicability: projectSeed.coverageApplicability || {},
     sourceMap: Object.fromEntries(atoms.map((atom) => [atom.id, atom.sourceRefs])),
     uncertainties,
     contradictionCheck: { status: contradictions.length ? 'REVIEW_REQUIRED' : 'PASS', conflicts: contradictions },
     completenessCritic: {
       incompleteAtoms: validations.filter((item) => !item.valid),
-      unmodeledDocumentSections: (projectSeed.documentMap || []).filter((section) => !(section.atomIds || []).length).map((section) => section.title),
+      unmodeledDocumentSections: documentMap.sections.filter((section) => !(section.atomIds || []).length).map((section) => section.title),
     },
     modelVersion: projectSeed.modelVersion || '1.0.0',
     generatedAt: new Date().toISOString(),
   };
   model.coverage = buildTutorialCoverageMatrix(model);
+  // A missing domain is not immediately a human task. Record the bounded,
+  // deterministic source search performed first, including usable excerpts so
+  // the Cockpit can distinguish "no evidence found" from "evidence needs a
+  // decision". A future structured provider pass may append to these same
+  // attempts; it does not own a parallel knowledge store.
+  model.coverageDrivenRetrieval = Object.fromEntries(model.coverage.domains
+    .filter((entry) => entry.applicable && entry.qaState !== 'PASS')
+    .map((entry) => {
+      const evidence = retrieveDomainEvidence(documentMap, entry.domain);
+      const synthesis = evidence.length
+        ? { method: 'domain-specific-source-synthesis-v1', status: 'INSUFFICIENT_FOR_ACCEPTANCE', evidence, reason: 'Evidence was found but no complete, accepted domain atom could be derived without speculation.' }
+        : { method: 'domain-specific-source-synthesis-v1', status: 'NO_SOURCE_EVIDENCE_FOUND', evidence: [], reason: 'No matching authoritative source span was found by the bounded retrieval pass.' };
+      return [entry.domain, {
+        domain: entry.domain,
+        status: 'EXHAUSTED_DETERMINISTIC_SOURCE_SEARCH',
+        attempts: [{ method: 'document-map-keyword-retrieval-v1', evidence }, synthesis],
+      }];
+    }));
   model.cacheKey = hashValue({
     sourcePdfSha256,
     extractionModel: projectSeed.extractionModel || 'deterministic-source-review',
@@ -382,6 +536,59 @@ function buildRulebookKnowledgeModel({ projectSeed = {}, pages = [], gameplayMod
     edition: projectSeed.gameIdentity?.edition || null,
   });
   return model;
+}
+
+function reviewSourceRefs(model, atomId = null, domain = null) {
+  if (atomId) return model.ruleAtoms.find((atom) => atom.id === atomId)?.sourceRefs || [];
+  const retrieval = model.coverageDrivenRetrieval?.[domain];
+  return retrieval?.attempts?.flatMap((attempt) => attempt.evidence || []) || [];
+}
+
+function reviewItem({ model, category, domain = null, atomId = null, missingFields = [], reason, priority = null, candidates = [] }) {
+  const normalizedDomain = clean(domain) || null;
+  const normalizedAtomId = clean(atomId) || null;
+  const sourceRefs = normalizeSourceRefs(reviewSourceRefs(model, normalizedAtomId, normalizedDomain));
+  const key = [model.sourcePdfSha256, category, normalizedDomain, normalizedAtomId, ...missingFields].join('|');
+  return {
+    id: `rule-review-${crypto.createHash('sha256').update(key).digest('hex').slice(0, 16)}`,
+    category,
+    severity: priority || (normalizedDomain && HIGH_PRIORITY_DOMAINS.has(normalizedDomain) ? 'P1' : 'P2'),
+    priority: priority || (normalizedDomain && HIGH_PRIORITY_DOMAINS.has(normalizedDomain) ? 'HIGH' : 'NORMAL'),
+    domain: normalizedDomain,
+    affectedRuleAtomIds: normalizedAtomId ? [normalizedAtomId] : [],
+    reason: clean(reason),
+    missingOrContradictoryFields: unique(missingFields.map(clean)),
+    sourceRefs,
+    evidenceExcerpts: sourceRefs.map((ref) => ({ page: ref.page, section: ref.section, quote: ref.quote, excerptHash: ref.excerptHash })).filter((ref) => ref.quote),
+    confidence: normalizedAtomId ? Number(model.ruleAtoms.find((atom) => atom.id === normalizedAtomId)?.confidence || 0) : 0,
+    automaticAttempts: normalizedDomain ? model.coverageDrivenRetrieval?.[normalizedDomain]?.attempts || [] : [],
+    candidates: Array.isArray(candidates) ? candidates : [],
+    recommendedOperatorAction: normalizedDomain
+      ? `Review the cited official-rulebook evidence for ${normalizedDomain} and confirm, correct, or mark the domain not applicable.`
+      : 'Review the cited official-rulebook evidence and confirm or correct the affected rule atom.',
+    status: 'OPEN',
+    provenance: { contract: RULE_REVIEW_QUEUE_VERSION, sourcePdfSha256: model.sourcePdfSha256, generatedBy: 'rulebook-knowledge-completeness-critic-v1' },
+  };
+}
+
+function buildRuleReviewItems(model, coverage = model.coverage) {
+  const items = [];
+  for (const incomplete of model.completenessCritic?.incompleteAtoms || []) {
+    const atom = model.ruleAtoms.find((entry) => entry.id === incomplete.atomId);
+    items.push(reviewItem({ model, category: 'INCOMPLETE_RULE_ATOM', domain: atom?.coverageDomains?.[0] || atom?.domain, atomId: incomplete.atomId, missingFields: incomplete.issues || [], reason: 'The source-grounded atom lacks required fields for its rule type.' }));
+  }
+  for (const conflict of model.contradictionCheck?.conflicts || []) {
+    items.push(reviewItem({ model, category: 'CONTRADICTORY_EVIDENCE', atomId: conflict.atomId, missingFields: [conflict.issue], reason: 'Source-grounded rule candidates conflict and require operator adjudication.' }));
+  }
+  for (const uncertainty of model.uncertainties || []) {
+    if (!uncertainty?.atomId || (uncertainty.issues || []).length === 0) continue;
+    const atom = model.ruleAtoms.find((entry) => entry.id === uncertainty.atomId);
+    items.push(reviewItem({ model, category: 'RULE_UNCERTAINTY', domain: atom?.coverageDomains?.[0] || atom?.domain, atomId: uncertainty.atomId, missingFields: uncertainty.issues, reason: 'Automatic extraction retained uncertainty rather than inventing a rule.' }));
+  }
+  for (const domain of coverage.missingHighPriorityDomains || []) {
+    items.push(reviewItem({ model, category: 'MISSING_HIGH_PRIORITY_DOMAIN', domain, missingFields: ['accepted-source-grounded-coverage'], reason: 'Automatic coverage-driven retrieval did not produce an accepted, complete rule atom.' }));
+  }
+  return [...new Map(items.map((item) => [item.id, item])).values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
 async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gameplayModel = null, endgameModel = null, cachePath = null } = {}) {
@@ -420,11 +627,15 @@ module.exports = {
   HIGH_PRIORITY_DOMAINS,
   RULEBOOK_INTELLIGENCE_PIPELINE_VERSION,
   RULEBOOK_KNOWLEDGE_MODEL_VERSION,
+  RULEBOOK_DOCUMENT_MAP_VERSION,
+  RULE_REVIEW_QUEUE_VERSION,
   TUTORIAL_COVERAGE_VERSION,
   buildDocumentMap,
   buildKnowledgeTeachingPlan,
   buildRulebookKnowledgeModel,
   buildTutorialCoverageMatrix,
+  buildRuleReviewItems,
+  domainRequiredIssues,
   normalizeRuleAtom,
   normalizeVisualRequirement,
   inferVisualRequirement,

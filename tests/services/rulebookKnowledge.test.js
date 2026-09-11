@@ -6,6 +6,7 @@ const {
   buildTutorialCoverageMatrix,
   runMultiPassRulebookIntelligence,
   validateRuleAtom,
+  buildRuleReviewItems,
 } = require('../../src/services/rulebookKnowledge.cjs');
 
 describe('canonical rulebook intelligence', () => {
@@ -69,5 +70,41 @@ describe('canonical rulebook intelligence', () => {
     const changedEvidence = await runMultiPassRulebookIntelligence({ projectSeed: { ...seed, modelVersion: '1.1.0', ruleAtoms: [{ id: 'new-source-grounded-atom' }] }, cachePath });
     expect(changedEvidence.cacheHit).toBe(false); expect(changedEvidence.passesExecuted).toBe(5);
     fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  test('document map uses one-based pages and performs bounded retrieval before cockpit review', () => {
+    const pages = [
+      { page: 0, text: 'Cover' },
+      { page: 2, text: 'SETUP Place the board and 4 tokens in the center.' },
+      { page: 3, text: 'END OF GAME Count points after the last round.' },
+    ];
+    const model = buildRulebookKnowledgeModel({ projectSeed: {
+      projectId: 'map-fixture', sourcePdfSha256: 'd'.repeat(64),
+      coverageApplicability: { complete_setup: true, final_scoring: true },
+      rulebookSections: [{ id: 'setup', title: 'Setup', spokenText: 'Set up the board.', sources: [{ startOffset: 7, endOffset: 58 }], visualDirections: [{ componentRefs: ['board', 'tokens'] }] }],
+    }, pages });
+    expect(model.documentMap.contract).toBe('mobius-rulebook-document-map-v1');
+    expect(model.documentMap.pages.every((page) => page.humanPageNumber > 0)).toBe(true);
+    expect(model.ruleAtoms.flatMap((atom) => atom.sourceRefs).every((ref) => ref.page === null || ref.page > 0)).toBe(true);
+    expect(model.coverageDrivenRetrieval.complete_setup.attempts[0].evidence.some((ref) => ref.page === 2)).toBe(true);
+    const first = buildRuleReviewItems(model);
+    const second = buildRuleReviewItems(model);
+    expect(first).toEqual(second);
+    expect(first.every((item) => item.id && item.recommendedOperatorAction && item.provenance && Array.isArray(item.automaticAttempts))).toBe(true);
+  });
+
+  test('domain-specific requirements gate coverage without forcing unrelated grounded atoms into review', () => {
+    const acceptedAction = {
+      id: 'play-card', domain: 'action', coverageDomains: ['mandatory_actions'], title: 'Play a card', choice: 'Choose a card',
+      procedureSteps: ['Choose a card.', 'Play it.'], stateChange: 'The card moves to play.', stateAfter: 'The card is in play.', result: 'Resolve its effect.',
+      componentRefs: ['card'], sourceRefs: [{ page: 4, quote: 'Play a card.' }], confidence: 0.95, reviewState: 'accepted',
+    };
+    const model = buildRulebookKnowledgeModel({ projectSeed: {
+      projectId: 'domain-fixture', sourcePdfSha256: 'e'.repeat(64), coverageApplicability: { mandatory_actions: true }, ruleAtoms: [acceptedAction],
+    } });
+    const ids = model.ruleAtoms.map((atom) => atom.id);
+    const coverage = buildTutorialCoverageMatrix(model, { includedAtomIds: ids, storyboardAtomIds: ids, visualizedAtomIds: ids, narratedAtomIds: ids });
+    expect(coverage.domains.find((entry) => entry.domain === 'mandatory_actions').qaState).toBe('PASS');
+    expect(model.completenessCritic.incompleteAtoms).toEqual([]);
   });
 });

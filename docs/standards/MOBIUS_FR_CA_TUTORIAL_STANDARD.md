@@ -70,3 +70,10 @@ Avant une livraison, MOBIUS vérifie au minimum : résolution 1080p ou plus, pr�
 - The canonical signature keeps the approved banner, café-room ambience, continuous coffee pour, and dice cue, with no narration during the signature.
 - Iteration-specific 7 Wonders Duel builders and publishability QA scripts are benchmark/history fixtures only. They are not normal production dependencies.
 - `CODEX_REQUIRED_FOR_NORMAL_PRODUCTION = FALSE`: uncertainty is resolved by the normal Cockpit workflow, not bespoke engineering intervention.
+
+## Rulebook Knowledge and Cockpit evidence contract (2026-09-11)
+
+- Before a RuleAtom is synthesized, production creates a canonical one-based PDF document map: page, detected heading, normalized source span, source hash, extraction confidence, content kind and provenance. Parser-internal page zero is never a learner-facing or Cockpit citation.
+- Coverage is evidence-driven. Missing applicable high-priority domains trigger bounded retrieval and domain-specific source synthesis before a human review item is created; absent evidence remains absent rather than being invented.
+- A Cockpit rule-review item is actionable on its own: stable ID, domain, severity, affected atoms, missing or contradictory fields, cited excerpts, confidence, automatic attempts, grounded candidates when available, and a recommended operator action are persisted in project state.
+- Filename and intake labels are hints only. Verified source content or authoritative metadata wins over a technical batch prefix; an unverified edition remains `UNKNOWN_REVIEW_REQUIRED`.
