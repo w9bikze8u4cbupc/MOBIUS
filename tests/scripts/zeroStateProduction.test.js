@@ -135,7 +135,6 @@ describe('zero-state production contracts', () => {
       import fs from 'node:fs';
       import os from 'node:os';
       import path from 'node:path';
-      import { spawnSync } from 'node:child_process';
       import { runZeroState } from '${production}';
       import { createProjectSourceService } from '${sourceService}';
       import { buildApiRuntimeCapabilities } from '${runtimeCompatibility}';
@@ -144,8 +143,7 @@ describe('zero-state production contracts', () => {
       const calls = [];
       try {
         const pdf = path.join(root, 'fresh-unseen.pdf');
-        const built = spawnSync(process.env.PYTHON || 'python', ['-c', 'import fitz,sys; d=fitz.open(); p=d.new_page(); p.insert_text((72,72),"Provider readiness fixture"); d.save(sys.argv[1])', pdf], { encoding: 'utf8', windowsHide: true });
-        if (built.status !== 0) throw new Error(built.stderr || 'fixture PDF build failed');
+        fs.writeFileSync(pdf, Buffer.from('%PDF-1.4\\n1 0 obj << /Type /Page >> endobj\\n'));
         const remoteSource = createProjectSourceService({ dataRoot: path.join(root, 'remote-data') });
         let projectId;
         const fetchImpl = async (url, options = {}) => {
