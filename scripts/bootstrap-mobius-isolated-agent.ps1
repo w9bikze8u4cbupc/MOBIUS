@@ -6,6 +6,7 @@ param(
     [int]$IntervalSeconds = 90,
     [string]$BaseUrl = 'http://127.0.0.1:5001',
     [string]$TargetRevision = '',
+    [string]$ConfigurationPath = '',
     [switch]$AdoptLegacyRuntime
 )
 
@@ -21,6 +22,26 @@ $ownershipPath = Join-Path $deployment 'data\logs\mobius-runtime-ownership.json'
 if (-not (Test-Path (Join-Path $repo '.git'))) { throw "MOBIUS repository not found: $repo" }
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'Git is required but was not found in PATH.' }
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw 'Node.js is required but was not found in PATH.' }
+
+function Resolve-CanonicalConfigurationPath {
+    if ($ConfigurationPath) {
+        $explicit = [System.IO.Path]::GetFullPath($ConfigurationPath)
+        if (-not (Test-Path -LiteralPath $explicit -PathType Leaf)) { throw "Configured MOBIUS environment file not found: $explicit" }
+        return $explicit
+    }
+    if ($env:MOBIUS_CONFIG_PATH) {
+        $fromEnvironment = [System.IO.Path]::GetFullPath($env:MOBIUS_CONFIG_PATH)
+        if (-not (Test-Path -LiteralPath $fromEnvironment -PathType Leaf)) { throw "MOBIUS_CONFIG_PATH does not identify a file: $fromEnvironment" }
+        return $fromEnvironment
+    }
+    $commonDirectory = (& git -C $repo rev-parse --path-format=absolute --git-common-dir).Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve the canonical Git configuration owner.' }
+    $sharedCandidate = Join-Path (Split-Path $commonDirectory -Parent) '.env'
+    if (Test-Path -LiteralPath $sharedCandidate -PathType Leaf) { return [System.IO.Path]::GetFullPath($sharedCandidate) }
+    $worktreeCandidate = Join-Path $repo '.env'
+    if (Test-Path -LiteralPath $worktreeCandidate -PathType Leaf) { return [System.IO.Path]::GetFullPath($worktreeCandidate) }
+    throw 'No canonical MOBIUS environment file is available for the isolated runtime.'
+}
 
 # The primary checkout is never pulled, reset, built, or restarted by this bootstrap.
 & git -C $repo fetch origin main
@@ -127,24 +148,22 @@ if ($createdDeployment -and (Test-Path $primaryData)) {
     Copy-DirectoryContents $primaryData $deploymentData
 }
 
-$primaryEnv = Join-Path $repo '.env'
+$primaryEnv = Resolve-CanonicalConfigurationPath
 $runtimeEnv = Join-Path $deployment '.env'
-if (Test-Path $primaryEnv) {
-    Copy-Item -Force -Path $primaryEnv -Destination $runtimeEnv
-}
+Copy-Item -Force -LiteralPath $primaryEnv -Destination $runtimeEnv
 
 if (-not (Test-Path $agentPath)) { throw "Isolated agent script not found: $agentPath" }
 
 Unregister-ScheduledTask -TaskName 'MOBIUS Local Agent' -Confirm:$false -ErrorAction SilentlyContinue
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$agentPath`" -Mode Watch -RepoRoot `"$repo`" -DeploymentRoot `"$deployment`" -BaseUrl `"$BaseUrl`" -IntervalSeconds $IntervalSeconds"
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$agentPath`" -Mode Watch -RepoRoot `"$repo`" -DeploymentRoot `"$deployment`" -ConfigurationPath `"$primaryEnv`" -BaseUrl `"$BaseUrl`" -IntervalSeconds $IntervalSeconds"
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Safely deploys MOBIUS from an isolated Git worktree without touching the primary checkout.' -Force | Out-Null
 
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $agentPath -Mode Align -RepoRoot $repo -DeploymentRoot $deployment -BaseUrl $BaseUrl -TargetRevision $target -IntervalSeconds $IntervalSeconds -ForceBuild
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $agentPath -Mode Align -RepoRoot $repo -DeploymentRoot $deployment -ConfigurationPath $primaryEnv -BaseUrl $BaseUrl -TargetRevision $target -IntervalSeconds $IntervalSeconds -ForceBuild
 if ($LASTEXITCODE -ne 0) { throw 'The initial isolated MOBIUS deployment failed.' }
 Start-ScheduledTask -TaskName $taskName
 Write-Host "MOBIUS isolated agent is active. Primary checkout preserved: $repo"

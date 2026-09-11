@@ -1,9 +1,10 @@
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
+import path from 'node:path';
 
-dotenv.config();
+const ENV_FILE_PATH = path.resolve(process.env.MOBIUS_CONFIG_PATH || path.join(process.cwd(), '.env'));
+dotenv.config({ path: ENV_FILE_PATH });
 
-const ENV_FILE_PATH = 'C:\\mobius-games-tutorial-generator\\.env';
 let client;
 let accessCheckCache = null;
 

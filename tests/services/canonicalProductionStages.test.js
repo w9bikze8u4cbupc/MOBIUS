@@ -14,6 +14,7 @@ test('a pre-evidence draft cannot masquerade as a canonical ready stage', () => 
 test('canonical compiler stages refuse to proceed before HEPHAESTUS evidence is ready', () => {
   const checkpoint = { stages: {} };
   markCanonicalStage(checkpoint, 'source', 'source', []);
+  markCanonicalStage(checkpoint, 'ai-provider', 'ai-provider', []);
   markCanonicalStage(checkpoint, 'extraction', 'extraction', []);
   expect(() => assertCanonicalStagePrerequisites(checkpoint, 'rulebook-knowledge'))
     .toThrow(/requires hephaestus/);
@@ -21,9 +22,17 @@ test('canonical compiler stages refuse to proceed before HEPHAESTUS evidence is 
   expect(assertCanonicalStagePrerequisites(checkpoint, 'rulebook-knowledge')).toBe(true);
 });
 
+test('PDF extraction cannot start before the AI provider readiness stage', () => {
+  const checkpoint = { stages: {} };
+  markCanonicalStage(checkpoint, 'source', 'source', []);
+  expect(() => assertCanonicalStagePrerequisites(checkpoint, 'extraction')).toThrow(/requires ai-provider/);
+  markCanonicalStage(checkpoint, 'ai-provider', 'ai-provider', []);
+  expect(assertCanonicalStagePrerequisites(checkpoint, 'extraction')).toBe(true);
+});
+
 test('canonical order enforces knowledge and coverage before physical state', () => {
   const checkpoint = { stages: {} };
-  for (const name of ['source', 'extraction', 'hephaestus']) markCanonicalStage(checkpoint, name, name, []);
+  for (const name of ['source', 'ai-provider', 'extraction', 'hephaestus']) markCanonicalStage(checkpoint, name, name, []);
   expect(() => assertCanonicalStagePrerequisites(checkpoint, 'physical-state')).toThrow(/rulebook-knowledge, coverage/);
   markCanonicalStage(checkpoint, 'rulebook-knowledge', 'knowledge', []);
   markCanonicalStage(checkpoint, 'coverage', 'coverage', []);

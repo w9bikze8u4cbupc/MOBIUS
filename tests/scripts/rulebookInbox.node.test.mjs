@@ -137,6 +137,27 @@ test('terminal parser failures are quarantined and not retried forever', () => {
   runtimeError.code = 'RUNTIME_CONTRACT_MISMATCH';
   runtimeError.classification = 'retryable_runtime';
   assert.deepEqual(classifyInboxError(runtimeError), { class: 'retryable', retryable: true });
+  const aiConfiguration = Object.assign(new Error('AI_NOT_CONFIGURED: missing model'), {
+    code: 'AI_NOT_CONFIGURED', classification: 'configuration_required',
+  });
+  assert.deepEqual(classifyInboxError(aiConfiguration), { class: 'configuration-required', retryable: true });
+});
+
+test('AI configuration failures remain recoverable without exhausting into failed-terminal', async () => {
+  const root = await tempRoot();
+  const paths = await ensureInbox(path.join(root, 'data', 'rulebook-inbox'));
+  const source = path.join(paths.waiting, 'provider-fixture.pdf');
+  await fs.writeFile(source, Buffer.from('%PDF-provider-readiness-fixture'));
+  const identity = await computePdfIdentity(source);
+  const failure = Object.assign(new Error('AI provider has a credential but no model'), {
+    code: 'AI_NOT_CONFIGURED', classification: 'configuration_required',
+  });
+  const result = await runInboxOnce({ root, retryLimit: 1, runner: async () => { throw failure; } });
+  assert.equal(result.status, 'failed-retryable');
+  assert.equal((await inboxStatus({ root })).counts['failed-retryable'], 1);
+  assert.equal(await fs.readFile(source, 'utf8'), '%PDF-provider-readiness-fixture');
+  const requeued = await requeueInboxItem({ root, sha256: identity.sha256 });
+  assert.equal(requeued.status, 'waiting');
 });
 
 test('a corrected engineering failure is requeued through the canonical lifecycle without running production', async () => {

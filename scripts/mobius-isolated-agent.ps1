@@ -8,6 +8,7 @@ param(
     [int]$IntervalSeconds = 90,
     [string]$BaseUrl = 'http://127.0.0.1:5001',
     [string]$TargetRevision = '',
+    [string]$ConfigurationPath = '',
     [switch]$ForceBuild
 )
 
@@ -75,6 +76,28 @@ function Get-PortOwnerProcess {
     $pids = @($listener | Select-Object -ExpandProperty OwningProcess -Unique)
     if ($pids.Count -ne 1) { throw "Ambiguous process ownership on runtime port $runtimePort." }
     return Get-CimInstance Win32_Process -Filter "ProcessId = $($pids[0])" -ErrorAction SilentlyContinue
+}
+
+function Resolve-CanonicalConfigurationPath {
+    if ($ConfigurationPath) {
+        $explicit = [System.IO.Path]::GetFullPath($ConfigurationPath)
+        if (-not (Test-Path -LiteralPath $explicit -PathType Leaf)) { throw "Configured MOBIUS environment file not found: $explicit" }
+        return $explicit
+    }
+    if ($env:MOBIUS_CONFIG_PATH) {
+        $fromEnvironment = [System.IO.Path]::GetFullPath($env:MOBIUS_CONFIG_PATH)
+        if (-not (Test-Path -LiteralPath $fromEnvironment -PathType Leaf)) { throw "MOBIUS_CONFIG_PATH does not identify a file: $fromEnvironment" }
+        return $fromEnvironment
+    }
+    # Linked worktrees share one Git common directory. Its parent is the
+    # canonical checkout/configuration owner, independent of the active worker
+    # worktree path. This avoids silently propagating a partial per-worktree env.
+    $commonDirectory = (Invoke-Git $repo @('rev-parse', '--path-format=absolute', '--git-common-dir') | Select-Object -First 1).Trim()
+    $sharedCandidate = Join-Path (Split-Path $commonDirectory -Parent) '.env'
+    if (Test-Path -LiteralPath $sharedCandidate -PathType Leaf) { return [System.IO.Path]::GetFullPath($sharedCandidate) }
+    $worktreeCandidate = Join-Path $repo '.env'
+    if (Test-Path -LiteralPath $worktreeCandidate -PathType Leaf) { return [System.IO.Path]::GetFullPath($worktreeCandidate) }
+    return $null
 }
 
 function Resolve-NpmCommand {
@@ -153,6 +176,7 @@ function Start-MobiusApi {
         MOBIUS_RUNTIME_DEPLOYMENT_ROOT = $env:MOBIUS_RUNTIME_DEPLOYMENT_ROOT
         MOBIUS_RUNTIME_OWNERSHIP_TOKEN = $env:MOBIUS_RUNTIME_OWNERSHIP_TOKEN
         MOBIUS_BUILD_SHA = $env:MOBIUS_BUILD_SHA
+        MOBIUS_CONFIG_PATH = $env:MOBIUS_CONFIG_PATH
         PORT = $env:PORT
     }
     try {
@@ -160,6 +184,7 @@ function Start-MobiusApi {
         $env:MOBIUS_RUNTIME_DEPLOYMENT_ROOT = $deployment
         $env:MOBIUS_RUNTIME_OWNERSHIP_TOKEN = $token
         $env:MOBIUS_BUILD_SHA = $ExpectedCommit
+        $env:MOBIUS_CONFIG_PATH = (Join-Path $deployment '.env')
         $env:PORT = [string]$runtimePort
         $process = Start-Process -FilePath 'node' `
             -ArgumentList 'src/api/index.js' `
@@ -233,12 +258,16 @@ function Resolve-DeploymentTarget {
 }
 
 function Sync-LocalConfiguration {
-    $primaryEnv = Join-Path $repo '.env'
+    $primaryEnv = Resolve-CanonicalConfigurationPath
     $runtimeEnv = Join-Path $deployment '.env'
-    if (Test-Path $primaryEnv) {
-        Copy-Item -Force -Path $primaryEnv -Destination $runtimeEnv
-        Write-AgentLog 'INFO' 'Copied local MOBIUS runtime configuration into the isolated deployment.'
+    if (-not $primaryEnv) { throw 'No canonical MOBIUS environment file is available for the isolated runtime.' }
+    $changed = -not (Test-Path -LiteralPath $runtimeEnv -PathType Leaf) -or
+        (Get-FileHash -Algorithm SHA256 -LiteralPath $primaryEnv).Hash -ne (Get-FileHash -Algorithm SHA256 -LiteralPath $runtimeEnv).Hash
+    if ($changed) {
+        Copy-Item -Force -LiteralPath $primaryEnv -Destination $runtimeEnv
+        Write-AgentLog 'INFO' 'Synchronized canonical local configuration into the isolated deployment.'
     }
+    return $changed
 }
 
 function Preserve-RuntimeData {
@@ -313,7 +342,9 @@ function Invoke-IsolatedDeployment {
     }
     $current = (Invoke-Git $deployment @('rev-parse', 'HEAD') | Select-Object -First 1).Trim()
     $target = Resolve-DeploymentTarget
+    $configurationChanged = Sync-LocalConfiguration
     if ($current -eq $target -and -not $ForceBuild) {
+        if ($configurationChanged) { Stop-MobiusApi }
         Start-MobiusApi -ExpectedCommit $target
         Write-AgentStatus 'ready' 'MOBIUS isolated deployment is current and responding on port 5001.' $current
         return $false
@@ -331,7 +362,7 @@ function Invoke-IsolatedDeployment {
         Restore-RuntimeData
     }
 
-    Sync-LocalConfiguration
+    [void](Sync-LocalConfiguration)
     Install-RootDependenciesIfNeeded -PreviousCommit $current -TargetCommit $target
     Install-ClientDependenciesIfNeeded -PreviousCommit $current -TargetCommit $target
     $clientDir = Join-Path $deployment 'client'

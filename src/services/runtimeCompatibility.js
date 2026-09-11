@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { HEPHAESTUS_MANIFEST_CONTRACT } from './hephaestusMaterialization.js';
+import { AI_PROVIDER_READINESS_CONTRACT } from './aiProviderReadiness.js';
 
 export const RUNTIME_CAPABILITY_CONTRACT = 'mobius-runtime-capabilities-v1';
 export const PROJECT_SOURCE_DESCRIPTOR_CONTRACT = 'mobius-project-source-v1';
@@ -11,6 +12,7 @@ export const RENDERER_QA_COMPATIBILITY_CONTRACT = 'mobius-normal-production-qa-v
 
 export const CANONICAL_RUNTIME_CONTRACTS = Object.freeze({
   sourceDescriptor: PROJECT_SOURCE_DESCRIPTOR_CONTRACT,
+  aiProviderReadiness: AI_PROVIDER_READINESS_CONTRACT,
   hephaestusMaterialization: HEPHAESTUS_MANIFEST_CONTRACT,
   canonicalProductionStages: CANONICAL_PRODUCTION_STAGE_CONTRACT,
   projectContextPersistence: PROJECT_CONTEXT_PERSISTENCE_CONTRACT,

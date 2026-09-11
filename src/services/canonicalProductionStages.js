@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 export const CANONICAL_PRODUCTION_STAGE_ORDER = Object.freeze([
   'source',
+  'ai-provider',
   'extraction',
   'hephaestus',
   'rulebook-knowledge',

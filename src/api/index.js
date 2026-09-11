@@ -7,12 +7,12 @@ import {
   getAiClient,
   getAiConfig,
   getAiModel,
-  getAiStatus,
   getGenerationOptionCompatibilityError,
   getGenerationOptions,
   requireAiReady,
 } from '../config/aiConfig.js';
 import { createAiProviderRun } from '../services/aiProviderExecutor.js';
+import { getAiProviderReadiness } from '../services/aiProviderReadiness.js';
 const pdfToImg = {
   pdf: async (...args) => {
     const { pdf } = await import('pdf-to-img');
@@ -186,7 +186,7 @@ app.get('/api/runtime/capabilities', (_req, res) => {
 
 // Safe local configuration status. `?check=1` performs one cached model-metadata check.
 app.get('/api/ai/status', async (req, res) => {
-  const status = await getAiStatus({ checkAccess: String(req.query.check) === '1' });
+  const status = await getAiProviderReadiness({ checkAccess: String(req.query.check) === '1' });
   res.json(status);
 });
 

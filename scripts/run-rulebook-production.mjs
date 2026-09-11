@@ -25,7 +25,6 @@ import {
 import { loadSourceVisualCatalog, selectSourceVisual } from '../src/services/sourceVisualSelection.js';
 import { runProduction } from './run-source-grounded-production.mjs';
 import editorialStandard from '../src/services/editorialStandard.cjs';
-import { listConfiguredProviders, resolveConfiguredProviderModels } from '../src/services/aiProviderExecutor.js';
 import { resolveCanonicalGameIdentity, titleFromRulebook } from '../src/services/gameIdentity.cjs';
 import { buildHephaestusEvidence, writeHephaestusEvidence } from '../src/services/hephaestusEvidence.js';
 import {
@@ -45,6 +44,7 @@ import { buildGameplayModel, buildGameplayTeachingPlan, writeGameplayModel } fro
 import { buildEndgameModel, buildEndgameTeachingPlan, writeEndgameModel } from '../src/services/scoringEndgame.js';
 import { buildWorkerRuntimeRequirements, preflightRuntimeCompatibility } from '../src/services/runtimeCompatibility.js';
 import { alignCanonicalRuntime } from '../src/services/canonicalRuntimeAlignment.js';
+import { preflightAiProviderReadiness } from '../src/services/aiProviderReadiness.js';
 
 const require = createRequire(import.meta.url);
 const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor.js');
@@ -445,8 +445,41 @@ async function runZeroState(options = {}) {
   await saveJson(checkpointPath, checkpoint);
   if (await stopIfRequested(options, checkpoint, 'source', checkpointPath, { projectId })) return { status: 'stopped', stage: 'source' };
 
+  // Rulebook Knowledge is mandatory for every complete production. Verify the
+  // API-owned provider configuration before extraction or HEPHAESTUS can spend
+  // work. The API is authoritative because it executes generation and may run
+  // in an isolated deployment with a different process environment.
+  assertCanonicalStagePrerequisites(checkpoint, 'ai-provider');
+  const aiPreflight = await preflightAiProviderReadiness({ baseUrl, apiKey, fetchImpl });
+  const aiHash = hashValue({
+    contract: aiPreflight.status.contract,
+    provider: aiPreflight.status.provider,
+    model: aiPreflight.status.model,
+    configurationFingerprint: aiPreflight.status.configurationFingerprint,
+  });
+  markStage(checkpoint, 'ai-provider', aiHash, [], {
+    provider: aiPreflight.status.provider,
+    model: aiPreflight.status.model,
+    readinessContract: aiPreflight.status.contract,
+    accessCheck: aiPreflight.status.accessCheck,
+    configurationFingerprint: aiPreflight.status.configurationFingerprint,
+  });
+  checkpoint.aiProviderPreflight = {
+    checkedAt: new Date().toISOString(),
+    contract: aiPreflight.status.contract,
+    provider: aiPreflight.status.provider,
+    model: aiPreflight.status.model,
+    credentialPresent: aiPreflight.status.credentialPresent,
+    ready: aiPreflight.status.ready,
+    accessCheck: aiPreflight.status.accessCheck,
+    configurationFingerprint: aiPreflight.status.configurationFingerprint,
+  };
+  await saveJson(checkpointPath, checkpoint);
+  if (await stopIfRequested(options, checkpoint, 'ai-provider', checkpointPath, { projectId })) return { status: 'stopped', stage: 'ai-provider' };
+
   const extractionPath = path.join(productionDir, 'zero-state-extraction.json');
   const extractionHash = hashValue({ sourceSha256: identity.sha256, engine: 'auto', mergeLines: false, componentInventory: COMPONENT_INVENTORY_CONTRACT_VERSION, gameIdentity: 'content-before-filename-v1' });
+  assertCanonicalStagePrerequisites(checkpoint, 'extraction');
   let extraction;
   if (stageReady(checkpoint, 'extraction', extractionHash, [extractionPath])) {
     extraction = jsonIf(extractionPath);
@@ -558,8 +591,7 @@ async function runZeroState(options = {}) {
   if (await stopIfRequested(options, checkpoint, 'hephaestus', checkpointPath, { projectId })) return { status: 'stopped', stage: 'hephaestus' };
 
   const scriptPath = path.join(productionDir, 'zero-state-script-package.json');
-  const providerResolution = await resolveConfiguredProviderModels({ providers: listConfiguredProviders() });
-  const providerContract = providerResolution.providers.map(({ name, model }) => ({ name, model }));
+  const providerContract = [{ name: aiPreflight.status.provider, model: aiPreflight.status.model }];
   const scriptHash = hashValue({ sourceSha256: identity.sha256, componentHash, language, providerContract, editorialContract: 'metadata-card-v1-section-labels-v1' });
   let scriptPackage;
   if (preEvidenceDraftReady(checkpoint, 'draft-script', scriptHash, [scriptPath])) {

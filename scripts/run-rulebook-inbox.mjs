@@ -107,7 +107,11 @@ async function listPdfs(directory, result = []) {
 
 export function classifyInboxError(error) {
   const message = String(error?.message || error || '').toLowerCase();
+  const configurationRequired = error?.classification === 'configuration_required'
+    || ['AI_NOT_CONFIGURED', 'AI_PROVIDER_UNSUPPORTED'].includes(String(error?.code || ''))
+    || /ai_not_configured|missing.*(?:credential|api key|model)|no .*ai provider .*configured/i.test(message);
   const providerAvailability = error?.code === 'AI_PROVIDER_ALL_FAILED'
+    || error?.code === 'AI_MODEL_UNAVAILABLE'
     || error?.classification === 'provider_unavailable'
     || /all configured .*provider|provider_unavailable|quota_exhausted|credit_balance_exhausted|credit.*exhausted/i.test(message);
   const materializationBoundary = String(error?.code || '').startsWith('HEPHAESTUS_')
@@ -116,8 +120,9 @@ export function classifyInboxError(error) {
   const runtimeBoundary = String(error?.code || '').startsWith('RUNTIME_')
     || error?.classification === 'retryable_runtime'
     || /runtime_contract_mismatch|runtime api.*unavailable/i.test(message);
-  const retryable = providerAvailability || materializationBoundary || runtimeBoundary || /econn|etimedout|enotfound|network|timeout|\b429\b|rate limit|\b5\d\d\b|temporar|elevenlabs|openai/i.test(message);
-  const terminal = /ai_not_configured|no usable text|ocr before production|invalid.*(pdf|script|storyboard)|missing.*(credential|api key)|unknown narration preset|not found/i.test(message);
+  const retryable = configurationRequired || providerAvailability || materializationBoundary || runtimeBoundary || /econn|etimedout|enotfound|network|timeout|\b429\b|rate limit|\b5\d\d\b|temporar|elevenlabs|openai/i.test(message);
+  const terminal = /no usable text|ocr before production|invalid.*(pdf|script|storyboard)|unknown narration preset|not found/i.test(message);
+  if (configurationRequired) return { class: 'configuration-required', retryable: true };
   if (terminal && !retryable) return { class: 'terminal', retryable: false };
   return { class: retryable ? 'retryable' : 'terminal', retryable };
 }
@@ -477,7 +482,9 @@ export async function runInboxOnce(options = {}) {
     const previous = state.items[work.identity.sha256] || {};
     const retryCount = Number(previous.retryCount || 0) + 1;
     const classification = classifyInboxError(error);
-    const status = classification.retryable && retryCount < (Number(options.retryLimit) || DEFAULT_RETRY_LIMIT) ? 'failed-retryable' : 'failed-terminal';
+    const retryLimitReached = classification.class !== 'configuration-required'
+      && retryCount >= (Number(options.retryLimit) || DEFAULT_RETRY_LIMIT);
+    const status = classification.retryable && !retryLimitReached ? 'failed-retryable' : 'failed-terminal';
     const diagnostic = {
       status,
       classification: classification.class,

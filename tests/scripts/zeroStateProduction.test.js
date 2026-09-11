@@ -123,4 +123,72 @@ describe('zero-state production contracts', () => {
     });
   });
 
+  test('AI configuration mismatch blocks before extraction and every expensive provider stage', () => {
+    const { execFileSync } = require('child_process');
+    const { pathToFileURL } = require('url');
+    const path = require('path');
+    const production = pathToFileURL(path.resolve(__dirname, '../../scripts/run-rulebook-production.mjs')).href;
+    const sourceService = pathToFileURL(path.resolve(__dirname, '../../src/services/projectSourceService.js')).href;
+    const runtimeCompatibility = pathToFileURL(path.resolve(__dirname, '../../src/services/runtimeCompatibility.js')).href;
+    const aiReadiness = pathToFileURL(path.resolve(__dirname, '../../src/services/aiProviderReadiness.js')).href;
+    const script = `
+      import fs from 'node:fs';
+      import os from 'node:os';
+      import path from 'node:path';
+      import { spawnSync } from 'node:child_process';
+      import { runZeroState } from '${production}';
+      import { createProjectSourceService } from '${sourceService}';
+      import { buildApiRuntimeCapabilities } from '${runtimeCompatibility}';
+      import { AI_PROVIDER_READINESS_CONTRACT } from '${aiReadiness}';
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-ai-boundary-'));
+      const calls = [];
+      try {
+        const pdf = path.join(root, 'fresh-unseen.pdf');
+        const built = spawnSync(process.env.PYTHON || 'python', ['-c', 'import fitz,sys; d=fitz.open(); p=d.new_page(); p.insert_text((72,72),"Provider readiness fixture"); d.save(sys.argv[1])', pdf], { encoding: 'utf8', windowsHide: true });
+        if (built.status !== 0) throw new Error(built.stderr || 'fixture PDF build failed');
+        const remoteSource = createProjectSourceService({ dataRoot: path.join(root, 'remote-data') });
+        let projectId;
+        const fetchImpl = async (url, options = {}) => {
+          const route = new URL(url).pathname;
+          calls.push(route);
+          if (route === '/api/runtime/capabilities') return new Response(JSON.stringify(buildApiRuntimeCapabilities()), { status: 200, headers: { 'content-type': 'application/json' } });
+          if (route.endsWith('/source-pdf') && options.method === 'POST') {
+            projectId = decodeURIComponent(route.split('/').at(-2));
+            const file = options.body.get('file');
+            const upload = path.join(root, 'remote-upload.pdf');
+            fs.writeFileSync(upload, Buffer.from(await file.arrayBuffer()));
+            const saved = await remoteSource.persistUpload(projectId, upload, { filename: file.name });
+            return new Response(JSON.stringify({ sourcePdf: saved.descriptor, idempotent: saved.idempotent }), { status: 201, headers: { 'content-type': 'application/json' } });
+          }
+          if (route.startsWith('/load-project/')) return new Response(JSON.stringify({ error: 'not found' }), { status: 404, headers: { 'content-type': 'application/json' } });
+          if (route.endsWith('/production-state')) return new Response(JSON.stringify({ ok: true }), { status: 201, headers: { 'content-type': 'application/json' } });
+          if (route === '/api/ai/status') return new Response(JSON.stringify({
+            contract: AI_PROVIDER_READINESS_CONTRACT, configured: false, ready: false,
+            provider: 'openai', model: null, credentialPresent: true, modelConfigured: false,
+            code: 'AI_NOT_CONFIGURED', classification: 'configuration_required',
+            message: 'credential present but model missing',
+          }), { status: 200, headers: { 'content-type': 'application/json' } });
+          throw new Error('Unexpected route after AI preflight: ' + route);
+        };
+        try { await runZeroState({ root, pdf, baseUrl: 'http://fixture.local', fetchImpl, alignRuntime: false }); }
+        catch (error) {
+          console.log(JSON.stringify({
+            code: error.code, classification: error.classification, message: error.message, calls,
+            hephaestusCalls: calls.filter((value) => value.includes('extract-hephaestus')).length,
+            llmCalls: calls.filter((value) => value.includes('summarize')).length,
+            ttsCalls: calls.filter((value) => value.includes('narrat')).length,
+            renderCalls: calls.filter((value) => value.includes('render')).length,
+          }));
+        }
+      } finally { fs.rmSync(root, { recursive: true, force: true }); }
+    `;
+    const output = execFileSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' });
+    const proof = JSON.parse(output.trim().split(/\r?\n/).pop());
+    expect(proof).toMatchObject({
+      code: 'AI_NOT_CONFIGURED', classification: 'configuration_required',
+      hephaestusCalls: 0, llmCalls: 0, ttsCalls: 0, renderCalls: 0,
+    });
+    expect(proof.calls.at(-1)).toBe('/api/ai/status');
+  });
+
 });

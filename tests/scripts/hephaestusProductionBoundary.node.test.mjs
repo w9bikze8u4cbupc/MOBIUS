@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { runZeroState } from '../../scripts/run-rulebook-production.mjs';
 import { buildCanonicalHephaestusManifest } from '../../src/services/hephaestusMaterialization.js';
 import { buildApiRuntimeCapabilities } from '../../src/services/runtimeCompatibility.js';
+import { AI_PROVIDER_READINESS_CONTRACT } from '../../src/services/aiProviderReadiness.js';
 
 test('fresh PDF invokes canonical HEPHAESTUS materialization before script or storyboard generation', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-production-heph-boundary-'));
@@ -38,6 +39,11 @@ test('fresh PDF invokes canonical HEPHAESTUS materialization before script or st
       response.end(JSON.stringify(body));
     };
     if (route === '/api/runtime/capabilities') return sendJson(buildApiRuntimeCapabilities({ cwd: process.cwd() }));
+    if (route === '/api/ai/status') return sendJson({
+      contract: AI_PROVIDER_READINESS_CONTRACT, configured: true, ready: true,
+      provider: 'openai', model: 'fixture-model', credentialPresent: true,
+      modelConfigured: true, accessCheck: 'model-metadata', configurationFingerprint: 'fixture',
+    });
     if (route.endsWith('/source-pdf') && method === 'POST') {
       const descriptor = JSON.parse(fs.readFileSync(path.join(root, 'data', projectId, 'source', 'source.json'), 'utf8'));
       return sendJson({ sourcePdf: descriptor, idempotent: false }, 201);
