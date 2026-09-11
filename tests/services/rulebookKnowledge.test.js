@@ -7,6 +7,7 @@ const {
   runMultiPassRulebookIntelligence,
   validateRuleAtom,
   buildRuleReviewItems,
+  reviewItemContractIssues,
 } = require('../../src/services/rulebookKnowledge.cjs');
 
 describe('canonical rulebook intelligence', () => {
@@ -63,12 +64,12 @@ describe('canonical rulebook intelligence', () => {
     const seed = { projectId: 'cache-fixture', sourcePdfSha256: 'c'.repeat(64), gameIdentity: { locale: 'fr-CA', edition: 'test' }, ruleAtoms: [] };
     const first = await runMultiPassRulebookIntelligence({ projectSeed: seed, cachePath });
     const second = await runMultiPassRulebookIntelligence({ projectSeed: seed, cachePath });
-    expect(first.cacheHit).toBe(false); expect(first.passesExecuted).toBe(5);
+    expect(first.cacheHit).toBe(false); expect(first.passesExecuted).toBe(1);
     expect(second.cacheHit).toBe(true); expect(second.passesExecuted).toBe(0);
     const changed = await runMultiPassRulebookIntelligence({ projectSeed: { ...seed, modelVersion: '1.1.0' }, cachePath });
-    expect(changed.cacheHit).toBe(false); expect(changed.passesExecuted).toBe(5);
+    expect(changed.cacheHit).toBe(false); expect(changed.passesExecuted).toBe(1);
     const changedEvidence = await runMultiPassRulebookIntelligence({ projectSeed: { ...seed, modelVersion: '1.1.0', ruleAtoms: [{ id: 'new-source-grounded-atom' }] }, cachePath });
-    expect(changedEvidence.cacheHit).toBe(false); expect(changedEvidence.passesExecuted).toBe(5);
+    expect(changedEvidence.cacheHit).toBe(false); expect(changedEvidence.passesExecuted).toBe(1);
     fs.rmSync(directory, { recursive: true, force: true });
   });
 
@@ -91,6 +92,7 @@ describe('canonical rulebook intelligence', () => {
     const second = buildRuleReviewItems(model);
     expect(first).toEqual(second);
     expect(first.every((item) => item.id && item.recommendedOperatorAction && item.provenance && Array.isArray(item.automaticAttempts))).toBe(true);
+    expect(first.every((item) => reviewItemContractIssues(item).length === 0)).toBe(true);
   });
 
   test('domain-specific requirements gate coverage without forcing unrelated grounded atoms into review', () => {
@@ -106,5 +108,52 @@ describe('canonical rulebook intelligence', () => {
     const coverage = buildTutorialCoverageMatrix(model, { includedAtomIds: ids, storyboardAtomIds: ids, visualizedAtomIds: ids, narratedAtomIds: ids });
     expect(coverage.domains.find((entry) => entry.domain === 'mandatory_actions').qaState).toBe('PASS');
     expect(model.completenessCritic.incompleteAtoms).toEqual([]);
+  });
+
+  test('retrieval invokes bounded provider synthesis and replays the exact packet cache', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-domain-synthesis-'));
+    const cachePath = path.join(directory, 'knowledge.json');
+    const synthesisCacheDir = path.join(directory, 'packets');
+    let calls = 0;
+    const seed = {
+      projectId: 'provider-fixture', sourcePdfSha256: 'f'.repeat(64),
+      coverageApplicability: { complete_setup: true },
+      components: [{ id: 'board', name: 'Game board' }],
+    };
+    const pages = [{ page: 1, text: 'SETUP: Place the game board in the centre before play begins.' }];
+    const synthesize = async (packet) => {
+      calls += 1;
+      const evidence = packet.evidence.find((entry) => entry.domain === 'complete_setup');
+      return { result: { atoms: [{
+        domain: 'setup', coverageDomains: ['complete_setup'], title: 'Place the board',
+        procedureSteps: ['Place the game board in the centre.'], placement: 'centre of the table',
+        stateChange: 'The board is placed for play.', stateAfter: 'The board is ready.',
+        componentRefs: ['board'], sourceRefs: [{ evidenceId: evidence.id }],
+      }] } };
+    };
+    const first = await runMultiPassRulebookIntelligence({ projectSeed: seed, pages, cachePath, synthesisCacheDir, providerContract: [{ name: 'test', model: 'test' }], domainSynthesize: synthesize });
+    expect(calls).toBe(1);
+    expect(first.model.coverage.domains.find((entry) => entry.domain === 'complete_setup').qaState).toBe('PASS');
+    expect(first.model.ruleAtoms).toHaveLength(1);
+    expect(first.model.ruleAtoms[0].sourceRefs).toEqual([expect.objectContaining({ page: 1 })]);
+    const second = await runMultiPassRulebookIntelligence({ projectSeed: seed, pages, cachePath, synthesisCacheDir, providerContract: [{ name: 'test', model: 'test' }], domainSynthesize: synthesize });
+    expect(second.cacheHit).toBe(true);
+    expect(calls).toBe(1);
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  test('provider citations outside the evidence packet are rejected into an actionable domain review', async () => {
+    const seed = { projectId: 'bad-citation', sourcePdfSha256: '1'.repeat(64), coverageApplicability: { final_scoring: true } };
+    const pages = [{ page: 4, text: 'FINAL SCORING: Count points at the end of the game.' }];
+    const result = await runMultiPassRulebookIntelligence({
+      projectSeed: seed,
+      pages,
+      providerContract: [{ name: 'test', model: 'test' }],
+      domainSynthesize: async () => ({ result: { atoms: [{ domain: 'scoring', coverageDomains: ['final_scoring'], title: 'Score', result: 'Count points.', sourceRefs: [{ evidenceId: 'not-supplied' }] }] } }),
+    });
+    expect(result.model.ruleAtoms).toHaveLength(0);
+    const reviews = buildRuleReviewItems(result.model);
+    expect(reviews).toEqual(expect.arrayContaining([expect.objectContaining({ scopeType: 'DOMAIN', domain: 'final_scoring', affectedRuleAtomIds: [] })]));
+    expect(reviews.every((item) => reviewItemContractIssues(item).length === 0)).toBe(true);
   });
 });

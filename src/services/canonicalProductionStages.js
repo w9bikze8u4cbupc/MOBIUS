@@ -71,6 +71,28 @@ export function markPreEvidenceDraft(checkpoint, name, inputHash, outputs = [], 
   return checkpoint.stages[name];
 }
 
+// Contract upgrades must invalidate only the dependent production slice.  The
+// previous output metadata remains in the checkpoint history for provenance;
+// compatible source and HEPHAESTUS evidence are deliberately untouched.
+export function invalidateCanonicalStages(checkpoint, names = [], reason = 'contract-changed') {
+  checkpoint.stages = checkpoint.stages || {};
+  checkpoint.invalidationHistory = checkpoint.invalidationHistory || [];
+  const invalidated = [];
+  for (const name of names) {
+    const previous = checkpoint.stages[name];
+    if (!previous) continue;
+    checkpoint.invalidationHistory.push({
+      stage: name,
+      reason,
+      at: new Date().toISOString(),
+      previous: { inputHash: previous.inputHash || null, status: previous.status || null, outputs: previous.outputs || [] },
+    });
+    checkpoint.stages[name] = { ...previous, status: PRODUCTION_STAGE_STATUS.INVALID, invalidatedReason: reason };
+    invalidated.push(name);
+  }
+  return invalidated;
+}
+
 export function assertCanonicalStagePrerequisites(checkpoint, targetStage) {
   const index = CANONICAL_PRODUCTION_STAGE_ORDER.indexOf(targetStage);
   if (index < 0) throw new Error(`Unknown canonical production stage: ${targetStage}`);

@@ -121,6 +121,12 @@ const { runIngestionPipeline, normalizeBggMetadata } = ingestionRequire('../inge
 const { generateStoryboard } = ingestionRequire('../storyboard/generator');
 const { validateIngestionManifest } = ingestionRequire('../validators/ingestionValidator');
 const { validateStoryboard } = ingestionRequire('../validators/storyboardValidator');
+const {
+  RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT,
+  buildDomainSynthesisPrompt,
+  parseDomainSynthesisJson,
+  validateDomainSynthesisPacket,
+} = ingestionRequire('../services/rulebookDomainSynthesis.cjs');
 const execFilePromise = promisify(execFile);
 
 // CORS configuration - MUST be before other middleware/routes
@@ -2516,6 +2522,48 @@ function validateScriptGenerationContext({ projectId, gameName, rulebookText, co
   }
   return null;
 }
+
+app.post('/api/rulebook-knowledge/synthesize-domains', async (req, res) => {
+  const packet = req.body?.packet;
+  if (!validateDomainSynthesisPacket(packet)) {
+    return res.status(400).json({ code: 'RULEBOOK_DOMAIN_SYNTHESIS_PACKET_INVALID', error: 'The canonical domain-synthesis evidence packet is invalid.' });
+  }
+  try {
+    const providerRun = createAiProviderRun({ task: 'rulebook-domain-synthesis' });
+    providerRun.assertConfigured();
+    if (providerRun.providers.length === 1 && providerRun.providers[0].name === 'openai') {
+      await requireAiReady({ checkAccess: true });
+    }
+    const config = getAiConfig();
+    const completion = await providerRun.complete({
+      messages: [
+        { role: 'system', content: 'You are a precise rulebook evidence extractor. Return only the requested JSON object.' },
+        { role: 'user', content: buildDomainSynthesisPrompt(packet) },
+      ],
+      options: getGenerationOptions(config, {}, 'rulebook_domain_synthesis'),
+      inputHash: packet.cacheKey,
+      promptTemplateVersion: packet.promptVersion,
+      schemaContractVersion: RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT,
+      validate: (response) => parseDomainSynthesisJson(typeof response?.choices?.[0]?.message?.content === 'string' ? response.choices[0].message.content : ''),
+    });
+    return res.json({
+      contract: RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT,
+      cacheKey: packet.cacheKey,
+      result: completion.value,
+      provenance: completion.provenance,
+      usage: completion.response?.usage || null,
+      providerAttempts: completion.attempts || [],
+    });
+  } catch (error) {
+    const compatibilityError = getGenerationOptionCompatibilityError(error);
+    const status = compatibilityError?.statusCode || error.statusCode || error.status || 502;
+    return res.status(status).json({
+      code: compatibilityError?.code || error.code || 'RULEBOOK_DOMAIN_SYNTHESIS_FAILED',
+      error: compatibilityError?.message || error.message,
+      providerCategory: error.providerCategory || null,
+    });
+  }
+});
 
 app.post('/summarize', async (req, res) => {
   console.log('--- Summarization started ---');

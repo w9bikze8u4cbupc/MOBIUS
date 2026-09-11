@@ -1,12 +1,17 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {
+  RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT,
+  buildDomainSynthesisPackets,
+} = require('./rulebookDomainSynthesis.cjs');
 
-const RULEBOOK_KNOWLEDGE_MODEL_VERSION = 'mobius-rulebook-knowledge-v1.1';
-const RULEBOOK_INTELLIGENCE_PIPELINE_VERSION = 'mobius-rulebook-intelligence-multipass-v1.2.0';
-const TUTORIAL_COVERAGE_VERSION = 'mobius-tutorial-coverage-v1.1';
+const RULEBOOK_KNOWLEDGE_MODEL_VERSION = 'mobius-rulebook-knowledge-v1.2';
+const RULEBOOK_INTELLIGENCE_PIPELINE_VERSION = 'mobius-rulebook-intelligence-multipass-v1.3.0';
+const RULEATOM_CONTRACT_VERSION = 'mobius-rule-atom-v1.1';
+const TUTORIAL_COVERAGE_VERSION = 'mobius-tutorial-coverage-v1.2';
 const RULEBOOK_DOCUMENT_MAP_VERSION = 'mobius-rulebook-document-map-v1';
-const RULE_REVIEW_QUEUE_VERSION = 'mobius-cockpit-rule-review-queue-v2';
+const RULE_REVIEW_QUEUE_VERSION = 'mobius-cockpit-rule-review-queue-v3';
 
 const COVERAGE_DOMAINS = Object.freeze([
   'identity_theme',
@@ -87,7 +92,10 @@ function normalizeSourceRefs(sourceRefs = []) {
     startOffset: Number.isInteger(Number(ref?.startOffset)) && Number(ref.startOffset) >= 0 ? Number(ref.startOffset) : null,
     endOffset: Number.isInteger(Number(ref?.endOffset)) && Number(ref.endOffset) >= 0 ? Number(ref.endOffset) : null,
     sourcePdfSha256: clean(ref?.sourcePdfSha256) || null,
-  })).filter((ref) => ref.page || ref.section);
+  // Sections without a real, one-based source page are routing hints, never
+  // canonical citations. Keeping them caused stale draft atoms to masquerade
+  // as grounded evidence after a contract upgrade.
+  })).filter((ref) => ref.page !== null);
 }
 
 function inferVisualRequirement(atom = {}) {
@@ -245,8 +253,11 @@ function validateRuleAtom(atom) {
   if (!atom.domain) issues.push('missing-domain');
   if (!atom.title) issues.push('missing-title');
   if (!atom.sourceRefs.length) issues.push('missing-source-refs');
-  if (!atom.visualRequirement.purpose) issues.push('missing-visual-purpose');
-  if (!atom.visualRequirement.requiredObjects.length) issues.push('missing-required-objects');
+  // A rule may be fully grounded before component binding is complete.  Only
+  // domains that intrinsically describe physical objects require those refs;
+  // identity and objective atoms must not become artificial review work.
+  if (['setup', 'action', 'triggered_effect', 'scoring', 'victory', 'end_condition'].includes(atom.domain) && !atom.visualRequirement.purpose) issues.push('missing-visual-purpose');
+  if (['setup', 'action'].includes(atom.domain) && !atom.visualRequirement.requiredObjects.length) issues.push('missing-required-objects');
   if (atom.domain === 'action') {
     if (!atom.choice) issues.push('missing-choice');
     if (!atom.procedureSteps.length) issues.push('missing-procedure');
@@ -387,6 +398,7 @@ function findContradictions(atoms) {
 }
 
 function buildTutorialCoverageMatrix(model, pipelineState = {}) {
+  const knowledgeOnly = pipelineState.knowledgeOnly === true;
   const includedAtomIds = new Set(pipelineState.includedAtomIds || model.ruleAtoms.filter((atom) => atom.teaching?.narration).map((atom) => atom.id));
   const storyboardAtomIds = new Set(pipelineState.storyboardAtomIds || []);
   const visualizedAtomIds = new Set(pipelineState.visualizedAtomIds || []);
@@ -396,13 +408,16 @@ function buildTutorialCoverageMatrix(model, pipelineState = {}) {
     const atoms = model.ruleAtoms.filter((atom) => atom.coverageDomains.includes(domain));
     const applicable = applicability[domain] !== undefined ? Boolean(applicability[domain]) : atoms.length > 0;
     const accepted = atoms.filter((atom) => atom.reviewState === 'accepted' && atom.confidence >= 0.8 && domainRequiredIssues(atom, domain).length === 0);
-    const sourceEvidenceExists = !applicable || (atoms.length > 0 && atoms.every((atom) => atom.sourceRefs.length > 0));
-    const extracted = !applicable || (atoms.length > 0 && accepted.length === atoms.length);
-    const reviewed = !applicable || (atoms.length > 0 && atoms.every((atom) => atom.reviewState === 'accepted' && domainRequiredIssues(atom, domain).length === 0));
-    const includedInScript = !applicable || atoms.every((atom) => includedAtomIds.has(atom.id));
-    const includedInStoryboard = !applicable || atoms.every((atom) => storyboardAtomIds.has(atom.id));
-    const visualized = !applicable || atoms.every((atom) => visualizedAtomIds.has(atom.id));
-    const narrationGenerated = !applicable || atoms.every((atom) => narratedAtomIds.has(atom.id));
+    // A domain is covered by an accepted, evidence-bound atom.  Draft or
+    // superseded candidates must not poison coverage merely because they have
+    // the same broad domain label.
+    const sourceEvidenceExists = !applicable || accepted.some((atom) => atom.sourceRefs.length > 0);
+    const extracted = !applicable || accepted.length > 0;
+    const reviewed = !applicable || accepted.length > 0;
+    const includedInScript = knowledgeOnly || !applicable || accepted.every((atom) => includedAtomIds.has(atom.id));
+    const includedInStoryboard = knowledgeOnly || !applicable || accepted.every((atom) => storyboardAtomIds.has(atom.id));
+    const visualized = knowledgeOnly || !applicable || accepted.every((atom) => visualizedAtomIds.has(atom.id));
+    const narrationGenerated = knowledgeOnly || !applicable || accepted.every((atom) => narratedAtomIds.has(atom.id));
     const complete = sourceEvidenceExists && extracted && reviewed && includedInScript && includedInStoryboard && visualized && narrationGenerated;
     return { domain, highPriority: HIGH_PRIORITY_DOMAINS.has(domain), applicable, atomIds: atoms.map((atom) => atom.id), sourceEvidenceExists, extracted, reviewed, includedInScript, includedInStoryboard, visualized, narrationGenerated, qaState: !applicable ? 'NOT_APPLICABLE' : complete ? 'PASS' : 'MISSING' };
   });
@@ -416,15 +431,39 @@ function buildTutorialCoverageMatrix(model, pipelineState = {}) {
   };
 }
 
-function buildRulebookKnowledgeModel({ projectSeed = {}, pages = [], gameplayModel = null, endgameModel = null } = {}) {
+function canonicalTeaching(atom, sequence) {
+  const narration = clean(atom.procedureSteps?.join(' ') || atom.result || atom.stateChange || atom.title);
+  if (!narration) return null;
+  return {
+    majorSection: atom.coverageDomains?.[0] || atom.domain || 'rules',
+    heading: atom.title,
+    narration,
+    displayLines: [atom.title],
+    profile: 'AMELIE_TEACHING_WARM_R10',
+    sequence,
+    pauseCue: null,
+  };
+}
+
+function normalizedLegacyAtom(raw, sourcePdfSha256) {
+  const normalized = normalizeRuleAtom(raw, sourcePdfSha256);
+  // Legacy draft-derived action/endgame artifacts often carried section names
+  // without a citeable page. They remain historical evidence, never canonical
+  // RuleAtoms after the v1.1 evidence contract.
+  return normalized.sourceRefs.length ? raw : null;
+}
+
+function buildRulebookKnowledgeModel({ projectSeed = {}, pages = [], gameplayModel = null, endgameModel = null, synthesizedAtoms = [], synthesisTelemetry = null } = {}) {
   const sourcePdfSha256 = clean(projectSeed.sourcePdfSha256);
   const documentMap = buildDocumentMap(pages, projectSeed.documentMap || []);
-  const rawAtoms = [...(projectSeed.ruleAtoms || [])];
-  if (!rawAtoms.length) rawAtoms.push(...atomsFromSourceSections(projectSeed, documentMap));
+  const rawAtoms = (projectSeed.ruleAtoms || []).map((atom) => normalizedLegacyAtom(atom, sourcePdfSha256)).filter(Boolean);
+  // Draft sections are retrieval routing only. They are not source authority
+  // and cannot become canonical atoms until provider synthesis binds them to
+  // document-map evidence.
   if (gameplayModel) {
     for (const action of gameplayModel.actions || []) {
       if (rawAtoms.some((atom) => atom.id === action.id)) continue;
-      rawAtoms.push({
+      const candidate = normalizedLegacyAtom({
       id: action.id,
       domain: 'action',
       coverageDomains: ['mandatory_actions'],
@@ -441,14 +480,15 @@ function buildRulebookKnowledgeModel({ projectSeed = {}, pages = [], gameplayMod
       confidence: action.confidence,
       reviewState: action.reviewState,
       visualRequirement: { purpose: action.purpose, requiredObjects: action.componentRefs, beforeState: action.stateChange?.before, afterState: action.stateChange?.after },
-      });
+      }, sourcePdfSha256);
+      if (candidate) rawAtoms.push(candidate);
     }
   }
   if (endgameModel) {
     for (const category of endgameModel.scoringCategories || []) {
       const id = `scoring-${category.id}`;
       if (rawAtoms.some((atom) => atom.id === id)) continue;
-      rawAtoms.push({
+      const candidate = normalizedLegacyAtom({
       id,
       domain: 'scoring',
       coverageDomains: ['final_scoring'],
@@ -459,10 +499,12 @@ function buildRulebookKnowledgeModel({ projectSeed = {}, pages = [], gameplayMod
       confidence: category.confidence,
       reviewState: category.reviewState,
       visualRequirement: { purpose: category.description, requiredObjects: category.componentRefs },
-      });
+      }, sourcePdfSha256);
+      if (candidate) rawAtoms.push(candidate);
     }
   }
-  const atoms = resolveCrossReferences(rawAtoms.map((atom) => normalizeRuleAtom(atom, sourcePdfSha256)), projectSeed.terminology || []);
+  const synthesized = (synthesizedAtoms || []).map((atom) => ({ ...atom, teaching: atom.teaching || canonicalTeaching(atom, 1000) }));
+  const atoms = resolveCrossReferences([...rawAtoms, ...synthesized].map((atom) => normalizeRuleAtom(atom, sourcePdfSha256)), projectSeed.terminology || []);
   const validations = atoms.map((atom) => ({ atomId: atom.id, ...validateRuleAtom(atom) }));
   const contradictions = findContradictions(atoms);
   const uncertainties = [
@@ -492,7 +534,7 @@ function buildRulebookKnowledgeModel({ projectSeed = {}, pages = [], gameplayMod
     diagramData: projectSeed.diagramData || {},
     ruleAtoms: atoms,
     documentMap,
-    coverageApplicability: projectSeed.coverageApplicability || {},
+    coverageApplicability: projectSeed.coverageApplicability || Object.fromEntries(COVERAGE_DOMAINS.map((domain) => [domain, retrieveDomainEvidence(documentMap, domain).length > 0])),
     sourceMap: Object.fromEntries(atoms.map((atom) => [atom.id, atom.sourceRefs])),
     uncertainties,
     contradictionCheck: { status: contradictions.length ? 'REVIEW_REQUIRED' : 'PASS', conflicts: contradictions },
@@ -503,7 +545,7 @@ function buildRulebookKnowledgeModel({ projectSeed = {}, pages = [], gameplayMod
     modelVersion: projectSeed.modelVersion || '1.0.0',
     generatedAt: new Date().toISOString(),
   };
-  model.coverage = buildTutorialCoverageMatrix(model);
+  model.coverage = buildTutorialCoverageMatrix(model, { knowledgeOnly: true });
   // A missing domain is not immediately a human task. Record the bounded,
   // deterministic source search performed first, including usable excerpts so
   // the Cockpit can distinguish "no evidence found" from "evidence needs a
@@ -513,8 +555,9 @@ function buildRulebookKnowledgeModel({ projectSeed = {}, pages = [], gameplayMod
     .filter((entry) => entry.applicable && entry.qaState !== 'PASS')
     .map((entry) => {
       const evidence = retrieveDomainEvidence(documentMap, entry.domain);
+      const existing = atoms.filter((atom) => atom.coverageDomains.includes(entry.domain) && atom.reviewState === 'accepted' && domainRequiredIssues(atom, entry.domain).length === 0);
       const synthesis = evidence.length
-        ? { method: 'domain-specific-source-synthesis-v1', status: 'INSUFFICIENT_FOR_ACCEPTANCE', evidence, reason: 'Evidence was found but no complete, accepted domain atom could be derived without speculation.' }
+        ? { method: 'domain-specific-source-synthesis-v1', status: existing.length ? 'ACCEPTED' : 'PENDING_PROVIDER_SYNTHESIS', evidence, reason: existing.length ? 'Evidence-bound domain atoms were accepted.' : 'Official evidence was retrieved and awaits structured provider synthesis.' }
         : { method: 'domain-specific-source-synthesis-v1', status: 'NO_SOURCE_EVIDENCE_FOUND', evidence: [], reason: 'No matching authoritative source span was found by the bounded retrieval pass.' };
       return [entry.domain, {
         domain: entry.domain,
@@ -526,6 +569,8 @@ function buildRulebookKnowledgeModel({ projectSeed = {}, pages = [], gameplayMod
     sourcePdfSha256,
     extractionModel: projectSeed.extractionModel || 'deterministic-source-review',
     promptSchemaVersion: RULEBOOK_INTELLIGENCE_PIPELINE_VERSION,
+    ruleAtomContract: RULEATOM_CONTRACT_VERSION,
+    synthesisContract: RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT,
     projectDataVersion: projectSeed.modelVersion || null,
     // Project data can evolve without a schema-version bump during a bounded
     // editorial repair. The cache must follow the actual canonical seed, not
@@ -535,6 +580,7 @@ function buildRulebookKnowledgeModel({ projectSeed = {}, pages = [], gameplayMod
     locale: projectSeed.gameIdentity?.locale || 'fr-CA',
     edition: projectSeed.gameIdentity?.edition || null,
   });
+  model.synthesisTelemetry = synthesisTelemetry || { contract: RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT, providerCalls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, packets: [] };
   return model;
 }
 
@@ -544,9 +590,10 @@ function reviewSourceRefs(model, atomId = null, domain = null) {
   return retrieval?.attempts?.flatMap((attempt) => attempt.evidence || []) || [];
 }
 
-function reviewItem({ model, category, domain = null, atomId = null, missingFields = [], reason, priority = null, candidates = [] }) {
+function reviewItem({ model, category, domain = null, atomId = null, scopeType = null, missingFields = [], reason, priority = null, candidates = [] }) {
   const normalizedDomain = clean(domain) || null;
   const normalizedAtomId = clean(atomId) || null;
+  const normalizedScopeType = scopeType || (normalizedAtomId ? 'RULE_ATOM' : normalizedDomain ? 'DOMAIN' : 'CROSS_DOMAIN');
   const sourceRefs = normalizeSourceRefs(reviewSourceRefs(model, normalizedAtomId, normalizedDomain));
   const key = [model.sourcePdfSha256, category, normalizedDomain, normalizedAtomId, ...missingFields].join('|');
   return {
@@ -554,6 +601,7 @@ function reviewItem({ model, category, domain = null, atomId = null, missingFiel
     category,
     severity: priority || (normalizedDomain && HIGH_PRIORITY_DOMAINS.has(normalizedDomain) ? 'P1' : 'P2'),
     priority: priority || (normalizedDomain && HIGH_PRIORITY_DOMAINS.has(normalizedDomain) ? 'HIGH' : 'NORMAL'),
+    scopeType: normalizedScopeType,
     domain: normalizedDomain,
     affectedRuleAtomIds: normalizedAtomId ? [normalizedAtomId] : [],
     reason: clean(reason),
@@ -586,12 +634,86 @@ function buildRuleReviewItems(model, coverage = model.coverage) {
     items.push(reviewItem({ model, category: 'RULE_UNCERTAINTY', domain: atom?.coverageDomains?.[0] || atom?.domain, atomId: uncertainty.atomId, missingFields: uncertainty.issues, reason: 'Automatic extraction retained uncertainty rather than inventing a rule.' }));
   }
   for (const domain of coverage.missingHighPriorityDomains || []) {
-    items.push(reviewItem({ model, category: 'MISSING_HIGH_PRIORITY_DOMAIN', domain, missingFields: ['accepted-source-grounded-coverage'], reason: 'Automatic coverage-driven retrieval did not produce an accepted, complete rule atom.' }));
+    items.push(reviewItem({ model, category: 'MISSING_HIGH_PRIORITY_DOMAIN', domain, scopeType: 'DOMAIN', missingFields: ['accepted-source-grounded-coverage'], reason: 'Bounded retrieval and structured source synthesis did not produce an accepted, complete rule atom.' }));
   }
   return [...new Map(items.map((item) => [item.id, item])).values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
-async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gameplayModel = null, endgameModel = null, cachePath = null } = {}) {
+function reviewItemContractIssues(item) {
+  const issues = [];
+  if (!['RULE_ATOM', 'DOMAIN', 'CROSS_DOMAIN'].includes(item?.scopeType)) issues.push('missing-or-invalid-scope-type');
+  if (!clean(item?.id) || !clean(item?.category) || !clean(item?.reason) || !clean(item?.recommendedOperatorAction)) issues.push('missing-required-review-field');
+  if (item?.scopeType === 'RULE_ATOM' && !(item.affectedRuleAtomIds || []).length) issues.push('rule-atom-scope-missing-atom');
+  if (item?.scopeType === 'DOMAIN') {
+    if (!clean(item.domain)) issues.push('domain-scope-missing-domain');
+    if (!Array.isArray(item.automaticAttempts) || !item.automaticAttempts.length) issues.push('domain-scope-missing-automatic-attempts');
+  }
+  if (Array.isArray(item?.sourceRefs) && item.sourceRefs.some((ref) => !Number.isInteger(Number(ref?.page)) || Number(ref.page) < 1)) issues.push('invalid-source-page');
+  return issues;
+}
+
+function evidenceByDomain(documentMap, coverage) {
+  return Object.fromEntries((coverage?.domains || [])
+    .filter((entry) => entry.applicable && entry.qaState !== 'PASS')
+    .map((entry) => [entry.domain, retrieveDomainEvidence(documentMap, entry.domain)]));
+}
+
+function providerAtomFromPacket(raw, packet, sourcePdfSha256, index) {
+  const evidence = new Map((packet.evidence || []).map((entry) => [entry.id, entry]));
+  const sourceRefs = (raw?.sourceRefs || []).map((ref) => evidence.get(clean(ref?.evidenceId))).filter(Boolean).map((ref) => ({
+    page: ref.page,
+    section: ref.section,
+    quote: ref.quote,
+    excerptHash: ref.excerptHash,
+    sourcePdfSha256,
+  }));
+  const coverageDomains = unique((raw?.coverageDomains || []).map(clean)).filter((domain) => packet.domains.includes(domain));
+  const allowedComponentIds = new Set((packet.components || []).map((component) => component.id));
+  const componentRefs = unique((raw?.componentRefs || []).map(clean)).filter((id) => allowedComponentIds.has(id));
+  const idSeed = {
+    sourcePdfSha256,
+    batch: packet.batchId,
+    coverageDomains,
+    title: clean(raw?.title),
+    refs: sourceRefs.map((ref) => ({ page: ref.page, excerptHash: ref.excerptHash })),
+    index,
+  };
+  return {
+    ...raw,
+    id: `rule-${crypto.createHash('sha256').update(JSON.stringify(idSeed)).digest('hex').slice(0, 20)}`,
+    coverageDomains,
+    componentRefs,
+    sourceRefs,
+    confidence: 0.9,
+    reviewState: 'accepted',
+    provenance: {
+      contract: RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT,
+      batchId: packet.batchId,
+      evidenceIds: (raw?.sourceRefs || []).map((ref) => clean(ref?.evidenceId)).filter(Boolean),
+    },
+  };
+}
+
+function validateProviderAtoms({ rawAtoms = [], packet, sourcePdfSha256 }) {
+  const accepted = [];
+  const rejected = [];
+  for (const [index, raw] of rawAtoms.entries()) {
+    const atom = providerAtomFromPacket(raw, packet, sourcePdfSha256, index);
+    const normalized = normalizeRuleAtom(atom, sourcePdfSha256);
+    const validation = validateRuleAtom(normalized);
+    const domainIssues = unique(normalized.coverageDomains.flatMap((domain) => domainRequiredIssues(normalized, domain)));
+    if (!normalized.coverageDomains.length) validation.issues.push('coverage-domain-not-requested');
+    if (!normalized.sourceRefs.length) validation.issues.push('citation-not-in-evidence-packet');
+    if (validation.issues.length || domainIssues.length) {
+      rejected.push({ title: clean(raw?.title) || `atom-${index + 1}`, issues: unique([...validation.issues, ...domainIssues]) });
+      continue;
+    }
+    accepted.push({ ...normalized, teaching: canonicalTeaching(normalized, index + 1) });
+  }
+  return { accepted, rejected };
+}
+
+async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gameplayModel = null, endgameModel = null, cachePath = null, synthesisCacheDir = null, providerContract = null, domainSynthesize = null } = {}) {
   const key = hashValue({
     sourcePdfSha256: projectSeed?.sourcePdfSha256,
     extractionModel: projectSeed?.extractionModel || 'deterministic-source-review',
@@ -600,17 +722,76 @@ async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gamep
     projectSeedHash: hashValue(projectSeed || {}),
     locale: projectSeed?.gameIdentity?.locale || 'fr-CA',
     edition: projectSeed?.gameIdentity?.edition || null,
+    ruleAtomContract: RULEATOM_CONTRACT_VERSION,
+    synthesisContract: RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT,
+    providerContract,
   });
   if (cachePath && fs.existsSync(cachePath)) {
     const cached = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
     if (cached.cacheKey === key && cached.contract === RULEBOOK_KNOWLEDGE_MODEL_VERSION) return { model: cached, cacheHit: true, passesExecuted: 0 };
   }
-  const model = buildRulebookKnowledgeModel({ projectSeed, pages, gameplayModel, endgameModel });
+  const base = buildRulebookKnowledgeModel({ projectSeed, pages, gameplayModel, endgameModel });
+  const domainEvidence = evidenceByDomain(base.documentMap, base.coverage);
+  const packets = buildDomainSynthesisPackets({
+    sourcePdfSha256: base.sourcePdfSha256,
+    documentMap: base.documentMap,
+    domainEvidence,
+    components: base.components,
+    providerContract,
+  });
+  const accepted = [];
+  const diagnostics = [];
+  const telemetry = { contract: RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT, providerCalls: 0, cacheHits: 0, inputTokens: 0, outputTokens: 0, packets: [] };
+  for (const packet of packets) {
+    const localCachePath = synthesisCacheDir ? path.join(synthesisCacheDir, `${packet.cacheKey}.json`) : null;
+    let response = null;
+    let cacheHit = false;
+    if (localCachePath && fs.existsSync(localCachePath)) {
+      const cached = JSON.parse(fs.readFileSync(localCachePath, 'utf8'));
+      if (cached?.cacheKey === packet.cacheKey && cached?.contract === RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT) {
+        response = cached.response;
+        cacheHit = true;
+        telemetry.cacheHits += 1;
+      }
+    }
+    if (!response && typeof domainSynthesize === 'function') {
+      response = await domainSynthesize(packet);
+      telemetry.providerCalls += 1;
+      if (localCachePath) {
+        fs.mkdirSync(path.dirname(localCachePath), { recursive: true });
+        fs.writeFileSync(localCachePath, `${JSON.stringify({ contract: RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT, cacheKey: packet.cacheKey, response }, null, 2)}\n`);
+      }
+    }
+    const rawAtoms = response?.result?.atoms || response?.atoms || [];
+    const validation = response ? validateProviderAtoms({ rawAtoms, packet, sourcePdfSha256: base.sourcePdfSha256 }) : { accepted: [], rejected: [{ title: packet.batchId, issues: ['provider-synthesis-unavailable'] }] };
+    accepted.push(...validation.accepted);
+    diagnostics.push(...validation.rejected.map((entry) => ({ batchId: packet.batchId, ...entry })));
+    const usage = response?.usage || response?.provenance?.usage || {};
+    telemetry.inputTokens += Number(usage.input_tokens || usage.prompt_tokens || 0);
+    telemetry.outputTokens += Number(usage.output_tokens || usage.completion_tokens || 0);
+    telemetry.packets.push({ batchId: packet.batchId, domains: packet.domains, cacheKey: packet.cacheKey, cacheHit, accepted: validation.accepted.length, rejected: validation.rejected, providerAttempts: response?.providerAttempts || response?.provenance?.attempts || [] });
+  }
+  const model = buildRulebookKnowledgeModel({ projectSeed, pages, gameplayModel, endgameModel, synthesizedAtoms: accepted, synthesisTelemetry: telemetry });
+  // The persisted model cache is keyed by the complete production dependency
+  // contract, including provider/model. The model's internal diagnostic key is
+  // intentionally narrower; the on-disk replay key must never be.
+  model.cacheKey = key;
+  for (const [domain, entry] of Object.entries(model.coverageDrivenRetrieval || {})) {
+    const synthesis = entry.attempts?.find((attempt) => attempt.method === 'domain-specific-source-synthesis-v1');
+    const packetTelemetry = telemetry.packets.find((packet) => packet.domains.includes(domain));
+    if (synthesis && packetTelemetry) {
+      synthesis.status = packetTelemetry.accepted ? 'ACCEPTED' : packetTelemetry.rejected.length ? 'REJECTED_OR_INCOMPLETE' : 'NO_STRUCTURED_RULE_FOUND';
+      synthesis.providerBacked = true;
+      synthesis.batchId = packetTelemetry.batchId;
+      synthesis.cacheHit = packetTelemetry.cacheHit;
+      synthesis.rejected = packetTelemetry.rejected;
+    }
+  }
   if (cachePath) {
     fs.mkdirSync(path.dirname(cachePath), { recursive: true });
     fs.writeFileSync(cachePath, `${JSON.stringify(model, null, 2)}\n`);
   }
-  return { model, cacheHit: false, passesExecuted: 5 };
+  return { model, cacheHit: false, passesExecuted: 1 + packets.length, telemetry };
 }
 
 function buildKnowledgeTeachingPlan(model) {
@@ -627,6 +808,7 @@ module.exports = {
   HIGH_PRIORITY_DOMAINS,
   RULEBOOK_INTELLIGENCE_PIPELINE_VERSION,
   RULEBOOK_KNOWLEDGE_MODEL_VERSION,
+  RULEATOM_CONTRACT_VERSION,
   RULEBOOK_DOCUMENT_MAP_VERSION,
   RULE_REVIEW_QUEUE_VERSION,
   TUTORIAL_COVERAGE_VERSION,
@@ -635,6 +817,7 @@ module.exports = {
   buildRulebookKnowledgeModel,
   buildTutorialCoverageMatrix,
   buildRuleReviewItems,
+  reviewItemContractIssues,
   domainRequiredIssues,
   normalizeRuleAtom,
   normalizeVisualRequirement,

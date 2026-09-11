@@ -6,7 +6,7 @@
  * filenames can never silently become product identity or narration.
  */
 
-const GAME_IDENTITY_CONTRACT_VERSION = 'game-identity-v1';
+const GAME_IDENTITY_CONTRACT_VERSION = 'game-identity-v1.1';
 
 const NUMBER_WORDS = Object.freeze({
   0: 'Zero', 1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five',

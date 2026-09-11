@@ -54,7 +54,7 @@ describe('canonical game identity', () => {
     const identity = resolveCanonicalGameIdentity({
       explicitOverride: { version: 'game-identity-v1', displayName: '7 Wonders Duel', operatorConfirmed: true },
     });
-    expect(identity.version).toBe('game-identity-v1');
+    expect(identity.version).toBe('game-identity-v1.1');
     expect(identity.versionName).toBeNull();
     expect(identity.editionStatus).toBe('UNKNOWN_REVIEW_REQUIRED');
   });
@@ -86,5 +86,15 @@ describe('canonical game identity', () => {
     });
     expect(identity.displayName).toBe('Cowboy Bebop - Space Serenade');
     expect(resolveCanonicalGameIdentity({ filename: 'C1.pdf' }).displayName).toBe('C1');
+  });
+
+  test('identity contract marks unknown editions for review without guessing', () => {
+    const identity = resolveCanonicalGameIdentity({
+      filename: 'batch-42-codenames-rulebook.pdf',
+      rulebook: { text: 'GAME OVERVIEW Codenames is a competitive board game.' },
+    });
+    expect(identity.displayName).toBe('Codenames');
+    expect(identity.editionStatus).toBe('UNKNOWN_REVIEW_REQUIRED');
+    expect(identity.version).toBe('game-identity-v1.1');
   });
 });

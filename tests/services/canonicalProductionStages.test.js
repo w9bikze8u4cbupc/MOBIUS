@@ -3,6 +3,7 @@ import {
   canonicalStageReady,
   markCanonicalStage,
   markPreEvidenceDraft,
+  invalidateCanonicalStages,
 } from '../../src/services/canonicalProductionStages.js';
 
 test('a pre-evidence draft cannot masquerade as a canonical ready stage', () => {
@@ -44,4 +45,16 @@ test('a canonical stage cannot be marked ready when its required output is absen
   expect(() => markCanonicalStage(checkpoint, 'hephaestus', 'hash', ['Z:/missing/manifest.json']))
     .toThrow(/PRODUCTION_STAGE_OUTPUT_MISSING/);
   expect(checkpoint.stages.hephaestus).toBeUndefined();
+});
+
+test('knowledge contract invalidation preserves source/hephaestus and invalidates only dependents', () => {
+  const checkpoint = { stages: {} };
+  for (const name of ['source', 'ai-provider', 'extraction', 'hephaestus', 'rulebook-knowledge', 'coverage', 'physical-state']) {
+    markCanonicalStage(checkpoint, name, name, []);
+  }
+  const invalidated = invalidateCanonicalStages(checkpoint, ['rulebook-knowledge', 'coverage', 'physical-state'], 'knowledge-contract-superseded');
+  expect(invalidated).toEqual(['rulebook-knowledge', 'coverage', 'physical-state']);
+  expect(checkpoint.stages.hephaestus.status).toBe('READY');
+  expect(checkpoint.stages.coverage.status).toBe('INVALID');
+  expect(checkpoint.invalidationHistory).toHaveLength(3);
 });

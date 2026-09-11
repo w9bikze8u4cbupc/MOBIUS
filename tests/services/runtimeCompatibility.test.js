@@ -32,6 +32,12 @@ describe('canonical runtime compatibility', () => {
     );
   });
 
+  test('an API without the domain-synthesis stage contract is rejected before production', () => {
+    const stale = buildApiRuntimeCapabilities({ env: { MOBIUS_BUILD_SHA: '2'.repeat(40) } });
+    stale.contracts.canonicalProductionStages = 'mobius-canonical-production-stages-v1';
+    expect(evaluateRuntimeCompatibility(stale, requirements)).toMatchObject({ compatible: false });
+  });
+
   test('unavailable API reports a truthful retryable runtime state', async () => {
     await expect(preflightRuntimeCompatibility({
       baseUrl: 'http://fixture.local', requirements,

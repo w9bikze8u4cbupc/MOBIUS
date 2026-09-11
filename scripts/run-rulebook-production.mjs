@@ -25,7 +25,7 @@ import {
 import { loadSourceVisualCatalog, selectSourceVisual } from '../src/services/sourceVisualSelection.js';
 import { runProduction } from './run-source-grounded-production.mjs';
 import editorialStandard from '../src/services/editorialStandard.cjs';
-import { resolveCanonicalGameIdentity, titleFromRulebook } from '../src/services/gameIdentity.cjs';
+import { GAME_IDENTITY_CONTRACT_VERSION, resolveCanonicalGameIdentity, titleFromRulebook } from '../src/services/gameIdentity.cjs';
 import { buildHephaestusEvidence, writeHephaestusEvidence } from '../src/services/hephaestusEvidence.js';
 import {
   readCanonicalHephaestusManifest,
@@ -38,6 +38,7 @@ import {
   markCanonicalStage,
   markPreEvidenceDraft,
   preEvidenceDraftReady,
+  invalidateCanonicalStages,
   PRODUCTION_STAGE_STATUS,
 } from '../src/services/canonicalProductionStages.js';
 import { buildGameplayModel, buildGameplayTeachingPlan, writeGameplayModel } from '../src/services/gameplayActions.js';
@@ -50,7 +51,7 @@ const require = createRequire(import.meta.url);
 const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor.js');
 const { COMPONENT_INVENTORY_CONTRACT_VERSION, extractComponentInventory } = await import('../src/services/componentInventory.js');
 const { generateStoryboard } = require('../src/storyboard/generator.js');
-const { buildKnowledgeTeachingPlan, buildTutorialCoverageMatrix, buildRuleReviewItems, RULE_REVIEW_QUEUE_VERSION, runMultiPassRulebookIntelligence } = require('../src/services/rulebookKnowledge.cjs');
+const { buildKnowledgeTeachingPlan, buildTutorialCoverageMatrix, buildRuleReviewItems, RULE_REVIEW_QUEUE_VERSION, RULEATOM_CONTRACT_VERSION, RULEBOOK_INTELLIGENCE_PIPELINE_VERSION, runMultiPassRulebookIntelligence } = require('../src/services/rulebookKnowledge.cjs');
 const { compileCanonicalProductionState } = require('../src/services/canonicalProductionCompiler.cjs');
 const { recoverAuthorizedBggCandidates, rectifyAuthorizedCandidate } = require('../src/services/sourceAssetResolver.cjs');
 const { buildPhoneScaleQaSheet } = require('../src/services/phoneScaleQa.cjs');
@@ -90,6 +91,18 @@ function exists(filePath) { return Boolean(filePath && fs.existsSync(filePath));
 async function saveJson(filePath, value) {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+function archiveContractArtifacts(productionDir, paths, reason) {
+  const existing = paths.filter((filePath) => exists(filePath));
+  if (!existing.length) return [];
+  const archiveDir = path.join(productionDir, 'history', `${new Date().toISOString().replace(/[:.]/g, '-')}-${slug(reason)}`);
+  fs.mkdirSync(archiveDir, { recursive: true });
+  return existing.map((filePath) => {
+    const destination = path.join(archiveDir, path.basename(filePath));
+    fs.copyFileSync(filePath, destination);
+    return destination;
+  });
 }
 
 function findProjectKnowledgeSeed(root, projectId, sourcePdfSha256) {
@@ -483,7 +496,46 @@ async function runZeroState(options = {}) {
     };
     await saveJson(extractionPath, extraction);
   }
-  gameName = extraction.gameName || gameName;
+  // Identity is a separate contract from PDF extraction. Recompute it from
+  // authoritative rulebook content even when extraction itself is replayed so
+  // a filename-derived legacy title cannot survive an identity upgrade.
+  const canonicalIdentityPath = path.join(productionDir, 'canonical-game-identity.json');
+  const identityHash = hashValue({
+    sourceSha256: identity.sha256,
+    contract: GAME_IDENTITY_CONTRACT_VERSION,
+    rulebookTextHash: hashValue(extraction.rulebookText || ''),
+    filename: descriptor.filename,
+  });
+  let canonicalGameIdentity;
+  if (stageReady(checkpoint, 'game-identity', identityHash, [canonicalIdentityPath])) {
+    canonicalGameIdentity = jsonIf(canonicalIdentityPath);
+    checkpoint.stages['game-identity'].reused = true;
+  } else {
+    const previousIdentityArtifact = archiveContractArtifacts(productionDir, [canonicalIdentityPath, extractionPath], 'identity-contract-superseded');
+    canonicalGameIdentity = resolveCanonicalGameIdentity({
+      // No filename-derived preliminary name is promoted into authoritative
+      // metadata. The resolver itself falls back to filename only when the
+      // rulebook supplies no usable identity at all.
+      rulebook: { text: extraction.rulebookText },
+      filename: descriptor.filename,
+      locale: 'fr-CA',
+      sourceLanguage: 'en',
+    });
+    canonicalGameIdentity.provenance = {
+      ...canonicalGameIdentity.provenance,
+      contractInvalidation: previousIdentityArtifact.length ? 'identity-contract-superseded' : null,
+    };
+    await saveJson(canonicalIdentityPath, canonicalGameIdentity);
+  }
+  extraction.identity = canonicalGameIdentity;
+  extraction.gameName = canonicalGameIdentity.displayName;
+  await saveJson(extractionPath, extraction);
+  markStage(checkpoint, 'game-identity', identityHash, [canonicalIdentityPath], {
+    contract: GAME_IDENTITY_CONTRACT_VERSION,
+    reused: checkpoint.stages['game-identity']?.reused === true,
+    provenance: canonicalGameIdentity.provenance,
+  });
+  gameName = canonicalGameIdentity.displayName || extraction.gameName || gameName;
   const manifest = { text: { full: extraction.rulebookText }, ingestion: extraction.ingestion, diagnostics: extraction.diagnostics || [] };
   const componentHash = hashValue(extraction.components);
   markStage(checkpoint, 'extraction', extractionHash, [extractionPath], { reused: checkpoint.stages.extraction?.reused === true, components: extraction.components.length, pages: extraction.pages.length, sourceEvidencePages: extraction.pageRanges.length });
@@ -652,6 +704,8 @@ async function runZeroState(options = {}) {
   // while unseen games enter through the same model and completeness critic.
   const rulebookKnowledgePath = path.join(productionDir, 'rulebook-knowledge-model.json');
   const tutorialCoveragePath = path.join(productionDir, 'tutorial-coverage-matrix.json');
+  const rulebookReviewItemsPath = path.join(productionDir, 'rulebook-review-items.json');
+  const synthesisCacheDir = path.join(productionDir, 'rulebook-domain-synthesis');
   const reviewedSeedPath = findProjectKnowledgeSeed(root, projectId, identity.sha256);
   const projectSeed = reviewedSeedPath
     ? jsonIf(reviewedSeedPath)
@@ -665,10 +719,25 @@ async function runZeroState(options = {}) {
   const knowledgeHash = hashValue({
     sourceSha256: identity.sha256,
     projectSeed,
-    gameplay: hashValue(gameplayModel),
-    endgame: hashValue(endgameModel),
-    contract: 'mobius-rulebook-intelligence-multipass-v1.2',
+    // Draft gameplay/endgame models are not RuleAtom authority. Their contract
+    // remains represented for downstream provenance but cannot pin knowledge
+    // to stale null-page citations.
+    documentMapPages: extraction.pages.map((page) => ({ page: page.number, textHash: hashValue(page.blocks.map((block) => block.text || '').join('\n')) })),
+    ruleAtomContract: RULEATOM_CONTRACT_VERSION,
+    intelligenceContract: RULEBOOK_INTELLIGENCE_PIPELINE_VERSION,
+    identityContract: GAME_IDENTITY_CONTRACT_VERSION,
+    reviewContract: RULE_REVIEW_QUEUE_VERSION,
+    providerContract,
   });
+  const existingKnowledgeStage = checkpoint.stages?.['rulebook-knowledge'];
+  if (existingKnowledgeStage && existingKnowledgeStage.inputHash !== knowledgeHash) {
+    const archived = archiveContractArtifacts(productionDir, [rulebookKnowledgePath, tutorialCoveragePath, rulebookReviewItemsPath], 'knowledge-contract-superseded');
+    const invalidated = invalidateCanonicalStages(checkpoint, [
+      'rulebook-knowledge', 'coverage', 'physical-state', 'visual-plan', 'storyboard', 'narration', 'render', 'qa',
+      'canonical-state', 'visual-bindings', 'visual-script', 'visual-review',
+    ], 'knowledge-contract-superseded');
+    checkpoint.knowledgeContractInvalidation = { at: new Date().toISOString(), archived, invalidated };
+  }
   assertCanonicalStagePrerequisites(checkpoint, 'rulebook-knowledge');
   const intelligence = await runMultiPassRulebookIntelligence({
     projectSeed,
@@ -676,10 +745,14 @@ async function runZeroState(options = {}) {
     gameplayModel,
     endgameModel,
     cachePath: rulebookKnowledgePath,
+    synthesisCacheDir,
+    providerContract,
+    domainSynthesize: async (packet) => postJson(baseUrl, '/api/rulebook-knowledge/synthesize-domains', { packet }, apiKey, fetchImpl),
   });
   const rulebookKnowledgeModel = intelligence.model;
   const knowledgeTeachingPlan = buildKnowledgeTeachingPlan(rulebookKnowledgeModel);
-  const knowledgeReady = rulebookKnowledgeModel.completenessCritic.incompleteAtoms.length === 0
+  const knowledgeReady = rulebookKnowledgeModel.coverage.status === 'PASS'
+    && rulebookKnowledgeModel.completenessCritic.incompleteAtoms.length === 0
     && rulebookKnowledgeModel.contradictionCheck.status === 'PASS'
     && rulebookKnowledgeModel.uncertainties.length === 0;
   const knowledgeScenes = knowledgeTeachingPlan.scenes.map((item) => ({
@@ -699,6 +772,7 @@ async function runZeroState(options = {}) {
   if (knowledgeReady && knowledgeScenes.length) storyboardManifest.scenes = knowledgeScenes;
   const initialKnowledgeIds = knowledgeScenes.map((scene) => scene.atomId);
   let tutorialCoverage = buildTutorialCoverageMatrix(rulebookKnowledgeModel, {
+    knowledgeOnly: true,
     includedAtomIds: initialKnowledgeIds,
     storyboardAtomIds: knowledgeReady ? initialKnowledgeIds : [],
   });
@@ -730,7 +804,7 @@ async function runZeroState(options = {}) {
   await saveJson(storyboardPath, storyboardManifest);
   storyboardHash = hashValue({ scriptHash, ingestion: hashValue(extraction.ingestion), language, gameplay: hashValue(storyboardManifest.gameplayTeachingPlan), endgame: hashValue(storyboardManifest.endgameTeachingPlan), knowledge: hashValue(knowledgeTeachingPlan) });
   if (!knowledgeReady || !knowledgeScenes.length) {
-    const knowledgeReviewItemsPath = path.join(productionDir, 'rulebook-review-items.json');
+    const knowledgeReviewItemsPath = rulebookReviewItemsPath;
     const reviewItems = buildRuleReviewItems(rulebookKnowledgeModel, tutorialCoverage);
     await saveJson(knowledgeReviewItemsPath, { contract: RULE_REVIEW_QUEUE_VERSION, projectId, sourceSha256: identity.sha256, items: reviewItems });
     markPreEvidenceDraft(checkpoint, 'draft-storyboard', storyboardHash, [storyboardPath, knowledgeReviewItemsPath], {
