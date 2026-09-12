@@ -29,10 +29,12 @@ function assetType(asset) {
   return String(asset.visual_kind || asset.type || asset.classification || asset.label || 'unknown').toLowerCase();
 }
 
-function resolveAssetPath(asset, manifestPath) {
+function resolveAssetPath(asset, manifestPath, evidenceAsset = null) {
   const manifestDir = path.dirname(manifestPath);
   const candidates = [
     asset.renderPath,
+    evidenceAsset?.renderPath,
+    evidenceAsset?.sourceImage,
     asset.file_path,
     asset.fileKey,
     asset.path,
@@ -196,6 +198,7 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
   const qualityByAssetId = new Map();
   const semanticBySceneId = new Map();
   const evidenceByAssetId = new Map();
+  const bindingsByAssetId = new Map();
   if (qualityReportPath && fs.existsSync(qualityReportPath)) {
     const qualityReport = JSON.parse(fs.readFileSync(qualityReportPath, 'utf8'));
     for (const judgement of qualityReport.assets || []) {
@@ -213,16 +216,44 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
     for (const asset of evidence.assets || []) {
       if (asset?.id) evidenceByAssetId.set(asset.id, asset);
     }
+    for (const binding of evidence.componentBindings || []) {
+      if (!binding?.assetId) continue;
+      const bindings = bindingsByAssetId.get(binding.assetId) || [];
+      bindings.push(binding);
+      bindingsByAssetId.set(binding.assetId, bindings);
+    }
   }
   const rawAssets = Array.isArray(payload.images) ? payload.images : [];
   const curated = curateHephaestusAssets(rawAssets);
   const assets = curated.assets
-    .map((asset) => ({
+    .map((asset) => {
+      const componentEvidence = evidenceByAssetId.get(asset.id) || null;
+      const bindings = bindingsByAssetId.get(asset.id) || [];
+      const sourcePage = componentEvidence?.pageNumber || asset.source_page || (Number.isInteger(Number(asset.page_index)) ? Number(asset.page_index) + 1 : null);
+      return {
       ...asset,
-      renderPath: resolveAssetPath(asset, manifestPath),
+      // The combined manifest is stored under production/source-visual-review,
+      // while the native pixels remain under HEPHAESTUS.  Evidence owns that
+      // canonical absolute path, so resolve it before relative manifest paths.
+      renderPath: resolveAssetPath(asset, manifestPath, componentEvidence),
+      source_page: sourcePage,
+      nativeWidthPx: asset.original_dimensions?.width || componentEvidence?.nativeWidthPx || asset.dimensions?.width || null,
+      nativeHeightPx: asset.original_dimensions?.height || componentEvidence?.nativeHeightPx || asset.dimensions?.height || null,
+      componentRefs: bindings.map((binding) => binding.componentId).filter(Boolean),
+      referentAliases: bindings.flatMap((binding) => [binding.componentName, binding.category]).filter(Boolean),
+      semanticObjects: [...new Set([
+        ...(asset.semanticObjects || []), asset.label, asset.category, componentEvidence?.componentName, componentEvidence?.category,
+        ...bindings.flatMap((binding) => [binding.componentId, binding.componentName, binding.category]),
+      ].filter(Boolean))],
       visualQuality: qualityByAssetId.get(asset.id) || null,
-      componentEvidence: evidenceByAssetId.get(asset.id) || null,
-    }))
+      componentEvidence,
+      componentBindings: bindings,
+      provenance: {
+        ...(asset.provenance || {}), ...(componentEvidence?.provenance || {}),
+        sourcePage,
+        componentBindings: bindings.map((binding) => ({ componentId: binding.componentId, confidence: binding.confidence, reviewState: binding.reviewState })),
+      },
+    }})
     .filter((asset) => Boolean(asset.renderPath) && asset.componentEvidence?.reviewState !== 'rejected');
   const warnings = [];
   if (assets.length === 0) warnings.push('asset manifest contains no readable component images');

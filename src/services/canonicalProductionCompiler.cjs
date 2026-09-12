@@ -5,12 +5,14 @@ const { compileVisualPlans } = require('./visualPlan.cjs');
 const {
   loadAuthorizedCandidateManifests,
   normalizeCandidate,
+  normalizeVisualReferents,
+  buildVisualReviewItem,
   resolveSourceAssets,
   SOURCE_ASSET_RESOLVER_CONTRACT,
 } = require('./sourceAssetResolver.cjs');
 const { runProductionQualityGate } = require('./productionQualityGate.cjs');
 
-const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v1';
+const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v2';
 
 function uniqueAssets(assets = []) {
   const byId = new Map();
@@ -40,7 +42,8 @@ function resolveAtomSources(atom, assets, displayBounds) {
   const accepted = perReferent.every((selection) => selection.status === 'AUTO_ACCEPTED');
   const selectedById = new Map(perReferent.flatMap((selection) => selection.selectedAssets).map((asset) => [asset.id, asset]));
   const suggestedById = new Map(perReferent.flatMap((selection) => selection.suggestedAssets).map((asset) => [asset.id, asset]));
-  const reviewEvidence = perReferent.flatMap((selection) => selection.ranked.slice(0, 5));
+  const reviewEvidence = perReferent.flatMap((selection) => (selection.rankedEntries || []).slice(0, 5));
+  const reason = accepted ? 'all-physical-referents-passed-canonical-auto-accept-thresholds' : 'one-or-more-physical-referents-require-cockpit-review';
   return {
     contract: SOURCE_ASSET_RESOLVER_CONTRACT,
     ruleAtomId: atom.id,
@@ -50,17 +53,13 @@ function resolveAtomSources(atom, assets, displayBounds) {
     ranked: reviewEvidence,
     confidence: perReferent.length ? Math.min(...perReferent.map((selection) => selection.confidence)) : 0,
     reviewState: accepted ? 'accepted' : 'needs_review',
-    reason: accepted ? 'all-physical-referents-passed-canonical-auto-accept-thresholds' : 'one-or-more-physical-referents-require-cockpit-review',
-    reviewItem: accepted ? null : {
-      id: `visual-review:${atom.id}`,
-      kind: 'visual-source-selection',
-      ruleAtomId: atom.id,
-      status: 'needs_visual_review',
-      reason: 'One or more required physical referents need an operator source choice.',
-      requiredObjects: referents,
-      candidateIds: [...suggestedById.keys()],
-      evidence: reviewEvidence,
-    },
+    reason,
+    reviewItem: accepted ? null : buildVisualReviewItem({
+      atom,
+      requirement,
+      ranked: reviewEvidence,
+      reason,
+    }),
   };
 }
 
@@ -76,17 +75,29 @@ function compileCanonicalProductionState({
 } = {}) {
   if (!knowledgeModel?.ruleAtoms) throw new Error('Canonical production compilation requires RulebookKnowledgeModel.ruleAtoms.');
   const authorized = loadAuthorizedCandidateManifests(authorizedCandidateManifestPaths);
+  const referentNormalization = normalizeVisualReferents({ componentEvidence, sourceAssets });
   const assets = uniqueAssets([
-    ...(componentEvidence.assets || []),
-    ...(componentEvidence.acceptedVisuals || []),
-    ...sourceAssets,
+    ...referentNormalization.assets,
     ...authorized.candidates,
   ]);
   const atoms = knowledgeModel.ruleAtoms;
   const physicalStates = atoms.map(derivePhysicalGameState);
   const sourceSelections = atoms.map((atom) => resolveAtomSources(atom, assets, displayBounds));
   const plans = compileVisualPlans({ atoms, projectPlans, assets, sourceSelections, physicalStates });
-  const reviewItems = sourceSelections.map((selection) => selection.reviewItem).filter(Boolean);
+  // HEPHAESTUS review bindings share this same Cockpit-visible data model.
+  // A binding may remain unresolved even when no current teaching atom names
+  // it; preserving it prevents hidden `needs_review` state from disappearing.
+  const sourceReviewItems = sourceSelections.map((selection) => selection.reviewItem).filter(Boolean);
+  const bindingReviewItems = referentNormalization.unresolvedBindings
+    .filter((binding) => !atoms.some((atom) => (atom.componentRefs || atom.visualRequirement?.requiredObjects || []).includes(binding.componentId)))
+    .map((binding) => buildVisualReviewItem({
+      atom: { id: `component-${binding.componentId}`, title: binding.componentName, sourceRefs: [{ page: binding.sourcePage }], visualRequirement: { requiredObjects: [binding.componentId], purpose: 'component-identity-binding' } },
+      requirement: { requiredObjects: [binding.componentId], purpose: 'component-identity-binding' },
+      ranked: assets.filter((asset) => asset.id === binding.assetId).map((candidate) => ({ candidate, confidence: Number(binding.confidence || 0), semanticScore: Number(binding.confidence || 0), trueSourcePixelsPerDisplayPixel: 0, valid: false, hardViolations: ['component-binding-needs-review'] })),
+      reason: 'HEPHAESTUS component binding requires an explicit visual identity decision before it can be used automatically.',
+      referent: binding.componentId,
+    }));
+  const reviewItems = [...sourceReviewItems, ...bindingReviewItems];
   const selectedAssetIds = new Set(sourceSelections.flatMap((selection) => selection.selectedAssets || []).map((asset) => asset.id));
   const selectedAssets = assets.filter((asset) => selectedAssetIds.has(asset.id));
   const scenes = atoms.filter((atom) => atom.teaching).map((atom) => {
@@ -133,6 +144,7 @@ function compileCanonicalProductionState({
     CODEX_REQUIRED_FOR_NORMAL_PRODUCTION: false,
     codexRequiredForNormalProduction: false,
     sourceResolverContract: SOURCE_ASSET_RESOLVER_CONTRACT,
+    visualReferentNormalization: referentNormalization,
     knowledgeModelContract: knowledgeModel.contract,
     knowledgeModel,
     coverageMatrix,

@@ -105,7 +105,7 @@ const phoneScaleQa = await buildPhoneScaleQaSheet({ scenes: materialized.scenes,
 const r11ReplayPath = path.join(root, 'out', 'publishability-r11', '7-wonders-duel', 'replay-idempotence.json');
 const r11Replay = fs.existsSync(r11ReplayPath) ? JSON.parse(fs.readFileSync(r11ReplayPath, 'utf8')) : null;
 const checks = {
-  normalCompilerUsed: first.contract === 'mobius-canonical-production-compiler-v1',
+  normalCompilerUsed: first.contract === 'mobius-canonical-production-compiler-v2',
   codexRequiredForNormalProduction: first.CODEX_REQUIRED_FOR_NORMAL_PRODUCTION,
   knowledgeGenerated: model.ruleAtoms.length === 2,
   componentEvidenceConsumed: first.assets.length === 2,

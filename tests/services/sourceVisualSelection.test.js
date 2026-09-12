@@ -65,6 +65,22 @@ describe('sourceVisualSelection', () => {
     expect(selection.confidence).toBeGreaterThanOrEqual(0.42);
   });
 
+  test('rehydrates a relocated HEPHAESTUS asset path and component aliases from canonical evidence', () => {
+    const native = path.join(root, 'native-card.png');
+    fs.writeFileSync(native, 'native');
+    const manifestAsset = { id: 'native-card', file_path: 'images/all/stale-relative.png', page_index: 2, classification: 'card', is_component: true, confidence: 0.9, dimensions: { width: 800, height: 1200 } };
+    fs.writeFileSync(manifestPath, JSON.stringify({ images: [manifestAsset] }));
+    const evidencePath = path.join(root, 'component-evidence.json');
+    fs.writeFileSync(evidencePath, JSON.stringify({
+      assets: [{ id: 'native-card', sourceImage: native, pageNumber: 3, componentName: 'Native card', category: 'card', reviewState: 'accepted' }],
+      componentBindings: [{ componentId: 'component-target', componentName: 'Target card', category: 'card', assetId: 'native-card', confidence: 0.6, reviewState: 'needs_review' }],
+    }));
+    const catalog = loadSourceVisualCatalog(manifestPath, { hephaestusEvidencePath: evidencePath });
+    expect(catalog.assets[0].renderPath).toBe(native);
+    expect(catalog.assets[0].semanticObjects).toEqual(expect.arrayContaining(['component-target', 'Target card']));
+    expect(catalog.assets[0].source_page).toBe(3);
+  });
+
   test('prefers a usable component on the cited rulebook page over a stronger generic asset', () => {
     const generic = makeAsset(root, { id: 'generic-card', page: 0, classification: 'card', width: 1200, height: 900 });
     const cited = makeAsset(root, { id: 'cited-tile', page: 10, classification: 'tile', width: 520, height: 360 });

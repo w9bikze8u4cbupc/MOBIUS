@@ -5,7 +5,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { candidateDetailRatio, sourceAuthorityRank } = require('./sourceDetailLineage.cjs');
 
-const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v1';
+const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v2';
+const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v1';
 const AUTO_ACCEPT_CONFIDENCE = 0.82;
 const AUTO_ACCEPT_MARGIN = 0.08;
 
@@ -15,7 +16,7 @@ const normalizedTokens = (values) => new Set((Array.isArray(values) ? values : [
   .filter((token) => token.length >= 3));
 
 function assetPath(asset = {}) {
-  return asset.displayPath || asset.renderPath || asset.filePath || asset.path || asset.localPath || asset.sourceImage || null;
+  return asset.displayPath || asset.renderPath || asset.filePath || asset.file_path || asset.path || asset.localPath || asset.sourceImage || null;
 }
 
 function normalizeAuthority(asset = {}) {
@@ -31,8 +32,11 @@ function normalizeAuthority(asset = {}) {
 
 function normalizeCandidate(asset = {}) {
   const file = assetPath(asset);
-  const width = Number(asset.nativeWidthPx || asset.width || asset.sourceDimensions?.width || 0);
-  const height = Number(asset.nativeHeightPx || asset.height || asset.sourceDimensions?.height || 0);
+  // `dimensions` is often a display/upscaled derivative in a PDF manifest.
+  // Keep the native/source dimensions separate so a 3x derivative can never
+  // masquerade as more instructional detail than the original source has.
+  const width = Number(asset.nativeWidthPx || asset.trueDetailDimensions?.width || asset.original_dimensions?.width || asset.sourceDimensions?.width || asset.width || asset.dimensions?.width || 0);
+  const height = Number(asset.nativeHeightPx || asset.trueDetailDimensions?.height || asset.original_dimensions?.height || asset.sourceDimensions?.height || asset.height || asset.dimensions?.height || 0);
   const semanticObjects = [
     ...(asset.semanticObjects || []), ...(asset.semanticTags || []),
     asset.componentRef, asset.componentName, asset.label, asset.category, asset.description,
@@ -48,6 +52,8 @@ function normalizeCandidate(asset = {}) {
     sourceAuthority: normalizeAuthority(asset),
     sourceAuthorityRank: sourceAuthorityRank(normalizeAuthority(asset)),
     semanticObjects,
+    componentRefs: [...new Set([...(asset.componentRefs || []), asset.componentRef].filter(Boolean))],
+    referentAliases: [...new Set([...(asset.referentAliases || []), ...(asset.aliases || [])].filter(Boolean))],
     containsActualGamePixels: asset.containsActualGamePixels !== false,
     visualClassification: asset.visualClassification || (/board|track/i.test(`${asset.category} ${asset.label}`) ? 'REAL_BOARD_OR_TRACK'
       : /card|wonder/i.test(`${asset.category} ${asset.label}`) ? 'REAL_CARD_OR_WONDER' : 'REAL_COMPONENT'),
@@ -55,13 +61,103 @@ function normalizeCandidate(asset = {}) {
     cropPurity: asset.cropPurity === true ? 'clean' : (asset.cropPurity || 'unknown'),
     sourceRefs: asset.sourceRefs?.length ? asset.sourceRefs : (asset.provenance ? [asset.provenance] : []),
     reviewState: asset.reviewState || 'needs_review',
+    physicalState: asset.physicalState || null,
+    faceState: asset.faceState || null,
+    orientation: asset.orientation || null,
+    location: asset.location || null,
+    bindingConfidence: asset.bindingConfidence == null ? null : Number(asset.bindingConfidence),
+    bindingReviewRequired: asset.bindingReviewRequired === true,
+  };
+}
+
+function normalizeReferent(value) {
+  return clean(value).toLocaleLowerCase('fr-CA').normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function uniqueStrings(values = []) {
+  return [...new Set(values.map(clean).filter(Boolean))];
+}
+
+/**
+ * Joins source-grounded component inventory terms to extracted image evidence.
+ * It does not decide that a weak binding is safe: low-confidence bindings are
+ * preserved as candidates and surfaced to Cockpit with their provenance.
+ */
+function normalizeVisualReferents({ componentEvidence = {}, sourceAssets = [] } = {}) {
+  const evidenceAssets = new Map((componentEvidence.assets || []).filter((asset) => asset?.id).map((asset) => [asset.id, asset]));
+  const bindingsByAssetId = new Map();
+  for (const binding of componentEvidence.componentBindings || []) {
+    if (!binding?.assetId) continue;
+    const rows = bindingsByAssetId.get(binding.assetId) || [];
+    rows.push(binding);
+    bindingsByAssetId.set(binding.assetId, rows);
+  }
+  const rawById = new Map((sourceAssets || []).filter((asset) => asset?.id).map((asset) => [asset.id, asset]));
+  const ids = new Set([...rawById.keys(), ...evidenceAssets.keys()]);
+  const assets = [...ids].map((id) => {
+    const raw = rawById.get(id) || {};
+    const evidence = evidenceAssets.get(id) || {};
+    const bindings = bindingsByAssetId.get(id) || [];
+    const semanticObjects = uniqueStrings([
+      ...(raw.semanticObjects || []), ...(raw.semanticTags || []), raw.label, raw.componentName, raw.category,
+      ...(evidence.semanticObjects || []), evidence.componentName, evidence.category, evidence.surroundingTextEvidence,
+      ...bindings.flatMap((binding) => [binding.componentId, binding.componentName, binding.category]),
+    ]);
+    const componentRefs = uniqueStrings(bindings.map((binding) => binding.componentId));
+    const aliases = uniqueStrings(bindings.flatMap((binding) => [binding.componentName, binding.category]));
+    const sourcePage = evidence.pageNumber || raw.source_page || raw.sourcePage || (Number.isInteger(Number(raw.page_index)) ? Number(raw.page_index) + 1 : null);
+    return normalizeCandidate({
+      ...raw,
+      ...evidence,
+      id,
+      filePath: assetPath(raw) || assetPath(evidence),
+      renderPath: assetPath(raw) || assetPath(evidence),
+      nativeWidthPx: raw.original_dimensions?.width || raw.nativeWidthPx || evidence.nativeWidthPx || raw.width || raw.dimensions?.width || 0,
+      nativeHeightPx: raw.original_dimensions?.height || raw.nativeHeightPx || evidence.nativeHeightPx || raw.height || raw.dimensions?.height || 0,
+      sourceAuthority: raw.sourceAuthority || evidence.sourceAuthority || evidence.extractionMethod || raw.extractionMethod,
+      category: raw.category || evidence.category || bindings[0]?.category || null,
+    componentRefs,
+    referentAliases: aliases,
+      bindingConfidence: bindings.length ? Math.max(...bindings.map((binding) => Number(binding.confidence || 0))) : null,
+      bindingReviewRequired: bindings.some((binding) => binding.reviewState === 'needs_review'
+        || (binding.reviewRequired === true && binding.reviewState !== 'accepted')),
+      semanticObjects,
+      sourceRefs: [
+        ...(raw.sourceRefs || []), ...(evidence.sourceRefs || []),
+        ...(sourcePage ? [{ page: Number(sourcePage), source: 'hephaestus-component-evidence' }] : []),
+      ],
+      provenance: {
+        ...(raw.provenance || {}), ...(evidence.provenance || {}),
+        componentBindings: bindings.map((binding) => ({
+          componentId: binding.componentId || null,
+          componentName: binding.componentName || null,
+          category: binding.category || null,
+          confidence: Number(binding.confidence || 0),
+          reviewState: binding.reviewState || null,
+          sourcePage: binding.sourcePage || null,
+        })),
+      },
+      // A native XObject is not automatically an isolated, complete object.
+      // Preserve explicit crop evidence only; unknown stays review-required.
+      cropCompleteness: raw.cropCompleteness || evidence.cropCompleteness || 'unknown',
+      cropPurity: raw.cropPurity || evidence.cropPurity || 'unknown',
+    });
+  });
+  return {
+    contract: VISUAL_REFERENT_NORMALIZATION_CONTRACT,
+    assets,
+    bindings: (componentEvidence.componentBindings || []).map((binding) => ({ ...binding })),
+    unresolvedBindings: (componentEvidence.componentBindings || []).filter((binding) => binding.reviewState === 'needs_review' || binding.reviewRequired === true),
   };
 }
 
 function semanticScore(candidate, requiredObjects = []) {
   const wanted = normalizedTokens(requiredObjects);
   if (!wanted.size) return 0.75;
-  const found = normalizedTokens(candidate.semanticObjects);
+  const found = normalizedTokens([
+    ...(candidate.semanticObjects || []), ...(candidate.componentRefs || []), ...(candidate.referentAliases || []),
+  ]);
   const overlap = [...wanted].filter((token) => found.has(token)).length;
   return overlap / wanted.size;
 }
@@ -83,6 +179,14 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
   if (!complete) hardViolations.push('crop-completeness-unverified');
   if (!pure) hardViolations.push('crop-purity-unverified');
   if (semantic < 0.5) hardViolations.push('semantic-object-mismatch');
+  if (candidate.bindingReviewRequired && Number(candidate.bindingConfidence || 0) < 0.65) hardViolations.push('component-identity-unverified');
+  const requiredState = requirement.physicalStateRequirement || requirement.physicalState || {};
+  for (const [key, expected] of Object.entries(requiredState || {})) {
+    if (expected == null || expected === 'UNKNOWN') continue;
+    const actual = candidate.physicalState?.[key] ?? candidate[key];
+    if (actual == null || actual === 'UNKNOWN') hardViolations.push(`physical-state-unverified:${key}`);
+    else if (String(actual).toUpperCase() !== String(expected).toUpperCase()) hardViolations.push(`physical-state-mismatch:${key}`);
+  }
   if (invalid) hardViolations.push('invalidated-asset');
   const confidence = Math.max(0, Math.min(1,
     semantic * 0.38 + authority * 0.24 + detail * 0.18 + (complete ? 0.08 : 0) + (pure ? 0.06 : 0) + (accepted ? 0.06 : 0)));
@@ -93,6 +197,65 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
     trueSourcePixelsPerDisplayPixel: Number(detailRatio.toFixed(4)),
     hardViolations,
     valid: hardViolations.length === 0,
+  };
+}
+
+function classifyFailure(ranked = []) {
+  if (!ranked.length) return ['TRUE_ASSET_MISSING'];
+  const codes = new Set(ranked.flatMap((entry) => entry.hardViolations || []));
+  const classes = [];
+  if ([...codes].some((code) => code.includes('semantic-object-mismatch'))) classes.push('SEMANTIC_MATCH_TOO_WEAK');
+  if ([...codes].some((code) => code.includes('component-identity-unverified'))) classes.push('COMPONENT_IDENTITY_MISMATCH');
+  if ([...codes].some((code) => code.includes('source-detail'))) classes.push('DETAIL_RESOLUTION_TOO_WEAK');
+  if ([...codes].some((code) => code.includes('crop-'))) classes.push('CROP_OR_SILHOUETTE_FAILURE');
+  if ([...codes].some((code) => code.includes('physical-state-'))) classes.push('PHYSICAL_STATE_MISMATCH');
+  if ([...codes].some((code) => code.includes('missing-file'))) classes.push('SOURCE_CANDIDATE_NOT_GENERATED');
+  if (!classes.length) classes.push('MISSING_COMPONENT_BINDING');
+  return classes;
+}
+
+function recommendedOperatorAction({ ranked = [], failureClassification = [] } = {}) {
+  if (!ranked.length) return 'Locate or add an authoritative source asset for the required referent; do not substitute decorative imagery.';
+  if (failureClassification.includes('DETAIL_RESOLUTION_TOO_WEAK') || failureClassification.includes('CROP_OR_SILHOUETTE_FAILURE')) {
+    return 'Select a complete, higher-detail authoritative source or a deterministic source-faithful crop; reject the listed weak derivatives.';
+  }
+  if (failureClassification.includes('SEMANTIC_MATCH_TOO_WEAK')) return 'Choose the candidate that visibly represents the named component, or mark the referent/source relationship unresolved.';
+  if (failureClassification.includes('PHYSICAL_STATE_MISMATCH')) return 'Choose evidence that shows the required face/orientation/location/state, or provide a source-grounded state visual.';
+  return 'Choose one unambiguous, source-grounded candidate from the ranked evidence, or confirm that source evidence is insufficient.';
+}
+
+function buildVisualReviewItem({ atom, requirement = {}, ranked = [], reason, referent = null } = {}) {
+  const failureClassification = classifyFailure(ranked);
+  const idSuffix = referent ? `:${normalizeReferent(referent).replace(/\s+/g, '-') || 'referent'}` : '';
+  return {
+    id: `visual-review:${atom?.id || 'unknown'}${idSuffix}`,
+    contract: 'mobius-cockpit-visual-review-item-v2',
+    scopeType: 'VISUAL_REQUIREMENT',
+    kind: 'visual-source-selection',
+    sceneId: atom?.id ? `knowledge-${atom.id}` : null,
+    visualPlanId: atom?.id || null,
+    ruleAtomId: atom?.id || null,
+    ruleAtomIds: atom?.id ? [atom.id] : [],
+    status: 'needs_visual_review',
+    requiredObject: referent || null,
+    requiredObjects: requirement.requiredObjects || [],
+    teachingPurpose: requirement.purpose || atom?.title || null,
+    physicalStateRequirement: requirement.physicalStateRequirement || requirement.physicalState || null,
+    reason,
+    failureClassification,
+    candidateIds: ranked.slice(0, 8).map((entry) => entry.candidate.id),
+    candidates: ranked.slice(0, 8).map((entry) => ({
+      assetId: entry.candidate.id,
+      thumbnailPath: entry.candidate.filePath || null,
+      sourceRefs: entry.candidate.sourceRefs || [],
+      provenance: entry.candidate.provenance || null,
+      semanticScore: entry.semanticScore,
+      detailRatio: entry.trueSourcePixelsPerDisplayPixel,
+      confidence: entry.confidence,
+      valid: entry.valid,
+      rejectionReasons: entry.hardViolations,
+    })),
+    recommendedOperatorAction: recommendedOperatorAction({ ranked, failureClassification }),
   };
 }
 
@@ -118,28 +281,16 @@ function resolveSourceAssets({ atom, requirement = atom?.visualRequirement || {}
   const reason = !best ? 'no-candidate-passed-source-semantic-detail-and-crop-gates'
     : !autoAccept ? 'candidate-requires-operator-review-due-to-confidence-or-ranking-margin'
       : 'source-authority-detail-and-semantic-thresholds-passed';
-  const reviewItem = autoAccept ? null : {
-    id: `visual-review:${atom?.id || 'unknown'}`,
-    kind: 'visual-source-selection',
-    ruleAtomId: atom?.id || null,
-    status: 'needs_visual_review',
-    reason,
-    requiredObjects: requirement.requiredObjects || [],
-    candidateIds: ranked.slice(0, 8).map((entry) => entry.candidate.id),
-    evidence: ranked.slice(0, 8).map((entry) => ({
-      assetId: entry.candidate.id,
-      confidence: entry.confidence,
-      authority: entry.candidate.sourceAuthority,
-      detailRatio: entry.trueSourcePixelsPerDisplayPixel,
-      violations: entry.hardViolations,
-    })),
-  };
+  const reviewItem = autoAccept ? null : buildVisualReviewItem({ atom, requirement, ranked, reason });
   return {
     contract: SOURCE_ASSET_RESOLVER_CONTRACT,
     ruleAtomId: atom?.id || null,
     status: autoAccept ? 'AUTO_ACCEPTED' : (best ? 'REVIEW_REQUIRED' : 'UNRESOLVED'),
     selectedAssets: autoAccept ? selected.map((entry) => entry.candidate) : [],
     suggestedAssets: selected.map((entry) => entry.candidate),
+    // Internal compiler evidence retains the candidate object; public `ranked`
+    // below stays JSON-safe and stable for Cockpit/project persistence.
+    rankedEntries: ranked,
     ranked: ranked.map((entry) => ({
       assetId: entry.candidate.id,
       authority: entry.candidate.sourceAuthority,
@@ -316,6 +467,9 @@ module.exports = {
   evaluateCandidate,
   loadAuthorizedCandidateManifests,
   normalizeCandidate,
+  normalizeVisualReferents,
+  VISUAL_REFERENT_NORMALIZATION_CONTRACT,
+  buildVisualReviewItem,
   rankSourceAssetCandidates,
   recoverAuthorizedBggCandidates,
   rectifyAuthorizedCandidate,

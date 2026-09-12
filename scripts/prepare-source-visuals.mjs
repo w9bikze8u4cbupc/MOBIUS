@@ -39,7 +39,7 @@ async function main() {
   const scriptPath = required('script');
   const manifestPath = required('asset-manifest');
   const outputDir = resolve(required('output-dir'));
-  const python = arg('python') || process.env.PYTHON || 'python3';
+  const python = arg('python') || process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
   if (!existsSync(scriptPath)) throw new Error(`Reviewed scene script not found: ${scriptPath}`);
   if (!existsSync(manifestPath)) throw new Error(`Asset manifest not found: ${manifestPath}`);
 
@@ -70,10 +70,46 @@ async function main() {
     });
     await writeFile(cropManifestPath, `${JSON.stringify(cropManifest, null, 2)}\n`, 'utf8');
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    // The review manifest is written below production/, not beside the
+    // HEPHAESTUS pixels. Rehydrate paths and source-grounded component terms
+    // from canonical evidence so the QA sidecars see the same candidates as
+    // the compiler.
+    const evidencePath = arg('hephaestus-evidence');
+    const evidence = evidencePath && existsSync(resolve(evidencePath))
+      ? JSON.parse(readFileSync(resolve(evidencePath), 'utf8')) : null;
+    const evidenceById = new Map((evidence?.assets || []).filter((asset) => asset?.id).map((asset) => [asset.id, asset]));
+    const bindingsByAssetId = new Map();
+    for (const binding of evidence?.componentBindings || []) {
+      if (!binding?.assetId) continue;
+      const bindings = bindingsByAssetId.get(binding.assetId) || [];
+      bindings.push(binding);
+      bindingsByAssetId.set(binding.assetId, bindings);
+    }
+    const images = (manifest.images || []).map((asset) => {
+      const canonical = evidenceById.get(asset.id) || null;
+      const bindings = bindingsByAssetId.get(asset.id) || [];
+      return {
+        ...asset,
+        file_path: canonical?.sourceImage || asset.file_path,
+        source_page: canonical?.pageNumber || asset.source_page || null,
+        componentRefs: bindings.map((binding) => binding.componentId).filter(Boolean),
+        semanticObjects: [...new Set([
+          ...(asset.semanticObjects || []), asset.label, asset.category, canonical?.componentName, canonical?.category,
+          ...bindings.flatMap((binding) => [binding.componentId, binding.componentName, binding.category]),
+        ].filter(Boolean))],
+        component_bindings: bindings.map((binding) => ({
+          componentId: binding.componentId,
+          componentName: binding.componentName,
+          category: binding.category,
+          confidence: binding.confidence,
+          reviewState: binding.reviewState,
+        })),
+      };
+    });
     visualManifestPath = resolve(outputDir, 'source-visual-manifest.json');
     await writeFile(visualManifestPath, `${JSON.stringify({
       ...manifest,
-      images: [...(manifest.images || []), ...(cropManifest.assets || [])],
+      images: [...images, ...(cropManifest.assets || [])],
       focusedCropManifest: cropManifestPath,
     }, null, 2)}\n`, 'utf8');
   }

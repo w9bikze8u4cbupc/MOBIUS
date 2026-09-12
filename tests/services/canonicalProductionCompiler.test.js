@@ -45,3 +45,23 @@ test('uncertain visual source becomes a Cockpit item instead of a weak fallback'
   expect(result.reviewItems[0]).toMatchObject({ status: 'needs_visual_review', ruleAtomId: 'setup-board' });
   expect(result.scenes[0].renderVisual).toBeUndefined();
 });
+
+test('surfaces HEPHAESTUS review bindings in the same actionable Cockpit queue', () => {
+  const model = knowledge();
+  const coverage = buildTutorialCoverageMatrix(model, { includedAtomIds: ['setup-board'], storyboardAtomIds: ['setup-board'] });
+  const result = compileCanonicalProductionState({
+    projectId: 'generic-proof', knowledgeModel: model, coverageMatrix: coverage,
+    componentEvidence: {
+      assets: [{ id: 'weak-board', sourceImage: existingFile, pageNumber: 2, componentName: 'Native board', category: 'board', reviewState: 'accepted' }],
+      componentBindings: [{ componentId: 'game-board', componentName: 'Game board', category: 'board', assetId: 'weak-board', confidence: 0.55, reviewState: 'needs_review', reviewRequired: true, sourcePage: 2 }],
+    },
+  });
+  expect(result.visualReferentNormalization.contract).toBe('mobius-visual-referent-normalization-v1');
+  expect(result.reviewItems[0]).toMatchObject({
+    status: 'needs_visual_review',
+    scopeType: 'VISUAL_REQUIREMENT',
+    ruleAtomId: 'setup-board',
+  });
+  expect(result.reviewItems[0].recommendedOperatorAction).toEqual(expect.any(String));
+  expect(result.reviewItems[0].candidates[0]).toMatchObject({ assetId: 'weak-board' });
+});
