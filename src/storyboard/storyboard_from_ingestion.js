@@ -14,6 +14,7 @@ const {
 } = require('./storyboard_layout');
 
 const { applyFadeIn, buildFocusZoom } = require('./storyboard_motion');
+const { resolveCanonicalGameIdentity } = require('../services/gameIdentity.cjs');
 
 const SETUP_HEADING_PATTERN = /\b(setup|set[ -]?up|mise en place|préparation)\b/i;
 
@@ -37,9 +38,22 @@ function escapeRegExp(value) {
 function resolveGameIdentity(ingestion) {
   const document = ingestion.document || {};
   const bgg = document.bgg || {};
-  const name = ingestion.game?.name || bgg.name || document.title || 'Unknown Game';
+  const identity = document.identity || resolveCanonicalGameIdentity({
+    projectMetadata: document,
+    bgg,
+    rulebook: { title: document.title },
+    filename: document.filename || document.id,
+  });
+  const hasCanonicalIdentity = Boolean(document.identity || ingestion.game?.identity);
+  const name = (hasCanonicalIdentity && identity.displayName)
+    || ingestion.game?.name
+    || bgg.name
+    || document.title
+    || 'Unknown Game';
   const slug = ingestion.game?.slug || document.gameId || document.slug || slugify(name || document.id);
-  return { slug: slugify(slug), name };
+  return hasCanonicalIdentity
+    ? { slug: slugify(slug), name, identity }
+    : { slug: slugify(slug), name };
 }
 
 function cleanSetupText(text, headingTitle) {
@@ -126,7 +140,7 @@ function generateStoryboardFromIngestion(ingestion, options = {}) {
   let sceneIndex = 0;
 
   // --- Intro scene ------------------------------------------------------
-  const introTitle = `How to play: ${game.name}`;
+  const introTitle = `À propos du jeu: ${game.name}`;
   const introDuration = computeTitleDuration(introTitle);
 
   const introOverlay = buildIntroOverlay(introTitle);
@@ -138,6 +152,8 @@ function generateStoryboardFromIngestion(ingestion, options = {}) {
     index: sceneIndex,
     segmentId: 'intro-0',
     type: 'intro',
+    sectionId: 'about',
+    sectionTitle: 'À propos du jeu',
     prevSceneId: null,
     nextSceneId: null, // filled later
     durationSec: introDuration,
@@ -163,6 +179,8 @@ function generateStoryboardFromIngestion(ingestion, options = {}) {
       index: sceneIndex,
       segmentId: stepId,
       type: 'setup_step',
+      sectionId: 'setup',
+      sectionTitle: 'Mise en place',
       prevSceneId: null, // filled later
       nextSceneId: null, // filled later
       durationSec,
@@ -184,6 +202,8 @@ function generateStoryboardFromIngestion(ingestion, options = {}) {
     index: sceneIndex,
     segmentId: 'end-card-0',
     type: 'end_card',
+    sectionId: 'conclusion',
+    sectionTitle: 'Conclusion',
     prevSceneId: null,
     nextSceneId: null,
     durationSec: endDuration,

@@ -22,11 +22,12 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import axios from 'axios';
-import { createPdfPageRenderer, ContextualPdfRenderError, ensurePdfJsNodeCompatibility, fetchBggImages, ingestManualImage, normalizeImageAsset } from '../../src/services/imagePipeline.js';
+import { createPdfPageRenderer, ContextualPdfRenderError, ensurePdfJsNodeCompatibility, fetchBggImages, ingestManualImage, normalizeImageAsset, setBggHttpClientForTests } from '../../src/services/imagePipeline.js';
 
 describe('imagePipeline', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    setBggHttpClientForTests(axios);
   });
 
   it('normalizes ImageAsset defaults', () => {

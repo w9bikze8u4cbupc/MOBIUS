@@ -7,12 +7,12 @@ import {
   getAiClient,
   getAiConfig,
   getAiModel,
-  getAiStatus,
   getGenerationOptionCompatibilityError,
   getGenerationOptions,
   requireAiReady,
 } from '../config/aiConfig.js';
 import { createAiProviderRun } from '../services/aiProviderExecutor.js';
+import { getAiProviderReadiness } from '../services/aiProviderReadiness.js';
 const pdfToImg = {
   pdf: async (...args) => {
     const { pdf } = await import('pdf-to-img');
@@ -68,6 +68,7 @@ import { registerRemotionRenderRoutes } from './remotionRenderRoutes.js';
 import { createRequire } from 'module';
 import { registerPhaseERoutes } from './ingestionRoutes.js';
 import { registerImageRoutes } from './imageRoutes.js';
+import { buildApiRuntimeCapabilities } from '../services/runtimeCompatibility.js';
 import {
   appendImages,
   linkImagesToComponent,
@@ -100,6 +101,7 @@ console.log(`AI provider: ${configuredAiProvider}; configured: ${aiConfigured ? 
 console.log('API file loaded!');
 
 const app = express();
+const apiStartedAt = new Date().toISOString();
 // Port configuration - use single source of truth
 // In production, serve on port 5000 (same as frontend build)
 // In development, use port 8000 (backend API only)
@@ -119,6 +121,12 @@ const { runIngestionPipeline, normalizeBggMetadata } = ingestionRequire('../inge
 const { generateStoryboard } = ingestionRequire('../storyboard/generator');
 const { validateIngestionManifest } = ingestionRequire('../validators/ingestionValidator');
 const { validateStoryboard } = ingestionRequire('../validators/storyboardValidator');
+const {
+  RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT,
+  buildDomainSynthesisPrompt,
+  parseDomainSynthesisJson,
+  validateDomainSynthesisPacket,
+} = ingestionRequire('../services/rulebookDomainSynthesis.cjs');
 const execFilePromise = promisify(execFile);
 
 // CORS configuration - MUST be before other middleware/routes
@@ -175,9 +183,16 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Runtime compatibility is intentionally available before authenticated or
+// expensive routes. It contains contract/build fingerprints, not project data
+// or credentials, and lets workers fail or safely align before provider calls.
+app.get('/api/runtime/capabilities', (_req, res) => {
+  res.json(buildApiRuntimeCapabilities({ cwd: process.cwd(), env: process.env, startedAt: apiStartedAt }));
+});
+
 // Safe local configuration status. `?check=1` performs one cached model-metadata check.
 app.get('/api/ai/status', async (req, res) => {
-  const status = await getAiStatus({ checkAccess: String(req.query.check) === '1' });
+  const status = await getAiProviderReadiness({ checkAccess: String(req.query.check) === '1' });
   res.json(status);
 });
 
@@ -425,6 +440,7 @@ app.get('/api/bgg-search', async (req, res) => {
     
     const links = Array.isArray(item.link) ? item.link : [item.link].filter(Boolean);
     const publishers = links.filter(l => l?.$.type === 'boardgamepublisher').map(l => l.$.value);
+    const designers = links.filter(l => l?.$.type === 'boardgamedesigner').map(l => l.$.value);
     const categories = links.filter(l => l?.$.type === 'boardgamecategory').map(l => l.$.value);
     
     const metadata = {
@@ -432,6 +448,8 @@ app.get('/api/bgg-search', async (req, res) => {
       bggId: gameId,
       bggUrl: `https://boardgamegeek.com/boardgame/${gameId}`,
       gameName: item.name?.$?.value || (Array.isArray(item.name) ? item.name[0]?.$?.value : gameName),
+      officialEditionTitle: item.name?.$?.value || (Array.isArray(item.name) ? item.name[0]?.$?.value : gameName),
+      designers,
       publisher: publishers.join(', ') || '',
       playerCount: `${item.minplayers?.$?.value || '?'}-${item.maxplayers?.$?.value || '?'} players`,
       gameLength: `${item.minplaytime?.$?.value || item.playingtime?.$?.value || '?'}-${item.maxplaytime?.$?.value || item.playingtime?.$?.value || '?'} minutes`,
@@ -2365,11 +2383,19 @@ function normalizeExtractedMetadata(value) {
     : null;
   return {
     publisher: asText(metadata.publisher),
+    designers: Array.isArray(metadata.designers)
+      ? metadata.designers.map(asText).filter(Boolean)
+      : (asText(metadata.designer) ? [asText(metadata.designer)] : []),
     playerCount: asText(metadata.playerCount) || asText(metadata.player_count),
     gameLength: asText(metadata.gameLength) || asText(metadata.play_time),
     minimumAge: asText(metadata.minimumAge) || asText(metadata.recommended_age),
     theme: asText(metadata.theme) || categoryTheme,
     edition: asText(metadata.edition) || asText(metadata.year_published),
+    yearPublished: asText(metadata.yearPublished) || asText(metadata.year_published),
+    weight: asText(metadata.weight) || asText(metadata.complexity),
+    coverImage: asText(metadata.coverImage) || asText(metadata.cover_image) || asText(metadata.image),
+    thumbnail: asText(metadata.thumbnail),
+    bggUrl: asText(metadata.bggUrl) || asText(metadata.bgg_url),
   };
 }
 
@@ -2413,7 +2439,7 @@ async function extractOptionalMetadata(rulebookText, generationOptions, provider
     const { response } = await providerRun.complete({
       messages: [
         { role: 'system', content: 'You are a precise metadata extractor. Return only a JSON object.' },
-        { role: 'user', content: `Extract optional boardgame metadata from this rulebook excerpt. Return JSON with publisher, player_count, play_time, recommended_age, theme, year_published, and categories. Use null or [] when unknown.\n\n${rulebookText.slice(0, MAX_RULEBOOK_CHUNK_CHARS)}` },
+        { role: 'user', content: `Extract optional boardgame metadata from this rulebook excerpt. Return JSON with publisher, designers, player_count, play_time, recommended_age, theme, year_published, complexity, and categories. Use null or [] when unknown. Never derive a title, image URL, filename, hash, or identifier from the input.\n\n${rulebookText.slice(0, MAX_RULEBOOK_CHUNK_CHARS)}` },
       ],
       options: generationOptions,
       maxRetries: 0,
@@ -2497,6 +2523,48 @@ function validateScriptGenerationContext({ projectId, gameName, rulebookText, co
   return null;
 }
 
+app.post('/api/rulebook-knowledge/synthesize-domains', async (req, res) => {
+  const packet = req.body?.packet;
+  if (!validateDomainSynthesisPacket(packet)) {
+    return res.status(400).json({ code: 'RULEBOOK_DOMAIN_SYNTHESIS_PACKET_INVALID', error: 'The canonical domain-synthesis evidence packet is invalid.' });
+  }
+  try {
+    const providerRun = createAiProviderRun({ task: 'rulebook-domain-synthesis' });
+    providerRun.assertConfigured();
+    if (providerRun.providers.length === 1 && providerRun.providers[0].name === 'openai') {
+      await requireAiReady({ checkAccess: true });
+    }
+    const config = getAiConfig();
+    const completion = await providerRun.complete({
+      messages: [
+        { role: 'system', content: 'You are a precise rulebook evidence extractor. Return only the requested JSON object.' },
+        { role: 'user', content: buildDomainSynthesisPrompt(packet) },
+      ],
+      options: getGenerationOptions(config, {}, 'rulebook_domain_synthesis'),
+      inputHash: packet.cacheKey,
+      promptTemplateVersion: packet.promptVersion,
+      schemaContractVersion: packet.contract,
+      validate: (response) => parseDomainSynthesisJson(typeof response?.choices?.[0]?.message?.content === 'string' ? response.choices[0].message.content : ''),
+    });
+    return res.json({
+      contract: packet.contract,
+      cacheKey: packet.cacheKey,
+      result: completion.value,
+      provenance: completion.provenance,
+      usage: completion.response?.usage || null,
+      providerAttempts: completion.attempts || [],
+    });
+  } catch (error) {
+    const compatibilityError = getGenerationOptionCompatibilityError(error);
+    const status = compatibilityError?.statusCode || error.statusCode || error.status || 502;
+    return res.status(status).json({
+      code: compatibilityError?.code || error.code || 'RULEBOOK_DOMAIN_SYNTHESIS_FAILED',
+      error: compatibilityError?.message || error.message,
+      providerCategory: error.providerCategory || null,
+    });
+  }
+});
+
 app.post('/summarize', async (req, res) => {
   console.log('--- Summarization started ---');
   
@@ -2542,6 +2610,9 @@ app.post('/summarize', async (req, res) => {
     try {
       providerRun = createAiProviderRun({ task: 'source-grounded-script' });
       providerRun.assertConfigured();
+      if (providerRun.providers.length === 1 && providerRun.providers[0].name === 'openai') {
+        await requireAiReady({ checkAccess: true });
+      }
     } catch (error) {
       return res.status(error.statusCode || 422).json({ error: error.message, code: error.code });
     }
@@ -2577,11 +2648,17 @@ app.post('/summarize', async (req, res) => {
     const metadataResult = await extractOptionalMetadata(rulebookText, metadataGenerationOptions, providerRun);
     const metadataForPrompt = {
       publisher: metadata?.publisher || metadataResult.metadata.publisher || 'Not specified',
+      designers: metadata?.designers || metadataResult.metadata.designers || [],
       playerCount: metadata?.playerCount || metadataResult.metadata.playerCount || 'Not specified',
       gameLength: metadata?.gameLength || metadataResult.metadata.gameLength || 'Not specified',
       minimumAge: metadata?.minimumAge || metadataResult.metadata.minimumAge || 'Not specified',
       theme: metadata?.theme || metadataResult.metadata.theme || 'Not specified',
       edition: metadata?.edition || metadataResult.metadata.edition || 'Not specified',
+      yearPublished: metadata?.yearPublished || metadataResult.metadata.yearPublished || 'Not specified',
+      weight: metadata?.weight || metadataResult.metadata.weight || 'Not specified',
+      coverImage: metadata?.coverImage || metadataResult.metadata.coverImage || null,
+      thumbnail: metadata?.thumbnail || metadataResult.metadata.thumbnail || null,
+      bggUrl: metadata?.bggUrl || metadataResult.metadata.bggUrl || null,
     };
 
     const sourceHash = hashScriptInput(rulebookText);
@@ -2669,6 +2746,14 @@ The JSON must be {"sections":[...]}. sections must be a non-empty ordered array.
 
 Follow this pedagogical order: introduction/presentation, objective, components, numbered setup, pause before play, turn structure/actions, scoring/endgame, outro.
 
+The first introduction section must open with a warm welcome to the viewer, one
+brief evocative hook grounded in the game's theme or central tension, and a
+natural invitation to learn the game together. Keep that opening conversational
+and human; do not begin with a filename, project ID, hash, source label, or a
+database-like list. SpokenText is for Amélie, while onScreenText remains concise
+support (never a transcript of the narration). Use the requested locale's
+canonical display name and never speak filesystem-derived identifiers.
+
 Tutorial length policy: ${tutorialLengthProfile.name}. Target ${tutorialLengthProfile.targetSpokenWords.min}-${tutorialLengthProfile.targetSpokenWords.max} spoken English words and never exceed ${tutorialLengthProfile.maxSpokenWords}. Prefer objective, setup, a normal turn, essential scoring/endgame, and relevant secondary rules. Put rare exceptions, exhaustive reward tables, and card-by-card detail in visualDirections or an official-rulebook reminder instead of narration.`;
 
       const componentsJson = JSON.stringify(components);
@@ -2740,6 +2825,10 @@ console.log('Generating final English script using the configured AI provider ru
       englishPackage = completion.value;
       englishProvenance = completion.provenance;
     } catch (error) {
+      const compatibilityError = error?.code === 'AI_GENERATION_OPTION_UNSUPPORTED'
+        ? error
+        : getGenerationOptionCompatibilityError(error);
+      if (compatibilityError) throw compatibilityError;
       const classification = error?.code === 'SCRIPT_PACKAGE_WORD_CAP_EXCEEDED'
         ? 'spoken_word_cap_exceeded'
         : error?.code === 'SCRIPT_PACKAGE_INVALID' ? 'script_package_invalid' : error?.classification;

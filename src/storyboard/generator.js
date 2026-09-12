@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const legacyContract = JSON.parse(fs.readFileSync(path.join(__dirname, '../../docs/spec/storyboard_contract.json'), 'utf-8'));
+const { sectionLabelFor } = require('../services/editorialStandard.cjs');
 
 const NARRATION_RATES_WPM = Object.freeze({
   english: 145,
@@ -122,13 +123,16 @@ function createCanonicalScene(section, chunk, index, language) {
     highlights: visualDirections.flatMap((direction) => direction.highlights),
     arrows: visualDirections.flatMap((direction) => direction.arrows),
   };
+  const semanticTitle = sectionLabelFor(section.title, index === 0 ? 'Présentation' : 'Tutoriel');
   return {
     id: `scene-${section.id}-${index + 1}`,
     index,
     order: index + 1,
     sectionId: section.id,
     sourceId: section.id,
-    title: section.title,
+    title: semanticTitle,
+    sourceTitle: section.title,
+    sectionTitle: semanticTitle,
     spokenText: chunk,
     wordCount,
     estimatedDurationMs,
@@ -197,6 +201,7 @@ function createScriptPackageStoryboard(ingestionManifest, scriptPackage, options
     transitionAllowanceMs: STORYBOARD_TRANSITION_ALLOWANCE_MS,
     totalEstimatedDurationMs: startMs,
     durationWarning,
+    identity: ingestionManifest.document.identity || null,
     scenes,
     hashManifest: { storyboard: hash(JSON.stringify(scenes)) },
   };

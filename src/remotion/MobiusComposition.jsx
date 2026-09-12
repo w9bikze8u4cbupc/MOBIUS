@@ -6,8 +6,9 @@ import { MediaGallery } from './components/MediaGallery';
 import { NarrationText } from './components/NarrationText';
 import { SceneTitle } from './components/SceneTitle';
 import { StepBadge } from './components/StepBadge';
+import { PRESENTATION_TOKENS } from './presentationTokens';
 
-const FALLBACK_BORDER_COLOR = '#E91E63';
+const FALLBACK_BORDER_COLOR = PRESENTATION_TOKENS.colors.brandGreen;
 export const TIMELINE_TRANSITION_DURATION_IN_FRAMES = 18;
 
 const clamp = {
@@ -69,7 +70,7 @@ const BrandOutroCard = ({ accentColor, frame, height, width }) => {
       aria-label="Les Jeux Mobius Games outro"
       style={{
         alignItems: 'center',
-        background: 'radial-gradient(circle at 48% 34%, #176b8a 0%, #0b3856 43%, #0a2034 100%)',
+        background: `radial-gradient(circle at 48% 34%, ${PRESENTATION_TOKENS.colors.panelWarmLight} 0%, ${PRESENTATION_TOKENS.colors.panelWarmDark} 52%, ${PRESENTATION_TOKENS.colors.brandInk} 100%)`,
         border: `4px solid ${accentColor}`,
         borderRadius: Math.max(18, Math.round(width * 0.013)),
         boxShadow: '0 24px 70px rgba(0, 0, 0, 0.34)',
@@ -100,11 +101,9 @@ const BrandOutroCard = ({ accentColor, frame, height, width }) => {
         textAlign: 'center',
         transform: `scale(${titleScale})`,
       }}>
-        <p style={{ color: '#d6f7ff', fontSize: Math.max(26, Math.round(width * 0.02)), fontWeight: 800, letterSpacing: 5, margin: 0 }}>LES JEUX</p>
-        <h2 style={{ color: '#ffffff', fontSize: Math.max(54, Math.round(width * 0.053)), fontWeight: 900, letterSpacing: 2, lineHeight: 1, margin: '12px 0' }}>MOBIUS</h2>
-        <p style={{ color: accentColor, fontSize: Math.max(26, Math.round(width * 0.021)), fontWeight: 800, letterSpacing: 3, margin: 0 }}>GAMES</p>
+        <h2 style={{ color: PRESENTATION_TOKENS.colors.brandCream, fontFamily: PRESENTATION_TOKENS.typography.display.family, fontSize: Math.max(54, Math.round(width * 0.053)), fontWeight: 700, letterSpacing: 1, lineHeight: 1, margin: '12px 0' }}>Merci et à bientôt</h2>
         <div style={{ background: 'rgba(255,255,255,0.16)', borderRadius: 999, height: 3, margin: '28px 0 20px', width: '72%' }} />
-        <p style={{ color: '#d9f6ff', fontSize: Math.max(24, Math.round(width * 0.018)), fontWeight: 700, lineHeight: 1.3, margin: 0 }}>Merci d’avoir regardé</p>
+        <p style={{ color: PRESENTATION_TOKENS.colors.brandCream, fontFamily: PRESENTATION_TOKENS.typography.body.family, fontSize: Math.max(24, Math.round(width * 0.018)), fontWeight: 600, lineHeight: 1.3, margin: 0 }}>Merci d’avoir regardé</p>
       </div>
     </section>
   );
@@ -147,10 +146,10 @@ export const MobiusComposition = ({
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: '#101827',
-        backgroundImage: `linear-gradient(${125 + (backgroundShift * 16)}deg, #101827 0%, #172554 100%)`,
-        color: '#f8fafc',
-        fontFamily: 'Nunito, Arial, sans-serif',
+        backgroundColor: PRESENTATION_TOKENS.colors.brandInk,
+        backgroundImage: `linear-gradient(${125 + (backgroundShift * 16)}deg, ${PRESENTATION_TOKENS.colors.brandInk} 0%, ${PRESENTATION_TOKENS.colors.panelWarmDark} 100%)`,
+        color: PRESENTATION_TOKENS.colors.brandCream,
+        fontFamily: `${PRESENTATION_TOKENS.typography.body.family}, Arial, sans-serif`,
         overflow: 'hidden',
       }}
     >
@@ -181,7 +180,7 @@ export const MobiusComposition = ({
               paddingRight: Math.round(width * 0.01),
             }}
           >
-            <StepBadge color={themeBorderColor} stepNumber={stepNumber} />
+            <StepBadge color={themeBorderColor} stepNumber={stepNumber} semanticLabel={sectionTitle || 'Présentation'} />
             <div style={{ marginTop: Math.max(28, Math.round(height * 0.025)) }}>
               <SceneTitle color={themeBorderColor}>{sectionTitle}</SceneTitle>
               {visualOverlayText ? (

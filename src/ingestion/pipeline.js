@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { detectHeadings, hashBlocks, normalizePages, buildPageHash } = require('./pdf');
 const { loadIngestionContract } = require('./contract');
+const { resolveCanonicalGameIdentity } = require('../services/gameIdentity.cjs');
 
 const contract = loadIngestionContract();
 
@@ -122,12 +123,21 @@ function runIngestionPipeline({ documentId, metadata, pages = [], ocr = {}, bggM
 
   const components = extractComponents(normalizedPages, outline);
   const assets = buildAssets(normalizedPages, components);
+  const identity = resolveCanonicalGameIdentity({
+    projectMetadata: metadata,
+    bgg: bggMetadata,
+    rulebook: { title: metadata?.title, gameName: metadata?.gameName },
+    filename: metadata?.filename || documentId,
+    locale: metadata?.locale || 'fr-CA',
+    sourceLanguage: metadata?.sourceLanguage || 'en',
+  });
   const manifest = {
     version: contract.version,
     document: {
       id: documentId,
       ...ensureMetadata(metadata),
       bgg: normalizeBggMetadata(bggMetadata),
+      identity,
       generatedAt: new Date().toISOString()
     },
     outline,

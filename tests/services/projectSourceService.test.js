@@ -5,6 +5,8 @@ import {
   PROJECT_SOURCE_STATUS,
   ProjectSourceError,
   createProjectSourceService,
+  normalizeDurableProjectSource,
+  sameDurableProjectSource,
 } from '../../src/services/projectSourceService.js';
 
 const projectId = 'source-contract-project';
@@ -47,6 +49,29 @@ describe('project source service', () => {
       status: PROJECT_SOURCE_STATUS.PENDING_CONTEXTUAL_RENDER,
     }));
     await expect(restarted.resolveFile(projectId)).resolves.toBe(path.join(sourceRoot, 'rulebook.pdf'));
+  });
+
+  it('normalizes one path-free durable contract and rejects path-bearing or foreign identities', async () => {
+    const saved = await service.persistUpload(projectId, uploadPath, { filename: 'Abyss Rulebook.pdf' });
+    const normalized = normalizeDurableProjectSource(saved.descriptor, projectId);
+
+    expect(normalized).toEqual(saved.descriptor);
+    expect(sameDurableProjectSource(normalized, saved.descriptor)).toBe(true);
+    expect(normalizeDurableProjectSource({ ...saved.descriptor, sha256: '0'.repeat(64) }, projectId)).not.toBeNull();
+    expect(sameDurableProjectSource(normalized, { ...saved.descriptor, sha256: '0'.repeat(64) })).toBe(false);
+    expect(normalizeDurableProjectSource({ ...saved.descriptor, documentId: 'other-project' }, projectId)).toBeNull();
+    expect(normalizeDurableProjectSource({ ...saved.descriptor, sourcePath: 'C:\\private\\rulebook.pdf' }, projectId)).toBeNull();
+  });
+
+  it('does not treat equivalent normalized upload paths as different source identities', async () => {
+    const nested = path.join(temporaryRoot, 'nested');
+    fs.mkdirSync(nested);
+    const normalizedUploadPath = path.join(nested, '..', 'upload.pdf');
+    const first = await service.persistUpload(projectId, normalizedUploadPath, { filename: 'Abyss.pdf' });
+    const second = await service.persistUpload(projectId, path.resolve(uploadPath), { filename: 'Abyss.pdf' });
+
+    expect(second.idempotent).toBe(true);
+    expect(sameDurableProjectSource(first.descriptor, second.descriptor)).toBe(true);
   });
 
   it('is idempotent for the same bytes and rejects a different source for the same project', async () => {

@@ -25,18 +25,22 @@ import { dirname, join, resolve, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import presentation from '../src/storyboard/tutorial_presentation.cjs';
 import { generateNarration, ELEVENLABS_MODEL_ID } from '../src/services/elevenLabsService.js';
-import { selectSourceVisual } from '../src/services/sourceVisualSelection.js';
+import { loadSourceVisualCatalog, selectSourceVisual } from '../src/services/sourceVisualSelection.js';
 import {
   BRAND_AUDIO_CONTRACT,
   DEFAULT_NARRATION_PRESET,
   classifyVisualLanguage,
   estimateTeachingLayout,
   getEditorialContract,
+  getNarrationDeliveryProfile,
   getNarrationPreset,
+  formatOpeningMetadataNarration,
   prepareNarrationText,
+  sectionLabelFor,
   evaluateProfessionalReleaseGate,
 } from '../src/services/editorialStandard.cjs';
 import { analyzeProductionVideo, buildExternalReviewSummary } from '../src/services/twelveLabsVideoReview.js';
+import { resolveCanonicalGameIdentity, resolveCanonicalGameMetadata, sanitizeNarrationGameIdentity, titleFromRulebook } from '../src/services/gameIdentity.cjs';
 
 const { DEFAULT_BRAND, buildBrandIntro, buildBrandOutro } = presentation;
 const SCRIPT_NAME = 'production-script.json';
@@ -66,6 +70,31 @@ function hashValue(value) {
 
 function hashFile(filePath) {
   return crypto.createHash('sha256').update(readFileSync(filePath)).digest('hex');
+}
+
+function deriveRulebookMetadata(text = '') {
+  const value = String(text || '');
+  const metadata = {};
+  const players = value.match(/(?:game|play|players?)[^\n]{0,80}?\b(\d+)\s*(?:-|–|to)\s*(\d+)\s+players?\b/i)
+    || value.match(/\b(\d+)\s*(?:-|–|to)\s*(\d+)\s+players?\b/i);
+  if (players) metadata.playerCount = `${players[1]}-${players[2]}`;
+  const duration = value.match(/\b(\d+)\s*(?:-|–|to)\s*(\d+)\s*(?:minutes?|mins?)\b/i)
+    || value.match(/\b(\d+)\s*(?:minutes?|mins?)\b/i);
+  if (duration) metadata.gameLength = duration[2] ? `${duration[1]}-${duration[2]} min` : `${duration[1]} min`;
+  const age = value.match(/\b(?:ages?|age)\s*(?:from\s*)?(\d+)\s*\+?/i);
+  if (age) metadata.minimumAge = `${age[1]}+`;
+  const designer = value.match(/(?:^|\n)\s*(?:game\s+design|designed\s+by|design)\s*:\s*([^\n\r]+)/im);
+  if (designer) metadata.designers = [designer[1].replace(/\s+/g, ' ').trim()];
+  const publisher = value.match(/\b(?:published\s+by|publisher)\s*:\s*([^\n\r]+)/i);
+  if (publisher) metadata.publisher = publisher[1].replace(/\s+/g, ' ').trim();
+  return metadata;
+}
+
+function isComponentOverviewScene(scene = {}) {
+  const text = [scene.section, scene.title, scene.narration, scene.visual_intent, scene.visualIntent]
+    .filter(Boolean).join(' ').toLowerCase();
+  return /\b(composant|composants|component|components|matériel|materiel)\b/.test(text)
+    && !/\b(action|actions|jouer|play|tour|turn|placement|placer)\b/.test(text);
 }
 
 function argsToObject(argv = process.argv.slice(2)) {
@@ -146,11 +175,118 @@ async function loadPersistedProject(baseUrl, projectId, apiKey) {
 function normalizeProject(project, root, projectId, language) {
   const metadata = parseMaybeJson(project.metadata, {}) || {};
   const context = parseMaybeJson(metadata.projectContext || project.projectContext, {}) || {};
-  const scenes = parseMaybeJson(project.scenes, []) || [];
-  if (!Array.isArray(scenes) || scenes.length === 0) throw new Error('Persisted project has no storyboard scenes.');
-  const gameName = context.gameName || project.name || projectId;
   const projectDir = resolve(root, 'data', projectId);
   const productionDir = join(projectDir, 'production');
+  const persistedStoryboard = readJsonIfPresent(join(productionDir, 'zero-state-storyboard.json'), {});
+  const persistedProductionScript = readJsonIfPresent(join(productionDir, SCRIPT_NAME), {});
+  const persistedExtraction = readJsonIfPresent(join(productionDir, 'zero-state-extraction.json'), {});
+  const apiScenes = parseMaybeJson(project.scenes, []) || [];
+  const rawCheckpointScenes = Array.isArray(persistedProductionScript.scenes)
+    ? persistedProductionScript.scenes
+    : [];
+  const seenSceneIds = new Set();
+  const checkpointScenes = rawCheckpointScenes.filter((scene) => {
+    const id = scene?.id;
+    if (!id || seenSceneIds.has(id)) return false;
+    seenSceneIds.add(id);
+    return true;
+  });
+  const storyboardScenes = Array.isArray(persistedStoryboard.scenes) ? persistedStoryboard.scenes : [];
+  const checkpointHasDuplicateIds = checkpointScenes.length !== rawCheckpointScenes.length;
+  // A deployment can leave the newest browser row with an empty scenes field
+  // while the canonical production checkpoints remain complete on disk. Use
+  // those same-project checkpoints as recovery input; never invent scenes or
+  // merge an unrelated historical project.
+  const scenes = apiScenes.length
+    ? apiScenes
+    : checkpointHasDuplicateIds && storyboardScenes.length
+      ? storyboardScenes
+      : checkpointScenes.length
+        ? checkpointScenes
+        : storyboardScenes;
+  if (!Array.isArray(scenes) || scenes.length === 0) throw new Error('Persisted project has no storyboard scenes.');
+  // The API row can legitimately lag behind the canonical zero-state
+  // storyboard after a runtime rebuild. Rehydrate source pages from the
+  // storyboard's authoritative character offsets before visual matching;
+  // otherwise a stale row can send a components/setup scene to an unrelated
+  // neighbouring page and make the renderer appear to have poor visuals.
+  const pageRanges = Array.isArray(persistedExtraction.pageRanges)
+    ? persistedExtraction.pageRanges
+    : [];
+  const storyboardSourcePages = new Map(storyboardScenes.map((storyboardScene) => {
+    const pages = (storyboardScene.sources || []).reduce((found, source) => {
+      const start = Number(source.startOffset);
+      const end = Number(source.endOffset);
+      pageRanges.forEach((range) => {
+        const page = Number(range.page);
+        if (Number.isFinite(start) && Number.isFinite(end)
+          && Number.isFinite(page)
+          && end >= Number(range.start) && start <= Number(range.end)) found.add(page);
+      });
+      return found;
+    }, new Set());
+    return [storyboardScene.id, [...pages].sort((a, b) => a - b)];
+  }).filter(([, pages]) => pages.length));
+  const persistedPagesByScene = new Map((persistedProductionScript.scenes || [])
+    .filter((scene) => scene?.id)
+    .map((scene) => [scene.id, sourcePagesForScene(scene)]));
+  const extractedComponents = Array.isArray(persistedExtraction.components)
+    ? persistedExtraction.components
+    : Array.isArray(persistedExtraction.components?.components)
+      ? persistedExtraction.components.components
+      : [];
+  const extractedComponentPages = extractedComponents
+    .map((component) => Number(component.sourcePage))
+    .filter((page) => Number.isInteger(page) && page > 0);
+  const hydratedScenes = scenes.map((scene) => {
+    const sourcePages = storyboardSourcePages.get(scene.id);
+    if (!sourcePages?.length || scene.renderVisual?.path) return scene;
+    // A components overview is intentionally multi-page evidence: its
+    // narration names the inventory, while the canonical storyboard often
+    // points only at the first explanatory section. Preserve the persisted
+    // component/source pages so visual matching can select real cards, tiles
+    // and boards instead of the nearest contents-page crop. Other teaching
+    // scenes remain strictly anchored to storyboard character offsets.
+    if (isComponentOverviewScene(scene)) {
+      const persistedPages = persistedPagesByScene.get(scene.id) || [];
+      return {
+        ...scene,
+        source_pages: [...new Set([...sourcePages, ...persistedPages, ...extractedComponentPages])].sort((a, b) => a - b),
+      };
+    }
+    return { ...scene, source_pages: sourcePages };
+  });
+  const persistedIdentity = persistedProductionScript.identity || {};
+  const contextIdentity = context.identity || context.gameIdentity || {};
+  const explicitIdentity = contextIdentity.operatorConfirmed === true
+    ? contextIdentity
+    : (metadata.operatorIdentity || metadata.identityOverride || {});
+  const explicitMetadata = {
+    ...(persistedProductionScript.metadata || {}),
+    ...(metadata.gameMetadata || {}),
+    ...(context.metadata || {}),
+  };
+  const bggMetadata = metadata.bggMetadata || context.bggMetadata || metadata.bgg || context.bgg || {};
+  const rulebookIdentity = {
+    gameName: persistedExtraction.gameName || '',
+    title: titleFromRulebook(persistedExtraction.rulebookText || ''),
+    text: persistedExtraction.rulebookText || '',
+  };
+  const identity = resolveCanonicalGameIdentity({
+    explicitOverride: explicitIdentity,
+    projectMetadata: {
+      ...persistedIdentity,
+      identity: contextIdentity,
+      gameName: context.gameName || project.name || '',
+      identityConfirmed: contextIdentity.operatorConfirmed === true,
+    },
+    bgg: bggMetadata,
+    rulebook: rulebookIdentity,
+    filename: context.sourcePdf?.filename || persistedExtraction.source?.filename || projectId,
+    locale: language === 'french' ? 'fr-CA' : language,
+    sourceLanguage: context.sourceLanguage || 'en',
+  });
+  const gameName = identity.displayName;
   const audioDir = join(productionDir, 'audio');
   const sourceCandidates = [
     join(projectDir, 'source', 'rulebook.pdf'),
@@ -165,7 +301,24 @@ function normalizeProject(project, root, projectId, language) {
   ];
   const pageDir = pageDirCandidates.find((dir) => existsSync(join(dir, 'page-1.png'))) || null;
   if (!pageDir) throw new Error(`No canonical rulebook page images found for ${gameName}.`);
-  const production = context.production || {};
+  const visualReviewDir = join(productionDir, 'source-visual-review');
+  const visualManifestPath = join(visualReviewDir, 'source-visual-manifest.json');
+  const visualQualityReportPath = join(visualReviewDir, 'source-visual-quality.json');
+  const semanticVisualReportPath = join(visualReviewDir, 'source-visual-semantic-matches.json');
+  // Prefer the persisted production contract, while allowing the canonical API
+  // context to override individual fields. This keeps restart recovery scoped
+  // to the same project and avoids losing valid checkpoint metadata when the
+  // newest browser row is incomplete.
+  const production = { ...(persistedProductionScript || {}), ...(context.production || {}) };
+  const derivedMetadata = deriveRulebookMetadata(persistedExtraction.rulebookText);
+  const gameMetadata = {
+    ...resolveCanonicalGameMetadata({ explicit: explicitMetadata, bgg: bggMetadata, rulebook: derivedMetadata }),
+    bggId: identity.bggId || explicitMetadata.bggId || bggMetadata.bggId || null,
+    metadataProvenance: {
+      practical: Object.keys(explicitMetadata).length ? 'project-metadata' : (Object.keys(bggMetadata).length ? 'bgg' : 'rulebook-fallback'),
+      bgg: Object.keys(bggMetadata).length > 0,
+    },
+  };
   const voiceId = production.voiceId
     || process.env.ELEVENLABS_VOICE_ID_AMELIE
     || required(process.env.ELEVENLABS_VOICE_ID, 'voice-id or ELEVENLABS_VOICE_ID_AMELIE');
@@ -173,11 +326,14 @@ function normalizeProject(project, root, projectId, language) {
   getNarrationPreset(narrationPreset);
   return {
     project,
+    root,
     metadata,
     context,
-    scenes,
+    scenes: hydratedScenes,
     projectId,
     gameName,
+    identity,
+    gameMetadata,
     language,
     projectDir,
     productionDir,
@@ -185,6 +341,9 @@ function normalizeProject(project, root, projectId, language) {
     sourcePdf,
     sourcePdfSha256: hashFile(sourcePdf),
     pageDir,
+    visualManifestPath: existsSync(visualManifestPath) ? visualManifestPath : null,
+    visualQualityReportPath: existsSync(visualQualityReportPath) ? visualQualityReportPath : null,
+    semanticVisualReportPath: existsSync(semanticVisualReportPath) ? semanticVisualReportPath : null,
     voiceId,
     voiceName: production.voiceName || 'Amélie',
     narrationPreset,
@@ -192,35 +351,94 @@ function normalizeProject(project, root, projectId, language) {
   };
 }
 
+function metadataScriptScene(normalized) {
+  const metadata = normalized.gameMetadata || {};
+  const values = [
+    metadata.playerCount && `Joueurs : ${metadata.playerCount}`,
+    metadata.gameLength && `Durée : ${String(metadata.gameLength).replace(/\bmin\b/gi, 'minutes')}`,
+    metadata.minimumAge && `Âge minimum : ${String(metadata.minimumAge).replace(/\+?$/, '+')}`,
+    metadata.weight && `Complexité : ${String(metadata.weight).replace(/\./g, ',').replace(/\/?5$/, '')}/5`,
+    metadata.publisher && `Éditeur : ${metadata.publisher}`,
+    Array.isArray(metadata.designers) && metadata.designers.length ? `Auteur : ${metadata.designers.join(', ')}` : null,
+    metadata.weight && `Complexité : ${String(metadata.weight).replace(/\/?5$/, '')}/5`,
+  ].filter(Boolean);
+  return {
+    id: 'metadata-card',
+    section: 'À propos du jeu',
+    narration: buildOpeningNarration(normalized),
+    on_screen_text: values.join('\n') || 'Les informations essentielles pour commencer',
+    source_pages: [1],
+    visual_intent: 'box cover and game overview',
+    metadata_card: true,
+  };
+}
+
+function buildOpeningNarration(normalized) {
+  const identity = normalized.identity || {};
+  const teachingScenes = (normalized.scenes || []).filter((scene) => scene?.id !== 'metadata-card');
+  const themeSource = teachingScenes[0]?.spokenText || teachingScenes[0]?.narration || '';
+  const objectiveScene = teachingScenes.find((scene) => /objectif|but|win|goal/i.test(`${scene?.title || ''} ${scene?.section || ''}`));
+  const objectiveSource = objectiveScene?.spokenText
+    || objectiveScene?.narration
+    || '';
+  const theme = sanitizeNarrationGameIdentity(prepareNarrationText(themeSource), identity).split(/(?<=[.!?])\s+/)[0];
+  const objective = sanitizeNarrationGameIdentity(prepareNarrationText(objectiveSource), identity).split(/(?<=[.!?])\s+/)[0];
+  return formatOpeningMetadataNarration({
+    identity,
+    metadata: normalized.gameMetadata || {},
+    themeHook: theme && theme.length < 180 ? theme : '',
+  }) + (objective && objective.length < 180 ? ` Pour gagner, ${objective.charAt(0).toLowerCase()}${objective.slice(1)}` : '');
+}
+
+function productionScenes(normalized) {
+  const metadata = metadataScriptScene(normalized);
+  const existingMetadata = normalized.scenes.find((scene) => scene?.id === 'metadata-card');
+  if (existingMetadata) {
+    return normalized.scenes.map((scene) => scene?.id === 'metadata-card'
+      ? { ...scene, ...metadata, id: 'metadata-card', metadata_card: true }
+      : scene);
+  }
+  if (!metadata) return normalized.scenes;
+  return [metadata, ...normalized.scenes];
+}
+
 function sourcePagesForScene(scene) {
   const preferred = Number(scene.renderVisual?.sourcePage);
   if (Number.isInteger(preferred) && preferred > 0) return [preferred];
+  const directPages = (Array.isArray(scene.source_pages) ? scene.source_pages : [])
+    .map(Number)
+    .filter((page) => Number.isInteger(page) && page > 0);
+  if (directPages.length) return [...new Set(directPages)];
   const pages = (scene.sources || [])
     .map((source) => Number(source.page ?? source.pageNumber ?? source.section))
     .filter((page) => Number.isInteger(page) && page > 0);
   return [...new Set(pages)].length ? [...new Set(pages)] : [1];
 }
 
-function scriptSceneFromCanonical(scene, index) {
+function scriptSceneFromCanonical(scene, index, identity = {}) {
   const directions = Array.isArray(scene.visualDirections) ? scene.visualDirections : [];
   const overlay = scene.overlay || {};
   const firstDirection = directions[0] || {};
   const onScreenText = Array.isArray(overlay.onScreenText) && overlay.onScreenText.length
     ? overlay.onScreenText.join(' ')
-    : firstDirection.onScreenText || scene.title;
-  const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop', 'focused-page-region'].includes(scene.renderVisual?.kind)
+    : firstDirection.onScreenText
+      || scene.onScreenText
+      || scene.on_screen_text
+      || scene.title;
+  const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'automatic-visual-plan-composite', 'focused-page-crop', 'focused-page-region'].includes(scene.renderVisual?.kind)
     && scene.renderVisual?.path
     && existsSync(scene.renderVisual.path);
-  const sourceNarration = scene.spokenText;
+  const sourceNarration = sanitizeNarrationGameIdentity(scene.spokenText || scene.narration || '', identity);
   return {
     id: scene.id,
-    section: scene.title || scene.sectionId || `Étape ${index + 1}`,
+    section: sectionLabelFor(scene.title || scene.section || scene.sectionId, index === 0 ? 'Présentation' : 'Tutoriel'),
     narration: prepareNarrationText(sourceNarration),
     source_narration: sourceNarration,
     on_screen_text: onScreenText,
     source_pages: sourcePagesForScene(scene),
     callouts: overlay.callouts || firstDirection.callouts || [],
     visual_focus: scene.visualPlan?.visualFocus || null,
+    ...(scene.metadata_card ? { metadata_card: true, visual_intent: scene.visual_intent } : {}),
     ...(explicit ? {
       visual_asset: resolve(scene.renderVisual.path),
       visual_asset_id: scene.renderVisual.assetId || null,
@@ -235,14 +453,16 @@ function canonicalInput(normalized) {
   return {
     projectId: normalized.projectId,
     gameName: normalized.gameName,
+    identity: normalized.identity,
     language: normalized.language,
     voiceId: normalized.voiceId,
     voiceName: normalized.voiceName,
     narrationPreset: normalized.narrationPreset,
     editorial: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
     sourcePdfSha256: normalized.sourcePdfSha256,
-    scenes: normalized.scenes.map((scene, index) => ({
-      ...scriptSceneFromCanonical(scene, index),
+    metadata: normalized.gameMetadata,
+    scenes: productionScenes(normalized).map((scene, index) => ({
+      ...scriptSceneFromCanonical(scene, index, normalized.identity),
       renderKind: scene.renderVisual?.kind || 'missing',
     })),
   };
@@ -252,10 +472,17 @@ function inspectVisuals(normalized) {
   const counts = { explicit: 0, automatic: 0, automaticComponent: 0, automaticFocusedCrop: 0, fallback: 0, missing: 0 };
   const warnings = [];
   const bindings = [];
-  for (const [index, scene] of normalized.scenes.entries()) {
+  const catalog = normalized.visualManifestPath
+    ? loadSourceVisualCatalog(normalized.visualManifestPath, {
+      qualityReportPath: normalized.visualQualityReportPath,
+      semanticReportPath: normalized.semanticVisualReportPath,
+    })
+    : { assets: [], warnings: ['asset manifest unavailable'] };
+  warnings.push(...(catalog.warnings || []));
+  for (const [index, scene] of productionScenes(normalized).entries()) {
     const pages = sourcePagesForScene(scene);
     const fallback = join(normalized.pageDir, `page-${pages[0]}.png`);
-  const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'focused-page-crop', 'focused-page-region'].includes(scene.renderVisual?.kind) && scene.renderVisual?.path;
+    const explicit = ['explicit-asset', 'component', 'automatic-asset', 'automatic-component', 'automatic-visual-plan-composite', 'focused-page-crop', 'focused-page-region'].includes(scene.renderVisual?.kind) && scene.renderVisual?.path;
     const selection = selectSourceVisual(
       explicit ? {
         language: normalized.language,
@@ -265,8 +492,13 @@ function inspectVisuals(normalized) {
         visual_source_page: scene.renderVisual.sourcePage,
         visual_provenance: scene.renderVisual.provenance,
         visual_metadata: scene.renderVisual.metadata,
-      } : { language: normalized.language },
-      { assets: [] },
+      } : {
+        ...scene,
+        language: normalized.language,
+        source_pages: pages,
+        source_pdf_sha256: normalized.sourcePdfSha256,
+      },
+      catalog,
       fallback,
     );
     if (!selection.path || !existsSync(selection.path)) {
@@ -296,7 +528,7 @@ function inspectVisuals(normalized) {
     });
   }
   if (counts.missing) throw new Error(`Visual contract failed: ${counts.missing} scene(s) have no readable visual.`);
-  return { counts, warnings, bindings };
+  return { counts, warnings, bindings, catalog };
 }
 
 function buildEditorialReport(config, normalized, visuals, narration) {
@@ -320,7 +552,7 @@ function buildEditorialReport(config, normalized, visuals, narration) {
   return {
     version: 'mobius-editorial-report-v2',
     contract: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
-    brandedIntroAudioPresent: Boolean(narration.records.find((record) => record.sceneId === 'brand-intro')?.brandAudioContract),
+    brandedIntroAudioPresent: Boolean(narration.brandSignaturePath),
     brandedOutroAudioPresent: Boolean(narration.records.find((record) => record.sceneId === 'brand-outro')?.brandAudioContract),
     narrationPreset: normalized.narrationPreset,
     narrationPresetHash: narration.presetHash,
@@ -342,12 +574,15 @@ function buildEditorialReport(config, normalized, visuals, narration) {
 }
 
 function audioSpecs(normalized) {
-  const intro = buildBrandIntro({ audio: null, gameName: normalized.gameName, themeHook: normalized.scenes[0]?.spokenText || '' });
   const outro = buildBrandOutro({ audio: null });
   return [
-    { id: 'brand-intro-voice', sceneId: 'brand-intro', text: prepareNarrationText(intro.narrationText) },
-    ...normalized.scenes.map((scene) => ({ id: scene.id, sceneId: scene.id, text: prepareNarrationText(scene.spokenText) })),
-    { id: 'brand-outro-voice', sceneId: 'brand-outro', text: prepareNarrationText(outro.narrationText) },
+    ...productionScenes(normalized).map((scene) => ({
+      id: scene.id,
+      sceneId: scene.id,
+      text: prepareNarrationText(sanitizeNarrationGameIdentity(scene.narration || scene.spokenText, normalized.identity)),
+      deliveryProfile: scene.metadata_card ? 'AMELIE_METADATA' : (scene.deliveryProfile || scene.teaching?.profile || 'AMELIE_TEACHING_WARM_R10'),
+    })),
+    { id: 'brand-outro-voice', sceneId: 'brand-outro', text: prepareNarrationText(outro.narrationText), deliveryProfile: 'AMELIE_OUTRO' },
   ];
 }
 
@@ -363,36 +598,16 @@ function ensureBrandAudioMix(normalized, tools, records, presetHash) {
   const signatureMetaPath = join(normalized.audioDir, 'mobius-signature-bed.json');
   const transitionPath = join(normalized.audioDir, 'mobius-transition-bed.wav');
   const mixHash = hashValue({ brandAudio: BRAND_AUDIO_CONTRACT, presetHash });
-  const introVoice = records.find((record) => record.sceneId === 'brand-intro');
   const outroVoice = records.find((record) => record.sceneId === 'brand-outro');
-  if (!introVoice || !outroVoice) throw new Error('Branded bookend narration records are missing.');
+  if (!outroVoice) throw new Error('Branded outro narration record is missing.');
 
   const signatureMeta = readJsonIfPresent(signatureMetaPath, {});
   if (!existsSync(signaturePath) || signatureMeta.contractHash !== mixHash) {
-    const duration = BRAND_AUDIO_CONTRACT.durationSec;
-    const bedFilter = [
-      '[0:a]volume=0.075[motif1]',
-      '[1:a]volume=0.045[motif2]',
-      '[2:a]volume=0.03[motif3]',
-      '[3:a]lowpass=f=1100,volume=0.06[room]',
-      '[4:a]adelay=900|900,volume=0.08[cup1]',
-      '[5:a]adelay=2600|2600,volume=0.06[cup2]',
-      '[6:a]lowpass=f=700,volume=0.035[water]',
-      '[motif1][motif2][motif3][room][cup1][cup2][water]amix=inputs=7:duration=longest:normalize=0,atrim=0:' + duration + ',afade=t=in:st=0:d=0.18,afade=t=out:st=' + Math.max(0, duration - 0.72).toFixed(2) + ':d=0.72,alimiter=limit=0.8[a]',
-    ].join(';');
-    execFileSync(tools.ffmpeg, [
-      '-hide_banner', '-loglevel', 'error', '-y',
-      '-f', 'lavfi', '-i', `sine=frequency=261.63:duration=${duration}:sample_rate=48000`,
-      '-f', 'lavfi', '-i', `sine=frequency=329.63:duration=${duration}:sample_rate=48000`,
-      '-f', 'lavfi', '-i', `sine=frequency=392.00:duration=${duration}:sample_rate=48000`,
-      '-f', 'lavfi', '-i', `anoisesrc=color=pink:amplitude=0.02:duration=${duration}:sample_rate=48000`,
-      '-f', 'lavfi', '-i', 'aevalsrc=0.18*sin(2*PI*90*t)*exp(-35*t):s=48000:d=0.18',
-      '-f', 'lavfi', '-i', 'aevalsrc=0.14*sin(2*PI*120*t)*exp(-42*t):s=48000:d=0.16',
-      '-f', 'lavfi', '-i', `anoisesrc=color=brown:amplitude=0.018:duration=${duration}:sample_rate=48000`,
-      '-filter_complex', bedFilter,
-      '-map', '[a]', '-ar', '48000', '-ac', '2', signaturePath,
-    ], { stdio: 'pipe', windowsHide: true });
-    jsonFile(signatureMetaPath, { version: BRAND_AUDIO_CONTRACT.version, contract: BRAND_AUDIO_CONTRACT.id, contractHash: mixHash, path: signaturePath, layers: BRAND_AUDIO_CONTRACT.layers });
+    execFileSync(process.execPath, [resolve(normalized.root, 'scripts/build-cafe-sonic-signature.mjs'), '--out', signaturePath, '--meta', signatureMetaPath], {
+      stdio: 'pipe', windowsHide: true,
+      env: { ...process.env, MOBIUS_FFMPEG_PATH: tools.ffmpeg, MOBIUS_FFPROBE_PATH: tools.ffprobe },
+    });
+    jsonFile(signatureMetaPath, { ...readJsonIfPresent(signatureMetaPath, {}), version: BRAND_AUDIO_CONTRACT.version, contract: BRAND_AUDIO_CONTRACT.id, contractHash: mixHash, path: signaturePath, layers: BRAND_AUDIO_CONTRACT.layers });
   }
 
   const transitionMetaHash = hashValue({ mixHash, transition: BRAND_AUDIO_CONTRACT.transition });
@@ -401,14 +616,14 @@ function ensureBrandAudioMix(normalized, tools, records, presetHash) {
   if (!existsSync(transitionPath) || transitionMeta.contractHash !== transitionMetaHash) {
     execFileSync(tools.ffmpeg, [
       '-hide_banner', '-loglevel', 'error', '-y', '-i', signaturePath,
-      '-filter_complex', `[0:a]atrim=0:${BRAND_AUDIO_CONTRACT.transitionBedSec},volume=0.24,afade=t=in:st=0:d=0.18,afade=t=out:st=1.8:d=4.0,alimiter=limit=0.7[a]`,
+      '-filter_complex', `[0:a]atrim=0:${BRAND_AUDIO_CONTRACT.transitionBedSec},volume=0.24,afade=t=in:st=0:d=0.18,afade=t=out:st=${Math.max(0.5, BRAND_AUDIO_CONTRACT.transitionBedSec - 0.72).toFixed(2)}:d=0.72,alimiter=limit=0.7[a]`,
       '-map', '[a]', '-ar', '48000', '-ac', '2', transitionPath,
     ], { stdio: 'pipe', windowsHide: true });
     jsonFile(transitionMetaPath, { version: BRAND_AUDIO_CONTRACT.version, contract: BRAND_AUDIO_CONTRACT.id, contractHash: transitionMetaHash, path: transitionPath, durationSec: BRAND_AUDIO_CONTRACT.transitionBedSec });
   }
 
   const mixed = new Map();
-  for (const [sceneId, voiceRecord] of [['brand-intro', introVoice], ['brand-outro', outroVoice]]) {
+  for (const [sceneId, voiceRecord] of [['brand-outro', outroVoice]]) {
     const outputPath = join(normalized.audioDir, `${sceneId}.mp3`);
     const voicePath = voiceRecord.rawFilePath || voiceRecord.filePath;
     const outputHash = hashValue({ mixHash, sceneId, voice: hashFile(voicePath) });
@@ -461,6 +676,9 @@ async function ensureNarration(normalized, tools, checkpoint, inputHash) {
     const target = join(normalized.audioDir, `${spec.id}.mp3`);
     const existing = index.get(spec.sceneId) || index.get(spec.id);
     const sourcePath = existing?.rawFilePath || existing?.filePath || existing?.path;
+    const deliveryProfile = getNarrationDeliveryProfile(spec.deliveryProfile, normalized.narrationPreset);
+    const voiceSettings = preset[deliveryProfile.voiceSettingsKey] || preset.voiceSettings;
+    const voiceSettingsHash = hashValue(voiceSettings);
     const compatible = existing
       && existing.sourceText === spec.text
       && existing.providerVoiceId === normalized.voiceId
@@ -468,13 +686,15 @@ async function ensureNarration(normalized, tools, checkpoint, inputHash) {
       && existing.modelId === preset.modelId
       && existing.narrationPreset === preset.id
       && existing.narrationPresetHash === presetHash
+      && existing.deliveryProfile === spec.deliveryProfile
+      && existing.voiceSettingsHash === voiceSettingsHash
       && sourcePath && existsSync(sourcePath);
     if (compatible && !existsSync(target)) copyFileSync(sourcePath, target);
     const valid = compatible && existsSync(target);
     if (!valid) {
       await generateNarration(spec.text, normalized.voiceId, target, {
         modelId: preset.modelId,
-        voiceSettings: preset.voiceSettings,
+        voiceSettings,
       });
       generated += 1;
     } else reused += 1;
@@ -489,7 +709,10 @@ async function ensureNarration(normalized, tools, checkpoint, inputHash) {
       sourceText: spec.text,
       narrationPreset: preset.id,
       narrationPresetHash: presetHash,
-      sourceTextHash: hashValue({ text: spec.text, voiceId: normalized.voiceId, language: normalized.language, modelId: preset.modelId, narrationPreset: preset.id, voiceSettings: preset.voiceSettings }),
+      deliveryProfile: spec.deliveryProfile,
+      deliveryProfileContract: deliveryProfile.contract || null,
+      sourceTextHash: hashValue({ text: spec.text, voiceId: normalized.voiceId, language: normalized.language, modelId: preset.modelId, narrationPreset: preset.id, deliveryProfile: spec.deliveryProfile, voiceSettings }),
+      voiceSettingsHash,
       filePath: target,
       rawFilePath: target,
       durationMs: Math.round(probe.durationSec * 1000),
@@ -503,22 +726,24 @@ async function ensureNarration(normalized, tools, checkpoint, inputHash) {
   jsonFile(join(normalized.productionDir, AUDIO_NAME), {
     provider: 'elevenlabs', voiceName: normalized.voiceName, voiceId: normalized.voiceId,
     language: normalized.language, modelId: preset.modelId, narrationPreset: preset.id,
-    narrationPresetHash: presetHash, voiceSettings: preset.voiceSettings, inputHash, assets: finalRecords,
+    narrationPresetHash: presetHash, voiceSettings: preset.voiceSettings, openingVoiceSettings: preset.openingVoiceSettings || null, inputHash, assets: finalRecords,
   });
   checkpoint.stages.narration = { inputHash, reused, generated, outputs: [join(normalized.productionDir, AUDIO_NAME)] };
-  return { reused, generated, records: finalRecords, preset, presetHash, brandTransitionPath: brandMix.transitionPath, brandTransitionHash: brandMix.transitionHash };
+  return { reused, generated, records: finalRecords, preset, presetHash, brandSignaturePath: join(normalized.audioDir, 'mobius-signature-bed.wav'), brandTransitionPath: brandMix.transitionPath, brandTransitionHash: brandMix.transitionHash };
 }
 
 function materializeScript(normalized, inputHash) {
   const output = join(normalized.productionDir, SCRIPT_NAME);
-  const scenes = normalized.scenes.map(scriptSceneFromCanonical);
+  const scenes = productionScenes(normalized).map((scene, index) => scriptSceneFromCanonical(scene, index, normalized.identity));
   const value = {
     version: 1,
     game: normalized.gameName,
+    identity: normalized.identity,
     language: normalized.language,
     voiceName: normalized.voiceName,
     voiceId: normalized.voiceId,
     narrationPreset: normalized.narrationPreset,
+    metadata: normalized.gameMetadata,
     editorial: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
     sourcePdf: normalized.sourcePdf,
     sourcePdfSha256: normalized.sourcePdfSha256,
@@ -653,8 +878,17 @@ export async function runProduction(options = {}) {
   const handoffHash = hashValue({
     inputHash,
     narrationInputHash,
+    // Selection heuristics are part of the render contract. Bump this when
+    // source-visual ranking changes so a stale handoff cannot preserve a
+    // previously selected cover/page visual after a visual-quality repair.
+    sourceVisualSelectionContract: 'source-visual-selection-v7-provenance-handoff-v1',
     editorial: getEditorialContract({ narrationPreset: normalized.narrationPreset }),
-    branding: { bannerPath: resolve(root, DEFAULT_BRAND.bannerPath), transitionHash: narration.brandTransitionHash },
+    branding: { bannerPath: resolve(root, DEFAULT_BRAND.bannerPath), signatureHash: hashFile(narration.brandSignaturePath) },
+    sourceVisualContracts: {
+      manifest: normalized.visualManifestPath ? hashFile(normalized.visualManifestPath) : null,
+      quality: normalized.visualQualityReportPath ? hashFile(normalized.visualQualityReportPath) : null,
+      semantic: normalized.semanticVisualReportPath ? hashFile(normalized.semanticVisualReportPath) : null,
+    },
     audio: narration.records.map((record) => ({
       id: record.id,
       durationMs: record.durationMs,
@@ -671,7 +905,10 @@ export async function runProduction(options = {}) {
       '--language', language, '--voice-name', normalized.voiceName, '--voice-id', normalized.voiceId,
       '--narration-provider', 'elevenlabs', '--narration-preset', normalized.narrationPreset,
       '--brand-banner', resolve(root, DEFAULT_BRAND.bannerPath),
-      '--brand-transition-audio', narration.brandTransitionPath,
+      '--brand-transition-audio', narration.brandSignaturePath,
+      ...(normalized.visualManifestPath ? ['--asset-manifest', normalized.visualManifestPath] : []),
+      ...(normalized.visualQualityReportPath ? ['--visual-quality-report', normalized.visualQualityReportPath] : []),
+      ...(normalized.semanticVisualReportPath ? ['--semantic-visual-report', normalized.semanticVisualReportPath] : []),
     ], tools.env);
   }
   checkpoint.stages.handoff = { inputHash: handoffHash, reused: handoffReuse, outputs: [configPath, captionsPath, chaptersPath] };
@@ -708,6 +945,7 @@ export async function runProduction(options = {}) {
   const loudness = measureLoudness(tools, outputPath);
   const physicalReview = readJsonIfPresent(join(normalized.productionDir, 'professional-physical-review.json'), {});
   const calibration = readJsonIfPresent(join(normalized.productionDir, 'twelvelabs-calibration.json'), {});
+  const requiredNarrationSceneCount = config.scenes.filter((scene) => scene.narrationText && scene.audio?.speechRequired !== false).length;
   const professionalGate = evaluateProfessionalReleaseGate({
     deterministicPass: true,
     visuals,
@@ -715,7 +953,7 @@ export async function runProduction(options = {}) {
     media: { ...media, valid: true },
     captions: { ...captions, valid: true },
     chapters: { count: chapterList.length, order: 'valid' },
-    narration: { total: narration.records.length, complete: narration.records.length === config.scenes.length },
+    narration: { total: narration.records.length, complete: narration.records.length === requiredNarrationSceneCount },
     provenance: { sourceGrounded: true, complete: normalized.scenes.every((scene) => sourcePagesForScene(scene).length > 0) },
     branding: { bannerPresent: true, introPresent: true, outroPresent: true },
     physicalReview,
@@ -723,8 +961,12 @@ export async function runProduction(options = {}) {
   });
   const report = {
     status: 'PASS',
+    technicalVerdict: 'TECHNICAL_PASS',
+    humanReviewRequired: true,
     projectId,
     language,
+    identity: normalized.identity,
+    metadataProvenance: normalized.gameMetadata?.metadataProvenance || null,
     voice: {
       name: normalized.voiceName,
       id: normalized.voiceId,
@@ -741,15 +983,19 @@ export async function runProduction(options = {}) {
     handoff: { configPath, captionsPath, chaptersPath, reused: handoffReuse },
     branding: {
       bannerPath: resolve(root, DEFAULT_BRAND.bannerPath),
+      bannerSha256: hashFile(resolve(root, DEFAULT_BRAND.bannerPath)),
+      signatureAudioPath: narration.brandSignaturePath,
+      signatureSha256: hashFile(narration.brandSignaturePath),
       transitionAudioPath: narration.brandTransitionPath,
       transitionHash: narration.brandTransitionHash,
+      introDurationSec: Number(config.scenes.find((scene) => scene.id === 'brand-intro')?.durationSec || 0),
       introPresent: true,
       outroPresent: true,
     },
-    render: { outputPath, reused: renderReused, durationSec: media.durationSec, resolution: `${media.video.width}x${media.video.height}`, fps: media.video.avg_frame_rate, status: 'complete' },
+    render: { outputPath, outputSha256: hashFile(outputPath), reused: renderReused, durationSec: media.durationSec, resolution: `${media.video.width}x${media.video.height}`, fps: media.video.avg_frame_rate, status: 'complete' },
     media: { ...media, loudness },
     captions,
-    chapters: { count: chapterList.length, order: 'valid' },
+    chapters: { count: chapterList.length, order: 'valid', boundaries: chapterList },
     editorial: editorialReport,
     professionalGate,
     checkpoint: checkpointPath,
@@ -779,7 +1025,7 @@ export async function runProduction(options = {}) {
       media: { ...media, valid: true },
       captions: { ...captions, valid: true },
       chapters: { count: chapterList.length, order: 'valid' },
-      narration: { total: narration.records.length, complete: narration.records.length === config.scenes.length },
+      narration: { total: narration.records.length, complete: narration.records.length === requiredNarrationSceneCount },
       provenance: { sourceGrounded: true, complete: normalized.scenes.every((scene) => sourcePagesForScene(scene).length > 0) },
       branding: { bannerPresent: true, introPresent: true, outroPresent: true },
       physicalReview,

@@ -1,0 +1,87 @@
+{
+  "contract": "mobius-project-tutorial-assembly-v1",
+  "projectId": "7-wonders-duel",
+  "knowledgeSeed": "config/projects/7-wonders-duel/rulebook-knowledge.r10.json",
+  "knowledgeModelCache": "out/publishability-r10/7-wonders-duel/rulebook-knowledge-model.json",
+  "openingConfig": "out/publishability-r3/full-tutorial-final/7-wonders-duel/full-tutorial-config.json",
+  "boxArt": "src/assets/games/7-wonders-duel-box-art-bgg-front.webp",
+  "sonicMaster": "src/assets/branding/sonic/mobius-cafe-sonic-signature-r10.wav",
+  "brandBanner": "src/assets/branding/les-jeux-mobius-banner-canonical.png",
+  "outputRoot": "out/publishability-r10/7-wonders-duel",
+  "outputFileName": "7-wonders-duel-full-tutorial-r10.mp4",
+  "visualPlan": "config/projects/7-wonders-duel/visual-plan.r10.json",
+  "componentLibraryManifest": "out/publishability-r10/7-wonders-duel/component-library/manifest.json",
+  "visualStoryboardRoot": "out/publishability-r10/7-wonders-duel/visual-storyboard",
+  "visualManifest": "out/publishability-r10/7-wonders-duel/visual-storyboard/manifest.json",
+  "narrationSeedManifest": "out/publishability-r9/7-wonders-duel/narration-assets.json",
+  "narrationTeachingProfile": "AMELIE_TEACHING_WARM_R10",
+  "locale": "fr-CA",
+  "majorSections": [
+    "Présentation / But du jeu",
+    "Les composants",
+    "Mise en place",
+    "Comment se déroule le jeu?",
+    "Les actions",
+    "Systèmes clés",
+    "Fin de partie",
+    "Décompte / Victoire",
+    "Conclusion"
+  ],
+  "presentation": {
+    "brandSceneId": "brand-signature",
+    "reuseOpeningSceneIds": [
+      "opening-metadata-card"
+    ],
+    "metadataAudio": "out/publishability-r3/full-tutorial-final/7-wonders-duel/audio/metadata-card-amelie-metadata.mp3",
+    "metadataDeliveryProfile": "AMELIE_METADATA",
+    "reuseOutroSceneId": "brand-outro"
+  },
+  "narrationRegenerateSceneIds": [
+    "knowledge-identity-theme",
+    "knowledge-objective-victory-overview",
+    "knowledge-components-overview",
+    "knowledge-setup-central",
+    "knowledge-setup-wonder-selection",
+    "knowledge-setup-age-decks",
+    "knowledge-setup-age-layouts",
+    "knowledge-setup-later-age-layouts",
+    "knowledge-age-loop",
+    "knowledge-accessible-card",
+    "knowledge-construct-building",
+    "knowledge-resource-production",
+    "knowledge-trade-missing-resources",
+    "knowledge-chain-construction",
+    "knowledge-discard-for-coins",
+    "knowledge-construct-wonder",
+    "knowledge-end-of-age",
+    "knowledge-military-system",
+    "knowledge-science-pair-progress",
+    "knowledge-science-supremacy",
+    "knowledge-endgame-trigger",
+    "knowledge-scoring-ledger",
+    "knowledge-scoring-military",
+    "knowledge-scoring-buildings",
+    "knowledge-scoring-wonders",
+    "knowledge-scoring-progress",
+    "knowledge-scoring-treasury",
+    "knowledge-winner-resolution",
+    "knowledge-tie-breaker",
+    "knowledge-scorebook-reference",
+    "knowledge-components-physical-overview",
+    "knowledge-guild-system"
+  ],
+  "baseline": {
+    "immutableGold": {
+      "version": "r5",
+      "video": "out/publishability-r5/7-wonders-duel/7-wonders-duel-full-tutorial-r5.mp4",
+      "directorStatus": "HUMAN_PUBLISHABLE_GOLD_BASELINE",
+      "published": false
+    },
+    "predecessor": {
+      "version": "r9",
+      "video": "out/publishability-r9/7-wonders-duel/7-wonders-duel-full-tutorial-r9.mp4",
+      "preserved": true,
+      "directorStatus": "MAJOR_PRODUCT_SUCCESS_NOT_YET_LOCKED_PUBLISHABLE"
+    }
+  }
+}

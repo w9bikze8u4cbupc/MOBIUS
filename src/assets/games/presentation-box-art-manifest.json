@@ -1,0 +1,31 @@
+{
+  "version": "mobius-presentation-box-art-v1",
+  "selectionPolicy": "exact-edition-front-cover > operator-confirmed > verified-project-asset > explicit-rulebook-fallback",
+  "assets": {
+    "terraforming-mars": {
+      "path": "src/assets/games/terraforming-mars-box-art-fryxgames.png",
+      "edition": "FryxGames / Stronghold Games production asset",
+      "source": "verified project asset",
+      "sourceUrl": null,
+      "sourceDimensions": { "width": 988, "height": 988 },
+      "processedDimensions": { "width": 988, "height": 988 },
+      "usefulContentRatio": 0.8356,
+      "excessiveWhiteMatte": false,
+      "qualityPass": true,
+      "transform": "none; transparent external background retained"
+    },
+    "7-wonders-duel": {
+      "path": "src/assets/games/7-wonders-duel-box-art-bgg-front.webp",
+      "edition": "Repos Production / BGG front-cover reference, BGG 173346",
+      "source": "local Director reference pack, BGG front-cover image",
+      "sourceUrl": "https://boardgamegeek.com/boardgame/173346/7-wonders-duel",
+      "sourceDimensions": { "width": 601, "height": 600 },
+      "processedDimensions": { "width": 601, "height": 600 },
+      "usefulContentRatio": 1,
+      "excessiveWhiteMatte": false,
+      "qualityPass": false,
+      "qualityWarning": "Source is below the 720px HD threshold; clean front-cover composition is retained for this bounded preview and requires higher-resolution replacement before publish.",
+      "transform": "none; no artwork crop"
+    }
+  }
+}

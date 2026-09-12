@@ -1,6 +1,6 @@
 import { contextualEvidenceAssignmentIsAllowed, validateStoryboardVisualPlans } from './storyboardVisualPlan';
 
-export const PROJECT_CONTEXT_VERSION = 7;
+export const PROJECT_CONTEXT_VERSION = 8;
 export const PROJECT_SOURCE_STATUS = Object.freeze({
   AVAILABLE: 'available',
   PENDING_CONTEXTUAL_RENDER: 'pending_contextual_render',
@@ -33,6 +33,28 @@ const CANONICAL_RECOVERY_PROJECT_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function asTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeGameIdentity(value = {}, gameName = '') {
+  const identity = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  return {
+    version: asTrimmedString(identity.version) || 'game-identity-v1',
+    sourceTitle: asTrimmedString(identity.sourceTitle),
+    officialEditionTitle: asTrimmedString(identity.officialEditionTitle),
+    displayName: asTrimmedString(identity.displayName) || asTrimmedString(gameName),
+    spokenName: asTrimmedString(identity.spokenName),
+    locale: asTrimmedString(identity.locale) || 'fr-CA',
+    sourceLanguage: asTrimmedString(identity.sourceLanguage) || 'en',
+    bggId: asTrimmedString(identity.bggId) || null,
+    edition: asTrimmedString(identity.edition) || null,
+    versionName: asTrimmedString(identity.versionName) || null,
+    pronunciationOverride: identity.pronunciationOverride || null,
+    pronunciationRepresentation: asTrimmedString(identity.pronunciationRepresentation),
+    pronunciationStatus: asTrimmedString(identity.pronunciationStatus) || 'unresolved',
+    preserveOriginalTitle: identity.preserveOriginalTitle !== false,
+    operatorConfirmed: identity.operatorConfirmed === true,
+    provenance: identity.provenance && typeof identity.provenance === 'object' ? identity.provenance : null,
+  };
 }
 
 export const IMAGE_REVIEW_STATUS = Object.freeze({
@@ -274,6 +296,7 @@ export function buildScriptGenerationRequest(context) {
   if (!readiness.ready) return { request: null, readiness };
   return { readiness, request: {
     projectId: asTrimmedString(context.projectId), gameName: asTrimmedString(context.gameName),
+    identity: normalizeGameIdentity(context.identity, context.gameName),
     language: asTrimmedString(context.language).toLowerCase(), rulebookText: context.rulebookText.trim(),
     components: context.components, metadata: context.metadata && typeof context.metadata === 'object' ? context.metadata : {},
   } };
@@ -411,6 +434,7 @@ export function createPersistedProjectContext(context) {
   const canConfirmScript = Boolean(asTrimmedString(scriptState.script)) && isTrustedScriptProvenance(scriptState.scriptProvenance);
   return {
     version: PROJECT_CONTEXT_VERSION, projectId: asTrimmedString(context.projectId), gameName: asTrimmedString(context.gameName),
+    identity: normalizeGameIdentity(context.identity, context.gameName),
     language: asTrimmedString(context.language).toLowerCase(), rulebookText: typeof context.rulebookText === 'string' ? context.rulebookText : '',
     rulebookPages: Array.isArray(context.rulebookPages) ? context.rulebookPages : [], components: Array.isArray(context.components) ? context.components : [],
     sourcePdf: normalizeProjectSourceRecord(context.sourcePdf, context.projectId),
@@ -421,6 +445,16 @@ export function createPersistedProjectContext(context) {
     visualPlanPolicy: context.visualPlanPolicy && typeof context.visualPlanPolicy === 'object' ? context.visualPlanPolicy : { allowAutomaticComponentLinks: false },
     ingestionManifest: context.ingestionManifest && typeof context.ingestionManifest === 'object' && !Array.isArray(context.ingestionManifest) ? context.ingestionManifest : null,
     storyboardManifest: context.storyboardManifest && typeof context.storyboardManifest === 'object' && !Array.isArray(context.storyboardManifest) ? context.storyboardManifest : null,
+    rulebookKnowledgeModel: context.rulebookKnowledgeModel && typeof context.rulebookKnowledgeModel === 'object' ? context.rulebookKnowledgeModel : null,
+    tutorialCoverage: context.tutorialCoverage && typeof context.tutorialCoverage === 'object' ? context.tutorialCoverage : null,
+    gameplayModel: context.gameplayModel && typeof context.gameplayModel === 'object' ? context.gameplayModel : null,
+    endgameModel: context.endgameModel && typeof context.endgameModel === 'object' ? context.endgameModel : null,
+    visualPlans: Array.isArray(context.visualPlans) ? context.visualPlans : [],
+    physicalGameStates: Array.isArray(context.physicalGameStates) ? context.physicalGameStates : [],
+    visualReviewItems: Array.isArray(context.visualReviewItems) ? context.visualReviewItems : [],
+    productionQa: context.productionQa && typeof context.productionQa === 'object' ? context.productionQa : null,
+    generatorProductization: context.generatorProductization && typeof context.generatorProductization === 'object' ? context.generatorProductization : null,
+    production: context.production && typeof context.production === 'object' ? context.production : {},
     ...scriptState, activeStepId: asTrimmedString(context.activeStepId) || 'project',
     completedStepIds: canConfirmScript ? completedStepIds : completedStepIds.filter((stepId) => stepId !== 'script'),
   };
@@ -428,7 +462,7 @@ export function createPersistedProjectContext(context) {
 
 export function hydrateProjectContext(value) {
   const context = value && typeof value === 'object' ? value : null;
-  if (!context || ![1, 2, 3, 4, 5, 6, PROJECT_CONTEXT_VERSION].includes(context.version) || !asTrimmedString(context.projectId)) return null;
+  if (!context || ![1, 2, 3, 4, 5, 6, 7, PROJECT_CONTEXT_VERSION].includes(context.version) || !asTrimmedString(context.projectId)) return null;
   return createPersistedProjectContext(context);
 }
 

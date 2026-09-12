@@ -7,7 +7,7 @@ const clamp = {
 };
 
 /** Animated scene ordinal that makes a multi-step tutorial easier to follow. */
-export const StepBadge = ({ color, stepNumber = 1 }) => {
+export const StepBadge = ({ color, stepNumber = 1, semanticLabel = '' }) => {
   const frame = useCurrentFrame();
   const { fps, width } = useVideoConfig();
   const entrance = spring({
@@ -17,7 +17,7 @@ export const StepBadge = ({ color, stepNumber = 1 }) => {
   });
   const opacity = interpolate(entrance, [0, 1], [0, 1], clamp);
   const scale = interpolate(entrance, [0, 1], [0.7, 1], clamp);
-  const stepLabel = `Step ${String(stepNumber).padStart(2, '0')}`;
+  const stepLabel = semanticLabel || 'Tutoriel';
 
   return (
     <div
@@ -35,7 +35,7 @@ export const StepBadge = ({ color, stepNumber = 1 }) => {
         letterSpacing: 1.2,
         opacity,
         padding: '16px 26px',
-        textTransform: 'uppercase',
+        textTransform: 'none',
         transform: `scale(${scale})`,
         transformOrigin: 'left center',
       }}

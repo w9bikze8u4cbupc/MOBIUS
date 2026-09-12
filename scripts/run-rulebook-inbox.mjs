@@ -11,9 +11,10 @@ import { computePdfIdentity, discoverRulebooks, findProcessedBySha } from './rul
 import { runZeroState } from './run-rulebook-production.mjs';
 
 export const INBOX_STATUSES = Object.freeze([
-  'waiting', 'claimed', 'processing', 'qa', 'completed', 'failed-retryable', 'failed-terminal',
+  'waiting', 'claimed', 'processing', 'qa', 'review-required', 'completed', 'failed-retryable', 'failed-terminal',
 ]);
 export const ACTIVE_STATUSES = Object.freeze(['claimed', 'processing', 'qa']);
+export const REVIEW_STATUSES = Object.freeze(['review-required']);
 export const DEFAULT_RETRY_LIMIT = 3;
 export const DEFAULT_LEASE_MS = 15 * 60 * 1000;
 export const DEFAULT_POLL_MS = 30 * 1000;
@@ -106,11 +107,22 @@ async function listPdfs(directory, result = []) {
 
 export function classifyInboxError(error) {
   const message = String(error?.message || error || '').toLowerCase();
+  const configurationRequired = error?.classification === 'configuration_required'
+    || ['AI_NOT_CONFIGURED', 'AI_PROVIDER_UNSUPPORTED'].includes(String(error?.code || ''))
+    || /ai_not_configured|missing.*(?:credential|api key|model)|no .*ai provider .*configured/i.test(message);
   const providerAvailability = error?.code === 'AI_PROVIDER_ALL_FAILED'
+    || error?.code === 'AI_MODEL_UNAVAILABLE'
     || error?.classification === 'provider_unavailable'
     || /all configured .*provider|provider_unavailable|quota_exhausted|credit_balance_exhausted|credit.*exhausted/i.test(message);
-  const retryable = providerAvailability || /econn|etimedout|enotfound|network|timeout|\b429\b|rate limit|\b5\d\d\b|temporar|elevenlabs|openai/i.test(message);
-  const terminal = /ai_not_configured|no usable text|ocr before production|invalid.*(pdf|script|storyboard)|missing.*(credential|api key)|unknown narration preset|not found/i.test(message);
+  const materializationBoundary = String(error?.code || '').startsWith('HEPHAESTUS_')
+    || error?.classification === 'retryable_engineering'
+    || /hephaestus_(materialization|manifest|synchronization|asset_transport)/i.test(message);
+  const runtimeBoundary = String(error?.code || '').startsWith('RUNTIME_')
+    || error?.classification === 'retryable_runtime'
+    || /runtime_contract_mismatch|runtime api.*unavailable/i.test(message);
+  const retryable = configurationRequired || providerAvailability || materializationBoundary || runtimeBoundary || /econn|etimedout|enotfound|network|timeout|\b429\b|rate limit|\b5\d\d\b|temporar|elevenlabs|openai/i.test(message);
+  const terminal = /no usable text|ocr before production|invalid.*(pdf|script|storyboard)|unknown narration preset|not found/i.test(message);
+  if (configurationRequired) return { class: 'configuration-required', retryable: true };
   if (terminal && !retryable) return { class: 'terminal', retryable: false };
   return { class: retryable ? 'retryable' : 'terminal', retryable };
 }
@@ -175,7 +187,7 @@ export async function discoverInbox(root, { dataRoot = path.join(path.dirname(pa
       || existsSync(path.join(dataRoot, record.documentId || '', 'production', 'production-report.json')));
     rows.push({ identity, state: known, processed, completedProjectId: complete?.documentId || null });
   }
-  const waiting = rows.filter((row) => !ACTIVE_STATUSES.includes(row.state?.status)
+  const waiting = rows.filter((row) => !ACTIVE_STATUSES.includes(row.state?.status) && !REVIEW_STATUSES.includes(row.state?.status)
     && row.state?.status !== 'completed' && row.state?.status !== 'failed-terminal' && !row.completedProjectId);
   const duplicates = rows.filter((row) => !ACTIVE_STATUSES.includes(row.state?.status)
     && row.state?.status !== 'failed-terminal' && (row.completedProjectId || row.state?.status === 'completed'));
@@ -205,6 +217,79 @@ async function archiveSource(paths, source, identity, directory) {
   await fs.mkdir(directory, { recursive: true });
   if (path.resolve(source).toLowerCase() !== path.resolve(target).toLowerCase()) await fs.rename(source, target);
   return target;
+}
+
+function isWithin(directory, candidate) {
+  const relative = path.relative(path.resolve(directory), path.resolve(candidate));
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+export async function requeueInboxItem(options = {}) {
+  const root = path.resolve(options.root || process.cwd());
+  const paths = await ensureInbox(path.resolve(options.inboxRoot || path.join(root, 'data', 'rulebook-inbox')));
+  const sha256 = String(options.sha256 || options.sha || '').trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error('Use requeue --sha <64-character source SHA-256>.');
+  const state = await loadState(paths);
+  const item = state.items[sha256];
+  const reopenReview = options.reopenReview === true || options['reopen-review'] === true;
+  const requeueableFailure = ['failed-terminal', 'failed-retryable'].includes(item?.status);
+  const explicitlyReopenedReview = item?.status === 'review-required' && reopenReview;
+  if (!item || (!requeueableFailure && !explicitlyReopenedReview)) {
+    throw new Error(`Inbox source ${sha256} is not in a failed state. Use --reopen-review to explicitly rerun a Cockpit review boundary after a generator change.`);
+  }
+
+  const filename = path.basename(item.source?.filename || 'rulebook.pdf');
+  const archivedName = `${sha256.slice(0, 16)}-${filename}`;
+  const candidates = [
+    sourceForRecord(item),
+    path.join(paths.failedTerminal, archivedName),
+    path.join(paths.failedRetryable, archivedName),
+  ].filter(Boolean).map((candidate) => path.resolve(candidate));
+  const sourcePath = candidates.find((candidate) => existsSync(candidate)
+    && [paths.waiting, paths.failedTerminal, paths.failedRetryable].some((directory) => isWithin(directory, candidate))
+    && hashFile(candidate) === sha256);
+  if (!sourcePath) throw new Error(`No verified source PDF is available for ${sha256}.`);
+
+  const waitingPath = path.join(paths.waiting, filename);
+  if (existsSync(waitingPath) && hashFile(waitingPath) !== sha256) {
+    throw new Error(`Waiting destination already contains different bytes: ${filename}`);
+  }
+  if (!existsSync(waitingPath)) await fs.rename(sourcePath, waitingPath);
+
+  const previousState = {
+    status: item.status,
+    failedAt: item.failedAt || null,
+    retryCount: Number(item.retryCount || 0),
+    diagnosticPath: item.diagnosticPath || null,
+    lastError: item.lastError || null,
+    reviewItems: Number(item.reviewItems || 0),
+    reviewQueuePath: item.reviewQueuePath || null,
+    stage: item.stage || null,
+  };
+  const historyField = explicitlyReopenedReview ? 'reviewReopenHistory' : 'failureHistory';
+  const requeued = await updateItem(paths, state, sha256, {
+    status: 'waiting',
+    stage: 'waiting',
+    source: { ...item.source, path: waitingPath },
+    sourcePath: waitingPath,
+    retryCount: 0,
+    lastError: null,
+    diagnosticPath: null,
+    ownerId: null,
+    pid: null,
+    claimedAt: null,
+    startedAt: null,
+    failedAt: null,
+    requeuedAt: now(),
+    [historyField]: [...(Array.isArray(item[historyField]) ? item[historyField] : []), previousState],
+  });
+  await appendEvent(paths, explicitlyReopenedReview ? 'review-reopened' : 'requeued', {
+    sha256,
+    previousStatus: previousState.status,
+    sourcePath: waitingPath,
+    reviewItems: previousState.reviewItems,
+  });
+  return { status: 'waiting', sha256, sourcePath: waitingPath, item: requeued };
 }
 
 function activeItem(state) {
@@ -385,6 +470,15 @@ export async function runInboxOnce(options = {}) {
     const runner = options.runner || runZeroState;
     const result = await runner({ root, pdf: work.sourcePath, language: options.language || 'fr-CA', baseUrl: options.baseUrl, apiKey: options.apiKey, forceRender: Boolean(options.forceRender) });
     const projectId = result.projectId || result.zeroState?.projectId;
+    if (result.status === 'review_required') {
+      const reviewItem = await updateItem(paths, state, work.identity.sha256, {
+        status: 'review-required', stage: result.stage || 'cockpit-review', projectId,
+        reviewItems: Number(result.reviewItems || 0), reviewQueuePath: result.reviewQueuePath || null,
+        lastError: null,
+      });
+      await appendEvent(paths, 'review_required', { sha256: work.identity.sha256, projectId, stage: reviewItem.stage, reviewItems: reviewItem.reviewItems });
+      return { status: 'review_required', projectId, item: reviewItem, result };
+    }
     await updateItem(paths, state, work.identity.sha256, { status: 'qa', stage: 'release-package', projectId });
     const release = await packageRelease({ root, paths, identity: work.identity, result, item: { ...item, projectId } });
     const finalItem = await updateItem(paths, state, work.identity.sha256, {
@@ -400,7 +494,9 @@ export async function runInboxOnce(options = {}) {
     const previous = state.items[work.identity.sha256] || {};
     const retryCount = Number(previous.retryCount || 0) + 1;
     const classification = classifyInboxError(error);
-    const status = classification.retryable && retryCount < (Number(options.retryLimit) || DEFAULT_RETRY_LIMIT) ? 'failed-retryable' : 'failed-terminal';
+    const retryLimitReached = classification.class !== 'configuration-required'
+      && retryCount >= (Number(options.retryLimit) || DEFAULT_RETRY_LIMIT);
+    const status = classification.retryable && !retryLimitReached ? 'failed-retryable' : 'failed-terminal';
     const diagnostic = {
       status,
       classification: classification.class,
@@ -474,7 +570,13 @@ function parseCli(argv) {
 async function main() {
   const { command, values } = parseCli(process.argv.slice(2));
   const options = { ...values, language: values.lang || values.language || 'fr-CA', leaseMs: values['lease-ms'], retryLimit: values['retry-limit'], pollMs: values['poll-ms'], forceRender: Boolean(values['force-render']), reprocess: Boolean(values.reprocess) };
-  const result = command === 'status' ? await inboxStatus(options) : command === 'watch' ? await runInboxWatch(options) : await runInboxOnce(options);
+  const result = command === 'status'
+    ? await inboxStatus(options)
+    : command === 'watch'
+      ? await runInboxWatch(options)
+      : command === 'requeue'
+        ? await requeueInboxItem({ ...options, sha256: values.sha || values['source-sha'], reopenReview: Boolean(values['reopen-review']) })
+        : await runInboxOnce(options);
   console.log(JSON.stringify(result, null, 2));
   if (result.status === 'failed-terminal') process.exitCode = 2;
 }

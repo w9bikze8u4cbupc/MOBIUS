@@ -63,6 +63,7 @@ Object.defineProperty(globalThis, 'TextEncoder', { configurable: true, value: Te
       request: {
         projectId: context.projectId,
         gameName: context.gameName,
+        identity: expect.objectContaining({ displayName: context.gameName, locale: 'fr-CA', sourceLanguage: 'en' }),
         language: context.language,
         rulebookText,
         components,

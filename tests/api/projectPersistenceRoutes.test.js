@@ -4,6 +4,10 @@ const {
   registerProjectPersistenceRoutes,
   buildRenderProjectState,
 } = require('../../src/api/projectPersistenceRoutes.js');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { createProjectSourceService } = require('../../src/services/projectSourceService.js');
 const { runIngestionPipeline } = require('../../src/ingestion/pipeline');
 
 const projectId = 'abyss-mstkmf2r-4mlb';
@@ -204,7 +208,7 @@ function createInMemoryProjectDb(rows = []) {
   let nextId = rows.length + 1;
   return {
     all: (_sql, _params, callback) => callback(null, rows),
-    get: jest.fn(),
+    get: (_sql, params, callback) => callback(null, rows.find((row) => row.id === params[0]) || null),
     run: (sql, params, callback) => {
       if (/^UPDATE/i.test(sql.trim())) {
         const row = rows.find((candidate) => candidate.id === params[1]);
@@ -219,6 +223,24 @@ function createInMemoryProjectDb(rows = []) {
       callback.call({ lastID: nextId - 1, changes: 1 }, null);
     },
   };
+}
+
+async function invokeProductionState(rows, body, projectSource, requestedProjectId = projectId) {
+  const routes = new Map();
+  registerProjectPersistenceRoutes({
+    post: (route, handler) => routes.set(route, handler),
+    get: () => {},
+  }, { db: createInMemoryProjectDb(rows), projectSource });
+  const result = { statusCode: 200, payload: null };
+  const res = {
+    status(code) { result.statusCode = code; return this; },
+    json(payload) { result.payload = payload; return this; },
+  };
+  await routes.get('/api/projects/:projectId/production-state')({
+    params: { projectId: requestedProjectId },
+    body,
+  }, res);
+  return result;
 }
 
 function directSourceDescriptor(overrides = {}) {
@@ -330,4 +352,56 @@ test('preserves the legacy no-source persistence path without reading canonical 
   expect(persisted).toMatchObject({ statusCode: 200, payload: { ok: true, projectId } });
   expect(projectSource.readDescriptor).not.toHaveBeenCalled();
   expect(JSON.parse(rows[0].metadata).projectContext.sourcePdf).toBeUndefined();
+});
+
+describe('canonical production-state source boundary', () => {
+  let temporaryRoot;
+  let sourceService;
+  let sourcePdf;
+
+  beforeEach(async () => {
+    temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-production-source-'));
+    const upload = path.join(temporaryRoot, 'fresh-unseen.pdf');
+    fs.writeFileSync(upload, Buffer.from('%PDF-1.4\n1 0 obj << /Type /Page >> endobj\n'));
+    sourceService = createProjectSourceService({ dataRoot: path.join(temporaryRoot, 'data') });
+    sourcePdf = (await sourceService.persistUpload(projectId, upload, { filename: 'Fresh Unseen.pdf' })).descriptor;
+  });
+
+  afterEach(() => fs.rmSync(temporaryRoot, { recursive: true, force: true }));
+
+  const bodyFor = (descriptor = sourcePdf) => ({
+    name: 'Fresh Unseen',
+    projectContext: { projectId, sourcePdf: descriptor, status: 'processing' },
+    components: [], images: [], script: '', audio: '', scenes: [],
+  });
+
+  test('accepts a freshly persisted matching descriptor at project reservation', async () => {
+    const rows = [];
+    const result = await invokeProductionState(rows, bodyFor(), sourceService);
+    expect(result).toMatchObject({ statusCode: 200, payload: { ok: true, projectId } });
+    expect(rows).toHaveLength(1);
+  });
+
+  test('accepts replay of the same SHA and canonical project descriptor', async () => {
+    const rows = [];
+    expect((await invokeProductionState(rows, bodyFor(), sourceService)).statusCode).toBe(200);
+    expect((await invokeProductionState(rows, bodyFor(), sourceService)).statusCode).toBe(200);
+    expect(rows).toHaveLength(1);
+  });
+
+  test.each([
+    ['wrong SHA', (descriptor) => ({ ...descriptor, sha256: '0'.repeat(64) })],
+    ['wrong document identity', (descriptor) => ({ ...descriptor, documentId: 'other-project' })],
+    ['wrong source identity', (descriptor) => ({ ...descriptor, sourceId: `source-${'f'.repeat(32)}` })],
+    ['path-bearing descriptor', (descriptor) => ({ ...descriptor, sourcePath: 'C:\\other-root\\rulebook.pdf' })],
+  ])('rejects %s', async (_label, alter) => {
+    const result = await invokeProductionState([], bodyFor(alter(sourcePdf)), sourceService);
+    expect(result).toMatchObject({ statusCode: 409, payload: { code: 'SOURCE_PDF_INVALID' } });
+  });
+
+  test('rejects a descriptor when the API storage root does not own the source', async () => {
+    const foreignStorage = createProjectSourceService({ dataRoot: path.join(temporaryRoot, 'other-data') });
+    const result = await invokeProductionState([], bodyFor(), foreignStorage);
+    expect(result).toMatchObject({ statusCode: 409, payload: { code: 'SOURCE_PDF_INVALID' } });
+  });
 });

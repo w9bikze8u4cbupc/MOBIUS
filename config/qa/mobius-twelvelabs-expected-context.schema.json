@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["video", "identity", "scenes", "intentional_intro_silence", "director_context", "deterministic_findings"],
+  "properties": {
+    "video": {"type": "object", "additionalProperties": false, "required": ["path", "sha256", "duration_sec", "resolution"], "properties": {"path": {"type": "string"}, "sha256": {"type": "string"}, "duration_sec": {"type": "number"}, "resolution": {"type": "string"}}},
+    "identity": {"type": "object", "additionalProperties": false, "required": ["display_title", "spoken_title", "pronunciation_guidance"], "properties": {"display_title": {"type": "string"}, "spoken_title": {"type": "string"}, "pronunciation_guidance": {"type": "string"}, "edition": {"type": ["string", "null"]}}},
+    "scenes": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["scene_id", "start_sec", "end_sec", "purpose", "exact_narration_text", "expected_visual_role"], "properties": {"scene_id": {"type": "string"}, "start_sec": {"type": "number"}, "end_sec": {"type": "number"}, "purpose": {"type": "string"}, "exact_narration_text": {"type": "string"}, "expected_visual_role": {"type": "string"}}}},
+    "intentional_intro_silence": {"type": "object", "additionalProperties": false, "required": ["start_sec", "end_sec", "reason"], "properties": {"start_sec": {"type": "number"}, "end_sec": {"type": "number"}, "reason": {"type": "string"}}},
+    "director_context": {"type": "object", "additionalProperties": false, "required": ["brand_rules", "approved_strengths", "suspected_defects"], "properties": {"brand_rules": {"type": "array", "items": {"type": "string"}}, "approved_strengths": {"type": "array", "items": {"type": "string"}}, "suspected_defects": {"type": "array", "items": {"type": "string"}}}},
+    "deterministic_findings": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "category", "observation"], "properties": {"id": {"type": "string", "pattern": "^DET-[0-9]+$"}, "category": {"type": "string"}, "observation": {"type": "string"}}}}
+  }
+}

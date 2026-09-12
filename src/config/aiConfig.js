@@ -1,9 +1,10 @@
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
+import path from 'node:path';
 
-dotenv.config();
+const ENV_FILE_PATH = path.resolve(process.env.MOBIUS_CONFIG_PATH || path.join(process.cwd(), '.env'));
+dotenv.config({ path: ENV_FILE_PATH });
 
-const ENV_FILE_PATH = 'C:\\mobius-games-tutorial-generator\\.env';
 let client;
 let accessCheckCache = null;
 
@@ -42,6 +43,10 @@ const GENERATION_OPERATION_DEFAULTS = Object.freeze({
     max_completion_tokens: 4096,
     temperature: 0.3,
   }),
+  rulebook_domain_synthesis: Object.freeze({
+    max_completion_tokens: 3200,
+    temperature: 0.1,
+  }),
 });
 
 // Model-owned generation capabilities keep provider-specific controls out of route callers.
@@ -60,6 +65,9 @@ const MODEL_GENERATION_PROFILES = Object.freeze({
       }),
       summary_translation: Object.freeze({
         max_completion_tokens: 6400,
+      }),
+      rulebook_domain_synthesis: Object.freeze({
+        max_completion_tokens: 4800,
       }),
     }),
   }),

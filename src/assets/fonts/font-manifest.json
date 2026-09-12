@@ -1,0 +1,9 @@
+{
+  "version": "mobius-fonts-v1",
+  "license": "SIL Open Font License 1.1",
+  "source": "Google Fonts repository, OFL-licensed families",
+  "fonts": [
+    { "role": "display", "family": "Lora", "path": "src/assets/fonts/Lora-Variable.ttf", "licenseFile": "src/assets/fonts/Lora-OFL.txt" },
+    { "role": "body", "family": "Nunito", "path": "src/assets/fonts/Nunito-Variable.ttf", "licenseFile": "src/assets/fonts/OFL.txt" }
+  ]
+}

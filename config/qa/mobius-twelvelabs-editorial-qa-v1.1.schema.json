@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "provider", "model_name", "verdict", "overall_score_10", "category_scores", "findings", "pronunciation_checks", "scene_boundary_checks", "strengths_to_preserve", "human_review_required", "human_review_reason"],
+  "properties": {
+    "schema_version": {"const": "mobius-twelvelabs-editorial-qa-v1.1"},
+    "provider": {"const": "twelvelabs"},
+    "model_name": {"const": "pegasus1.5"},
+    "verdict": {"enum": ["PASS", "PASS_WITH_WARNINGS", "FAIL", "UNASSESSABLE"]},
+    "overall_score_10": {"type": "number", "minimum": 0, "maximum": 10},
+    "category_scores": {
+      "type": "object", "additionalProperties": false,
+      "required": ["intro_and_sonic_identity", "voice_consistency", "fr_ca_pronunciation", "script_progression", "text_containment_and_legibility", "space_optimization", "visual_narration_correspondence", "section_transitions", "brand_consistency"],
+      "properties": {
+        "intro_and_sonic_identity": {"type": "number", "minimum": 0, "maximum": 10},
+        "voice_consistency": {"type": "number", "minimum": 0, "maximum": 10},
+        "fr_ca_pronunciation": {"type": "number", "minimum": 0, "maximum": 10},
+        "script_progression": {"type": "number", "minimum": 0, "maximum": 10},
+        "text_containment_and_legibility": {"type": "number", "minimum": 0, "maximum": 10},
+        "space_optimization": {"type": "number", "minimum": 0, "maximum": 10},
+        "visual_narration_correspondence": {"type": "number", "minimum": 0, "maximum": 10},
+        "section_transitions": {"type": "number", "minimum": 0, "maximum": 10},
+        "brand_consistency": {"type": "number", "minimum": 0, "maximum": 10}
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "severity", "category", "start_sec", "end_sec", "scene_id", "observation", "evidence", "expected_behavior", "recommended_outcome", "action", "confidence", "requires_human_judgment"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^TL-[0-9]+$"},
+          "severity": {"enum": ["P0", "P1", "P2", "P3"]},
+          "category": {"type": "string", "minLength": 1},
+          "start_sec": {"type": "number", "minimum": 0},
+          "end_sec": {"type": "number", "minimum": 0},
+          "scene_id": {"type": "string", "minLength": 1},
+          "observation": {"type": "string", "minLength": 1},
+          "evidence": {"type": "string", "minLength": 1},
+          "expected_behavior": {"type": "string", "minLength": 1},
+          "recommended_outcome": {"type": "string", "minLength": 1},
+          "action": {"enum": ["CORRECT", "REVIEW", "WARN"]},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "requires_human_judgment": {"type": "boolean"}
+        }
+      }
+    },
+    "pronunciation_checks": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["term", "timestamp_sec", "heard_as", "natural_in_fr_ca", "awkward_internal_pause", "recognizable", "confidence"], "properties": {"term": {"type": "string"}, "timestamp_sec": {"type": "number", "minimum": 0}, "heard_as": {"type": "string"}, "natural_in_fr_ca": {"type": ["boolean", "string"]}, "awkward_internal_pause": {"type": "boolean"}, "recognizable": {"type": "boolean"}, "confidence": {"type": "number", "minimum": 0, "maximum": 1}}}},
+    "scene_boundary_checks": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["from_scene", "to_scene", "timestamp_sec", "voice_level_change", "voice_character_change", "transition_quality", "evidence"], "properties": {"from_scene": {"type": "string"}, "to_scene": {"type": "string"}, "timestamp_sec": {"type": "number", "minimum": 0}, "voice_level_change": {"enum": ["NONE", "MINOR", "SIGNIFICANT", "UNASSESSABLE"]}, "voice_character_change": {"enum": ["NONE", "MINOR", "SIGNIFICANT", "UNASSESSABLE"]}, "transition_quality": {"enum": ["PASS", "WARN", "FAIL", "UNASSESSABLE"]}, "evidence": {"type": "string"}}}},
+    "strengths_to_preserve": {"type": "array", "items": {"type": "string"}},
+    "human_review_required": {"type": "boolean"},
+    "human_review_reason": {"type": "string"}
+  }
+}

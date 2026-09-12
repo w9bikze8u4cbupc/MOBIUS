@@ -1,0 +1,48 @@
+{
+  "contract": "mobius-project-tutorial-assembly-v1",
+  "projectId": "7-wonders-duel",
+  "knowledgeSeed": "config/projects/7-wonders-duel/rulebook-knowledge.v1.json",
+  "knowledgeModelCache": "out/publishability-r4/7-wonders-duel/rulebook-knowledge-model.json",
+  "openingConfig": "out/publishability-r3/full-tutorial-final/7-wonders-duel/full-tutorial-config.json",
+  "boxArt": "src/assets/games/7-wonders-duel-box-art-bgg-front.webp",
+  "sonicMaster": "src/assets/branding/sonic/mobius-cafe-sonic-signature-v4.wav",
+  "brandBanner": "src/assets/branding/les-jeux-mobius-banner-canonical.png",
+  "outputRoot": "out/publishability-r7/7-wonders-duel",
+  "outputFileName": "7-wonders-duel-full-tutorial-r7.mp4",
+  "visualPlan": "config/projects/7-wonders-duel/visual-plan.r7.json",
+  "componentLibraryManifest": "out/publishability-r7/7-wonders-duel/component-library/manifest.json",
+  "visualStoryboardRoot": "out/publishability-r7/7-wonders-duel/visual-storyboard",
+  "visualManifest": "out/publishability-r7/7-wonders-duel/visual-storyboard/manifest.json",
+  "narrationSeedManifest": "out/publishability-r6/7-wonders-duel/narration-assets.json",
+  "narrationTeachingProfile": "AMELIE_TEACHING_WARM_R6",
+  "locale": "fr-CA",
+  "majorSections": [
+    "Présentation / But du jeu",
+    "Les composants",
+    "Mise en place",
+    "Comment se déroule le jeu?",
+    "Les actions",
+    "Systèmes clés",
+    "Fin de partie",
+    "Décompte / Victoire",
+    "Conclusion"
+  ],
+  "presentation": {
+    "brandSceneId": "brand-signature",
+    "reuseOpeningSceneIds": [
+      "opening-metadata-card"
+    ],
+    "metadataAudio": "out/publishability-r3/full-tutorial-final/7-wonders-duel/audio/metadata-card-amelie-metadata.mp3",
+    "metadataDeliveryProfile": "AMELIE_METADATA",
+    "reuseOutroSceneId": "brand-outro"
+  },
+  "narrationRegenerateSceneIds": [
+    "tie-breaker"
+  ],
+  "baseline": {
+    "version": "r6",
+    "video": "out/publishability-r6/7-wonders-duel/7-wonders-duel-full-tutorial-r6.mp4",
+    "directorStatus": "HUMAN_PUBLISHABLE_GOLD_BASELINE",
+    "published": false
+  }
+}

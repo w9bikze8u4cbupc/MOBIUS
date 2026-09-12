@@ -36,6 +36,22 @@ jest.mock('../../src/services/componentCropper.js', () => ({
   clearJobLock: jest.fn(),
   getJobStatus: jest.fn(),
 }));
+jest.mock('../../src/services/hephaestusService.js', () => ({
+  isHephaestusAvailable: jest.fn(async () => true),
+  withHephaestusProjectLock: jest.fn(async (_projectId, operation) => operation()),
+  extractWithHephaestus: jest.fn(async (_pdfPath, outputDir) => {
+    const fs = require('fs');
+    const path = require('path');
+    const file = path.join(outputDir, 'images', 'all', 'fixture-card.png');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, Buffer.from('89504e470d0a1a0a66697874757265', 'hex'));
+    return {
+      success: true,
+      stats: { total_items: 1 },
+      images: [{ id: 'p0_img0_xref1', file_path: file, page_index: 0, native: true, type: 'card', classification: 'card', is_component: true, confidence: 1, original_dimensions: { width: 100, height: 150 }, dimensions: { width: 100, height: 150 } }],
+    };
+  }),
+}));
 
 import fs from 'fs';
 import path from 'path';
@@ -43,6 +59,8 @@ import axios from 'axios';
 import express from 'express';
 import { registerImageRoutes } from '../../src/api/imageRoutes.js';
 import { appendImages, linkImagesToComponent, resetImageStore } from '../../src/services/imageStore.js';
+import { setBggHttpClientForTests } from '../../src/services/imagePipeline.js';
+import { extractWithHephaestus, isHephaestusAvailable, withHephaestusProjectLock } from '../../src/services/hephaestusService.js';
 
 const contextualEvidence = {
   persistUpload: jest.fn(),
@@ -100,12 +118,26 @@ describe('images api routes', () => {
       server.close();
     }
     fs.rmSync(fixtureDirectory, { recursive: true, force: true });
+    fs.rmSync(path.join(process.cwd(), 'data', 'heph-api-fixture'), { recursive: true, force: true });
   });
 
   beforeEach(() => {
     fs.writeFileSync(privateSourceUploadPath, sourceBytes);
     resetImageStore();
     jest.resetAllMocks();
+    isHephaestusAvailable.mockResolvedValue(true);
+    withHephaestusProjectLock.mockImplementation(async (_projectId, operation) => operation());
+    extractWithHephaestus.mockImplementation(async (_pdfPath, outputDir) => {
+      const file = path.join(outputDir, 'images', 'all', 'fixture-card.png');
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, sourceBytes);
+      return {
+        success: true,
+        stats: { total_items: 1 },
+        images: [{ id: 'p0_img0_xref1', file_path: file, page_index: 0, native: true, type: 'card', classification: 'card', is_component: true, confidence: 1, original_dimensions: { width: 100, height: 150 }, dimensions: { width: 100, height: 150 } }],
+      };
+    });
+    setBggHttpClientForTests(axios);
     contextualEvidence.inventory.mockImplementation(async () => { throw { code: 'CONTEXTUAL_EVIDENCE_UNAVAILABLE' }; });
     projectSource.inspect.mockRejectedValue({ code: 'SOURCE_PDF_MISSING', status: 404, message: 'No stored source PDF is available for this project.' });
     contextualAdoption.discover.mockResolvedValue({ projectId: 'demo', status: 'none', code: 'CONTEXTUAL_ADOPTION_NO_CANDIDATE', candidates: [], eligibleCandidate: null });
@@ -269,6 +301,34 @@ describe('images api routes', () => {
   expect(payload.images[0]).not.toHaveProperty('thumbnailKey');
   expect(payload.images[0]).not.toHaveProperty('originalUrl');
   expect(payload.componentImageLinkDetails).toEqual({ 'monster-tokens': { 'heph-monster': { origin: 'manual' } } });
+});
+
+test('fresh project materializes a source-bound HEPHAESTUS manifest through the API', async () => {
+  const sha = 'a'.repeat(64);
+  const descriptor = {
+    sourceId: `source-${sha.slice(0, 32)}`,
+    documentId: 'heph-api-fixture',
+    documentFingerprint: `document-${'b'.repeat(32)}`,
+    filename: 'fixture.pdf', sha256: sha, bytes: 1234, pageCount: 1,
+    provenance: 'direct_project_upload', status: 'available',
+  };
+  projectSource.persistUpload.mockResolvedValue({ descriptor, idempotent: true });
+  projectSource.resolveFile.mockResolvedValue(sourcePath);
+  projectSource.inspect.mockResolvedValue(descriptor);
+  const response = await fetch(`${baseUrl}/api/projects/heph-api-fixture/images/extract-hephaestus`, { method: 'POST' });
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body.hephaestusManifest).toMatchObject({
+    contract: 'mobius-hephaestus-materialization-v1',
+    projectId: 'heph-api-fixture',
+    sourcePdfSha256: sha,
+    pageCount: 1,
+  });
+  expect(body.imagesCount).toBe(1);
+  const asset = body.hephaestusManifest.images[0];
+  expect(path.isAbsolute(asset.file_path)).toBe(false);
+  const fileResponse = await fetch(`${baseUrl}${asset.downloadUrl}`);
+  expect(fileResponse.status).toBe(200);
 });
 
 it('rejects invalid project IDs and assets from another project deterministically', async () => {

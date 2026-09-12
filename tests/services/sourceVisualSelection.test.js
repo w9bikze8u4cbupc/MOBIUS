@@ -65,6 +65,22 @@ describe('sourceVisualSelection', () => {
     expect(selection.confidence).toBeGreaterThanOrEqual(0.42);
   });
 
+  test('rehydrates a relocated HEPHAESTUS asset path and component aliases from canonical evidence', () => {
+    const native = path.join(root, 'native-card.png');
+    fs.writeFileSync(native, 'native');
+    const manifestAsset = { id: 'native-card', file_path: 'images/all/stale-relative.png', page_index: 2, classification: 'card', is_component: true, confidence: 0.9, dimensions: { width: 800, height: 1200 } };
+    fs.writeFileSync(manifestPath, JSON.stringify({ images: [manifestAsset] }));
+    const evidencePath = path.join(root, 'component-evidence.json');
+    fs.writeFileSync(evidencePath, JSON.stringify({
+      assets: [{ id: 'native-card', sourceImage: native, pageNumber: 3, componentName: 'Native card', category: 'card', reviewState: 'accepted' }],
+      componentBindings: [{ componentId: 'component-target', componentName: 'Target card', category: 'card', assetId: 'native-card', confidence: 0.6, reviewState: 'needs_review' }],
+    }));
+    const catalog = loadSourceVisualCatalog(manifestPath, { hephaestusEvidencePath: evidencePath });
+    expect(catalog.assets[0].renderPath).toBe(native);
+    expect(catalog.assets[0].semanticObjects).toEqual(expect.arrayContaining(['component-target', 'Target card']));
+    expect(catalog.assets[0].source_page).toBe(3);
+  });
+
   test('prefers a usable component on the cited rulebook page over a stronger generic asset', () => {
     const generic = makeAsset(root, { id: 'generic-card', page: 0, classification: 'card', width: 1200, height: 900 });
     const cited = makeAsset(root, { id: 'cited-tile', page: 10, classification: 'tile', width: 520, height: 360 });
@@ -173,6 +189,30 @@ describe('sourceVisualSelection', () => {
     expect(selection).toMatchObject({ kind: 'focused-page-region', assetId: 'page-2-region', sourcePage: 2 });
   });
 
+  test('fills missing extracted-asset PDF provenance from the scene source identity', () => {
+    const component = path.join(root, 'component-token.png');
+    fs.writeFileSync(component, 'component');
+    const selection = selectSourceVisual({
+      id: 'scene-components',
+      title: 'Composants',
+      source_pages: [5],
+      source_pdf_sha256: 'scene-pdf-sha',
+      visual_intent: 'components',
+    }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      assets: [{
+        id: 'component-token', source_page: 5, renderPath: component, type: 'token',
+        contentHash: 'asset-sha', provenance: { sourcePage: 5 },
+        curation: { lowInformation: false, score: 0.95 },
+        visualQuality: { primary_explanatory: true, quality_score: 91 },
+      }],
+    }, '/fallback/page-5.png');
+
+    expect(selection.provenance).toMatchObject({
+      sourcePdfSha256: 'scene-pdf-sha', sourcePage: 5, assetHash: 'asset-sha',
+    });
+  });
+
   test('keeps a truthful fallback when a high-quality candidate has no semantic match', () => {
     const unrelated = path.join(root, 'unrelated.png');
     fs.writeFileSync(unrelated, 'unrelated');
@@ -210,6 +250,112 @@ describe('sourceVisualSelection', () => {
     expect(selection.kind).toBe('focused-page-crop');
     expect(selection.reason).toContain('layout-grounded-semantic-recovery');
     expect(selection.semanticMatch.status).toBe('no-semantic-match');
+  });
+
+  test('uses a cited, quality-approved typed component during a semantic-provider outage', () => {
+    const token = path.join(root, 'token.png');
+    fs.writeFileSync(token, 'token');
+    const selection = selectSourceVisual({
+      id: 'actions', source_pages: [5], section: 'Actions',
+      narration: 'Convertissez vos ressources en tuiles.', language: 'fr-CA',
+    }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      semanticReportPath: '/reviewed/scene-match.json',
+      semanticBySceneId: new Map([['actions', {
+        status: 'no-semantic-match', selected_asset_id: null, relevance_score: 25,
+        reason: 'provider unavailable: credit_balance_exhausted',
+      }]]),
+      assets: [{
+        id: 'cited-token', source_page: 5, page_index: 4, type: 'token',
+        is_component: true, renderPath: token,
+        curation: { lowInformation: false, score: 0.9 },
+        visualQuality: { primary_explanatory: true, quality_score: 82 },
+      }],
+    }, '/fallback/page-5.png');
+
+    expect(selection.kind).toBe('component');
+    expect(selection.assetId).toBe('cited-token');
+    expect(selection.reason).toContain('layout-grounded-semantic-recovery');
+  });
+
+  test('does not trust a matched semantic result whose reason records provider failure', () => {
+    const typed = path.join(root, 'provider-recovery-token.png');
+    const contents = path.join(root, 'provider-recovery-contents.png');
+    fs.writeFileSync(typed, 'token');
+    fs.writeFileSync(contents, 'contents');
+    const selection = selectSourceVisual({
+      id: 'components', source_pages: [5], section: 'Composants',
+      narration: 'Le jeu comprend des tuiles et des marqueurs.', language: 'fr-CA',
+    }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      semanticReportPath: '/reviewed/scene-match.json',
+      semanticBySceneId: new Map([['components', {
+        status: 'matched', selected_asset_id: 'contents-crop', relevance_score: 92,
+        reason: 'local-semantic-fallback after vision failure: credit_balance_exhausted',
+      }]]),
+      assets: [
+        { id: 'contents-crop', source_page: 5, visual_kind: 'focused-page-crop', is_component: true,
+          renderPath: contents, curation: { lowInformation: false, score: 0.99 },
+          visualQuality: { primary_explanatory: true, quality_score: 95, asset_metadata: { layout_labels: ['CONTENTS', 'Background', 'Game Overview'] } } },
+        { id: 'recovery-token', source_page: 5, type: 'token', is_component: true, renderPath: typed,
+          curation: { lowInformation: false, score: 0.82 }, visualQuality: { primary_explanatory: true, quality_score: 82 } },
+      ],
+    }, '/fallback/page-5.png');
+
+    expect(selection.assetId).toBe('recovery-token');
+    expect(selection.reason).toContain('layout-grounded-semantic-recovery');
+  });
+
+  test('does not use a cover or oversized illustration for a component inventory when bounded items exist', () => {
+    const cover = path.join(root, 'component-cover.png');
+    const tile = path.join(root, 'component-tile.png');
+    fs.writeFileSync(cover, 'cover');
+    fs.writeFileSync(tile, 'tile');
+    const selection = selectSourceVisual({
+      id: 'inventory', source_pages: [1, 5], section: 'Composants',
+      narration: 'Le jeu comprend des tuiles et des marqueurs.', language: 'fr-CA',
+    }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      assets: [
+        { id: 'cover', source_page: 1, type: 'board', is_component: true, renderPath: cover,
+          dimensions: { width: 1560, height: 1689 }, curation: { lowInformation: false, score: 0.99 },
+          visualQuality: { primary_explanatory: true, quality_score: 90 } },
+        { id: 'tile', source_page: 5, type: 'tile', is_component: true, renderPath: tile,
+          dimensions: { width: 324, height: 348 }, curation: { lowInformation: false, score: 0.82 },
+          visualQuality: { primary_explanatory: true, quality_score: 74 } },
+      ],
+    }, '/fallback/page-1.png');
+
+    expect(selection.assetId).toBe('tile');
+  });
+
+  test('preserves a provider-generated focused setup recovery when the provider is unavailable', () => {
+    const focused = path.join(root, 'setup-focused.png');
+    const illustration = path.join(root, 'setup-illustration.png');
+    fs.writeFileSync(focused, 'focused');
+    fs.writeFileSync(illustration, 'illustration');
+    const selection = selectSourceVisual({
+      id: 'setup', source_pages: [5], section: 'Mise en place',
+      narration: 'Placez le plateau au centre et les marqueurs sur les pistes.', language: 'fr-CA',
+    }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      semanticReportPath: '/reviewed/scene-match.json',
+      semanticBySceneId: new Map([['setup', {
+        status: 'matched', selected_asset_id: 'focused-setup', relevance_score: 92,
+        reason: 'local-semantic-fallback after vision failure: credit_balance_exhausted',
+      }]]),
+      assets: [
+        { id: 'focused-setup', source_page: 5, visual_kind: 'focused-page-crop', is_component: true,
+          renderPath: focused, curation: { lowInformation: false, score: 0.82 },
+          visualQuality: { primary_explanatory: true, quality_score: 91 } },
+        { id: 'oversized-token', source_page: 5, type: 'token', is_component: true,
+          renderPath: illustration, dimensions: { width: 1560, height: 1689 },
+          curation: { lowInformation: false, score: 0.99 },
+          visualQuality: { primary_explanatory: true, quality_score: 91 } },
+      ],
+    }, '/fallback/page-5.png');
+
+    expect(selection.assetId).toBe('focused-setup');
   });
 
   test('records machine-readable fallback alternatives when no local recovery is justified', () => {

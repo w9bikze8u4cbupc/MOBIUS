@@ -1,0 +1,107 @@
+{
+  "version": "mobius-sonic-signature-v1",
+  "contract": {
+    "id": "mobius-cafe-game-night-v3",
+    "version": "3",
+    "durationSec": 3.6,
+    "transitionBedSec": 3,
+    "sampleRate": 48000,
+    "channels": 2,
+    "layers": [
+      {
+        "id": "room-murmur",
+        "kind": "filtered-cafe-room-murmur",
+        "gainDb": -30,
+        "intelligibleSpeech": false
+      },
+      {
+        "id": "cafe-cup-saucer",
+        "kind": "identifiable-cup-and-saucer-cue",
+        "gainDb": -18,
+        "intelligibleSpeech": false
+      },
+      {
+        "id": "dice-roll-landing",
+        "kind": "identifiable-dice-roll-and-landing-cue",
+        "gainDb": -17,
+        "intelligibleSpeech": false
+      }
+    ],
+    "transition": {
+      "fadeInSec": 0.18,
+      "fadeOutSec": 0.72,
+      "carryoverSec": 3,
+      "narrationDuckDb": -6
+    }
+  },
+  "path": "C:\\mobius-games-tutorial-generator-quality-fix\\src\\assets\\branding\\sonic\\mobius-cafe-sonic-signature.wav",
+  "sha256": "efd6a75dd10841cc040589be16dac01ed53c4ed2b64c40ee17a9f73779f2bce6",
+  "durationSec": 3.6,
+  "sampleRate": 48000,
+  "channels": 2,
+  "audioRole": "café-ludique sonic signature",
+  "spokenNarration": "NONE",
+  "ttsGenerated": false,
+  "sources": [
+    {
+      "id": "room-murmur",
+      "filename": "cafe-ambience-freesound-49769.mp3",
+      "gainDb": -12,
+      "timing": "0.0s–3.6s",
+      "transform": "loop/trim, lowpass 1400Hz, highpass 70Hz, fade in/out",
+      "path": "C:\\mobius-games-tutorial-generator-quality-fix\\src\\assets\\branding\\sonic\\cafe-ambience-freesound-49769.mp3",
+      "sha256": "30b4b53b77b17f9466d806f85c0b38b69d8c331ddcf20856316f86f379c8040c",
+      "sourceFamily": "Freesound community reference asset",
+      "sourceUrl": null,
+      "licenseStatus": "Reference asset retained locally; external publication clearance remains a human review item."
+    },
+    {
+      "id": "water-fountain",
+      "filename": "water-fountain-orangefreesounds-202108.mp3",
+      "gainDb": -18,
+      "timing": "0.0s–3.6s",
+      "transform": "loop/trim, lowpass 4500Hz, restrained fade in/out",
+      "path": "C:\\mobius-games-tutorial-generator-quality-fix\\src\\assets\\branding\\sonic\\water-fountain-orangefreesounds-202108.mp3",
+      "sha256": "ec7f05980db85feee7e372e185cbca65bd565d9ab8f726e99a649746276c3dab",
+      "sourceFamily": "Orange Free Sounds",
+      "sourceUrl": "https://orangefreesounds.com/wp-content/uploads/2021/08/Outdoor-water-fountain-ambience.mp3",
+      "licenseStatus": "Downloaded real recording; commercial publication clearance remains a human review item."
+    },
+    {
+      "id": "cafe-cup-saucer",
+      "filename": "cup-pour-local-reference-491088.mp3",
+      "gainDb": -5,
+      "timing": "~0.52s",
+      "transform": "trim 0.95s, delayed 520ms, short fade",
+      "path": "C:\\mobius-games-tutorial-generator-quality-fix\\src\\assets\\branding\\sonic\\cup-pour-local-reference-491088.mp3",
+      "sha256": "bfc749c2ac0f5b58ef07f1fa8d3fd8166b77980fd80bbdefd7c94a917a45fadc",
+      "sourceFamily": "Director local reference pack",
+      "sourceUrl": null,
+      "licenseStatus": "Reference asset retained locally; external publication clearance remains a human review item."
+    },
+    {
+      "id": "dice-roll-landing",
+      "filename": "dice-roll-freesound-102631.mp3",
+      "gainDb": -6,
+      "timing": "~1.48s–2.90s",
+      "transform": "trim 1.55s, delayed 1480ms, short fade",
+      "path": "C:\\mobius-games-tutorial-generator-quality-fix\\src\\assets\\branding\\sonic\\dice-roll-freesound-102631.mp3",
+      "sha256": "0a55c866859ca7b4c5d948aa98f328ff65bd9a439cfef4679975aae6a3bbfee3",
+      "sourceFamily": "Freesound community reference asset",
+      "sourceUrl": null,
+      "licenseStatus": "Reference asset retained locally; external publication clearance remains a human review item."
+    }
+  ],
+  "mix": {
+    "order": "room murmur + fountain bed → cup/saucer cue at 0.52s → dice roll/landing at 1.48s → smooth fade",
+    "identityContour": [
+      "café room is present immediately",
+      "water/fountain remains a quiet bed",
+      "cup cue",
+      "dice cue"
+    ],
+    "recordedAssetsOnly": true,
+    "syntheticAudio": false,
+    "intelligibleDialogue": false
+  }
+}

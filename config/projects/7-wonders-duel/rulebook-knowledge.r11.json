@@ -1,0 +1,2575 @@
+{
+  "projectId": "7-wonders-duel",
+  "modelVersion": "mobius-rulebook-knowledge-r11",
+  "extractionModel": "sol-source-grounded-review",
+  "sourcePdfSha256": "8b05c4ce1c4f211fd04d39627dd26593085faa16b6eb85aaac8f6cf89e6958f2",
+  "sourcePdfPath": "C:/mobius-games-tutorial-generator-runtime/data/6b-7-wonders-duel-8b05c4ce1c4f/source/rulebook.pdf",
+  "gameIdentity": {
+    "displayName": "7 Wonders Duel",
+    "spokenName": "Seven Wonders Duel",
+    "locale": "fr-CA",
+    "sourceLanguage": "en",
+    "edition": "Repos Production 2015"
+  },
+  "terminology": [
+    {
+      "id": "age-card",
+      "source": "Age card",
+      "displayFrCa": "carte Âge",
+      "definition": "Une carte Bâtiment provenant du paquet de l’âge en cours.",
+      "sourceRefs": [
+        {
+          "page": 3
+        },
+        {
+          "page": 5
+        }
+      ]
+    },
+    {
+      "id": "accessible-card",
+      "source": "accessible card",
+      "displayFrCa": "carte accessible",
+      "definition": "Une carte qui n’est recouverte, même partiellement, par aucune autre carte.",
+      "sourceRefs": [
+        {
+          "page": 10
+        }
+      ]
+    },
+    {
+      "id": "city",
+      "source": "city",
+      "displayFrCa": "cité",
+      "definition": "L’ensemble des bâtiments et des merveilles construits par un joueur.",
+      "sourceRefs": [
+        {
+          "page": 3
+        }
+      ]
+    },
+    {
+      "id": "treasury",
+      "source": "treasury",
+      "displayFrCa": "trésorerie",
+      "definition": "Les pièces accumulées dans la cité.",
+      "sourceRefs": [
+        {
+          "page": 4
+        },
+        {
+          "page": 13
+        }
+      ]
+    },
+    {
+      "id": "chain",
+      "source": "chain symbol",
+      "displayFrCa": "symbole de chaînage",
+      "definition": "Un symbole blanc permettant une construction gratuite lorsqu’il correspond à un bâtiment déjà construit.",
+      "sourceRefs": [
+        {
+          "page": 5
+        },
+        {
+          "page": 9
+        }
+      ]
+    },
+    {
+      "id": "personal-tableau",
+      "display": "tableau personnel",
+      "locale": "fr-CA",
+      "definition": "Zone organisée qu’un joueur construit devant lui avec ses cartes, tuiles ou composants.",
+      "source": "MOBIUS_LEARNER_TERMINOLOGY",
+      "applicability": "preferred generic learner term when semantically appropriate"
+    }
+  ],
+  "components": [
+    {
+      "id": "board",
+      "displayName": "plateau militaire",
+      "quantity": 1,
+      "sourceRefs": [
+        {
+          "page": 3
+        },
+        {
+          "page": 4
+        }
+      ]
+    },
+    {
+      "id": "age-cards",
+      "displayName": "cartes des Âges",
+      "quantity": 66,
+      "sourceRefs": [
+        {
+          "page": 3
+        },
+        {
+          "page": 5
+        }
+      ]
+    },
+    {
+      "id": "guild-cards",
+      "displayName": "cartes Guilde",
+      "quantity": 7,
+      "sourceRefs": [
+        {
+          "page": 3
+        },
+        {
+          "page": 5
+        }
+      ]
+    },
+    {
+      "id": "wonder-cards",
+      "displayName": "cartes Merveille",
+      "quantity": 12,
+      "sourceRefs": [
+        {
+          "page": 3
+        },
+        {
+          "page": 4
+        }
+      ]
+    },
+    {
+      "id": "military-tokens",
+      "displayName": "jetons Militaire",
+      "quantity": 4,
+      "sourceRefs": [
+        {
+          "page": 3
+        },
+        {
+          "page": 4
+        }
+      ]
+    },
+    {
+      "id": "progress-tokens",
+      "displayName": "jetons Progrès",
+      "quantity": 10,
+      "sourceRefs": [
+        {
+          "page": 3
+        },
+        {
+          "page": 4
+        }
+      ]
+    },
+    {
+      "id": "conflict-pawn",
+      "displayName": "pion Conflit",
+      "quantity": 1,
+      "sourceRefs": [
+        {
+          "page": 3
+        },
+        {
+          "page": 4
+        }
+      ]
+    },
+    {
+      "id": "coins",
+      "displayName": "pièces",
+      "quantity": 31,
+      "sourceRefs": [
+        {
+          "page": 3
+        },
+        {
+          "page": 4
+        }
+      ]
+    },
+    {
+      "id": "scorebook",
+      "displayName": "carnet de score",
+      "quantity": 1,
+      "sourceRefs": [
+        {
+          "page": 3
+        },
+        {
+          "page": 13
+        }
+      ]
+    }
+  ],
+  "documentMap": [
+    {
+      "title": "Vue d’ensemble et but du jeu",
+      "pageStart": 3,
+      "pageEnd": 3,
+      "role": "identity-objective",
+      "atomIds": [
+        "identity-theme",
+        "objective-victory-overview"
+      ]
+    },
+    {
+      "title": "Éléments de jeu",
+      "pageStart": 4,
+      "pageEnd": 5,
+      "role": "components-cost-symbols",
+      "atomIds": [
+        "components-overview",
+        "cost-area",
+        "chain-construction"
+      ]
+    },
+    {
+      "title": "Préparation",
+      "pageStart": 6,
+      "pageEnd": 7,
+      "role": "setup",
+      "atomIds": [
+        "setup-central",
+        "setup-wonder-selection",
+        "setup-age-decks"
+      ]
+    },
+    {
+      "title": "Construire dans 7 Wonders Duel",
+      "pageStart": 8,
+      "pageEnd": 9,
+      "role": "payment-trade-chain",
+      "atomIds": [
+        "resource-production",
+        "trade-missing-resources",
+        "chain-construction"
+      ]
+    },
+    {
+      "title": "Déroulement d’une partie",
+      "pageStart": 10,
+      "pageEnd": 11,
+      "role": "turn-actions",
+      "atomIds": [
+        "age-loop",
+        "accessible-card",
+        "construct-building",
+        "discard-for-coins",
+        "construct-wonder",
+        "end-of-age"
+      ]
+    },
+    {
+      "title": "Militaire, science et progrès",
+      "pageStart": 12,
+      "pageEnd": 12,
+      "role": "special-systems",
+      "atomIds": [
+        "military-system",
+        "science-pair-progress",
+        "science-supremacy"
+      ]
+    },
+    {
+      "title": "Fin de partie et victoire",
+      "pageStart": 13,
+      "pageEnd": 13,
+      "role": "endgame-scoring",
+      "atomIds": [
+        "endgame-trigger",
+        "scoring-ledger",
+        "winner-resolution",
+        "tie-breaker",
+        "scorebook-reference"
+      ]
+    },
+    {
+      "title": "Organisation des cartes selon l’âge",
+      "pageStart": 20,
+      "pageEnd": 20,
+      "role": "reference-layouts",
+      "atomIds": [
+        "setup-age-layouts"
+      ]
+    }
+  ],
+  "turnStructure": {
+    "loopUnit": "tour dans un âge",
+    "phases": [
+      "choisir une carte accessible",
+      "l’utiliser d’une des trois façons",
+      "révéler les cartes nouvellement accessibles"
+    ],
+    "sourceRefs": [
+      {
+        "page": 10
+      },
+      {
+        "page": 11
+      }
+    ]
+  },
+  "diagramData": {
+    "ageLayouts": {
+      "legend": {
+        "faceUp": "Face visible",
+        "faceDown": "Face cachée"
+      },
+      "ages": [
+        {
+          "label": "Âge I",
+          "rows": [
+            {
+              "count": 2,
+              "face": "up"
+            },
+            {
+              "count": 3,
+              "face": "down"
+            },
+            {
+              "count": 4,
+              "face": "up"
+            },
+            {
+              "count": 5,
+              "face": "down"
+            },
+            {
+              "count": 6,
+              "face": "up"
+            }
+          ],
+          "start": "top-left"
+        },
+        {
+          "label": "Âge II",
+          "rows": [
+            {
+              "count": 6,
+              "face": "up"
+            },
+            {
+              "count": 5,
+              "face": "down"
+            },
+            {
+              "count": 4,
+              "face": "up"
+            },
+            {
+              "count": 3,
+              "face": "down"
+            },
+            {
+              "count": 2,
+              "face": "up"
+            }
+          ],
+          "start": "top-left"
+        },
+        {
+          "label": "Âge III",
+          "rows": [
+            {
+              "count": 2,
+              "face": "up"
+            },
+            {
+              "count": 3,
+              "face": "down"
+            },
+            {
+              "count": 4,
+              "face": "up"
+            },
+            {
+              "count": 2,
+              "face": "down"
+            },
+            {
+              "count": 4,
+              "face": "up"
+            },
+            {
+              "count": 3,
+              "face": "down"
+            },
+            {
+              "count": 2,
+              "face": "up"
+            }
+          ],
+          "start": "top-left"
+        }
+      ]
+    },
+    "militaryTrack": {
+      "leftCapital": "Votre capitale",
+      "rightCapital": "Capitale adverse",
+      "spaces": 19,
+      "coinLossThresholds": [
+        2,
+        5
+      ],
+      "militaryPointValues": [
+        0,
+        2,
+        5,
+        10
+      ]
+    },
+    "scoringLedger": [
+      "Militaire",
+      "Bâtiments",
+      "Merveilles",
+      "Progrès",
+      "Trésorerie",
+      "Total"
+    ]
+  },
+  "coverageApplicability": {
+    "identity_theme": true,
+    "objective": true,
+    "components": true,
+    "complete_setup": true,
+    "first_player_rule": true,
+    "turn_round_age_structure": true,
+    "mandatory_actions": true,
+    "alternative_actions": true,
+    "optional_actions": false,
+    "costs_resources_payment": true,
+    "component_placement_orientation": true,
+    "triggered_effects": true,
+    "major_special_systems": true,
+    "end_condition": true,
+    "immediate_victories": true,
+    "final_scoring": true,
+    "tie_breakers": true,
+    "first_game_pitfalls": true,
+    "reference_aids_score_sheet": true
+  },
+  "ruleAtoms": [
+    {
+      "id": "identity-theme",
+      "domain": "identity",
+      "coverageDomains": [
+        "identity_theme"
+      ],
+      "title": "Deux civilisations, trois âges",
+      "actor": "les deux joueurs",
+      "mandatoryOrOptional": "mandatory",
+      "procedureSteps": [
+        "Chaque joueur dirige une civilisation.",
+        "Les bâtiments et merveilles construits forment sa cité.",
+        "La partie traverse les Âges I, II et III."
+      ],
+      "stateChange": "Les joueurs développent leur cité au fil des trois âges.",
+      "stateAfter": "Une cité produit des ressources, des effets et des points.",
+      "result": "Le joueur poursuit une victoire militaire, scientifique ou civile.",
+      "componentRefs": [
+        "age-cards",
+        "wonder-cards"
+      ],
+      "terminologyRefs": [
+        "city",
+        "age-card"
+      ],
+      "sourceRefs": [
+        {
+          "page": 3
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer le développement parallèle de deux cités sur trois âges.",
+        "requiredObjects": [
+          "deux cités",
+          "Âge I",
+          "Âge II",
+          "Âge III"
+        ],
+        "requiredLabels": [
+          "Âge I",
+          "Âge II",
+          "Âge III"
+        ],
+        "preferredComposition": "WIDE_DIAGRAM",
+        "forbiddenContent": [
+          "illustration décorative sans structure"
+        ],
+        "minimumEffectiveResolution": {
+          "width": 1400,
+          "height": 700
+        }
+      },
+      "teaching": {
+        "majorSection": "Présentation / But du jeu",
+        "heading": "Deux civilisations, trois âges",
+        "narration": "Dans Seven Wonders Duel, vous dirigez chacun une civilisation. Vos bâtiments et vos merveilles forment votre cité, que vous développez pendant trois âges. Vous pouvez gagner par suprématie militaire, par suprématie scientifique ou, si personne ne l’emporte immédiatement, par les points à la fin de l’âge trois.",
+        "displayLines": [
+          "Deux civilisations",
+          "Trois âges",
+          "Trois voies vers la victoire"
+        ],
+        "sequence": 10
+      }
+    },
+    {
+      "id": "objective-victory-overview",
+      "domain": "victory",
+      "coverageDomains": [
+        "objective",
+        "immediate_victories"
+      ],
+      "title": "Trois voies vers la victoire",
+      "actor": "chaque joueur",
+      "trigger": "pendant la partie ou à la fin de l’Âge III",
+      "mandatoryOrOptional": "conditional",
+      "procedureSteps": [
+        "Atteindre la capitale adverse pour une victoire militaire.",
+        "Réunir six symboles scientifiques différents pour une victoire scientifique.",
+        "Sinon, comparer les points après l’Âge III."
+      ],
+      "stateChange": "Une condition de victoire met fin à la partie.",
+      "stateAfter": "Un gagnant est déterminé immédiatement ou par le décompte civil.",
+      "result": "Victoire militaire, scientifique ou civile.",
+      "componentRefs": [
+        "board",
+        "conflict-pawn",
+        "age-cards"
+      ],
+      "sourceRefs": [
+        {
+          "page": 3
+        },
+        {
+          "page": 12
+        },
+        {
+          "page": 13
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Distinguer les trois voies de victoire.",
+        "requiredObjects": [
+          "piste militaire",
+          "symboles scientifiques",
+          "points de victoire"
+        ],
+        "requiredRelationship": "trois voies distinctes",
+        "preferredComposition": "CENTERED_CALLOUT",
+        "minimumEffectiveResolution": {
+          "width": 1400,
+          "height": 700
+        }
+      },
+      "teaching": {
+        "majorSection": "Présentation / But du jeu",
+        "heading": "Objectifs",
+        "narration": "Gardez donc ces trois chemins en tête : pousser le pion Conflit jusqu’à la capitale adverse, réunir six symboles scientifiques différents, ou bâtir la cité qui rapportera le plus de points.",
+        "displayLines": [
+          "Suprématie militaire",
+          "Suprématie scientifique",
+          "Victoire civile"
+        ],
+        "sequence": 20
+      }
+    },
+    {
+      "id": "components-overview",
+      "domain": "components",
+      "coverageDomains": [
+        "components"
+      ],
+      "title": "Les éléments essentiels",
+      "mandatoryOrOptional": "mandatory",
+      "procedureSteps": [
+        "Repérer le plateau militaire et le pion Conflit.",
+        "Séparer les cartes des trois âges et les guildes.",
+        "Repérer les merveilles, pièces, jetons Militaire et Progrès."
+      ],
+      "stateChange": "Les composants sont identifiés avant la mise en place.",
+      "stateAfter": "Chaque élément nécessaire est prêt.",
+      "result": "Le matériel peut être installé sans vocabulaire inconnu.",
+      "componentRefs": [
+        "board",
+        "conflict-pawn",
+        "age-cards",
+        "guild-cards",
+        "wonder-cards",
+        "coins",
+        "military-tokens",
+        "progress-tokens"
+      ],
+      "sourceRefs": [
+        {
+          "page": 3
+        },
+        {
+          "page": 4
+        },
+        {
+          "page": 5
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Identifier les composants manipulés pendant la partie.",
+        "requiredObjects": [
+          "carte brune",
+          "carte grise",
+          "carte jaune",
+          "carte rouge",
+          "carte bleue",
+          "carte verte",
+          "carte Guilde violette"
+        ],
+        "preferredComposition": "LABELED_COMPONENT_GRID",
+        "forbiddenContent": [
+          "page de règles complète"
+        ],
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 800
+        },
+        "requiredRelationship": "famille visuelle → rôle → organisation dans le tableau personnel"
+      },
+      "teaching": {
+        "majorSection": "Les composants",
+        "heading": "Les composants",
+        "narration": "Repérez d’abord les familles de bâtiments. Les cartes brunes produisent les matières premières et les grises les produits manufacturés. Les jaunes soutiennent le commerce, les rouges font avancer le militaire, les bleues donnent des points et les vertes portent la science. Les Guildes sont violettes et marquent selon leur propre critère. Dans votre tableau personnel, regroupez les cartes par couleur en laissant visibles leurs bandeaux, leurs symboles et leurs chaînages.",
+        "displayLines": [
+          "Brun : matières premières · Gris : produits manufacturés",
+          "Jaune : commerce · Rouge : militaire",
+          "Bleu : points · Vert : science · Violet : Guildes",
+          "Tableau personnel : grouper par couleur, symboles visibles"
+        ],
+        "sequence": 30
+      },
+      "terminologyRefs": [
+        "tableau personnel"
+      ]
+    },
+    {
+      "id": "setup-central",
+      "domain": "setup",
+      "coverageDomains": [
+        "complete_setup",
+        "component_placement_orientation"
+      ],
+      "title": "Préparer le centre",
+      "actor": "les joueurs",
+      "mandatoryOrOptional": "mandatory",
+      "procedureSteps": [
+        "Placer le plateau entre les joueurs.",
+        "Placer le pion Conflit sur l’espace neutre central.",
+        "Placer les quatre jetons Militaire face visible.",
+        "Mélanger les jetons Progrès, en placer cinq face visible et ranger les autres.",
+        "Donner sept pièces à chaque joueur."
+      ],
+      "placement": "plateau entre les joueurs; éléments sur leurs emplacements",
+      "orientation": "jetons Militaire et Progrès face visible",
+      "stateChange": "Le centre de table et les trésoreries de départ sont installés.",
+      "stateAfter": "Plateau prêt, cinq progrès visibles et sept pièces par joueur.",
+      "result": "La zone centrale est complète.",
+      "componentRefs": [
+        "board",
+        "conflict-pawn",
+        "military-tokens",
+        "progress-tokens",
+        "coins"
+      ],
+      "sourceRefs": [
+        {
+          "page": 6
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Faire reproduire la mise en place centrale.",
+        "requiredObjects": [
+          "plateau",
+          "pion Conflit au centre",
+          "quatre jetons Militaire",
+          "cinq jetons Progrès",
+          "sept pièces par joueur"
+        ],
+        "requiredState": "installation initiale",
+        "requiredOrientation": "jetons face visible",
+        "preferredComposition": "WIDE_SETUP",
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 800
+        },
+        "cropCompleteness": "plateau et tous les éléments numérotés visibles"
+      },
+      "teaching": {
+        "majorSection": "Mise en place",
+        "heading": "Préparer le centre",
+        "narration": "Placez le plateau entre vous. Mettez le pion Conflit sur l’espace neutre du milieu et les quatre jetons Militaire face visible sur leurs emplacements. Mélangez les jetons Progrès, placez-en cinq face visible sur le plateau et rangez les autres. Enfin, chacun prend sept pièces.",
+        "displayLines": [
+          "Pion Conflit au centre",
+          "4 jetons Militaire",
+          "5 jetons Progrès",
+          "7 pièces par joueur"
+        ],
+        "sequence": 40
+      }
+    },
+    {
+      "id": "setup-wonder-selection",
+      "domain": "setup",
+      "coverageDomains": [
+        "complete_setup",
+        "first_player_rule",
+        "component_placement_orientation"
+      ],
+      "title": "Choisir les merveilles",
+      "actor": "les deux joueurs",
+      "mandatoryOrOptional": "mandatory",
+      "choice": "choisir les merveilles offertes",
+      "procedureSteps": [
+        "Choisir un premier joueur.",
+        "Mélanger les douze merveilles et en offrir quatre face visible.",
+        "Le premier joueur en choisit une, le second deux, puis le premier prend la dernière.",
+        "Offrir quatre nouvelles merveilles et recommencer en inversant le premier joueur.",
+        "Placer ses quatre merveilles en colonne à gauche de sa zone."
+      ],
+      "placement": "colonne à gauche de la zone personnelle",
+      "orientation": "face visible",
+      "stateChange": "Huit merveilles sont réparties.",
+      "stateAfter": "Chaque joueur possède quatre merveilles.",
+      "result": "Les merveilles disponibles pour la partie sont définies.",
+      "componentRefs": [
+        "wonder-cards"
+      ],
+      "sourceRefs": [
+        {
+          "page": 7
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer les deux offres et l’ordre 1–2–1.",
+        "requiredObjects": [
+          "douze merveilles",
+          "premier groupe de quatre",
+          "second groupe de quatre"
+        ],
+        "requiredLabels": [
+          "1",
+          "2",
+          "1",
+          "inverser"
+        ],
+        "requiredRelationship": "ordre de sélection 1–2–1 puis inversion",
+        "preferredComposition": "PROCEDURE_FLOW",
+        "minimumEffectiveResolution": {
+          "width": 1400,
+          "height": 760
+        }
+      },
+      "teaching": {
+        "majorSection": "Mise en place",
+        "heading": "Choisir les merveilles",
+        "narration": "Choisissez d’abord un premier joueur. Mélangez les douze merveilles et révélez-en quatre. Le premier joueur en choisit une, l’autre en choisit deux, puis le premier prend la dernière. Révélez ensuite quatre nouvelles merveilles et refaites la sélection en inversant celui qui commence. Chacun place ses quatre merveilles, face visible, en colonne à gauche de sa cité.",
+        "displayLines": [
+          "1er groupe : 1 → 2 → 1",
+          "2e groupe : on inverse",
+          "4 merveilles par joueur"
+        ],
+        "sequence": 50
+      }
+    },
+    {
+      "id": "setup-age-decks",
+      "domain": "setup",
+      "coverageDomains": [
+        "complete_setup"
+      ],
+      "title": "Préparer les paquets",
+      "actor": "les joueurs",
+      "mandatoryOrOptional": "mandatory",
+      "procedureSteps": [
+        "Retirer trois cartes de chaque paquet Âge sans les regarder.",
+        "Tirer trois guildes au hasard et les ajouter au paquet de l’Âge III.",
+        "Ranger les autres guildes."
+      ],
+      "stateChange": "Les trois paquets sont préparés.",
+      "stateAfter": "Chaque âge contient les cartes prévues pour cette partie.",
+      "result": "Les paquets peuvent être utilisés à leur âge respectif.",
+      "componentRefs": [
+        "age-cards",
+        "guild-cards"
+      ],
+      "sourceRefs": [
+        {
+          "page": 7
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer les retraits et l’ajout des guildes.",
+        "requiredObjects": [
+          "dos Âge I",
+          "dos Âge II",
+          "dos Âge III",
+          "dos Guilde G",
+          "faces violettes de Guildes",
+          "trois Guildes sélectionnées"
+        ],
+        "requiredRelationship": "trois retraits par paquet et trois guildes vers Âge III",
+        "preferredComposition": "PROCEDURE_FLOW",
+        "minimumEffectiveResolution": {
+          "width": 1400,
+          "height": 760
+        }
+      },
+      "teaching": {
+        "majorSection": "Mise en place",
+        "heading": "Préparer les paquets",
+        "narration": "Repérez d’abord les dos : I, II et III pour les trois âges; les Guildes ont leur propre dos marqué G et des faces violettes. Gardez les Guildes dans un paquet séparé. Sans les regarder, retirez trois cartes de chacun des paquets Âge un, Âge deux et Âge trois et remettez-les dans la boîte. Tirez ensuite trois Guildes au hasard, mélangez-les au paquet de l’Âge trois, puis remettez les Guildes inutilisées dans la boîte.",
+        "displayLines": [
+          "Dos I, II, III · dos G et faces violettes",
+          "Retirer 3 cartes de chaque Âge",
+          "Mélanger 3 Guildes dans l’Âge III",
+          "Guildes inutilisées : retour dans la boîte"
+        ],
+        "sequence": 60
+      }
+    },
+    {
+      "id": "setup-age-layouts",
+      "domain": "setup",
+      "coverageDomains": [
+        "complete_setup",
+        "component_placement_orientation",
+        "reference_aids_score_sheet"
+      ],
+      "title": "Construire la structure de l’Âge I",
+      "actor": "les joueurs",
+      "mandatoryOrOptional": "mandatory",
+      "procedureSteps": [
+        "Mélanger le paquet de l’Âge I.",
+        "Disposer vingt cartes selon le schéma officiel de l’Âge I.",
+        "Respecter les cartes face visible et face cachée.",
+        "Commencer au point indiqué."
+      ],
+      "placement": "structure centrale de l’Âge I",
+      "orientation": "selon le schéma face visible ou face cachée",
+      "stateChange": "La structure de vingt cartes est formée.",
+      "stateAfter": "Les cartes accessibles de départ sont visibles.",
+      "result": "L’Âge I peut commencer.",
+      "componentRefs": [
+        "age-cards"
+      ],
+      "terminologyRefs": [
+        "age-card",
+        "accessible-card"
+      ],
+      "sourceRefs": [
+        {
+          "page": 10
+        },
+        {
+          "page": 20
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer en grand la structure complète de l’Âge I et son code face visible/face cachée.",
+        "requiredObjects": [
+          "structure Âge I",
+          "légende face visible",
+          "légende face cachée"
+        ],
+        "requiredLabels": [
+          "Âge I",
+          "Face visible",
+          "Face cachée"
+        ],
+        "requiredRelationship": "vingt cartes dans la structure",
+        "preferredComposition": "FULL_WIDTH_DIAGRAM",
+        "diagramKind": "AGE_LAYOUT_FOCUS",
+        "ageIndexes": [
+          0
+        ],
+        "minimumEffectiveResolution": {
+          "width": 1600,
+          "height": 850
+        },
+        "cropCompleteness": "titre, structure, point de départ et légende entièrement visibles"
+      },
+      "teaching": {
+        "majorSection": "Mise en place",
+        "heading": "Disposer l’Âge I",
+        "narration": "Pour commencer l’âge un, mélangez son paquet et disposez les vingt cartes selon le schéma. Les cartes claires sont face visible; les cartes teintées, face cachée. Mettez la vidéo sur pause le temps de reproduire cette structure.",
+        "displayLines": [
+          "20 cartes",
+          "Clair = face visible",
+          "Teinté = face cachée"
+        ],
+        "pauseCue": "Pause ici pour reproduire l’Âge I",
+        "sequence": 70
+      }
+    },
+    {
+      "id": "setup-later-age-layouts",
+      "domain": "setup",
+      "coverageDomains": [
+        "complete_setup",
+        "component_placement_orientation",
+        "reference_aids_score_sheet"
+      ],
+      "title": "Structures des Âges II et III",
+      "actor": "les joueurs",
+      "mandatoryOrOptional": "mandatory",
+      "procedureSteps": [
+        "À la fin de l’Âge I, utiliser la structure de l’Âge II.",
+        "À la fin de l’Âge II, utiliser la structure de l’Âge III.",
+        "Respecter dans chaque structure les cartes face visible et face cachée."
+      ],
+      "placement": "structure centrale propre à l’âge",
+      "orientation": "selon le schéma face visible ou face cachée",
+      "stateChange": "La structure de l’âge suivant remplace la précédente.",
+      "stateAfter": "Les cartes accessibles du nouvel âge sont visibles.",
+      "result": "L’âge suivant peut commencer.",
+      "componentRefs": [
+        "age-cards"
+      ],
+      "terminologyRefs": [
+        "age-card",
+        "accessible-card"
+      ],
+      "sourceRefs": [
+        {
+          "page": 10
+        },
+        {
+          "page": 20
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer clairement et sans réduction excessive les structures complètes des Âges II et III.",
+        "requiredObjects": [
+          "structure Âge II",
+          "structure Âge III",
+          "légende face visible",
+          "légende face cachée"
+        ],
+        "requiredLabels": [
+          "Âge II",
+          "Âge III",
+          "Face visible",
+          "Face cachée"
+        ],
+        "requiredRelationship": "vingt cartes par structure",
+        "preferredComposition": "FULL_WIDTH_DIAGRAM",
+        "diagramKind": "AGE_LAYOUT_REFERENCE",
+        "ageIndexes": [
+          1,
+          2
+        ],
+        "minimumEffectiveResolution": {
+          "width": 1600,
+          "height": 850
+        },
+        "cropCompleteness": "titres, structures et légende entièrement visibles"
+      },
+      "teaching": {
+        "majorSection": "Mise en place",
+        "heading": "Préparer les Âges suivants",
+        "narration": "Les âges deux et trois utilisent chacun une structure différente, montrée ici au complet. Au changement d’âge, mélangez le paquet correspondant, puis recréez son schéma en respectant les cartes face visible et face cachée.",
+        "displayLines": [
+          "Âge II : structure complète",
+          "Âge III : structure complète"
+        ],
+        "sequence": 71
+      }
+    },
+    {
+      "id": "age-loop",
+      "domain": "turn_structure",
+      "coverageDomains": [
+        "turn_round_age_structure",
+        "first_player_rule"
+      ],
+      "title": "Trois âges, un tour à la fois",
+      "actor": "joueur actif",
+      "trigger": "début de la partie et début de chaque âge",
+      "mandatoryOrOptional": "mandatory",
+      "procedureSteps": [
+        "Le premier joueur commence l’Âge I.",
+        "Les joueurs jouent ensuite à tour de rôle.",
+        "Quand les vingt cartes sont jouées, préparer l’âge suivant.",
+        "Le joueur le plus faible militairement choisit qui commence; si le pion est au centre, le dernier joueur actif choisit."
+      ],
+      "stateChange": "Un tour résout une carte, puis l’autre joueur agit.",
+      "stateAfter": "L’âge avance jusqu’à vider la structure.",
+      "result": "Après trois âges, la partie se termine si aucune suprématie n’a gagné.",
+      "componentRefs": [
+        "age-cards",
+        "board",
+        "conflict-pawn"
+      ],
+      "sourceRefs": [
+        {
+          "page": 10
+        },
+        {
+          "page": 11
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Présenter la boucle âge → tour → carte → joueur suivant.",
+        "requiredObjects": [
+          "Âge I",
+          "Âge II",
+          "Âge III",
+          "joueur actif",
+          "carte accessible"
+        ],
+        "requiredRelationship": "alternance jusqu’à vider la structure",
+        "preferredComposition": "LOOP_DIAGRAM",
+        "minimumEffectiveResolution": {
+          "width": 1400,
+          "height": 760
+        }
+      },
+      "teaching": {
+        "majorSection": "Comment se déroule le jeu?",
+        "heading": "Le rythme d’une partie",
+        "narration": "La partie commence à l’âge un, continue à l’âge deux et se termine avec l’âge trois. Le premier joueur commence l’âge un, puis vous jouez à tour de rôle. À la fin d’un âge, le joueur qui est le plus faible sur la piste militaire choisit qui commencera le suivant; si le pion est au centre, c’est le dernier joueur actif qui choisit.",
+        "displayLines": [
+          "Âge I → Âge II → Âge III",
+          "Une carte par tour",
+          "Puis l’autre joueur"
+        ],
+        "sequence": 80
+      }
+    },
+    {
+      "id": "accessible-card",
+      "domain": "action",
+      "coverageDomains": [
+        "mandatory_actions",
+        "component_placement_orientation"
+      ],
+      "title": "Choisir une carte accessible",
+      "actor": "joueur actif",
+      "trigger": "début du tour",
+      "mandatoryOrOptional": "mandatory",
+      "prerequisites": [
+        "La structure de l’âge contient au moins une carte."
+      ],
+      "choice": "Choisir une carte qui n’est recouverte par aucune autre carte.",
+      "costs": [],
+      "procedureSteps": [
+        "Repérer les cartes non recouvertes.",
+        "Choisir exactement une de ces cartes.",
+        "La retirer de la structure.",
+        "Révéler les cartes face cachée qui ne sont plus couvertes."
+      ],
+      "placement": "retirée de la structure avant de choisir son utilisation",
+      "orientation": "révéler toute carte nouvellement accessible",
+      "stateBefore": "Des cartes sont recouvertes et d’autres accessibles.",
+      "stateChange": "La carte choisie quitte la structure.",
+      "stateAfter": "De nouvelles cartes peuvent devenir accessibles et sont révélées.",
+      "result": "La carte choisie doit être construite, défaussée ou utilisée pour une merveille.",
+      "followUp": "Choisir une des trois utilisations.",
+      "componentRefs": [
+        "age-cards"
+      ],
+      "terminologyRefs": [
+        "accessible-card"
+      ],
+      "sourceRefs": [
+        {
+          "page": 10
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Faire reconnaître les cartes accessibles et leur révélation après retrait.",
+        "requiredObjects": [
+          "structure Âge I",
+          "cartes accessibles",
+          "carte choisie",
+          "cartes nouvellement accessibles"
+        ],
+        "requiredRelationship": "AVANT → retrait → APRÈS",
+        "beforeState": "cartes du bas accessibles",
+        "afterState": "cartes libérées révélées",
+        "preferredComposition": "BEFORE_ACTION_AFTER",
+        "diagramKind": "AGE_ACCESSIBILITY",
+        "ageIndexes": [
+          0
+        ],
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 780
+        },
+        "cropCompleteness": "structure entière et cartes concernées visibles"
+      },
+      "teaching": {
+        "majorSection": "Comment se déroule le jeu?",
+        "heading": "Une carte accessible",
+        "narration": "Au début de votre tour, choisissez une carte accessible : elle ne doit être recouverte, même partiellement, par aucune autre carte. Retirez-la de la structure. Les cartes face cachée qu’elle libère sont aussitôt retournées. Vous choisirez ensuite comment utiliser la carte prise.",
+        "displayLines": [
+          "1. Repérer une carte non recouverte",
+          "2. La retirer",
+          "3. Révéler les cartes libérées"
+        ],
+        "sequence": 90
+      }
+    },
+    {
+      "id": "construct-building",
+      "domain": "action",
+      "coverageDomains": [
+        "mandatory_actions",
+        "alternative_actions",
+        "costs_resources_payment",
+        "component_placement_orientation",
+        "triggered_effects"
+      ],
+      "title": "Construire un bâtiment",
+      "actor": "joueur actif",
+      "trigger": "après avoir choisi une carte accessible",
+      "mandatoryOrOptional": "conditional",
+      "prerequisites": [
+        "La carte est accessible.",
+        "Son coût peut être payé, produit ou remplacé par un chaînage valide."
+      ],
+      "choice": "Utiliser la carte choisie comme bâtiment.",
+      "costs": [
+        {
+          "description": "Payer les pièces imprimées et produire ou acheter les ressources indiquées dans la zone de coût."
+        }
+      ],
+      "procedureSteps": [
+        "Lire la zone de coût sous la bande de couleur.",
+        "Vérifier les ressources produites par sa cité.",
+        "Acheter les ressources manquantes si nécessaire.",
+        "Payer les pièces à la banque.",
+        "Placer la carte face visible devant soi, avec les bâtiments de la même couleur.",
+        "Résoudre immédiatement son effet."
+      ],
+      "placement": "face visible dans la cité, groupée par couleur",
+      "orientation": "face visible",
+      "stateBefore": "La carte accessible est dans la structure.",
+      "stateChange": "Le coût est satisfait et la carte entre dans la cité.",
+      "stateAfter": "Le bâtiment appartient à la cité et son effet est actif.",
+      "result": "La production, les symboles, les pièces ou les points du bâtiment s’appliquent.",
+      "followUp": "Révéler les cartes libérées, puis passer au joueur suivant sauf effet de rejouer.",
+      "componentRefs": [
+        "age-cards",
+        "coins"
+      ],
+      "terminologyRefs": [
+        "age-card",
+        "city"
+      ],
+      "sourceRefs": [
+        {
+          "page": 5
+        },
+        {
+          "page": 8
+        },
+        {
+          "page": 9
+        },
+        {
+          "page": 10
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer lecture du coût, paiement et placement dans la cité.",
+        "requiredObjects": [
+          "carte accessible",
+          "zone de coût",
+          "ressources",
+          "pièces",
+          "cité"
+        ],
+        "requiredRelationship": "CHOIX → COÛT → CITÉ → EFFET",
+        "beforeState": "carte dans la structure",
+        "afterState": "carte face visible dans la cité",
+        "preferredComposition": "PROCEDURE_SEQUENCE",
+        "forbiddenContent": [
+          "merveille utilisée comme bâtiment"
+        ],
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 780
+        }
+      },
+      "teaching": {
+        "majorSection": "Les actions",
+        "heading": "Construire un bâtiment",
+        "narration": "Première option : construire le bâtiment. Lisez son coût sous la bande de couleur. Une zone vide signifie que la carte est gratuite. Sinon, utilisez les ressources que votre cité produit et payez les pièces indiquées; vous pouvez acheter ce qui vous manque. Placez ensuite la carte face visible devant vous, avec les cartes de la même couleur, puis appliquez immédiatement son effet.",
+        "displayLines": [
+          "Lire le coût",
+          "Produire ou acheter",
+          "Placer face visible dans la cité",
+          "Résoudre l’effet"
+        ],
+        "sequence": 100
+      }
+    },
+    {
+      "id": "resource-production",
+      "domain": "cost_rule",
+      "coverageDomains": [
+        "costs_resources_payment",
+        "first_game_pitfalls"
+      ],
+      "title": "Les ressources ne sont pas dépensées",
+      "actor": "joueur actif",
+      "trigger": "construction avec un coût en ressources",
+      "mandatoryOrOptional": "mandatory",
+      "procedureSteps": [
+        "Compter la production brune, grise, jaune et des merveilles.",
+        "Comparer cette production au coût.",
+        "Ne pas retirer les ressources produites après construction."
+      ],
+      "stateChange": "La production sert à satisfaire un coût sans être consommée.",
+      "stateAfter": "Les mêmes ressources produites peuvent servir à chaque tour.",
+      "result": "Seules les pièces payées quittent la trésorerie.",
+      "componentRefs": [
+        "age-cards",
+        "wonder-cards",
+        "coins"
+      ],
+      "sourceRefs": [
+        {
+          "page": 8
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Distinguer production permanente et paiement de pièces.",
+        "requiredObjects": [
+          "ressources produites",
+          "coût de carte",
+          "pièces payées"
+        ],
+        "requiredRelationship": "ressource réutilisable; pièce dépensée",
+        "preferredComposition": "COMPARISON",
+        "minimumEffectiveResolution": {
+          "width": 1400,
+          "height": 720
+        }
+      },
+      "teaching": {
+        "majorSection": "Les actions",
+        "heading": "Produire n’est pas dépenser",
+        "narration": "Point important : les ressources de votre cité ne sont pas des cubes que vous dépensez. Elles représentent une production disponible à chaque tour. Si votre cité produit déjà les symboles demandés, le coût est satisfait. Vous retirez de votre trésorerie seulement les pièces réellement payées.",
+        "displayLines": [
+          "Ressources produites = réutilisables",
+          "Pièces payées = retirées"
+        ],
+        "sequence": 110
+      }
+    },
+    {
+      "id": "trade-missing-resources",
+      "domain": "cost_rule",
+      "coverageDomains": [
+        "costs_resources_payment"
+      ],
+      "title": "Acheter une ressource manquante",
+      "actor": "joueur actif",
+      "trigger": "une ressource requise n’est pas produite par la cité",
+      "mandatoryOrOptional": "conditional",
+      "prerequisites": [
+        "Une construction demande une ressource manquante."
+      ],
+      "costs": [
+        {
+          "description": "Chaque ressource manquante coûte 2 pièces plus le nombre de symboles identiques produits par les cartes brunes et grises de la cité adverse.",
+          "formula": "2 + production brune/grise identique adverse"
+        }
+      ],
+      "procedureSteps": [
+        "Repérer chaque ressource manquante.",
+        "Compter chez l’adversaire les symboles identiques sur ses cartes brunes et grises.",
+        "Ajouter deux pour obtenir le prix unitaire.",
+        "Payer ce prix à la banque pour chaque ressource achetée."
+      ],
+      "stateChange": "La ressource manquante est obtenue pour cette construction.",
+      "stateAfter": "Le coût peut être satisfait.",
+      "result": "La construction continue; aucune pièce n’est versée à l’adversaire.",
+      "exceptions": [
+        "La production des cartes jaunes et des merveilles adverses ne modifie pas le prix.",
+        "Certains bâtiments jaunes fixent le prix de certaines ressources à une pièce.",
+        "Le nombre de ressources achetées n’est pas limité."
+      ],
+      "componentRefs": [
+        "age-cards",
+        "coins"
+      ],
+      "sourceRefs": [
+        {
+          "page": 8
+        },
+        {
+          "page": 9
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Expliquer la formule de commerce et le paiement à la banque.",
+        "requiredObjects": [
+          "ressource manquante",
+          "deux pièces",
+          "symboles adverses bruns/gris",
+          "banque"
+        ],
+        "requiredRelationship": "prix = 2 + production identique adverse",
+        "preferredComposition": "FORMULA_DIAGRAM",
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 760
+        }
+      },
+      "teaching": {
+        "majorSection": "Les actions",
+        "heading": "Acheter ce qui manque",
+        "narration": "S’il vous manque une ressource, achetez-la à la banque. Son prix est de deux pièces, plus un pour chaque symbole de cette même ressource produit par les cartes brunes et grises de la cité adverse. Vous payez ce prix pour chaque unité achetée. Les ressources jaunes et celles des merveilles adverses ne comptent pas dans ce calcul; certains bâtiments jaunes peuvent toutefois fixer un prix à une pièce.",
+        "displayLines": [
+          "Prix unitaire",
+          "2 pièces",
+          "+ symboles identiques bruns/gris chez l’adversaire",
+          "Paiement à la banque"
+        ],
+        "sequence": 120
+      }
+    },
+    {
+      "id": "chain-construction",
+      "domain": "cost_rule",
+      "coverageDomains": [
+        "costs_resources_payment",
+        "triggered_effects"
+      ],
+      "title": "Construire gratuitement par chaînage",
+      "actor": "joueur actif",
+      "trigger": "une carte des Âges II ou III montre un symbole blanc de chaînage",
+      "mandatoryOrOptional": "conditional",
+      "prerequisites": [
+        "La cité contient le bâtiment portant le symbole blanc correspondant."
+      ],
+      "choice": "Utiliser le symbole de chaînage plutôt que payer le coût imprimé.",
+      "procedureSteps": [
+        "Repérer le symbole blanc dans la zone de coût de la nouvelle carte.",
+        "Chercher le même symbole sur un bâtiment déjà construit.",
+        "Si les symboles correspondent, construire gratuitement."
+      ],
+      "stateChange": "La nouvelle carte entre dans la cité sans paiement.",
+      "stateAfter": "Le bâtiment est construit et son effet s’applique.",
+      "result": "Le coût en ressources et pièces de la carte est ignoré.",
+      "componentRefs": [
+        "age-cards"
+      ],
+      "terminologyRefs": [
+        "chain"
+      ],
+      "sourceRefs": [
+        {
+          "page": 5
+        },
+        {
+          "page": 9
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer la correspondance de symboles blancs entre ancien et nouveau bâtiment.",
+        "requiredObjects": [
+          "bâtiment déjà construit",
+          "symbole blanc",
+          "nouvelle carte"
+        ],
+        "requiredRelationship": "même symbole → gratuit",
+        "preferredComposition": "MATCHING_SYMBOL_FLOW",
+        "minimumEffectiveResolution": {
+          "width": 1400,
+          "height": 720
+        }
+      },
+      "teaching": {
+        "majorSection": "Les actions",
+        "heading": "Le chaînage",
+        "narration": "À partir de l’âge deux, certaines cartes montrent aussi un symbole blanc. Si vous avez déjà dans votre cité le bâtiment qui porte le même symbole, vous construisez la nouvelle carte gratuitement. Faites correspondre les deux symboles : aucun coût imprimé n’est alors payé.",
+        "displayLines": [
+          "Symbole blanc déjà construit",
+          "Même symbole sur la nouvelle carte",
+          "Construction gratuite"
+        ],
+        "sequence": 130
+      }
+    },
+    {
+      "id": "discard-for-coins",
+      "domain": "action",
+      "coverageDomains": [
+        "alternative_actions",
+        "costs_resources_payment",
+        "component_placement_orientation"
+      ],
+      "title": "Défausser pour obtenir des pièces",
+      "actor": "joueur actif",
+      "trigger": "après avoir choisi une carte accessible",
+      "mandatoryOrOptional": "conditional",
+      "prerequisites": [
+        "La carte est accessible."
+      ],
+      "choice": "Ne pas construire la carte et la défausser.",
+      "costs": [],
+      "procedureSteps": [
+        "Prendre la carte accessible.",
+        "La poser face cachée dans la défausse à côté du plateau.",
+        "Prendre deux pièces plus une pièce par carte jaune déjà présente dans sa cité.",
+        "Ajouter ces pièces à sa trésorerie.",
+        "Révéler les cartes nouvellement accessibles."
+      ],
+      "placement": "défausse face cachée à côté du plateau",
+      "orientation": "face cachée",
+      "stateBefore": "La carte est accessible dans la structure.",
+      "stateChange": "La carte quitte la structure et rejoint la défausse.",
+      "stateAfter": "La trésorerie augmente de 2 + le nombre de cartes jaunes de la cité.",
+      "result": "Le joueur reçoit les pièces, puis le tour continue normalement.",
+      "followUp": "Révéler les cartes libérées, puis passer au joueur suivant.",
+      "componentRefs": [
+        "age-cards",
+        "coins"
+      ],
+      "sourceRefs": [
+        {
+          "page": 10
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer carte accessible → défausse face cachée → pièces.",
+        "requiredObjects": [
+          "carte accessible",
+          "défausse face cachée",
+          "pièces",
+          "cartes jaunes dans la cité"
+        ],
+        "requiredRelationship": "2 pièces + 1 par carte jaune",
+        "beforeState": "carte dans la structure",
+        "afterState": "carte dans la défausse et pièces dans la trésorerie",
+        "preferredComposition": "BEFORE_ACTION_AFTER",
+        "forbiddenContent": [
+          "jetons rouges sans rapport"
+        ],
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 760
+        }
+      },
+      "teaching": {
+        "majorSection": "Les actions",
+        "heading": "Défausser pour des pièces",
+        "narration": "Deuxième option : placez la carte choisie face cachée sur la pile de défausse, à côté du plateau. Cette pile est distincte des cartes retirées pendant la mise en place, qui sont remises dans la boîte. Prenez alors deux pièces, plus une pièce pour chaque carte jaune déjà construite dans votre cité. Ajoutez-les à votre trésorerie, puis révélez les cartes que votre retrait vient de libérer.",
+        "displayLines": [
+          "Carte accessible → pile face cachée à côté du plateau",
+          "Cartes retirées à la mise en place → boîte",
+          "Gain : 2 pièces + 1 par carte jaune dans votre cité"
+        ],
+        "sequence": 140
+      }
+    },
+    {
+      "id": "construct-wonder",
+      "domain": "action",
+      "coverageDomains": [
+        "alternative_actions",
+        "costs_resources_payment",
+        "component_placement_orientation",
+        "triggered_effects"
+      ],
+      "title": "Construire une merveille",
+      "actor": "joueur actif",
+      "trigger": "après avoir choisi une carte accessible",
+      "mandatoryOrOptional": "conditional",
+      "prerequisites": [
+        "Le joueur possède une merveille non construite.",
+        "Le coût de la merveille peut être satisfait."
+      ],
+      "choice": "Utiliser la carte Âge choisie pour construire une merveille.",
+      "costs": [
+        {
+          "description": "Payer le coût de la merveille, jamais le coût de la carte Âge utilisée."
+        }
+      ],
+      "procedureSteps": [
+        "Choisir une carte accessible.",
+        "Choisir une merveille non construite.",
+        "Payer le coût imprimé sur la merveille.",
+        "Glisser la carte Âge face cachée sous la merveille.",
+        "Résoudre l’effet de la merveille.",
+        "Révéler les cartes nouvellement accessibles."
+      ],
+      "placement": "carte Âge face cachée, partiellement sous la merveille",
+      "orientation": "carte Âge face cachée; merveille visible",
+      "stateBefore": "La merveille est non construite et la carte Âge est dans la structure.",
+      "stateChange": "La carte Âge sert de marqueur sous la merveille et n’est pas construite comme bâtiment.",
+      "stateAfter": "La merveille est construite et son effet est résolu.",
+      "result": "La merveille rejoint la cité; certaines permettent de rejouer.",
+      "followUp": "Si c’est la septième merveille construite, ranger immédiatement la dernière merveille non construite.",
+      "componentRefs": [
+        "age-cards",
+        "wonder-cards",
+        "coins"
+      ],
+      "sourceRefs": [
+        {
+          "page": 11
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer la carte Âge glissée face cachée sous la merveille et l’ordre coût → placement → effet.",
+        "requiredObjects": [
+          "carte Âge accessible",
+          "merveille non construite",
+          "coût de merveille",
+          "carte face cachée sous la merveille",
+          "effet"
+        ],
+        "requiredOrientation": "carte Âge face cachée partiellement sous la merveille",
+        "requiredRelationship": "choix → payer coût merveille → glisser carte → effet",
+        "beforeState": "merveille non construite",
+        "afterState": "merveille construite avec carte dessous",
+        "preferredComposition": "BEFORE_ACTION_AFTER",
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 780
+        }
+      },
+      "teaching": {
+        "majorSection": "Les actions",
+        "heading": "Construire une merveille",
+        "narration": "Troisième option : utilisez la carte accessible pour construire une de vos merveilles. Payez le coût de la merveille, pas celui de la carte choisie. Glissez ensuite cette carte face cachée, partiellement sous la merveille : elle ne devient pas un bâtiment et son propre effet ne s’applique pas. Résolvez l’effet de la merveille. Dès que la septième merveille de la partie est construite, la dernière merveille encore non construite retourne dans la boîte.",
+        "displayLines": [
+          "Choisir une carte accessible",
+          "Payer le coût de la merveille",
+          "Glisser la carte face cachée dessous",
+          "Résoudre l’effet",
+          "Maximum : 7 merveilles construites"
+        ],
+        "sequence": 150
+      }
+    },
+    {
+      "id": "end-of-age",
+      "domain": "turn_structure",
+      "coverageDomains": [
+        "turn_round_age_structure",
+        "first_player_rule"
+      ],
+      "title": "Passer à l’âge suivant",
+      "actor": "les deux joueurs",
+      "trigger": "les vingt cartes de la structure ont été jouées",
+      "mandatoryOrOptional": "mandatory",
+      "procedureSteps": [
+        "Préparer la structure de l’âge suivant.",
+        "Comparer la position du pion Conflit.",
+        "Le joueur le plus faible militairement choisit qui commence.",
+        "Si le pion est au centre, le dernier joueur actif choisit."
+      ],
+      "stateChange": "La structure vide est remplacée par celle de l’âge suivant.",
+      "stateAfter": "Le prochain âge peut commencer.",
+      "result": "La partie avance jusqu’à l’Âge III.",
+      "componentRefs": [
+        "age-cards",
+        "board",
+        "conflict-pawn"
+      ],
+      "sourceRefs": [
+        {
+          "page": 11
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer le passage d’une structure vide à l’âge suivant et le choix du premier joueur.",
+        "requiredObjects": [
+          "structure vide",
+          "pion Conflit",
+          "âge suivant"
+        ],
+        "requiredRelationship": "fin des vingt cartes → prochain âge",
+        "preferredComposition": "STATE_TRANSITION",
+        "minimumEffectiveResolution": {
+          "width": 1400,
+          "height": 720
+        }
+      },
+      "teaching": {
+        "majorSection": "Comment se déroule le jeu?",
+        "heading": "Fin d’un âge",
+        "narration": "Quand les vingt cartes ont été jouées, l’âge se termine. Préparez la structure suivante. Le joueur du côté duquel se trouve le pion Conflit est le plus faible militairement : il choisit qui commencera le nouvel âge. Si le pion est exactement au centre, le dernier joueur actif choisit.",
+        "displayLines": [
+          "Structure vide",
+          "Préparer l’âge suivant",
+          "Le plus faible militairement choisit le départ"
+        ],
+        "sequence": 95
+      }
+    },
+    {
+      "id": "military-system",
+      "domain": "triggered_effect",
+      "coverageDomains": [
+        "triggered_effects",
+        "major_special_systems",
+        "immediate_victories"
+      ],
+      "title": "La piste militaire",
+      "actor": "propriétaire du symbole militaire",
+      "trigger": "construction d’un bâtiment ou d’une merveille avec un ou plusieurs boucliers",
+      "mandatoryOrOptional": "mandatory",
+      "procedureSteps": [
+        "Compter les boucliers gagnés.",
+        "Déplacer immédiatement le pion Conflit d’autant de cases vers la capitale adverse.",
+        "En entrant dans une nouvelle zone, appliquer le jeton Militaire et le ranger.",
+        "L’adversaire défausse deux ou cinq pièces selon le jeton.",
+        "Atteindre la capitale adverse fait gagner immédiatement."
+      ],
+      "placement": "pion sur la piste vers la capitale adverse",
+      "stateBefore": "Le pion occupe sa position actuelle.",
+      "stateChange": "Chaque bouclier déplace le pion d’une case.",
+      "stateAfter": "Une zone, un jeton ou la capitale peut être atteint.",
+      "result": "Perte de pièces pour l’adversaire ou suprématie militaire.",
+      "componentRefs": [
+        "board",
+        "conflict-pawn",
+        "military-tokens",
+        "age-cards",
+        "wonder-cards",
+        "coins"
+      ],
+      "sourceRefs": [
+        {
+          "page": 12
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer boucliers → déplacement → seuil 2/5 pièces → capitale.",
+        "requiredObjects": [
+          "boucliers",
+          "piste militaire complète",
+          "pion Conflit",
+          "jetons 2 et 5 pièces",
+          "deux capitales"
+        ],
+        "requiredRelationship": "bouclier → une case vers l’adversaire",
+        "preferredComposition": "HORIZONTAL_TRACK_FOCUS",
+        "minimumEffectiveResolution": {
+          "width": 1600,
+          "height": 700
+        },
+        "cropCompleteness": "piste complète, zones, jetons et capitales visibles"
+      },
+      "teaching": {
+        "majorSection": "Systèmes clés",
+        "heading": "La pression militaire",
+        "narration": "Chaque bouclier construit déplace immédiatement le pion Conflit d’une case vers la capitale adverse. Si le pion entre dans une nouvelle zone, appliquez le jeton qui s’y trouve : l’adversaire perd deux ou cinq pièces, puis le jeton retourne dans la boîte. Si le pion atteint la capitale adverse, la partie s’arrête sur-le-champ : vous gagnez par suprématie militaire.",
+        "displayLines": [
+          "1 bouclier = 1 case",
+          "Nouveau seuil : l’adversaire perd 2 ou 5 pièces",
+          "Capitale atteinte = victoire immédiate"
+        ],
+        "sequence": 170
+      }
+    },
+    {
+      "id": "science-pair-progress",
+      "domain": "triggered_effect",
+      "coverageDomains": [
+        "triggered_effects",
+        "major_special_systems"
+      ],
+      "title": "Paires scientifiques",
+      "actor": "joueur qui réunit la paire",
+      "trigger": "deux symboles scientifiques identiques dans la cité",
+      "mandatoryOrOptional": "mandatory",
+      "procedureSteps": [
+        "Repérer deux symboles identiques.",
+        "Choisir immédiatement un jeton Progrès visible sur le plateau.",
+        "Conserver ce jeton dans sa cité."
+      ],
+      "placement": "jeton Progrès dans la cité",
+      "stateChange": "Une paire identique donne un progrès.",
+      "stateAfter": "Le jeton Progrès fait partie de la cité.",
+      "result": "Son effet s’applique selon le jeton.",
+      "componentRefs": [
+        "age-cards",
+        "progress-tokens"
+      ],
+      "sourceRefs": [
+        {
+          "page": 12
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Distinguer une paire identique donnant un progrès.",
+        "requiredObjects": [
+          "deux symboles scientifiques identiques",
+          "jetons Progrès"
+        ],
+        "requiredRelationship": "paire identique → choisir un jeton Progrès",
+        "preferredComposition": "MATCHING_SYMBOL_FLOW",
+        "minimumEffectiveResolution": {
+          "width": 1400,
+          "height": 720
+        }
+      },
+      "teaching": {
+        "majorSection": "Systèmes clés",
+        "heading": "Une paire donne un progrès",
+        "narration": "En science, deux symboles identiques forment une paire. Dès que vous réunissez cette paire, choisissez immédiatement un des jetons Progrès visibles sur le plateau et gardez-le dans votre cité. C’est une récompense de paire; ce n’est pas encore la victoire scientifique.",
+        "displayLines": [
+          "2 symboles identiques",
+          "→ choisir 1 jeton Progrès"
+        ],
+        "sequence": 180
+      }
+    },
+    {
+      "id": "science-supremacy",
+      "domain": "victory",
+      "coverageDomains": [
+        "major_special_systems",
+        "immediate_victories"
+      ],
+      "title": "Suprématie scientifique",
+      "actor": "joueur qui réunit les symboles",
+      "trigger": "six symboles scientifiques différents dans la cité",
+      "mandatoryOrOptional": "conditional",
+      "procedureSteps": [
+        "Compter les types de symboles différents, et non les paires.",
+        "Arrêter la partie dès que six symboles différents sont réunis."
+      ],
+      "stateChange": "Le sixième symbole distinct complète la condition.",
+      "stateAfter": "La partie est terminée.",
+      "result": "Victoire immédiate par suprématie scientifique.",
+      "componentRefs": [
+        "age-cards",
+        "progress-tokens"
+      ],
+      "sourceRefs": [
+        {
+          "page": 12
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Opposer clairement paire identique et six symboles différents.",
+        "requiredObjects": [
+          "paire identique",
+          "six symboles différents"
+        ],
+        "requiredRelationship": "paire = progrès; six différents = victoire",
+        "preferredComposition": "COMPARISON",
+        "minimumEffectiveResolution": {
+          "width": 1400,
+          "height": 720
+        }
+      },
+      "teaching": {
+        "majorSection": "Systèmes clés",
+        "heading": "Six symboles différents",
+        "narration": "La suprématie scientifique fonctionne autrement : dès que votre cité réunit six symboles scientifiques différents, vous gagnez immédiatement. Retenez bien la distinction : une paire identique donne un jeton Progrès; six symboles différents donnent la victoire.",
+        "displayLines": [
+          "Paire identique = Progrès",
+          "6 symboles différents = victoire immédiate"
+        ],
+        "sequence": 190
+      }
+    },
+    {
+      "id": "endgame-trigger",
+      "domain": "end_condition",
+      "coverageDomains": [
+        "end_condition",
+        "immediate_victories"
+      ],
+      "title": "Quand la partie s’arrête",
+      "actor": "les deux joueurs",
+      "trigger": "capitale atteinte, six symboles distincts, ou fin de l’Âge III",
+      "mandatoryOrOptional": "mandatory",
+      "procedureSteps": [
+        "Arrêter immédiatement sur une suprématie militaire ou scientifique.",
+        "Sinon, terminer lorsque toutes les cartes de l’Âge III ont été jouées.",
+        "Passer au décompte civil."
+      ],
+      "stateChange": "Le jeu quitte la phase d’actions.",
+      "stateAfter": "Une victoire immédiate est acquise ou le décompte commence.",
+      "result": "Déterminer le gagnant.",
+      "componentRefs": [
+        "board",
+        "conflict-pawn",
+        "age-cards"
+      ],
+      "sourceRefs": [
+        {
+          "page": 13
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Séparer victoires immédiates et fin de l’Âge III.",
+        "requiredObjects": [
+          "capitale",
+          "six symboles différents",
+          "fin Âge III"
+        ],
+        "requiredRelationship": "suprématie immédiate OU décompte civil",
+        "preferredComposition": "BRANCH_DIAGRAM",
+        "minimumEffectiveResolution": {
+          "width": 1400,
+          "height": 720
+        }
+      },
+      "teaching": {
+        "majorSection": "Fin de partie",
+        "heading": "Quand la partie s’arrête",
+        "narration": "La partie s’arrête immédiatement si le pion Conflit atteint une capitale ou si un joueur réunit six symboles scientifiques différents. Sinon, jouez toutes les cartes de l’âge trois, puis passez au décompte civil.",
+        "displayLines": [
+          "Capitale atteinte : victoire militaire",
+          "6 symboles différents : victoire scientifique",
+          "Sinon : décompte après l’Âge III"
+        ],
+        "sequence": 200
+      }
+    },
+    {
+      "id": "scoring-ledger",
+      "domain": "scoring",
+      "coverageDomains": [
+        "final_scoring",
+        "reference_aids_score_sheet"
+      ],
+      "title": "Le carnet de score",
+      "actor": "chaque joueur",
+      "trigger": "fin de l’Âge III sans suprématie",
+      "mandatoryOrOptional": "conditional",
+      "procedureSteps": [
+        "Noter les points militaires.",
+        "Ajouter les points des bâtiments.",
+        "Ajouter les points des merveilles.",
+        "Ajouter les points des progrès.",
+        "Ajouter un point par groupe complet de trois pièces.",
+        "Comparer les totaux."
+      ],
+      "stateChange": "Chaque catégorie alimente un total.",
+      "stateAfter": "Les deux scores finaux sont disponibles.",
+      "result": "Le score le plus élevé gagne.",
+      "componentRefs": [
+        "scorebook",
+        "board",
+        "age-cards",
+        "wonder-cards",
+        "progress-tokens",
+        "coins"
+      ],
+      "sourceRefs": [
+        {
+          "page": 13
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Afficher un registre de décompte complet et progressif.",
+        "requiredObjects": [
+          "militaire",
+          "bâtiments",
+          "merveilles",
+          "progrès",
+          "trésorerie",
+          "total"
+        ],
+        "requiredLabels": [
+          "Militaire",
+          "Bâtiments",
+          "Merveilles",
+          "Progrès",
+          "Trésorerie",
+          "Total"
+        ],
+        "requiredRelationship": "addition progressive des catégories",
+        "preferredComposition": "SCORING_LEDGER",
+        "diagramKind": "SCORING_LEDGER_OVERVIEW",
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 820
+        }
+      },
+      "teaching": {
+        "majorSection": "Décompte / Victoire",
+        "heading": "Faire le total",
+        "narration": "Le jeu contient un carnet de score. Comptez les catégories dans cet ordre : la position militaire, les points des bâtiments, les points des merveilles, les points accordés par vos jetons Progrès, puis votre trésorerie. Chaque groupe complet de trois pièces vaut un point. Additionnez enfin toutes les lignes.",
+        "displayLines": [
+          "Militaire",
+          "Bâtiments",
+          "Merveilles",
+          "Progrès",
+          "Trésorerie : 3 pièces = 1 point",
+          "Total"
+        ],
+        "sequence": 210
+      }
+    },
+    {
+      "id": "scoring-military",
+      "domain": "scoring",
+      "coverageDomains": [
+        "final_scoring"
+      ],
+      "title": "Points militaires",
+      "trigger": "décompte civil",
+      "mandatoryOrOptional": "conditional",
+      "procedureSteps": [
+        "Regarder la position finale du pion Conflit.",
+        "Inscrire zéro, deux, cinq ou dix points selon sa zone."
+      ],
+      "stateChange": "La position militaire devient une valeur de score.",
+      "stateAfter": "La ligne militaire est remplie.",
+      "result": "0, 2, 5 ou 10 points.",
+      "componentRefs": [
+        "board",
+        "conflict-pawn",
+        "scorebook"
+      ],
+      "sourceRefs": [
+        {
+          "page": 13
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Relier la zone du pion à la ligne militaire du carnet.",
+        "requiredObjects": [
+          "piste militaire",
+          "pion Conflit",
+          "valeurs 0, 2, 5, 10",
+          "ligne Militaire"
+        ],
+        "requiredRelationship": "position → points",
+        "preferredComposition": "SCORING_LEDGER_HIGHLIGHT",
+        "diagramKind": "SCORING_LEDGER_HIGHLIGHT",
+        "highlightLabel": "Militaire",
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 820
+        }
+      },
+      "teaching": {
+        "majorSection": "Décompte / Victoire",
+        "heading": "1. La position militaire",
+        "narration": "Commencez par la piste militaire. La position finale du pion rapporte zéro, deux, cinq ou dix points, selon la zone atteinte. Inscrivez cette valeur sur la ligne Militaire du carnet.",
+        "displayLines": [
+          "Position du pion",
+          "→ 0, 2, 5 ou 10 points"
+        ],
+        "sequence": 220
+      }
+    },
+    {
+      "id": "scoring-buildings",
+      "domain": "scoring",
+      "coverageDomains": [
+        "final_scoring"
+      ],
+      "title": "Points des bâtiments",
+      "trigger": "décompte civil",
+      "mandatoryOrOptional": "conditional",
+      "procedureSteps": [
+        "Repérer les lauriers ou valeurs de points sur les cartes bleues, vertes, jaunes et violettes.",
+        "Appliquer les critères des guildes et cartes concernées.",
+        "Additionner ces points sur la ligne Bâtiments."
+      ],
+      "stateChange": "Les points imprimés ou conditionnels des bâtiments sont comptés.",
+      "stateAfter": "La ligne Bâtiments est remplie.",
+      "result": "Somme des points des cartes bleues, vertes, jaunes et violettes.",
+      "componentRefs": [
+        "age-cards",
+        "guild-cards",
+        "scorebook"
+      ],
+      "sourceRefs": [
+        {
+          "page": 5
+        },
+        {
+          "page": 13
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer où trouver les points imprimés dans les lauriers des cartes.",
+        "requiredObjects": [
+          "cartes bleues",
+          "cartes vertes",
+          "cartes jaunes",
+          "cartes violettes",
+          "laurier de points",
+          "ligne Bâtiments"
+        ],
+        "requiredRelationship": "valeurs imprimées/critères → ligne Bâtiments",
+        "preferredComposition": "SCORING_LEDGER_HIGHLIGHT",
+        "diagramKind": "SCORING_LEDGER_HIGHLIGHT",
+        "highlightLabel": "Bâtiments",
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 820
+        }
+      },
+      "teaching": {
+        "majorSection": "Décompte / Victoire",
+        "heading": "2. Les bâtiments",
+        "narration": "Ajoutez ensuite les points de vos bâtiments bleus, verts, jaunes et violets. Les points fixes apparaissent dans un symbole de laurier; certaines cartes, notamment des guildes, calculent plutôt leurs points selon leur propre critère. Reportez la somme sur la ligne Bâtiments.",
+        "displayLines": [
+          "Additionner les points des bâtiments",
+          "Bleus · verts · jaunes · violets",
+          "Lauriers imprimés ou critère propre à la carte",
+          "Reporter la somme à la ligne Bâtiments"
+        ],
+        "sequence": 230
+      }
+    },
+    {
+      "id": "scoring-wonders",
+      "domain": "scoring",
+      "coverageDomains": [
+        "final_scoring"
+      ],
+      "title": "Points des merveilles",
+      "trigger": "décompte civil",
+      "mandatoryOrOptional": "conditional",
+      "procedureSteps": [
+        "Repérer les points imprimés sur chaque merveille construite.",
+        "Les additionner sur la ligne Merveilles."
+      ],
+      "stateChange": "Les merveilles construites contribuent au score.",
+      "stateAfter": "La ligne Merveilles est remplie.",
+      "result": "Somme des points des merveilles construites.",
+      "componentRefs": [
+        "wonder-cards",
+        "scorebook"
+      ],
+      "sourceRefs": [
+        {
+          "page": 4
+        },
+        {
+          "page": 13
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Relier les points imprimés des merveilles à la ligne du carnet.",
+        "requiredObjects": [
+          "merveilles construites",
+          "points imprimés",
+          "ligne Merveilles"
+        ],
+        "requiredRelationship": "points des merveilles → ligne Merveilles",
+        "preferredComposition": "SCORING_LEDGER_HIGHLIGHT",
+        "diagramKind": "SCORING_LEDGER_HIGHLIGHT",
+        "highlightLabel": "Merveilles",
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 820
+        }
+      },
+      "teaching": {
+        "majorSection": "Décompte / Victoire",
+        "heading": "3. Les merveilles",
+        "narration": "Pour les merveilles, comptez seulement celles que vous avez construites. Repérez leurs points de victoire imprimés et inscrivez leur somme sur la ligne Merveilles.",
+        "displayLines": [
+          "Merveilles construites seulement",
+          "Additionner leurs points imprimés"
+        ],
+        "sequence": 240
+      }
+    },
+    {
+      "id": "scoring-progress",
+      "domain": "scoring",
+      "coverageDomains": [
+        "final_scoring"
+      ],
+      "title": "Points des progrès",
+      "trigger": "décompte civil",
+      "mandatoryOrOptional": "conditional",
+      "procedureSteps": [
+        "Examiner les jetons Progrès conservés.",
+        "Appliquer les points indiqués par leurs effets.",
+        "Inscrire le total sur la ligne Progrès."
+      ],
+      "stateChange": "Les effets de score des progrès sont comptés.",
+      "stateAfter": "La ligne Progrès est remplie.",
+      "result": "Points accordés par les progrès possédés.",
+      "componentRefs": [
+        "progress-tokens",
+        "scorebook"
+      ],
+      "sourceRefs": [
+        {
+          "page": 12
+        },
+        {
+          "page": 13
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Relier les jetons Progrès au décompte.",
+        "requiredObjects": [
+          "jetons Progrès",
+          "ligne Progrès"
+        ],
+        "requiredRelationship": "effets de score → ligne Progrès",
+        "preferredComposition": "SCORING_LEDGER_HIGHLIGHT",
+        "diagramKind": "SCORING_LEDGER_HIGHLIGHT",
+        "highlightLabel": "Progrès",
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 820
+        }
+      },
+      "teaching": {
+        "majorSection": "Décompte / Victoire",
+        "heading": "4. Les progrès",
+        "narration": "Vérifiez maintenant vos jetons Progrès. Ceux qui accordent des points les ajoutent selon leur propre effet. Inscrivez ce total sur la ligne Progrès.",
+        "displayLines": [
+          "Vérifier chaque jeton Progrès",
+          "Ajouter seulement les points accordés par son effet",
+          "Reporter la somme à la ligne Progrès"
+        ],
+        "sequence": 250
+      }
+    },
+    {
+      "id": "scoring-treasury",
+      "domain": "scoring",
+      "coverageDomains": [
+        "final_scoring"
+      ],
+      "title": "Points de trésorerie",
+      "trigger": "décompte civil",
+      "mandatoryOrOptional": "conditional",
+      "procedureSteps": [
+        "Compter les pièces restantes.",
+        "Former des groupes complets de trois.",
+        "Inscrire un point par groupe complet."
+      ],
+      "stateChange": "La trésorerie devient des points.",
+      "stateAfter": "La ligne Trésorerie est remplie.",
+      "result": "Un point par groupe complet de trois pièces.",
+      "componentRefs": [
+        "coins",
+        "scorebook"
+      ],
+      "terminologyRefs": [
+        "treasury"
+      ],
+      "sourceRefs": [
+        {
+          "page": 13
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer la conversion des pièces en points.",
+        "requiredObjects": [
+          "pièces",
+          "groupes de trois",
+          "ligne Trésorerie"
+        ],
+        "requiredRelationship": "3 pièces complètes = 1 point",
+        "preferredComposition": "SCORING_LEDGER_HIGHLIGHT",
+        "diagramKind": "SCORING_LEDGER_HIGHLIGHT",
+        "highlightLabel": "Trésorerie",
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 820
+        }
+      },
+      "teaching": {
+        "majorSection": "Décompte / Victoire",
+        "heading": "5. La trésorerie",
+        "narration": "Terminez avec votre trésorerie : chaque groupe complet de trois pièces vaut un point. Les pièces restantes qui ne forment pas un groupe de trois ne rapportent rien. Ajoutez cette ligne au total.",
+        "displayLines": [
+          "3 pièces complètes = 1 point",
+          "Ajouter au total"
+        ],
+        "sequence": 260
+      }
+    },
+    {
+      "id": "winner-resolution",
+      "domain": "victory",
+      "coverageDomains": [
+        "final_scoring"
+      ],
+      "title": "Comparer les totaux",
+      "actor": "les deux joueurs",
+      "trigger": "toutes les lignes sont comptées",
+      "mandatoryOrOptional": "conditional",
+      "procedureSteps": [
+        "Additionner les cinq catégories.",
+        "Comparer les scores finaux."
+      ],
+      "stateChange": "Les catégories deviennent un total final.",
+      "stateAfter": "Les scores sont comparables.",
+      "result": "Le score le plus élevé remporte la victoire civile.",
+      "componentRefs": [
+        "scorebook"
+      ],
+      "sourceRefs": [
+        {
+          "page": 13
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer l’addition des lignes et la comparaison des totaux.",
+        "requiredObjects": [
+          "cinq catégories",
+          "total",
+          "deux joueurs"
+        ],
+        "requiredRelationship": "catégories → total → score le plus élevé",
+        "preferredComposition": "SCORING_LEDGER_TOTAL",
+        "diagramKind": "SCORING_LEDGER_TOTAL",
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 820
+        }
+      },
+      "teaching": {
+        "majorSection": "Décompte / Victoire",
+        "heading": "Qui gagne?",
+        "narration": "Additionnez les cinq lignes. Le joueur qui obtient le total le plus élevé remporte la victoire civile.",
+        "displayLines": [
+          "Additionner les lignes",
+          "Le total le plus élevé gagne"
+        ],
+        "sequence": 270
+      }
+    },
+    {
+      "id": "tie-breaker",
+      "domain": "tie_breaker",
+      "coverageDomains": [
+        "tie_breakers"
+      ],
+      "title": "En cas d’égalité",
+      "actor": "les joueurs à égalité",
+      "trigger": "les deux scores finaux sont égaux",
+      "mandatoryOrOptional": "conditional",
+      "procedureSteps": [
+        "Comparer seulement les points provenant des bâtiments civils bleus.",
+        "Si cette valeur est encore égale, partager la victoire."
+      ],
+      "stateChange": "L’égalité est départagée ou confirmée.",
+      "stateAfter": "Un gagnant unique ou une victoire partagée est déclaré.",
+      "result": "Le plus de points bleus gagne; sinon victoire partagée.",
+      "componentRefs": [
+        "age-cards",
+        "scorebook"
+      ],
+      "sourceRefs": [
+        {
+          "page": 13
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Montrer le départage par points des bâtiments bleus.",
+        "requiredObjects": [
+          "égalité",
+          "bâtiments bleus",
+          "victoire partagée"
+        ],
+        "requiredRelationship": "égalité → points bleus → partage si encore égal",
+        "preferredComposition": "TIE_BREAK_FLOW",
+        "minimumEffectiveResolution": {
+          "width": 1400,
+          "height": 720
+        }
+      },
+      "teaching": {
+        "majorSection": "Décompte / Victoire",
+        "heading": "En cas d’égalité",
+        "narration": "Si les totaux sont égaux, comparez uniquement les points provenant des bâtiments civils bleus. Celui qui en a le plus gagne. Si cette valeur est encore égale, vous partagez la victoire.",
+        "displayLines": [
+          "Égalité : comparer les points des bâtiments bleus",
+          "Encore égalité : victoire partagée"
+        ],
+        "sequence": 280
+      }
+    },
+    {
+      "id": "scorebook-reference",
+      "domain": "reference_aid",
+      "coverageDomains": [
+        "reference_aids_score_sheet"
+      ],
+      "title": "Carnet de score inclus",
+      "mandatoryOrOptional": "optional",
+      "procedureSteps": [
+        "Utiliser le carnet fourni pour noter chaque catégorie."
+      ],
+      "stateChange": "Le décompte est consigné.",
+      "stateAfter": "Le résultat peut être conservé.",
+      "result": "Décompte plus facile et historique des parties.",
+      "componentRefs": [
+        "scorebook"
+      ],
+      "sourceRefs": [
+        {
+          "page": 3
+        },
+        {
+          "page": 13
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Identifier le carnet de score comme aide officielle.",
+        "requiredObjects": [
+          "carnet de score"
+        ],
+        "preferredComposition": "SUPPORTING_CALLOUT",
+        "minimumEffectiveResolution": {
+          "width": 960,
+          "height": 540
+        }
+      },
+      "teaching": {
+        "majorSection": "Décompte / Victoire",
+        "heading": "Gardez le carnet sous la main",
+        "narration": "Le carnet de score inclus dans la boîte vous permet de noter chaque catégorie sans en oublier. Gardez-le près de vous pour le décompte final.",
+        "displayLines": [
+          "Carnet de score inclus"
+        ],
+        "sequence": 290
+      }
+    },
+    {
+      "id": "components-physical-overview",
+      "domain": "components",
+      "coverageDomains": [
+        "components"
+      ],
+      "title": "Le matériel en un coup d’œil",
+      "mandatoryOrOptional": "mandatory",
+      "procedureSteps": [
+        "Repérer le plateau et le pion Conflit.",
+        "Reconnaître cartes, Merveilles, pièces et jetons."
+      ],
+      "stateChange": "Les grandes familles de matériel deviennent reconnaissables.",
+      "stateAfter": "Le matériel peut être retrouvé sur la table.",
+      "componentRefs": [
+        "board",
+        "conflict-pawn",
+        "age-cards",
+        "wonder-cards",
+        "coins",
+        "military-tokens",
+        "progress-tokens"
+      ],
+      "sourceRefs": [
+        {
+          "page": 3
+        },
+        {
+          "page": 4
+        },
+        {
+          "page": 5
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Faire reconnaître les grandes familles physiques avant la mise en place.",
+        "requiredObjects": [
+          "plateau militaire",
+          "pion Conflit rouge",
+          "cartes Âge",
+          "cartes Merveille",
+          "pièces",
+          "jetons Militaire",
+          "jetons Progrès"
+        ],
+        "preferredComposition": "DENSE_REAL_COMPONENT_OVERVIEW",
+        "minimumEffectiveResolution": {
+          "width": 1500,
+          "height": 800
+        }
+      },
+      "teaching": {
+        "majorSection": "Les composants",
+        "heading": "Le matériel en un coup d’œil",
+        "narration": "Avant la mise en place, repérez les grandes familles de matériel. Le long plateau militaire accueille le pion Conflit rouge, les jetons Militaire et les jetons Progrès. Vous utiliserez aussi les cartes des trois âges, les cartes Merveille et les pièces. Vous allez maintenant reconnaître les familles de bâtiments qui formeront votre tableau personnel.",
+        "displayLines": [
+          "Plateau et pion Conflit · jetons Militaire et Progrès",
+          "Cartes des Âges · Merveilles · pièces",
+          "Puis les bâtiments de votre tableau personnel"
+        ],
+        "sequence": 25
+      }
+    },
+    {
+      "id": "guild-system",
+      "domain": "triggered_effect",
+      "coverageDomains": [
+        "triggered_effects",
+        "scoring"
+      ],
+      "title": "Comprendre les Guildes",
+      "mandatoryOrOptional": "mandatory",
+      "prerequisites": [
+        "Les trois Guildes choisies au hasard ont été mélangées à l’Âge III."
+      ],
+      "choice": "Construire une carte Guilde violette accessible.",
+      "procedureSteps": [
+        "Payer son coût comme pour un bâtiment.",
+        "La placer dans son tableau personnel.",
+        "Résoudre son éventuel gain immédiat.",
+        "Appliquer son critère de points en fin de partie."
+      ],
+      "stateChange": "Une Guilde violette rejoint le tableau personnel et applique son propre critère.",
+      "result": "Les Guildes ne fonctionnent pas toutes de la même façon.",
+      "componentRefs": [
+        "guild-cards",
+        "personal-tableau"
+      ],
+      "terminologyRefs": [
+        "tableau personnel",
+        "Guilde"
+      ],
+      "sourceRefs": [
+        {
+          "page": 5
+        },
+        {
+          "page": 7
+        },
+        {
+          "page": 16
+        }
+      ],
+      "confidence": 0.99,
+      "reviewState": "accepted",
+      "visualRequirement": {
+        "purpose": "Distinguer plusieurs Guildes et montrer leurs régions d’effet.",
+        "requiredObjects": [
+          "plusieurs cartes Guilde violettes",
+          "symbole ou effet propre à chaque Guilde"
+        ],
+        "requiredRelationship": "Guilde construite → effet immédiat éventuel → critère de points propre",
+        "preferredComposition": "DEDICATED_COMPLEX_COMPONENT_FAMILY"
+      },
+      "teaching": {
+        "majorSection": "Systèmes clés",
+        "heading": "Les Guildes",
+        "narration": "Les Guildes sont des bâtiments violets qui apparaissent seulement à l’âge trois. Quand vous en construisez une, placez-la dans votre tableau personnel comme un autre bâtiment, puis lisez son propre effet. Elles ne fonctionnent pas toutes pareil. La Guilde des Scientifiques compare les cartes vertes; la Guilde des Armateurs compare les cartes brunes et grises. Pour ces deux exemples, vous recevez des pièces à la construction selon la cité qui possède le plus de cartes concernées, puis vous comptez les points indiqués par le même critère au décompte.",
+        "displayLines": [
+          "Bâtiments violets de l’Âge III",
+          "Chaque Guilde possède son propre critère"
+        ],
+        "sequence": 165
+      }
+    }
+  ],
+  "examples": [
+    {
+      "id": "official-trade-formula",
+      "sourceRefs": [
+        {
+          "page": 8
+        },
+        {
+          "page": 9
+        }
+      ],
+      "note": "Les exemples officiels confirment le prix unitaire 2 + production adverse brune/grise identique."
+    },
+    {
+      "id": "official-chain",
+      "sourceRefs": [
+        {
+          "page": 9
+        }
+      ],
+      "note": "Les Bains permettent l’Aqueduc gratuitement lorsque les symboles correspondent."
+    }
+  ],
+  "uncertainties": [],
+  "directorConstraints": {
+    "learnerPhysicalReferentGrounding": true,
+    "guildBeginnerIdentification": true,
+    "discardPileDistinction": true,
+    "personalTableauTerminology": true,
+    "complexFamiliesMayReceiveDedicatedScenes": true,
+    "physicalGameStatesInternallyCoherent": true,
+    "cardSourceQualityParity": true,
+    "completeCardSilhouette": true,
+    "trueLayeredSetupState": true,
+    "physicalBoardStateCoherence": true,
+    "consumedOneShotMarkersDisappear": true,
+    "romanNumeralDisplaySpokenSeparation": true
+  }
+}

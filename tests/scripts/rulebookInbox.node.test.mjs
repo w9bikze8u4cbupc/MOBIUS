@@ -10,6 +10,7 @@ import {
   classifyInboxError,
   ensureInbox,
   inboxStatus,
+  requeueInboxItem,
   runInboxOnce,
   validateRelease,
 } from '../../scripts/run-rulebook-inbox.mjs';
@@ -104,9 +105,110 @@ test('worker interruption is retained as retryable state and a concurrent worker
   assert.equal((await inboxStatus({ root })).counts['failed-retryable'], 1);
 });
 
+test('Cockpit review boundary is preserved without attempting release packaging or rerunning the PDF', async () => {
+  const root = await tempRoot();
+  const source = path.join(root, 'review-game.pdf');
+  await fs.writeFile(source, Buffer.from('%PDF-review-source'));
+  let calls = 0;
+  const result = await runInboxOnce({
+    root,
+    pdf: source,
+    runner: async () => {
+      calls += 1;
+      return { status: 'review_required', stage: 'coverage', projectId: 'review-game-project', reviewItems: 3, reviewQueuePath: 'review-items.json' };
+    },
+  });
+  assert.equal(result.status, 'review_required');
+  assert.equal(result.item.status, 'review-required');
+  assert.equal(result.item.reviewItems, 3);
+  assert.equal((await inboxStatus({ root })).waiting, 0);
+  const second = await runInboxOnce({ root, runner: async () => { calls += 1; } });
+  assert.equal(second.status, 'idle');
+  assert.equal(calls, 1);
+});
+
+test('Cockpit review can be explicitly reopened after a generator revision without manual PDF movement', async () => {
+  const root = await tempRoot();
+  const source = path.join(root, 'review-game.pdf');
+  await fs.writeFile(source, Buffer.from('%PDF-review-reopen-source'));
+  const identity = await computePdfIdentity(source);
+  await runInboxOnce({
+    root,
+    pdf: source,
+    runner: async () => ({
+      status: 'review_required', stage: 'coverage', projectId: 'review-game-project', reviewItems: 3, reviewQueuePath: 'review-items.json',
+    }),
+  });
+
+  await assert.rejects(
+    () => requeueInboxItem({ root, sha256: identity.sha256 }),
+    /Use --reopen-review/,
+  );
+  const reopened = await requeueInboxItem({ root, sha256: identity.sha256, reopenReview: true });
+  assert.equal(reopened.status, 'waiting');
+  assert.equal(reopened.item.reviewReopenHistory.at(-1).status, 'review-required');
+  assert.equal(reopened.item.reviewReopenHistory.at(-1).reviewItems, 3);
+  assert.equal(await fs.readFile(reopened.sourcePath, 'utf8'), '%PDF-review-reopen-source');
+  assert.equal((await inboxStatus({ root })).waiting, 1);
+});
+
 test('terminal parser failures are quarantined and not retried forever', () => {
   assert.deepEqual(classifyInboxError(new Error('PDF extraction produced no usable text')), { class: 'terminal', retryable: false });
   assert.deepEqual(classifyInboxError(new Error('ElevenLabs network timeout')), { class: 'retryable', retryable: true });
+  const hephaestusError = new Error('HEPHAESTUS materialization failed');
+  hephaestusError.code = 'HEPHAESTUS_MATERIALIZATION_FAILED';
+  assert.deepEqual(classifyInboxError(hephaestusError), { class: 'retryable', retryable: true });
+  const runtimeError = new Error('MOBIUS API runtime does not satisfy worker contracts');
+  runtimeError.code = 'RUNTIME_CONTRACT_MISMATCH';
+  runtimeError.classification = 'retryable_runtime';
+  assert.deepEqual(classifyInboxError(runtimeError), { class: 'retryable', retryable: true });
+  const aiConfiguration = Object.assign(new Error('AI_NOT_CONFIGURED: missing model'), {
+    code: 'AI_NOT_CONFIGURED', classification: 'configuration_required',
+  });
+  assert.deepEqual(classifyInboxError(aiConfiguration), { class: 'configuration-required', retryable: true });
+});
+
+test('AI configuration failures remain recoverable without exhausting into failed-terminal', async () => {
+  const root = await tempRoot();
+  const paths = await ensureInbox(path.join(root, 'data', 'rulebook-inbox'));
+  const source = path.join(paths.waiting, 'provider-fixture.pdf');
+  await fs.writeFile(source, Buffer.from('%PDF-provider-readiness-fixture'));
+  const identity = await computePdfIdentity(source);
+  const failure = Object.assign(new Error('AI provider has a credential but no model'), {
+    code: 'AI_NOT_CONFIGURED', classification: 'configuration_required',
+  });
+  const result = await runInboxOnce({ root, retryLimit: 1, runner: async () => { throw failure; } });
+  assert.equal(result.status, 'failed-retryable');
+  assert.equal((await inboxStatus({ root })).counts['failed-retryable'], 1);
+  assert.equal(await fs.readFile(source, 'utf8'), '%PDF-provider-readiness-fixture');
+  const requeued = await requeueInboxItem({ root, sha256: identity.sha256 });
+  assert.equal(requeued.status, 'waiting');
+});
+
+test('a corrected engineering failure is requeued through the canonical lifecycle without running production', async () => {
+  const root = await tempRoot();
+  const source = path.join(root, 'fresh-unseen.pdf');
+  await fs.writeFile(source, Buffer.from('%PDF-1.4\n1 0 obj << /Type /Page >> endobj\n'));
+  const paths = await ensureInbox(path.join(root, 'data', 'rulebook-inbox'));
+  await fs.copyFile(source, path.join(paths.waiting, 'fresh-unseen.pdf'));
+  const identity = await computePdfIdentity(source);
+  let productionCalls = 0;
+  const failure = Object.assign(new Error('canonical source descriptor does not match project storage'), { code: 'SOURCE_PDF_INVALID' });
+  const failed = await runInboxOnce({ root, runner: async () => { productionCalls += 1; throw failure; } });
+
+  assert.equal(failed.status, 'failed-terminal');
+  assert.equal(productionCalls, 1);
+  assert.equal((await fs.readdir(paths.waiting)).length, 0);
+  const diagnosticPath = failed.diagnosticPath;
+
+  const requeued = await requeueInboxItem({ root, sha256: identity.sha256 });
+  assert.equal(requeued.status, 'waiting');
+  assert.equal(productionCalls, 1);
+  assert.equal(await fs.readFile(requeued.sourcePath, 'utf8'), await fs.readFile(source, 'utf8'));
+  assert.equal((await inboxStatus({ root })).waiting, 1);
+  assert.equal((await fs.stat(diagnosticPath)).isFile(), true);
+  assert.equal(requeued.item.failureHistory.at(-1).status, 'failed-terminal');
+  assert.equal(requeued.item.retryCount, 0);
 });
 
 test('release validation checks every declared payload checksum', async () => {
