@@ -152,7 +152,10 @@ function compileCanonicalProductionState({
     selectedAssets,
     authorizedCandidateProvenance: authorized.provenance,
     physicalStates,
-    sourceSelections,
+    // Rich candidate objects are used transiently to create Cockpit items;
+    // persist only the stable, JSON-safe candidate summary. This keeps normal
+    // checkpoints compact without discarding operator evidence.
+    sourceSelections: sourceSelections.map(({ rankedEntries, ...selection }) => selection),
     visualPlans: plans,
     scenes,
     reviewItems,
