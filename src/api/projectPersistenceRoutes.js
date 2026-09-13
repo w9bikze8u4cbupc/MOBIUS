@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { setProjectState } from './renderJobConfig.js';
@@ -579,6 +580,57 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
       );
     });
   });
+
+  // Read-only projections of the SAME persisted Cockpit queue. No second store.
+  // Thumbnail requests share a bounded in-memory projection of immutable row metadata.
+  // A save/review decision changes that string and invalidates the projection immediately.
+  // File ownership and source validation still run on every image request.
+  const visualProjectionCache = new Map();
+  const visualProjection = (row) => {
+    const cached = visualProjectionCache.get(row.id);
+    if (cached?.metadata === row.metadata) return cached.context;
+    const stored = parseRecoveryMetadata(row.metadata)?.projectContext;
+    const context = stored ? { projectId: stored.projectId,
+      visualReviewItems: stored.visualReviewItems || stored.canonicalProductionState?.reviewItems || [] } : null;
+    visualProjectionCache.delete(row.id);
+    visualProjectionCache.set(row.id, { metadata: row.metadata, context });
+    while (visualProjectionCache.size > 4) visualProjectionCache.delete(visualProjectionCache.keys().next().value);
+    return context;
+  };
+  const readVisualContext = (req, res, next) => {
+    const projectId = normalizeRecoveryProjectId(req.params.projectId);
+    if (!projectId) return res.status(400).json({ code: 'PROJECT_ID_INVALID' });
+    return db.all('SELECT * FROM projects', [], (error, rows = []) => {
+      if (error) return res.status(500).json({ code: 'PROJECT_LOOKUP_FAILED' });
+      for (const row of rows.slice().sort((a, b) => Number(b.id) - Number(a.id))) {
+        const context = visualProjection(row);
+        if (context?.projectId === projectId) return next(context, projectId);
+      }
+      return res.status(404).json({ code: 'PROJECT_NOT_FOUND' });
+    });
+  };
+  app.get('/api/projects/:projectId/visual-reviews', (req, res) => readVisualContext(req, res, (context, projectId) => {
+    const items = context.visualReviewItems || context.canonicalProductionState?.reviewItems || [];
+    return res.json({ projectId, items: items.map((item) => ({ ...item, candidates: (item.candidates || []).map((candidate) => ({
+      ...candidate, thumbnailPath: undefined,
+      thumbnailUrl: `/api/projects/${encodeURIComponent(projectId)}/visual-reviews/assets/${encodeURIComponent(candidate.assetId)}/file`,
+    })) })) });
+  }));
+  app.get('/api/projects/:projectId/visual-reviews/assets/:assetId/file', (req, res) => readVisualContext(req, res, async (context, projectId) => {
+    try {
+      const items = context.visualReviewItems || context.canonicalProductionState?.reviewItems || [];
+      const candidate = items.flatMap((item) => item.candidates || []).find((row) => row.assetId === req.params.assetId);
+      if (!candidate?.thumbnailPath) return res.status(404).json({ code: 'REVIEW_IMAGE_MISSING' });
+      const sourceFile = await projectSource.resolveFile(projectId);
+      const root = fs.realpathSync(path.dirname(path.dirname(sourceFile)));
+      const file = fs.realpathSync(candidate.thumbnailPath);
+      const relative = path.relative(root, file);
+      if (relative.startsWith('..') || path.isAbsolute(relative)) return res.status(403).json({ code: 'REVIEW_IMAGE_OUTSIDE_PROJECT' });
+      if (!['.png', '.jpg', '.jpeg', '.webp'].includes(path.extname(file).toLowerCase())) return res.status(415).json({ code: 'REVIEW_IMAGE_TYPE_INVALID' });
+      res.set({ 'Cache-Control': 'private, no-cache', 'X-Content-Type-Options': 'nosniff' });
+      return res.sendFile(file);
+    } catch { return res.status(404).json({ code: 'REVIEW_IMAGE_UNAVAILABLE' }); }
+  }));
 
   app.get('/load-project/:id', (req, res) => {
     const apiKey = req.headers['x-api-key'];

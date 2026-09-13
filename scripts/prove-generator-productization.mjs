@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// HISTORICAL PREPARED INTEGRATION FIXTURE. This authored rule/asset setup is not
+// evidence of autonomous selection. Use prove-unprepared-visual-binding.mjs for that.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';

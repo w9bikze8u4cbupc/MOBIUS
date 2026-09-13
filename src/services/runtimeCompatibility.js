@@ -20,6 +20,8 @@ export const CANONICAL_RUNTIME_CONTRACTS = Object.freeze({
   canonicalProductionStages: CANONICAL_PRODUCTION_STAGE_CONTRACT,
   projectContextPersistence: PROJECT_CONTEXT_PERSISTENCE_CONTRACT,
   rendererQa: RENDERER_QA_COMPATIBILITY_CONTRACT,
+  visualObjectEvidence: 'mobius-object-visual-evidence-v1',
+  cockpitVisualEvidence: 'mobius-cockpit-visual-evidence-v1',
 });
 
 function sha256(value) {

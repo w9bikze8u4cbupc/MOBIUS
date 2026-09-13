@@ -12,6 +12,7 @@ import { dirname, resolve } from 'path';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { generateFocusedPageCrops } from '../src/services/sourcePageVisuals.js';
+import { getAiConfig } from '../src/config/aiConfig.js';
 
 function arg(name) {
   const index = process.argv.indexOf(`--${name}`);
@@ -24,9 +25,9 @@ function required(name) {
   return resolve(value);
 }
 
-function run(command, args) {
+function run(command, args, env = process.env) {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(command, args, { stdio: 'inherit' });
+    const child = spawn(command, args, { stdio: 'inherit', env, windowsHide: true });
     child.once('error', reject);
     child.once('exit', (code) => {
       if (code === 0) resolvePromise();
@@ -92,10 +93,9 @@ async function main() {
         ...asset,
         file_path: canonical?.sourceImage || asset.file_path,
         source_page: canonical?.pageNumber || asset.source_page || null,
-        componentRefs: bindings.map((binding) => binding.componentId).filter(Boolean),
+        componentRefs: [],
         semanticObjects: [...new Set([
           ...(asset.semanticObjects || []), asset.label, asset.category, canonical?.componentName, canonical?.category,
-          ...bindings.flatMap((binding) => [binding.componentId, binding.componentName, binding.category]),
         ].filter(Boolean))],
         component_bindings: bindings.map((binding) => ({
           componentId: binding.componentId,
@@ -116,8 +116,29 @@ async function main() {
 
   console.log('[prepare-source-visuals] Qualifying source components…');
   await run(python, [qualityScript, scriptPath, visualManifestPath, qualityPath]);
+  const evidenceFile = arg('hephaestus-evidence');
+  const terms = evidenceFile && existsSync(resolve(evidenceFile))
+    ? JSON.parse(readFileSync(resolve(evidenceFile), 'utf8')).componentBindings || [] : [];
+  const scopedScript = resolve(outputDir, 'object-evidence-script.json');
+  const inputScript = JSON.parse(readFileSync(scriptPath, 'utf8'));
+  const sceneObjects = new Set((inputScript.scenes || []).flatMap((scene) => scene.visualRequirement?.requiredObjects || []));
+  await writeFile(scopedScript, JSON.stringify({
+    ...inputScript,
+    scenes: [...(inputScript.scenes || []), ...terms.filter((row) => !sceneObjects.has(row.componentId)).map((row) => ({
+      id: `knowledge-component-${row.componentId}`, source_pages: row.sourcePage ? [row.sourcePage] : [],
+      sourceRefs: row.sourcePage ? [{ page: row.sourcePage }] : [],
+      visualRequirement: { requiredObjects: [row.componentId], purpose: 'component-identity-binding' },
+    }))],
+    componentTerms: Object.fromEntries(terms.map((row) => [row.componentId, { name: row.componentName, category: row.category, sourcePage: row.sourcePage, status: 'TERM_HYPOTHESIS' }])),
+  }), 'utf8');
   console.log('[prepare-source-visuals] Matching approved components to tutorial scenes…');
-  await run(python, [semanticScript, scriptPath, qualityPath, semanticPath]);
+  const ai = getAiConfig();
+  await run(python, [semanticScript, scopedScript, qualityPath, semanticPath], {
+    ...process.env,
+    OPENAI_MODEL: ai.model || '',
+    OPENAI_API_KEY: ai.apiKey || '',
+    ...(ai.baseURL ? { OPENAI_BASE_URL: ai.baseURL } : {}),
+  });
   console.log(JSON.stringify({
     script: scriptPath,
     assetManifest: visualManifestPath,

@@ -77,7 +77,8 @@ describe('sourceVisualSelection', () => {
     }));
     const catalog = loadSourceVisualCatalog(manifestPath, { hephaestusEvidencePath: evidencePath });
     expect(catalog.assets[0].renderPath).toBe(native);
-    expect(catalog.assets[0].semanticObjects).toEqual(expect.arrayContaining(['component-target', 'Target card']));
+    expect(catalog.assets[0].semanticObjects).not.toContain('component-target');
+    expect(catalog.assets[0].bindingHypotheses[0].componentName).toBe('Target card');
     expect(catalog.assets[0].source_page).toBe(3);
   });
 
@@ -247,9 +248,8 @@ describe('sourceVisualSelection', () => {
       }],
     }, '/fallback/page-3.png');
 
-    expect(selection.kind).toBe('focused-page-crop');
-    expect(selection.reason).toContain('layout-grounded-semantic-recovery');
-    expect(selection.semanticMatch.status).toBe('no-semantic-match');
+    expect(selection.kind).toBe('rulebook-page-fallback');
+    expect(selection.assetId).toBeNull();
   });
 
   test('uses a cited, quality-approved typed component during a semantic-provider outage', () => {
@@ -273,9 +273,8 @@ describe('sourceVisualSelection', () => {
       }],
     }, '/fallback/page-5.png');
 
-    expect(selection.kind).toBe('component');
-    expect(selection.assetId).toBe('cited-token');
-    expect(selection.reason).toContain('layout-grounded-semantic-recovery');
+    expect(selection.kind).toBe('rulebook-page-fallback');
+    expect(selection.assetId).toBeNull();
   });
 
   test('does not trust a matched semantic result whose reason records provider failure', () => {
@@ -302,8 +301,7 @@ describe('sourceVisualSelection', () => {
       ],
     }, '/fallback/page-5.png');
 
-    expect(selection.assetId).toBe('recovery-token');
-    expect(selection.reason).toContain('layout-grounded-semantic-recovery');
+    expect(selection.assetId).toBeNull();
   });
 
   test('does not use a cover or oversized illustration for a component inventory when bounded items exist', () => {
@@ -355,7 +353,7 @@ describe('sourceVisualSelection', () => {
       ],
     }, '/fallback/page-5.png');
 
-    expect(selection.assetId).toBe('focused-setup');
+    expect(selection.assetId).toBeNull();
   });
 
   test('records machine-readable fallback alternatives when no local recovery is justified', () => {

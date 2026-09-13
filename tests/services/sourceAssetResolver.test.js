@@ -7,6 +7,7 @@ const {
 const { sourceAuthorityRank } = require('../../src/services/sourceDetailLineage.cjs');
 
 const existingFile = path.resolve(__dirname, '../../package.json');
+const proof = require('../fixtures/objectEvidence.cjs');
 
 function asset(id, overrides = {}) {
   return {
@@ -20,6 +21,10 @@ function asset(id, overrides = {}) {
     cropPurity: 'clean',
     reviewState: 'accepted',
     sourceRefs: [{ page: 1 }],
+    objectVisualEvidence: [proof(id, existingFile, (overrides.semanticObjects || ['game board'])[0], {
+      complete: (overrides.cropCompleteness || 'complete') === 'complete',
+      isolated: (overrides.cropPurity || 'clean') === 'clean',
+    })],
     ...overrides,
   };
 }
@@ -62,8 +67,9 @@ test('normalizes a source-grounded component binding into resolver semantics wit
     },
   });
   const candidate = normalized.assets[0];
-  expect(candidate.semanticObjects).toEqual(expect.arrayContaining(['component-coin', 'Coin token']));
-  expect(candidate.componentRefs).toContain('component-coin');
+  expect(candidate.semanticObjects).not.toContain('component-coin');
+  expect(candidate.componentRefs).not.toContain('component-coin');
+  expect(candidate.bindingHypotheses[0].componentName).toBe('Coin token');
   expect(normalized.unresolvedBindings).toHaveLength(1);
   expect(resolveSourceAssets({ atom: { id: 'coin', visualRequirement: { requiredObjects: ['component-coin'] } }, candidates: normalized.assets }).status).not.toBe('AUTO_ACCEPTED');
 });

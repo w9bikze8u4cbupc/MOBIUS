@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { CanonicalVisualReviews } from '../CanonicalVisualReviews';
 import { VisualAssetBrowser, componentRequirementLabel, roleIsValidForIntent, validRolesForIntent } from '../VisualAssetBrowser';
 import { ContextualEvidenceBrowser, canBrowseContextualEvidence, contextualAssetThumbnailUrl } from '../ContextualEvidenceBrowser';
 
@@ -146,6 +147,7 @@ export function StoryboardStep({
   };
 
   return <div className="pipeline-section">
+    <CanonicalVisualReviews projectId={projectId} />
     <h3>Storyboard Generation & Review</h3>
     <div className="pipeline-actions"><button onClick={onGenerateStoryboard} disabled={storyboarding}>{storyboarding ? 'Generating storyboard…' : 'Generate storyboard'}</button></div>
     {storyboardError && <p style={{ color: 'red' }}>{storyboardError}</p>}

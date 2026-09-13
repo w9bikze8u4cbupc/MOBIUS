@@ -199,6 +199,8 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
   const semanticBySceneId = new Map();
   const evidenceByAssetId = new Map();
   const bindingsByAssetId = new Map();
+  const objectEvidenceByAssetId = new Map();
+  const analysisByAssetId = new Map();
   if (qualityReportPath && fs.existsSync(qualityReportPath)) {
     const qualityReport = JSON.parse(fs.readFileSync(qualityReportPath, 'utf8'));
     for (const judgement of qualityReport.assets || []) {
@@ -209,6 +211,15 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
     const semanticReport = JSON.parse(fs.readFileSync(semanticReportPath, 'utf8'));
     for (const sceneMatch of semanticReport.scenes || []) {
       if (sceneMatch?.scene_id) semanticBySceneId.set(sceneMatch.scene_id, sceneMatch);
+      for (const candidate of sceneMatch.candidates || []) {
+        const attempts = analysisByAssetId.get(candidate.asset_id) || [];
+        attempts.push({ sceneId: sceneMatch.scene_id, status: candidate.status, reason: candidate.reason || null, evidencePacket: candidate.evidencePacket || null });
+        analysisByAssetId.set(candidate.asset_id, attempts);
+        if (candidate.status !== 'MEASURED') continue;
+        const rows = objectEvidenceByAssetId.get(candidate.asset_id) || [];
+        rows.push(...(candidate.objects || []).map((row) => ({ ...row, sceneId: sceneMatch.scene_id })));
+        objectEvidenceByAssetId.set(candidate.asset_id, rows);
+      }
     }
   }
   if (hephaestusEvidencePath && fs.existsSync(hephaestusEvidencePath)) {
@@ -239,11 +250,13 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
       source_page: sourcePage,
       nativeWidthPx: asset.original_dimensions?.width || componentEvidence?.nativeWidthPx || asset.dimensions?.width || null,
       nativeHeightPx: asset.original_dimensions?.height || componentEvidence?.nativeHeightPx || asset.dimensions?.height || null,
-      componentRefs: bindings.map((binding) => binding.componentId).filter(Boolean),
-      referentAliases: bindings.flatMap((binding) => [binding.componentName, binding.category]).filter(Boolean),
+      componentRefs: [],
+      referentAliases: [],
+      bindingHypotheses: bindings,
+      objectVisualEvidence: objectEvidenceByAssetId.get(asset.id) || [],
+      objectAnalysisAttempts: analysisByAssetId.get(asset.id) || [],
       semanticObjects: [...new Set([
         ...(asset.semanticObjects || []), asset.label, asset.category, componentEvidence?.componentName, componentEvidence?.category,
-        ...bindings.flatMap((binding) => [binding.componentId, binding.componentName, binding.category]),
       ].filter(Boolean))],
       visualQuality: qualityByAssetId.get(asset.id) || null,
       componentEvidence,
@@ -319,26 +332,8 @@ export function selectSourceVisual(scene = {}, catalog = { assets: [] }, fallbac
   const semanticMatch = catalog.semanticBySceneId?.get(scene.id) || null;
   const isMetadataCard = scene.metadata_card === true;
   const providerSemanticFailure = isProviderSemanticFailure(semanticMatch);
-  const locallyGroundedCandidates = providerSemanticFailure
-    ? qualityCandidates
-      .map((asset) => {
-        const evidence = localLayoutEvidence(asset, scene);
-        const cited = sourcePageScore(asset, scene.source_pages) > 0;
-        const selectedByLocalRecovery = semanticMatch?.selected_asset_id === asset.id
-          && ['focused-page-crop', 'focused-page-region'].includes(asset.visual_kind);
-        const typed = typeScore(asset, desiredTypes) >= 0.30 || selectedByLocalRecovery;
-        // When the vision provider is unavailable, a cited, quality-approved
-        // component with a direct visual type match is still defensible. This
-        // keeps provider outage from erasing real source evidence, while the
-        // cited-page + type gates prevent an attractive unrelated image from
-        // displacing a truthful fallback.
-        const deterministicScore = cited && typed ? 0.24 : 0;
-        return { asset, evidence: { ...evidence, score: Math.max(evidence.score, deterministicScore) } };
-      })
-      .filter(({ evidence }) => evidence.score >= 0.18)
-      .sort((left, right) => right.evidence.score - left.evidence.score)
-      .map(({ asset }) => asset)
-    : [];
+  // Provider failure is UNKNOWN, never a successful pixel judgement.
+  const locallyGroundedCandidates = [];
   const candidatePool = isMetadataCard
     ? qualityCandidates
     : semanticGateEnabled

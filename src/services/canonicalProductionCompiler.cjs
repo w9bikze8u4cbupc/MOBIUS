@@ -12,7 +12,7 @@ const {
 } = require('./sourceAssetResolver.cjs');
 const { runProductionQualityGate } = require('./productionQualityGate.cjs');
 
-const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v2';
+const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v3';
 
 function uniqueAssets(assets = []) {
   const byId = new Map();
@@ -34,7 +34,7 @@ function resolveAtomSources(atom, assets, displayBounds) {
   if (!referents.length) return resolveSourceAssets({ atom, requirement, candidates: assets, displayBounds });
   const perReferent = referents.map((referent) => resolveSourceAssets({
     atom,
-    requirement: { ...requirement, requiredObjects: [referent] },
+    requirement: { ...requirement, requiredObjects: [referent], evidenceSceneId: `knowledge-${atom.id}` },
     candidates: assets,
     displayBounds,
     minimumAssets: 1,
@@ -51,6 +51,13 @@ function resolveAtomSources(atom, assets, displayBounds) {
     selectedAssets: accepted ? [...selectedById.values()] : [],
     suggestedAssets: [...suggestedById.values()],
     ranked: reviewEvidence,
+    referentSelections: perReferent.map(({ rankedEntries, ranked, reviewItem, ...selection }, index) => ({
+      ...selection, requiredObject: referents[index],
+      // Lossless columnar assessment table: assets/provenance live in the canonical
+      // catalogue; scene review shows relevant candidates, this retains ALL scores.
+      assessmentColumns: ['assetId', 'authority', 'authorityRank', 'confidence', 'semanticScore', 'trueSourcePixelsPerDisplayPixel', 'valid', 'violations'],
+      candidateAssessments: ranked.map((row) => [row.assetId, row.authority, row.authorityRank, row.confidence, row.semanticScore, row.trueSourcePixelsPerDisplayPixel, row.valid, row.violations]),
+    })),
     confidence: perReferent.length ? Math.min(...perReferent.map((selection) => selection.confidence)) : 0,
     reviewState: accepted ? 'accepted' : 'needs_review',
     reason,
@@ -90,14 +97,22 @@ function compileCanonicalProductionState({
   const sourceReviewItems = sourceSelections.map((selection) => selection.reviewItem).filter(Boolean);
   const bindingReviewItems = referentNormalization.unresolvedBindings
     .filter((binding) => !atoms.some((atom) => (atom.componentRefs || atom.visualRequirement?.requiredObjects || []).includes(binding.componentId)))
-    .map((binding) => buildVisualReviewItem({
+    .map((binding) => resolveSourceAssets({
       atom: { id: `component-${binding.componentId}`, title: binding.componentName, sourceRefs: [{ page: binding.sourcePage }], visualRequirement: { requiredObjects: [binding.componentId], purpose: 'component-identity-binding' } },
-      requirement: { requiredObjects: [binding.componentId], purpose: 'component-identity-binding' },
-      ranked: assets.filter((asset) => asset.id === binding.assetId).map((candidate) => ({ candidate, confidence: Number(binding.confidence || 0), semanticScore: Number(binding.confidence || 0), trueSourcePixelsPerDisplayPixel: 0, valid: false, hardViolations: ['component-binding-needs-review'] })),
-      reason: 'HEPHAESTUS component binding requires an explicit visual identity decision before it can be used automatically.',
-      referent: binding.componentId,
-    }));
+      requirement: { requiredObjects: [binding.componentId], purpose: 'component-identity-binding', evidenceSceneId: `knowledge-component-${binding.componentId}` },
+      candidates: assets.filter((asset) => asset.id === binding.assetId || asset.sourceRefs.some((ref) => Number(ref.page || ref.sourcePage) === Number(binding.sourcePage))),
+      displayBounds,
+    }).reviewItem).filter(Boolean);
   const reviewItems = [...sourceReviewItems, ...bindingReviewItems];
+  const terms = new Map([
+    ...(componentEvidence.componentBindings || []).map((c) => [c.componentId, { name: c.componentName, category: c.category, sourcePage: c.sourcePage }]),
+    ...(knowledgeModel.components || []).map((c) => [c.id, { name: c.name, category: c.category, sourcePage: c.sourcePage, sourceQuote: c.sourceQuote }]),
+  ]);
+  for (const item of reviewItems) {
+    item.requiredReferents = (item.requiredObjects || []).map((id) => ({ id, ...(terms.get(id) || {}), termIsPixelProof: false }));
+    item.dependentSceneIds = atoms.filter((atom) => (atom.visualRequirement?.requiredObjects || []).some((id) => item.requiredObjects.includes(id))).map((atom) => `knowledge-${atom.id}`);
+    item.autoAnalysisExhausted = false; // A bounded budget is not proof that all authoritative evidence was searched.
+  }
   const selectedAssetIds = new Set(sourceSelections.flatMap((selection) => selection.selectedAssets || []).map((asset) => asset.id));
   const selectedAssets = assets.filter((asset) => selectedAssetIds.has(asset.id));
   const scenes = atoms.filter((atom) => atom.teaching).map((atom) => {

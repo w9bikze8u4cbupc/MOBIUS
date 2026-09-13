@@ -1,12 +1,14 @@
 'use strict';
 
 const fs = require('node:fs');
+const crypto = require('node:crypto');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { candidateDetailRatio, sourceAuthorityRank } = require('./sourceDetailLineage.cjs');
 
-const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v2';
-const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v1';
+const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v3';
+const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v2';
+const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v1';
 const AUTO_ACCEPT_CONFIDENCE = 0.82;
 const AUTO_ACCEPT_MARGIN = 0.08;
 
@@ -102,10 +104,9 @@ function normalizeVisualReferents({ componentEvidence = {}, sourceAssets = [] } 
     const semanticObjects = uniqueStrings([
       ...(raw.semanticObjects || []), ...(raw.semanticTags || []), raw.label, raw.componentName, raw.category,
       ...(evidence.semanticObjects || []), evidence.componentName, evidence.category, evidence.surroundingTextEvidence,
-      ...bindings.flatMap((binding) => [binding.componentId, binding.componentName, binding.category]),
     ]);
-    const componentRefs = uniqueStrings(bindings.map((binding) => binding.componentId));
-    const aliases = uniqueStrings(bindings.flatMap((binding) => [binding.componentName, binding.category]));
+    const componentRefs = uniqueStrings(raw.componentRefs || []);
+    const aliases = uniqueStrings(raw.referentAliases || []);
     const sourcePage = evidence.pageNumber || raw.source_page || raw.sourcePage || (Number.isInteger(Number(raw.page_index)) ? Number(raw.page_index) + 1 : null);
     return normalizeCandidate({
       ...raw,
@@ -119,6 +120,9 @@ function normalizeVisualReferents({ componentEvidence = {}, sourceAssets = [] } 
       category: raw.category || evidence.category || bindings[0]?.category || null,
     componentRefs,
     referentAliases: aliases,
+      bindingHypotheses: bindings,
+      objectVisualEvidence: raw.objectVisualEvidence || evidence.objectVisualEvidence || [],
+      objectAnalysisAttempts: raw.objectAnalysisAttempts || [],
       bindingConfidence: bindings.length ? Math.max(...bindings.map((binding) => Number(binding.confidence || 0))) : null,
       bindingReviewRequired: bindings.some((binding) => binding.reviewState === 'needs_review'
         || (binding.reviewRequired === true && binding.reviewState !== 'accepted')),
@@ -153,6 +157,9 @@ function normalizeVisualReferents({ componentEvidence = {}, sourceAssets = [] } 
 }
 
 function semanticScore(candidate, requiredObjects = []) {
+  const ids = requiredObjects.filter((value) => /^(comp|component)[-_]/i.test(value));
+  if (ids.length) return ids.filter((id) => (candidate.componentRefs || []).includes(id)
+    || (candidate.objectVisualEvidence || []).some((row) => row.requiredObject === id && row.present === true)).length / ids.length;
   const wanted = normalizedTokens(requiredObjects);
   if (!wanted.size) return 0.75;
   const found = normalizedTokens([
@@ -162,24 +169,55 @@ function semanticScore(candidate, requiredObjects = []) {
   return overlap / wanted.size;
 }
 
+function objectEvidenceFor(candidate, referent, sceneId = null) {
+  const rows = (candidate.objectVisualEvidence || []).filter((row) => row.contract === OBJECT_VISUAL_EVIDENCE_CONTRACT
+    && row.requiredObject === referent && row.assetId === candidate.id && row.method === 'provider-pixel-analysis'
+    && (!sceneId || row.sceneId === sceneId));
+  if (!rows.length || !candidate.filePath || !fs.existsSync(candidate.filePath)) return null;
+  const sha = crypto.createHash('sha256').update(fs.readFileSync(candidate.filePath)).digest('hex');
+  return rows.find((row) => row.imageSha256 === sha && row.evidencePacketHash && row.model && row.reason) || null;
+}
+
 function evaluateCandidate(candidate, requirement = {}, displayBounds = { width: 900, height: 700 }) {
   const fileExists = Boolean(candidate.filePath && fs.existsSync(candidate.filePath));
   const detailRatio = candidateDetailRatio(candidate, displayBounds);
   const semantic = semanticScore(candidate, requirement.requiredObjects || []);
   const authority = Math.min(1, candidate.sourceAuthorityRank / 50);
   const detail = Math.min(1, detailRatio);
-  const complete = candidate.cropCompleteness === 'complete';
-  const pure = candidate.cropPurity === 'clean';
+  const proofs = (requirement.requiredObjects || []).map((id) => objectEvidenceFor(candidate, id, requirement.evidenceSceneId));
+  const complete = proofs.length ? proofs.every((proof) => proof?.complete === true) : candidate.cropCompleteness === 'complete';
+  const pure = proofs.length ? proofs.every((proof) => proof?.isolated === true) : candidate.cropPurity === 'clean';
   const accepted = candidate.reviewState === 'accepted';
   const invalid = candidate.invalidated === true || candidate.directorRejectedForSameDefect === true;
   const hardViolations = [];
+  if (requirement.actualGameAssetRequired && !proofs.length) hardViolations.push('required-referent-unresolved');
+  for (let index = 0; index < proofs.length; index += 1) {
+    const proof = proofs[index];
+    const id = requirement.requiredObjects[index];
+    if (!proof) { hardViolations.push(`object-pixel-evidence-missing:${id}`); continue; }
+    if (proof.present !== true || Number(proof.confidence) < 0.9) hardViolations.push(`object-identity-unverified:${id}`);
+    const box = proof.bbox;
+    if (!Array.isArray(box) || box.length !== 4 || !box.every(Number.isFinite)
+      || box[0] < 0 || box[1] < 0 || box[2] > 1 || box[3] > 1 || box[2] <= box[0] || box[3] <= box[1]) {
+      hardViolations.push(`object-bounds-unverified:${id}`);
+    } else {
+      if ((box[2] - box[0]) * (box[3] - box[1]) < 0.5) hardViolations.push(`object-focus-insufficient:${id}`);
+      if (box[0] <= 0 || box[1] <= 0 || box[2] >= 1 || box[3] >= 1) hardViolations.push(`object-edge-unverified:${id}`);
+    }
+    if (proof.stateCompatible !== true) hardViolations.push(`object-state-unverified:${id}`);
+    for (const key of ['requiredState', 'requiredOrientation', 'requiredQuantities', 'requiredRelationship', 'beforeState', 'actionState', 'afterState', 'transitionRequired', 'setupPlacementRequired', 'layeredStateRequired', 'faceStateRequired', 'trackStateRequired']) {
+      const expected = requirement[key];
+      if (expected == null || expected === false || (Array.isArray(expected) && !expected.length)) continue;
+      if (JSON.stringify(proof.evidenceRequirement?.[key]) !== JSON.stringify(expected)) hardViolations.push(`object-evidence-state-scope-mismatch:${key}`);
+    }
+  }
   if (!fileExists) hardViolations.push('missing-file');
   if (candidate.sourceAuthority === 'THUMBNAIL') hardViolations.push('thumbnail-final-use');
   if (detailRatio < 0.8) hardViolations.push('source-detail-insufficient');
   if (!complete) hardViolations.push('crop-completeness-unverified');
   if (!pure) hardViolations.push('crop-purity-unverified');
   if (semantic < 0.5) hardViolations.push('semantic-object-mismatch');
-  if (candidate.bindingReviewRequired && Number(candidate.bindingConfidence || 0) < 0.65) hardViolations.push('component-identity-unverified');
+  if (candidate.bindingReviewRequired && Number(candidate.bindingConfidence || 0) < 0.65 && !proofs.some((proof) => proof?.present === true)) hardViolations.push('component-identity-unverified');
   const requiredState = requirement.physicalStateRequirement || requirement.physicalState || {};
   for (const [key, expected] of Object.entries(requiredState || {})) {
     if (expected == null || expected === 'UNKNOWN') continue;
@@ -205,10 +243,10 @@ function classifyFailure(ranked = []) {
   const codes = new Set(ranked.flatMap((entry) => entry.hardViolations || []));
   const classes = [];
   if ([...codes].some((code) => code.includes('semantic-object-mismatch'))) classes.push('SEMANTIC_MATCH_TOO_WEAK');
-  if ([...codes].some((code) => code.includes('component-identity-unverified'))) classes.push('COMPONENT_IDENTITY_MISMATCH');
+  if ([...codes].some((code) => code.includes('component-identity-unverified') || code.startsWith('object-pixel-') || code.startsWith('object-identity-'))) classes.push('COMPONENT_IDENTITY_MISMATCH');
   if ([...codes].some((code) => code.includes('source-detail'))) classes.push('DETAIL_RESOLUTION_TOO_WEAK');
-  if ([...codes].some((code) => code.includes('crop-'))) classes.push('CROP_OR_SILHOUETTE_FAILURE');
-  if ([...codes].some((code) => code.includes('physical-state-'))) classes.push('PHYSICAL_STATE_MISMATCH');
+  if ([...codes].some((code) => code.includes('crop-') || code.startsWith('object-edge-') || code.startsWith('object-focus-') || code.startsWith('object-bounds-'))) classes.push('CROP_OR_SILHOUETTE_FAILURE');
+  if ([...codes].some((code) => code.includes('physical-state-') || code.startsWith('object-state-') || code.startsWith('object-evidence-state-'))) classes.push('PHYSICAL_STATE_MISMATCH');
   if ([...codes].some((code) => code.includes('missing-file'))) classes.push('SOURCE_CANDIDATE_NOT_GENERATED');
   if (!classes.length) classes.push('MISSING_COMPONENT_BINDING');
   return classes;
@@ -243,8 +281,8 @@ function buildVisualReviewItem({ atom, requirement = {}, ranked = [], reason, re
     physicalStateRequirement: requirement.physicalStateRequirement || requirement.physicalState || null,
     reason,
     failureClassification,
-    candidateIds: ranked.slice(0, 8).map((entry) => entry.candidate.id),
-    candidates: ranked.slice(0, 8).map((entry) => ({
+    candidateIds: [...new Set(ranked.map((entry) => entry.candidate.id))],
+    candidates: [...new Map(ranked.map((entry) => [entry.candidate.id, entry])).values()].map((entry) => ({
       assetId: entry.candidate.id,
       thumbnailPath: entry.candidate.filePath || null,
       sourceRefs: entry.candidate.sourceRefs || [],
@@ -254,6 +292,10 @@ function buildVisualReviewItem({ atom, requirement = {}, ranked = [], reason, re
       confidence: entry.confidence,
       valid: entry.valid,
       rejectionReasons: entry.hardViolations,
+      objectVisualEvidence: entry.candidate.objectVisualEvidence || [],
+      objectAnalysisAttempts: entry.candidate.objectAnalysisAttempts || [],
+      evidenceStatus: (entry.candidate.objectVisualEvidence || []).length ? 'MEASURED_NOT_NECESSARILY_VALID' : 'UNKNOWN',
+      bindingHypotheses: entry.candidate.bindingHypotheses || [],
     })),
     recommendedOperatorAction: recommendedOperatorAction({ ranked, failureClassification }),
   };
@@ -463,6 +505,8 @@ function rectifyAuthorizedCandidate({
 module.exports = {
   AUTO_ACCEPT_CONFIDENCE,
   AUTO_ACCEPT_MARGIN,
+  OBJECT_VISUAL_EVIDENCE_CONTRACT,
+  objectEvidenceFor,
   SOURCE_ASSET_RESOLVER_CONTRACT,
   evaluateCandidate,
   loadAuthorizedCandidateManifests,

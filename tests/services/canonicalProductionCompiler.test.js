@@ -3,6 +3,7 @@ const { normalizeRuleAtom, buildRulebookKnowledgeModel, buildTutorialCoverageMat
 const { compileCanonicalProductionState } = require('../../src/services/canonicalProductionCompiler.cjs');
 
 const existingFile = path.resolve(__dirname, '../../package.json');
+const proof = require('../fixtures/objectEvidence.cjs');
 
 function knowledge() {
   return buildRulebookKnowledgeModel({ projectSeed: {
@@ -27,6 +28,7 @@ test('normal compiler derives source selection, physical state, VisualPlan and C
       id: 'board-master', filePath: existingFile, width: 2400, height: 1600,
       sourceAuthority: 'OFFICIAL_PUBLISHER_HIGH_RES', semanticObjects: ['game-board'],
       cropCompleteness: 'complete', cropPurity: 'clean', reviewState: 'accepted', sourceRefs: [{ page: 2 }],
+      objectVisualEvidence: [proof('board-master', existingFile, 'game-board', { sceneId: 'knowledge-setup-board', evidenceRequirement: model.ruleAtoms[0].visualRequirement })],
     }], displayBounds: { width: 900, height: 600 },
   });
   expect(result.CODEX_REQUIRED_FOR_NORMAL_PRODUCTION).toBe(false);
@@ -56,7 +58,7 @@ test('surfaces HEPHAESTUS review bindings in the same actionable Cockpit queue',
       componentBindings: [{ componentId: 'game-board', componentName: 'Game board', category: 'board', assetId: 'weak-board', confidence: 0.55, reviewState: 'needs_review', reviewRequired: true, sourcePage: 2 }],
     },
   });
-  expect(result.visualReferentNormalization.contract).toBe('mobius-visual-referent-normalization-v1');
+  expect(result.visualReferentNormalization.contract).toBe('mobius-visual-referent-normalization-v2');
   expect(result.reviewItems[0]).toMatchObject({
     status: 'needs_visual_review',
     scopeType: 'VISUAL_REQUIREMENT',

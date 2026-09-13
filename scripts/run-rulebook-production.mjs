@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import 'dotenv/config';
+import { hydrateSourcePageVisuals } from '../src/services/sourcePageVisuals.js';
 
 /**
  * Zero-state rulebook production.
@@ -62,7 +63,7 @@ const VOICE_ID = process.env.ELEVENLABS_VOICE_ID_AMELIE || 'UJCi4DDncuo0VJDSIegj
 const VOICE_NAME = 'Amélie';
 const MODEL_ID = 'eleven_multilingual_v2';
 const { DEFAULT_NARRATION_PRESET, getEditorialContract } = editorialStandard;
-const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v5-referent-binding-cockpit';
+const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v6-object-pixel-evidence';
 const DEFAULT_BASE_URL = process.env.MOBIUS_BASE_URL || 'http://127.0.0.1:5001';
 
 function argsToObject(argv = process.argv.slice(2)) {
@@ -665,11 +666,16 @@ async function runZeroState(options = {}) {
   if (await stopIfRequested(options, checkpoint, 'draft-storyboard', checkpointPath, { projectId })) return { status: 'stopped', stage: 'draft-storyboard' };
 
   const pageDir = path.join(root, 'data', 'rulebook-images', projectId);
-  const pageManifestHash = identity.sha256;
-  if (!stageReady(checkpoint, 'page-visuals', pageManifestHash, [path.join(pageDir, 'page-1.png')])) {
+  const pageManifestHash = hashValue({ source: identity.sha256, contract: 'mobius-source-page-visuals-v2' });
+  const hydratePages = () => hydrateSourcePageVisuals({ baseUrl, projectId, sourceSha256: identity.sha256, pageCount: descriptor.pageCount, pageDir, apiKey, fetchImpl });
+  let pageVisuals;
+  try { pageVisuals = await hydratePages(); }
+  catch (error) {
+    if (error.code !== 'SOURCE_PAGE_VISUALS_MISSING') throw error;
     await postJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/images/extract-rulebook`, { pdfPath: await sourceService.resolveFile(projectId) }, apiKey);
+    pageVisuals = await hydratePages();
   }
-  markStage(checkpoint, 'page-visuals', pageManifestHash, [path.join(pageDir, 'page-1.png')], { reused: checkpoint.stages['page-visuals']?.inputHash === pageManifestHash });
+  markStage(checkpoint, 'page-visuals', pageManifestHash, [path.join(pageDir, 'source-page-visuals.json'), ...pageVisuals.pages.map((p) => path.join(pageDir, `page-${p.page}.png`))], { reused: pageVisuals.reused });
 
   const gameplayModelPath = path.join(productionDir, 'gameplay-actions.json');
   const gameplayHash = hashValue({ sourceSha256: identity.sha256, scriptHash, hephEvidence: hashValue(hephEvidence), contract: 'mobius-gameplay-actions-v1' });

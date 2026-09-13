@@ -73,6 +73,8 @@ Avant une livraison, MOBIUS vérifie au minimum : résolution 1080p ou plus, pr�
 
 ## Rulebook Knowledge and Cockpit evidence contract (2026-09-11)
 
+The [object-level visual evidence contract](VISUAL_OBJECT_EVIDENCE.md) governs measured source identity, UNKNOWN crop guarantees, bounded visual calls, cross-root page reuse and the single Cockpit queue. Historical prepared integration fixtures do not establish autonomous visual quality.
+
 - Before a RuleAtom is synthesized, production creates a canonical one-based PDF document map: page, detected heading, normalized source span, source hash, extraction confidence, content kind and provenance. Parser-internal page zero is never a learner-facing or Cockpit citation.
 - Coverage is evidence-driven. Missing applicable high-priority domains trigger bounded retrieval and domain-specific source synthesis before a human review item is created; absent evidence remains absent rather than being invented.
 - Domain synthesis is provider-backed structured extraction, not a summary shortcut: each request contains only the requested generic domains and retrieved official excerpts, and every returned RuleAtom citation must resolve to a supplied one-based evidence packet. The cache key includes the source SHA, document-map/evidence hash, RuleAtom contract, and provider/model contract.

@@ -21,6 +21,7 @@ test('generates stable layout-derived crops with bounded provenance', async () =
     expect(first.assets).toHaveLength(2);
     expect(second.assets.map((asset) => asset.contentHash)).toEqual(first.assets.map((asset) => asset.contentHash));
     expect(first.assets[0]).toMatchObject({ source_page: 2, page_index: 1, visual_kind: 'focused-page-crop', sourcePdfSha256: 'pdf-sha' });
+    expect(first.assets[0]).toMatchObject({ cropCompleteness: 'unknown', cropPurity: 'unknown', is_component: null, confidence: null, visual_metrics: { nearBlank: null } });
     expect(first.assets[0].bbox.x).toBeGreaterThanOrEqual(0);
     expect(first.assets[0].bbox.x + first.assets[0].bbox.width).toBeLessThanOrEqual(200);
   expect(first.assets[0].provenance.extraction).toBe('layout-derived-column-crop');
@@ -47,6 +48,7 @@ test('derives a tighter visual region from a large layout gap', async () => {
     const result = await generateFocusedPageCrops({ pageDir, pages, outputDir, sourceSha256: 'pdf-sha' });
     const region = result.assets.find((asset) => asset.id === 'focused-region-p2-right');
     expect(region).toMatchObject({ visual_kind: 'focused-page-region', source_page: 2, page_index: 1 });
+    expect(region).toMatchObject({ cropCompleteness: 'unknown', cropPurity: 'unknown', is_component: null, confidence: null });
     expect(region.bbox.y).toBeGreaterThan(0);
     expect(region.bbox.y + region.bbox.height).toBeLessThanOrEqual(400);
     expect(region.provenance.extraction).toBe('layout-derived-visual-region');

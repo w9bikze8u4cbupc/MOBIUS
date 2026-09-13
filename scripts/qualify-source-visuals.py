@@ -86,6 +86,8 @@ def asset_metadata(asset: dict) -> dict:
         "content_hash": asset.get("contentHash") or asset.get("content_hash"),
         "source_pdf_sha256": asset.get("sourcePdfSha256") or asset.get("source_pdf_sha256"),
         "provenance": asset.get("provenance"),
+        "dimensions": asset.get("dimensions"),
+        "original_dimensions": asset.get("original_dimensions"),
     }
 
 
@@ -96,17 +98,7 @@ def local_judgement(asset: dict) -> dict:
     kind = str(asset.get("visual_kind") or asset.get("type") or asset.get("classification") or "").lower()
     if metrics.get("nearBlank") is True or width < 96 or height < 96 or width * height < 20000:
         return {"primary_explanatory": False, "quality_score": 0, "category": "blank_or_unusable", "reason": "local-quality-rejected: blank or too small"}
-    if kind in {"focused-page-crop", "focused-page-region"}:
-        return {"primary_explanatory": True, "quality_score": 91, "category": "board_or_tableau", "reason": "local-quality: layout-derived focused source panel"}
-    if kind == "board" and float(metrics.get("edgeDensity") or 0) < 0.035 and float(metrics.get("contrast") or 0) < 0.28:
-        return {"primary_explanatory": False, "quality_score": 25, "category": "blank_or_unusable", "reason": "local-quality-rejected: low-information board shell"}
-    if kind in {"card", "tile"}:
-        return {"primary_explanatory": True, "quality_score": 82, "category": "component_or_card", "reason": "local-quality: readable extracted component"}
-    if kind in {"token", "marker", "dice"} and min(width, height) >= 160:
-        return {"primary_explanatory": True, "quality_score": 74, "category": "token_or_marker", "reason": "local-quality: readable extracted token or marker"}
-    if kind in {"board", "miniature", "currency"}:
-        return {"primary_explanatory": True, "quality_score": 72, "category": "board_or_tableau", "reason": "local-quality: extracted game component"}
-    return {"primary_explanatory": False, "quality_score": 35, "category": "uncertain", "reason": "local-quality-rejected: insufficient component classification"}
+    return {"primary_explanatory": False, "quality_score": 0, "category": "uncertain", "evidenceStatus": "UNKNOWN", "reason": "geometry is a candidate-screening hint, not object pixel validation"}
 
 
 def image_data_url(image_path: Path) -> str:
@@ -182,7 +174,8 @@ def main() -> None:
         for asset in sorted(selected, key=priority, reverse=True)[:MAX_PER_PAGE]:
             candidates.append({"asset_id": asset.get("id"), "page_index": page, "path": str(asset_path(asset, manifest_path)), "asset_metadata": asset_metadata(asset)})
 
-    client = None if os.getenv("MOBIUS_VISUAL_LOCAL_ONLY", "").lower() in {"1", "true", "yes"} else OpenAI()
+    # Object identity/quality are assessed together by the bounded matcher.
+    client = None
     results: list[dict] = []
     vision_failed = client is None
     if not vision_failed:
