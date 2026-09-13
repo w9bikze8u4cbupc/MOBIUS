@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Bounded object-scoped pixel evidence. Metadata ranks hypotheses, never validates them."""
-import base64
 import hashlib
+import importlib.util
 import json
 import os
 import sys
@@ -10,6 +10,11 @@ from openai import OpenAI
 
 CONTRACT = "mobius-object-visual-evidence-v1"
 MODEL = os.getenv("MOBIUS_VISUAL_MATCH_MODEL") or os.getenv("OPENAI_MODEL")
+_probe_spec = importlib.util.spec_from_file_location('mobius_visual_probe', Path(__file__).with_name('qualify-source-visuals.py'))
+_probe_module = importlib.util.module_from_spec(_probe_spec)
+_probe_spec.loader.exec_module(_probe_module)
+# Reuse the existing bounded image representation; native pixels/hash stay authoritative.
+image_data_url = _probe_module.image_data_url
 
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
@@ -89,6 +94,12 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     results.append(result)
                     continue
                 else:
+                    try:
+                        probe = image_data_url(Path(asset['path']))
+                    except Exception as exc:
+                        result['reason'] = f'IMAGE_PROBE_UNAVAILABLE:{type(exc).__name__}'
+                        results.append(result)
+                        continue
                     calls += 1
                     prompt = ("Inspect ONLY these pixels and supplied official context. Caller terms are hypotheses, not proof. "
                         "Return exactly one verdict per requiredObject. Confidence 0..1; unknown means false. "
@@ -96,10 +107,9 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                         "bbox is normalized [left,top,right,bottom] for the exact object, not the page (absent uses []). "
                         "stateCompatible requires every specified face, orientation, quantity, placement and relationship visibly satisfied. "
                         "Do not invent game facts. Explain visible evidence and missing evidence.\n" + json.dumps(packet, ensure_ascii=False))
-                    mime = "image/jpeg" if Path(asset["path"]).suffix.lower() in {".jpg", ".jpeg"} else "image/png"
                     response = client.chat.completions.create(model=MODEL, max_completion_tokens=1800, response_format=schema(),
                         messages=[{"role": "user", "content": [{"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:{mime};base64," + base64.b64encode(pixels).decode(), "detail": "high"}}]}])
+                        {"type": "image_url", "image_url": {"url": probe, "detail": "high"}}]}])
                     objects = validate_rows(json.loads(response.choices[0].message.content)["objects"], packet)
                     tmp = cache.with_suffix(".tmp")
                     tmp.write_text(json.dumps({"identity": identity, "objects": objects,

@@ -20,6 +20,8 @@ No extraction is required when source pages and HEPHAESTUS already exist. Differ
 
 The normal matcher allows at most eight calls (configurable bounded maximum 32), at most three candidates per request, and zero SDK retries. It stops after a provider failure. Cache identity includes the evidence packet, actual image bytes, model and contract. A run replay preserves budget-exhausted/unknown dispositions without spending again; another analysis batch is an explicit action. `MOBIUS_VISUAL_CACHE_ONLY=true` prohibits new calls. No model is silently substituted when configuration is absent. Provider/base-URL/credential selection comes from the existing canonical AI configuration; credentials never enter evidence artifacts.
 
+New image requests reuse the existing 1600×1600 maximum visual-probe helper, without enlarging or altering native source files. The original pixel hash and source-detail lineage remain authoritative. Unsafe/undecodable probes remain UNKNOWN and spend no provider call; no decoder safety limit is disabled. Existing valid measurements of the original pixels remain reusable.
+
 ## Persistence and Cockpit
 
 Candidate metadata and provenance remain in the canonical catalogue; per-referent evaluations use a versioned column list plus rows, retaining every evaluated candidate and rejection. The existing content-addressed transport retains its 20 MiB budget and 25 MiB HTTP limit.
