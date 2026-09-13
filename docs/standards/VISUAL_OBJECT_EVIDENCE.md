@@ -10,6 +10,7 @@ No extraction is required when source pages and HEPHAESTUS already exist. Differ
 
 - Extracted names, categories, aliases, page proximity and proposed component bindings are search hypotheses, not proof of visible identity. Opaque component IDs remain exact identifiers; `comp-1` and `comp-57` cannot match through the shared word `comp`.
 - A column/region crop starts with UNKNOWN completeness/isolation. Neither native extraction nor a local heuristic grants complete/clean status.
+- UNKNOWN component identity remains eligible for bounded examination and cache reuse. Local screening counts are distinct from pixel-reviewed, rejected and accepted counts; a candidate must not require a fabricated positive label to reach the matcher.
 - `mobius-object-visual-evidence-v1` binds a measurement to asset ID, image SHA, requested referent, scene, evidence packet, configured model, observed bounds, confidence, complete silhouette, isolation and requested physical state. Wrong pixels, other objects/scenes, clipping, insufficient detail or unsupported states fail closed.
 - A provider outage or budget limit is UNKNOWN. It is not a favourable local fallback, nor proof of genuine source ambiguity.
 - Current safe acceptance requires object confidence ≥0.90, complete/isolated visible bounds with margin, source detail and the existing authority/ranking-margin thresholds. No generative enlargement creates source detail.

@@ -101,6 +101,13 @@ def local_judgement(asset: dict) -> dict:
     return {"primary_explanatory": False, "quality_score": 0, "category": "uncertain", "evidenceStatus": "UNKNOWN", "reason": "geometry is a candidate-screening hint, not object pixel validation"}
 
 
+def eligible_hypothesis(asset: dict) -> bool:
+    # UNKNOWN is eligible for examination, not a positive or negative verdict.
+    # In particular, a layout crop must not need a fabricated is_component=True
+    # merely to reach the object-scoped matcher and its already valid cache.
+    return asset.get("is_component") is not False
+
+
 def image_data_url(image_path: Path) -> str:
     # HEPHAESTUS intentionally preserves source pixels and may produce very
     # large native rasters. Vision QA needs the visual evidence, not a 241 MB
@@ -151,7 +158,7 @@ def main() -> None:
     cited_pages = {int(page) for scene in script.get("scenes", []) for page in scene.get("source_pages", [])}
     by_page: dict[int, list[dict]] = {}
     for asset in manifest.get("images", []):
-        if not asset.get("is_component", False):
+        if not eligible_hypothesis(asset):
             continue
         page = int(asset.get("page_index", -1))
         # HEPHAESTUS page_index is zero-based; storyboard source_pages are
@@ -199,15 +206,18 @@ def main() -> None:
     results.sort(key=lambda row: ((row.get("page_index") is None), row.get("page_index") or 9999, row.get("asset_id") or ""))
     output = {
         "version": 1,
-        "model": MODEL,
+        "model": None,
+        "mode": "LOCAL_SCREENING_NOT_PIXEL_VALIDATION",
         "script": str(script_path),
         "manifest": str(manifest_path),
         "cited_pages": sorted(cited_pages),
         "assets": results,
         "summary": {
-            "reviewed": len(results),
+            "screened": len(results),
+            "reviewed": 0,
             "primary_explanatory": sum(1 for item in results if item.get("primary_explanatory")),
-            "rejected": sum(1 for item in results if not item.get("primary_explanatory")),
+            "rejected": sum(1 for item in results if item.get("category") == "blank_or_unusable"),
+            "review_required": sum(1 for item in results if item.get("category") != "blank_or_unusable"),
         },
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)

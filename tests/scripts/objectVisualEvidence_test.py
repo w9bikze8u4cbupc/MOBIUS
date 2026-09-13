@@ -14,6 +14,11 @@ qualifier = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(qualifier)
 
 class ObjectEvidenceTests(unittest.TestCase):
+    def test_unknown_component_hypothesis_is_not_dropped_before_pixel_analysis(self):
+        self.assertTrue(qualifier.eligible_hypothesis({'is_component': None, 'type': 'focused-page-crop'}))
+        self.assertTrue(qualifier.eligible_hypothesis({}))
+        self.assertFalse(qualifier.eligible_hypothesis({'is_component': False}))
+
     def test_local_geometry_never_implies_complete_component(self):
         for kind in ['focused-page-crop', 'focused-page-region', 'card', 'token', 'board']:
             verdict = qualifier.local_judgement({'type': kind, 'dimensions': {'width': 1500, 'height': 1800}})
