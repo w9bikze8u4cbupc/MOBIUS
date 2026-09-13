@@ -107,6 +107,10 @@ async function listPdfs(directory, result = []) {
 
 export function classifyInboxError(error) {
   const message = String(error?.message || error || '').toLowerCase();
+  if (error?.classification === 'recovery_required' || String(error?.code || '').startsWith('PROJECT_STATE_')
+    || /production-state.*\(413\)|project_state_too_large/.test(message)) {
+    return { class: 'recovery-required', retryable: true, explicitRecovery: true };
+  }
   const configurationRequired = error?.classification === 'configuration_required'
     || ['AI_NOT_CONFIGURED', 'AI_PROVIDER_UNSUPPORTED'].includes(String(error?.code || ''))
     || /ai_not_configured|missing.*(?:credential|api key|model)|no .*ai provider .*configured/i.test(message);
@@ -138,7 +142,11 @@ function isProcessAlive(pid) {
 }
 
 export async function acquireLease(paths, { ownerId = `${process.pid}-${randomToken()}`, leaseMs = DEFAULT_LEASE_MS } = {}) {
-  const lease = { ownerId, pid: process.pid, startedAt: now(), heartbeatAt: now(), leaseMs };
+  const lease = { ownerId, token: randomToken(), pid: process.pid, startedAt: now(), heartbeatAt: now(), leaseMs };
+  const owns = current => current?.ownerId === lease.ownerId && current?.token === lease.token
+    && current?.pid === lease.pid && current?.startedAt === lease.startedAt;
+  let stopped = false;
+  let pending = Promise.resolve();
   try {
     const handle = await fs.open(paths.lease, 'wx');
     await handle.writeFile(`${JSON.stringify(lease, null, 2)}\n`, 'utf8');
@@ -146,11 +154,18 @@ export async function acquireLease(paths, { ownerId = `${process.pid}-${randomTo
     return {
       ...lease,
       async heartbeat() {
-        lease.heartbeatAt = now();
-        await atomicWrite(paths.lease, lease);
+        if (stopped) return;
+        pending = pending.then(async () => {
+          if (stopped || !owns(safeRead(paths.lease))) return;
+          lease.heartbeatAt = now();
+          await atomicWrite(paths.lease, lease);
+        }).catch(() => {});
+        await pending;
       },
       async release() {
-        if (safeRead(paths.lease, null)?.ownerId !== ownerId) return;
+        stopped = true;
+        await pending;
+        if (!owns(safeRead(paths.lease))) return;
         await fs.unlink(paths.lease).catch(() => {});
       },
     };
@@ -163,12 +178,13 @@ export async function acquireLease(paths, { ownerId = `${process.pid}-${randomTo
       await fs.unlink(paths.lease).catch(() => {});
       return acquireLease(paths, { ownerId, leaseMs });
     }
-    const lastBeat = Date.parse(current?.heartbeatAt || current?.startedAt || 0);
     // A process can be interrupted after writing its lease but before the
     // heartbeat timeout.  Process evidence lets the next worker recover that
     // claim immediately while still protecting a live owner from concurrency.
     const ownerAlive = isProcessAlive(current?.pid);
-    if (ownerAlive && Number.isFinite(lastBeat) && Date.now() - lastBeat <= Number(current.leaseMs || leaseMs)) return null;
+    // Expired heartbeat is not permission to take a live worker's lease. PID
+    // reuse is conservatively left for explicit runtime/operator recovery.
+    if (ownerAlive) return null;
     await fs.unlink(paths.lease).catch(() => {});
     return acquireLease(paths, { ownerId, leaseMs });
   }
@@ -187,7 +203,7 @@ export async function discoverInbox(root, { dataRoot = path.join(path.dirname(pa
       || existsSync(path.join(dataRoot, record.documentId || '', 'production', 'production-report.json')));
     rows.push({ identity, state: known, processed, completedProjectId: complete?.documentId || null });
   }
-  const waiting = rows.filter((row) => !ACTIVE_STATUSES.includes(row.state?.status) && !REVIEW_STATUSES.includes(row.state?.status)
+  const waiting = rows.filter((row) => !row.state?.recoveryRequired && !ACTIVE_STATUSES.includes(row.state?.status) && !REVIEW_STATUSES.includes(row.state?.status)
     && row.state?.status !== 'completed' && row.state?.status !== 'failed-terminal' && !row.completedProjectId);
   const duplicates = rows.filter((row) => !ACTIVE_STATUSES.includes(row.state?.status)
     && row.state?.status !== 'failed-terminal' && (row.completedProjectId || row.state?.status === 'completed'));
@@ -227,6 +243,9 @@ function isWithin(directory, candidate) {
 export async function requeueInboxItem(options = {}) {
   const root = path.resolve(options.root || process.cwd());
   const paths = await ensureInbox(path.resolve(options.inboxRoot || path.join(root, 'data', 'rulebook-inbox')));
+  const recoveryLease = await acquireLease(paths);
+  if (!recoveryLease) throw new Error('Inbox recovery refused: another worker owns the lease.');
+  try {
   const sha256 = String(options.sha256 || options.sha || '').trim().toLowerCase();
   if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error('Use requeue --sha <64-character source SHA-256>.');
   const state = await loadState(paths);
@@ -265,6 +284,7 @@ export async function requeueInboxItem(options = {}) {
     reviewItems: Number(item.reviewItems || 0),
     reviewQueuePath: item.reviewQueuePath || null,
     stage: item.stage || null,
+    worker: { ownerId: item.ownerId || null, pid: item.pid || null, claimedAt: item.claimedAt || null },
   };
   const historyField = explicitlyReopenedReview ? 'reviewReopenHistory' : 'failureHistory';
   const requeued = await updateItem(paths, state, sha256, {
@@ -273,9 +293,11 @@ export async function requeueInboxItem(options = {}) {
     source: { ...item.source, path: waitingPath },
     sourcePath: waitingPath,
     retryCount: 0,
+    recoveryRequired: false,
     lastError: null,
     diagnosticPath: null,
     ownerId: null,
+    leaseToken: null,
     pid: null,
     claimedAt: null,
     startedAt: null,
@@ -290,6 +312,9 @@ export async function requeueInboxItem(options = {}) {
     reviewItems: previousState.reviewItems,
   });
   return { status: 'waiting', sha256, sourcePath: waitingPath, item: requeued };
+  } finally {
+    await recoveryLease.release();
+  }
 }
 
 function activeItem(state) {
@@ -463,6 +488,7 @@ export async function runInboxOnce(options = {}) {
     const item = await updateItem(paths, state, work.identity.sha256, {
       status: 'claimed', source: { ...work.identity, discoveredAt: work.existing?.source?.discoveredAt || now() }, sourcePath: work.sourcePath,
       claimedAt: work.existing?.claimedAt || now(), ownerId: lease.ownerId, pid: process.pid,
+      leaseToken: lease.token,
       retryCount: Number(work.existing?.retryCount || 0), lastError: null,
     });
     await appendEvent(paths, 'claimed', { sha256: work.identity.sha256, ownerId: lease.ownerId });
@@ -494,7 +520,7 @@ export async function runInboxOnce(options = {}) {
     const previous = state.items[work.identity.sha256] || {};
     const retryCount = Number(previous.retryCount || 0) + 1;
     const classification = classifyInboxError(error);
-    const retryLimitReached = classification.class !== 'configuration-required'
+    const retryLimitReached = !classification.explicitRecovery && classification.class !== 'configuration-required'
       && retryCount >= (Number(options.retryLimit) || DEFAULT_RETRY_LIMIT);
     const status = classification.retryable && !retryLimitReached ? 'failed-retryable' : 'failed-terminal';
     const diagnostic = {
@@ -511,13 +537,26 @@ export async function runInboxOnce(options = {}) {
     const directory = status === 'failed-terminal' ? paths.failedTerminal : paths.failedRetryable;
     const diagnosticPath = path.join(directory, `${work.identity.sha256}.failure.json`);
     await fs.writeFile(diagnosticPath, `${JSON.stringify(diagnostic, null, 2)}\n`, 'utf8');
-    await updateItem(paths, state, work.identity.sha256, { status, source: work.identity, sourcePath: work.sourcePath, retryCount, lastError: diagnostic.error, diagnosticPath, failedAt: now() });
+    await updateItem(paths, state, work.identity.sha256, { status, recoveryRequired: Boolean(classification.explicitRecovery), source: work.identity, sourcePath: work.sourcePath, retryCount, lastError: diagnostic.error, diagnosticPath, failedAt: now() });
     if (status === 'failed-terminal') await archiveSource(paths, work.sourcePath, work.identity, paths.failedTerminal);
     await appendEvent(paths, 'failed', { sha256: work.identity.sha256, status, retryCount });
     return { status, error: diagnostic.error, retryCount, diagnosticPath };
   } finally {
     clearInterval(timer);
-    await lease.release();
+    try {
+      if (work?.identity?.sha256) {
+        const latest = await loadState(paths);
+        const item = latest.items[work.identity.sha256];
+        const currentLease = safeRead(paths.lease);
+        if (item?.ownerId === lease.ownerId && item?.leaseToken === lease.token
+          && currentLease?.token === lease.token && currentLease?.ownerId === lease.ownerId) {
+          await updateItem(paths, latest, work.identity.sha256, {
+            lastWorker: { ownerId: item.ownerId, pid: item.pid, claimedAt: item.claimedAt, releasedAt: now() },
+            ownerId: null, pid: null, claimedAt: null, leaseToken: null,
+          });
+        }
+      }
+    } finally { await lease.release(); }
   }
 }
 

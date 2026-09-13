@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { setProjectState } from './renderJobConfig.js';
+import transport from '../services/projectStateTransport.cjs';
 import {
   normalizeDurableProjectSource,
   projectSourceService,
@@ -510,11 +511,23 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
     const projectId = normalizeRecoveryProjectId(req.params.projectId);
     if (!projectId) return res.status(400).json({ code: 'PROJECT_ID_INVALID', error: 'Project ID is invalid.' });
 
-    const body = req.body || {};
+    let body;
+    try {
+      body = req.body?.contract === transport.CONTRACT ? transport.unpackProjectState(req.body) : (req.body || {});
+      if (req.body?.contract && req.body.contract !== transport.CONTRACT) throw Object.assign(new Error('Unsupported production state contract.'), { statusCode: 400, code: 'PROJECT_STATE_INVALID' });
+      if (!req.body?.contract) transport.assertBudget(body);
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw Object.assign(new Error('Production state must be an object.'), { statusCode: 400 });
+      if (req.body?.contract && (!body.projectContext?.projectId || !body.projectContext?.sourcePdf)) throw Object.assign(new Error('Compact production state requires canonical project and source identities.'), { statusCode: 400 });
+    } catch (error) {
+      return res.status(error.statusCode || 400).json({ code: error.code || 'PROJECT_STATE_INVALID', error: error.message, classification: 'recovery_required' });
+    }
     const context = body.projectContext && typeof body.projectContext === 'object' && !Array.isArray(body.projectContext)
       ? body.projectContext : {};
     if (context.projectId && context.projectId !== projectId) {
       return res.status(400).json({ code: 'PROJECT_ID_MISMATCH', error: 'Project context does not match the route project ID.' });
+    }
+    if (context.sourceSha256 && context.sourcePdf?.sha256 !== context.sourceSha256) {
+      return res.status(409).json({ code: 'SOURCE_PDF_INVALID', error: 'Source SHA does not match the canonical descriptor.' });
     }
     if (context.sourcePdf) {
       const source = await resolvePersistedProjectSource(context.sourcePdf, projectId, projectSource);

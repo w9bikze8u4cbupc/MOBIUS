@@ -48,6 +48,7 @@ import { alignCanonicalRuntime } from '../src/services/canonicalRuntimeAlignment
 import { preflightAiProviderReadiness } from '../src/services/aiProviderReadiness.js';
 
 const require = createRequire(import.meta.url);
+const { packProjectState } = require('../src/services/projectStateTransport.cjs');
 const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor.js');
 const { COMPONENT_INVENTORY_CONTRACT_VERSION, extractComponentInventory } = await import('../src/services/componentInventory.js');
 const { generateStoryboard } = require('../src/storyboard/generator.js');
@@ -332,7 +333,7 @@ async function reserveProject({ baseUrl, apiKey, projectId, gameName, language, 
   }, apiKey, fetchImpl);
 }
 
-async function persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components, scriptPackage, storyboardManifest, scenes, images, production = {}, audioAssets = [], gameMetadata = {}, gameplayModel = null, endgameModel = null, rulebookKnowledgeModel = null, tutorialCoverage = null, canonicalProductionState = null, ruleReviewItems = [] }) {
+export function buildProductionStateBody({ projectId, gameName, language, descriptor, manifest, components, scriptPackage, storyboardManifest, scenes, images, production = {}, audioAssets = [], gameMetadata = {}, gameplayModel = null, endgameModel = null, rulebookKnowledgeModel = null, tutorialCoverage = null, canonicalProductionState = null, ruleReviewItems = [] }) {
   const context = {
     projectId, gameName, language, metadata: gameMetadata, sourcePdf: descriptor, sourceSha256: descriptor.sha256,
     rulebookText: manifest.text.full, ingestionManifest: manifest.ingestion,
@@ -354,12 +355,18 @@ async function persistProject({ baseUrl, apiKey, projectId, gameName, language, 
     } : null,
     production: { voiceName: VOICE_NAME, voiceId: VOICE_ID, modelId: MODEL_ID, narrationPreset: DEFAULT_NARRATION_PRESET, editorial: getEditorialContract({ narrationPreset: DEFAULT_NARRATION_PRESET }), ...production },
   };
-  return postJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/production-state`, {
+  return {
     name: gameName,
     metadata: { sourceIdentity: descriptor, ingestionDiagnostics: manifest.diagnostics, gameMetadata },
     projectContext: context,
     components, images, script: JSON.stringify(scriptPackage), audio: JSON.stringify(audioAssets), scenes,
-  }, apiKey);
+  };
+}
+
+export async function persistProject(options) {
+  const body = buildProductionStateBody(options);
+  const transport = packProjectState(body); // Validated UTF-8 budget before fetch.
+  return postJson(options.baseUrl, `/api/projects/${encodeURIComponent(options.projectId)}/production-state`, transport, options.apiKey, options.fetchImpl || fetch);
 }
 
 async function runZeroState(options = {}) {

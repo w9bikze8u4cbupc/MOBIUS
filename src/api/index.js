@@ -1,5 +1,6 @@
 
 import express from 'express';
+import projectStateTransport from '../services/projectStateTransport.cjs';
 import db from './db.js';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
@@ -134,7 +135,8 @@ app.use(createCorsMiddleware(gatewayConfig));
 // A reviewed render handoff includes a storyboard manifest, curated asset metadata,
 // and contextual rulebook evidence. Keep it bounded while allowing the canonical
 // project payload to be persisted atomically.
-app.use(express.json({ limit: '25mb' }));
+app.use(express.json({ limit: projectStateTransport.API_LIMIT_BYTES }));
+app.use(projectStateTransport.bodyErrorHandler);
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use('/static', express.static(path.join(moduleDirname, 'uploads')));
 app.use('/uploads', express.static(path.join(moduleDirname, 'uploads')));
