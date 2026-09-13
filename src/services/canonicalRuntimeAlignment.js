@@ -6,6 +6,13 @@ import { resolveGitIdentity } from './runtimeCompatibility.js';
 
 const moduleRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
+// Node preserves PowerShell 7's module search path when it launches Windows
+// PowerShell 5.1. Let the child rebuild its own defaults (Utility/Get-FileHash,
+// NetTCPIP, etc.); preserve every actual runtime/provider setting unchanged.
+export function windowsPowerShellEnvironment(env = process.env) {
+  return Object.fromEntries(Object.entries(env).filter(([key]) => key.toLowerCase() !== 'psmodulepath'));
+}
+
 function localBaseUrl(value) {
   try {
     const parsed = new URL(value);
@@ -50,7 +57,7 @@ export async function alignCanonicalRuntime({ baseUrl, requirements } = {}) {
     '-TargetRevision', targetRevision,
   ];
   if (configurationPath) argumentsList.push('-ConfigurationPath', configurationPath);
-  const result = spawnSync('powershell.exe', argumentsList, { encoding: 'utf8', windowsHide: true, timeout: 15 * 60 * 1000 });
+  const result = spawnSync('powershell.exe', argumentsList, { env: windowsPowerShellEnvironment(), encoding: 'utf8', windowsHide: true, timeout: 15 * 60 * 1000 });
   if (result.status !== 0) {
     return {
       attempted: true,
