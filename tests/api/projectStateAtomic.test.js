@@ -35,3 +35,16 @@ test('failed atomic rename leaves disk AND in-memory Cockpit row unchanged', () 
     for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
   }
 });
+
+test('first-row storage failure returns a controlled response even without a callback row ID', async () => {
+  const routes = new Map();
+  const db = { all: (_sql, _args, callback) => callback(null, []), run: (_sql, _args, callback) => callback.call(undefined, new Error('fixture storage failure')) };
+  registerProjectPersistenceRoutes({ post: (p, h) => routes.set(p, h), get() {} }, { db });
+  const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+  const diagnostic = jest.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    await routes.get('/api/projects/:projectId/production-state')({ params: { projectId: 'fixture' }, body: { projectContext: { projectId: 'fixture' } } }, res);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'PROJECT_STATE_PERSIST_FAILED' }));
+  } finally { diagnostic.mockRestore(); }
+});

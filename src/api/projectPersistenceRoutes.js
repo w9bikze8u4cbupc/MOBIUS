@@ -575,7 +575,7 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
       return db.run(
         `INSERT INTO projects (name, metadata, components, images, script, audio, scenes) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         values,
-        function insertComplete(error) { finish(error, this.lastID, true); },
+        function insertComplete(error) { finish(error, this?.lastID, true); },
       );
     });
   });
