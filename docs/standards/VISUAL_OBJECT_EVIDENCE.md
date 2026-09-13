@@ -22,6 +22,8 @@ The normal matcher allows at most eight calls (configurable bounded maximum 32),
 
 New image requests reuse the existing 1600×1600 maximum visual-probe helper, without enlarging or altering native source files. The original pixel hash and source-detail lineage remain authoritative. Unsafe/undecodable probes remain UNKNOWN and spend no provider call; no decoder safety limit is disabled. Existing valid measurements of the original pixels remain reusable.
 
+The normal rulebook worker uses the existing runtime manager's configuration-path resolver for its visual subprocess. Declared canonical provider settings take precedence over stale worktree dotenv defaults in that subprocess; the configuration files and generator model selection are not edited. Its visual checkpoint records the already preflighted provider/model identity, not historical hard-coded model fallbacks. Proofs must not require Codex to supply a configuration path that normal production omits.
+
 ## Persistence and Cockpit
 
 Candidate metadata and provenance remain in the canonical catalogue; per-referent evaluations use a versioned column list plus rows, retaining every evaluated candidate and rejection. The existing content-addressed transport retains its 20 MiB budget and 25 MiB HTTP limit.

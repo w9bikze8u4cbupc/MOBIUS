@@ -45,7 +45,7 @@ import {
 import { buildGameplayModel, buildGameplayTeachingPlan, writeGameplayModel } from '../src/services/gameplayActions.js';
 import { buildEndgameModel, buildEndgameTeachingPlan, writeEndgameModel } from '../src/services/scoringEndgame.js';
 import { buildWorkerRuntimeRequirements, preflightRuntimeCompatibility } from '../src/services/runtimeCompatibility.js';
-import { alignCanonicalRuntime } from '../src/services/canonicalRuntimeAlignment.js';
+import { alignCanonicalRuntime, canonicalRuntimeConfigurationEnvironment } from '../src/services/canonicalRuntimeAlignment.js';
 import { preflightAiProviderReadiness } from '../src/services/aiProviderReadiness.js';
 
 const require = createRequire(import.meta.url);
@@ -875,13 +875,14 @@ async function runZeroState(options = {}) {
     visualScriptHash,
     hephHash,
     sourceSha256: identity.sha256,
-    qualityModel: process.env.MOBIUS_VISUAL_QA_MODEL || process.env.OPENAI_MODEL || 'gpt-5-mini',
-    matchModel: process.env.MOBIUS_VISUAL_MATCH_MODEL || process.env.OPENAI_MODEL || 'gpt-5',
+    qualityMode: 'LOCAL_SCREENING_NOT_PIXEL_VALIDATION',
+    matchModel: process.env.MOBIUS_VISUAL_MATCH_MODEL || aiPreflight.status.model,
+    providerConfiguration: aiPreflight.status.configurationFingerprint,
   });
   if (!stageReady(checkpoint, 'visual-review', visualReviewHash, [qualityPath, semanticPath, combinedVisualManifestPath, focusedCropManifestPath])) {
     const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
     const result = spawnSync(process.execPath, [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--hephaestus-evidence', hephEvidencePath, '--output-dir', visualReviewDir, '--page-dir', pageDir, '--extraction', path.join(productionDir, 'zero-state-extraction.json'), '--source-sha256', identity.sha256], {
-      cwd: root, env: { ...process.env, PYTHON: python }, stdio: 'inherit', windowsHide: true,
+      cwd: root, env: { ...canonicalRuntimeConfigurationEnvironment({ root }), PYTHON: python }, stdio: 'inherit', windowsHide: true,
     });
     if (result.status !== 0) throw new Error(`prepare-source-visuals exited with code ${result.status}`);
   }

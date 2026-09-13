@@ -2,6 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
 import { resolveGitIdentity } from './runtimeCompatibility.js';
 
 const moduleRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -38,6 +39,20 @@ export function resolveCanonicalRuntimeConfigurationPath({ root = moduleRoot, en
   }
   const local = path.join(root, '.env');
   return fs.existsSync(local) ? path.resolve(local) : null;
+}
+
+// The same configuration owner used by the API manager must reach local
+// worker subprocesses. This only selects an existing file, never edits it.
+export function canonicalRuntimeConfigurationEnvironment({ root = moduleRoot, env = process.env } = {}) {
+  const configurationPath = resolveCanonicalRuntimeConfigurationPath({ root, env });
+  if (!configurationPath) return { ...env };
+  const configured = dotenv.parse(fs.readFileSync(configurationPath));
+  const providerKeys = ['OPENAI_MODEL', 'OPENAI_API_KEY', 'AI_INTEGRATIONS_OPENAI_BASE_URL',
+    'AI_INTEGRATIONS_OPENAI_API_KEY', 'MOBIUS_VISUAL_MATCH_MODEL', 'MOBIUS_VISUAL_QA_MODEL'];
+  // Prevent dotenv defaults from a different worktree from shadowing the
+  // existing canonical configuration copied by the runtime manager.
+  return { ...env, MOBIUS_CONFIG_PATH: configurationPath,
+    ...Object.fromEntries(providerKeys.filter(key => Object.hasOwn(configured, key)).map(key => [key, configured[key]])) };
 }
 
 export async function alignCanonicalRuntime({ baseUrl, requirements } = {}) {
