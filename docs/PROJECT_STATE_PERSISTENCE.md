@@ -11,6 +11,9 @@ manager for alignment; do not launch a second API or change Windows tasks.
 The manager drops only the inherited `PSModulePath` for its Windows PowerShell
 child so PowerShell 5.1 rebuilds compatible module defaults when Node was started
 by PowerShell 7. Provider/model environment values are preserved unchanged.
+The bridge detaches inherited standard pipes; the manager's existing log/status
+files remain diagnostic authority, so a long-lived API cannot hold its caller
+open after the alignment process has exited.
 
 The logical project/Cockpit schema is unchanged. A tagged JSON graph stores
 identical substantial subtrees once, referenced by SHA-256. Tags cannot collide

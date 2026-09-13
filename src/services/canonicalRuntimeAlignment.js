@@ -13,6 +13,10 @@ export function windowsPowerShellEnvironment(env = process.env) {
   return Object.fromEntries(Object.entries(env).filter(([key]) => key.toLowerCase() !== 'psmodulepath'));
 }
 
+export function canonicalRuntimeSpawnOptions(env = process.env) {
+  return { env: windowsPowerShellEnvironment(env), stdio: 'ignore', encoding: 'utf8', windowsHide: true, timeout: 15 * 60 * 1000 };
+}
+
 function localBaseUrl(value) {
   try {
     const parsed = new URL(value);
@@ -57,12 +61,16 @@ export async function alignCanonicalRuntime({ baseUrl, requirements } = {}) {
     '-TargetRevision', targetRevision,
   ];
   if (configurationPath) argumentsList.push('-ConfigurationPath', configurationPath);
-  const result = spawnSync('powershell.exe', argumentsList, { env: windowsPowerShellEnvironment(), encoding: 'utf8', windowsHide: true, timeout: 15 * 60 * 1000 });
+  // The manager starts a long-lived API. Inherited pipe handles can keep
+  // spawnSync waiting after PowerShell has exited. Its canonical log/status
+  // files own diagnostics; never attach production descendants to these pipes.
+  const result = spawnSync('powershell.exe', argumentsList, canonicalRuntimeSpawnOptions());
   if (result.status !== 0) {
     return {
       attempted: true,
       aligned: false,
       reason: 'canonical-runtime-manager-refused-or-failed-alignment',
+      diagnosticLog: path.join(moduleRoot, 'data', 'logs', 'mobius-isolated-agent.log'),
       exitCode: result.status,
       stdout: result.stdout?.trim() || '',
       stderr: result.stderr?.trim() || '',
