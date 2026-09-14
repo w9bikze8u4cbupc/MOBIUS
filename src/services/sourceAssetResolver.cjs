@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { candidateDetailRatio, sourceAuthorityRank } = require('./sourceDetailLineage.cjs');
+const { teachingSceneLayout, containedDisplayBounds } = require('./presentationDesignSystem.cjs');
 
 const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v3';
 const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v2';
@@ -22,7 +23,7 @@ function assetPath(asset = {}) {
 }
 
 function normalizeAuthority(asset = {}) {
-  const raw = String(asset.sourceAuthority || asset.sourceType || asset.extractionMethod || '').toUpperCase();
+  const raw = String(asset.sourceAuthority || asset.sourceType || asset.extractionMethod || '').toUpperCase().replace(/[\s-]+/g, '_');
   if (/PUBLISHER|PRESS/.test(raw)) return 'OFFICIAL_PUBLISHER_HIGH_RES';
   if (/AUTHORIZED_EXACT_EDITION|OFFICIAL_HIGH_RES/.test(raw)) return 'AUTHORIZED_EXACT_EDITION_HIGH_RES';
   if (/BGG/.test(raw)) return 'OFFICIAL_BGG_ASSET';
@@ -181,7 +182,13 @@ function objectEvidenceFor(candidate, referent, sceneId = null) {
 
 function evaluateCandidate(candidate, requirement = {}, displayBounds = { width: 900, height: 700 }) {
   const fileExists = Boolean(candidate.filePath && fs.existsSync(candidate.filePath));
-  const detailRatio = candidateDetailRatio(candidate, displayBounds);
+  let actualDisplayBounds = displayBounds;
+  if (displayBounds?.presentationScene) {
+    const s = displayBounds.presentationScene;
+    const layout = teachingSceneLayout({ ...s, layout: { ...s.layout, visualAspectRatio: candidate.width / candidate.height || 1 } }, displayBounds.width, displayBounds.height);
+    actualDisplayBounds = containedDisplayBounds(candidate, { width: layout.imageWidth, height: layout.imageHeight });
+  }
+  const detailRatio = candidateDetailRatio(candidate, actualDisplayBounds);
   const semantic = semanticScore(candidate, requirement.requiredObjects || []);
   const authority = Math.min(1, candidate.sourceAuthorityRank / 50);
   const detail = Math.min(1, detailRatio);
@@ -209,7 +216,11 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
       hardViolations.push(`object-bounds-unverified:${id}`);
     } else {
       if ((box[2] - box[0]) * (box[3] - box[1]) < 0.5) hardViolations.push(`object-focus-insufficient:${id}`);
-      if (box[0] <= 0 || box[1] <= 0 || box[2] >= 1 || box[3] >= 1) hardViolations.push(`object-edge-unverified:${id}`);
+      const nativeBoundary = candidate.nativeSourceEvidence?.nativeImage === true
+        && candidate.nativeSourceEvidence.assetSha256 === proof.imageSha256
+        && candidate.nativeSourceEvidence.sourcePdfSha256 === candidate.sourcePdfSha256
+        && proof.visualRole === 'COMPONENT' && proof.complete === true && proof.isolated === true;
+      if ((box[0] <= 0 || box[1] <= 0 || box[2] >= 1 || box[3] >= 1) && !nativeBoundary) hardViolations.push(`object-edge-unverified:${id}`);
     }
     if (proof.stateCompatible !== true) hardViolations.push(`object-state-unverified:${id}`);
     for (const key of ['requiredState', 'requiredOrientation', 'requiredQuantities', 'requiredRelationship', 'beforeState', 'actionState', 'afterState', 'transitionRequired', 'setupPlacementRequired', 'layeredStateRequired', 'faceStateRequired', 'trackStateRequired']) {
@@ -240,6 +251,7 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
     confidence: Number(confidence.toFixed(4)),
     semanticScore: Number(semantic.toFixed(4)),
     trueSourcePixelsPerDisplayPixel: Number(detailRatio.toFixed(4)),
+    actualDisplayBounds: { width: actualDisplayBounds.width, height: actualDisplayBounds.height },
     hardViolations,
     valid: hardViolations.length === 0,
   };

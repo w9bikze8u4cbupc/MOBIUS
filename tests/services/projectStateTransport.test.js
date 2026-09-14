@@ -26,3 +26,20 @@ test('storage hydrates historical rows and exact serialized fields for Cockpit a
   expect(transport.unpackProjectRow(transport.packProjectRow(row))).toEqual(row);
   expect(transport.unpackProjectRow(row)).toEqual(row);
 });
+
+test('repeated source strings across distinct assets are interned losslessly with bounded replay', () => {
+  const excerpt = 'Source officielle avec quantité et condition. '.repeat(200);
+  const value = { assets: Array.from({length: 200}, (_, i) => ({id: `asset-${i}`, pageText: excerpt, score: i / 200})) };
+  const packed = transport.packProjectState(value);
+  expect(Object.values(packed.definitions).filter(x => x === excerpt)).toHaveLength(1);
+  expect(transport.bytes(packed)).toBeLessThan(transport.bytes(value) / 10);
+  let current = packed;
+  for (let i = 0; i < 3; i++) {
+    expect(transport.unpackProjectState(current)).toEqual(value);
+    current = transport.packProjectState(transport.unpackProjectState(current));
+    expect(current).toEqual(packed);
+  }
+  const key = Object.keys(packed.definitions).find(k => packed.definitions[k] === excerpt);
+  packed.definitions[key] += 'corrupt';
+  expect(() => transport.unpackProjectState(packed)).toThrow(/checksum/);
+});

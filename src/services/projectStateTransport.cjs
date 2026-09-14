@@ -22,8 +22,23 @@ function packProjectState(value) {
   const clean = JSON.parse(JSON.stringify(value));
   assertBudget(clean, EXPANDED_BUDGET_BYTES);
   const definitions = Object.create(null);
+  // Page excerpts, paths and object-specific explanations recur in different
+  // containers. Object-only interning left every such string inline. Existing
+  // v1 refs already support primitive definitions, so historical readers remain
+  // compatible; no compression, schema migration or evidence truncation.
+  const strings = new Map();
+  function countStrings(v) {
+    if (typeof v === 'string' && v.length >= 128) strings.set(v, (strings.get(v) || 0) + 1);
+    else if (v && typeof v === 'object') for (const x of Object.values(v)) countStrings(x);
+  }
+  countStrings(clean);
   function encode(v, depth = 0) {
     if (depth > 128) throw failure('Project state nesting exceeds the contract.');
+    if (typeof v === 'string' && (strings.get(v) || 0) >= 3) {
+      const hash = digest(v);
+      definitions[hash] = v;
+      return ['ref', hash];
+    }
     if (!v || typeof v !== 'object') return v;
     const node = Array.isArray(v) ? ['array', v.map(x => encode(x, depth + 1))]
       : ['object', Object.entries(v).map(([k, x]) => [k, encode(x, depth + 1)])];

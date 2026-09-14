@@ -11,6 +11,7 @@ const {
   SOURCE_ASSET_RESOLVER_CONTRACT,
 } = require('./sourceAssetResolver.cjs');
 const { runProductionQualityGate } = require('./productionQualityGate.cjs');
+const { canonicalTeachingPresentation } = require('./visualPlanMaterializer.cjs');
 
 const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v3';
 
@@ -78,7 +79,7 @@ function compileCanonicalProductionState({
   sourceAssets = [],
   authorizedCandidateManifestPaths = [],
   projectPlans = [],
-  displayBounds = { width: 1080, height: 760 },
+  displayBounds,
 } = {}) {
   if (!knowledgeModel?.ruleAtoms) throw new Error('Canonical production compilation requires RulebookKnowledgeModel.ruleAtoms.');
   const authorized = loadAuthorizedCandidateManifests(authorizedCandidateManifestPaths);
@@ -89,7 +90,10 @@ function compileCanonicalProductionState({
   ]);
   const atoms = knowledgeModel.ruleAtoms;
   const physicalStates = atoms.map(derivePhysicalGameState);
-  const sourceSelections = atoms.map((atom) => resolveAtomSources(atom, assets, displayBounds));
+  const sourceSelections = atoms.map((atom, index) => resolveAtomSources(atom, assets, displayBounds || {
+    presentationScene: canonicalTeachingPresentation({ id: `knowledge-${atom.id}`, section: atom.teaching?.majorSection,
+      narration: atom.teaching?.narration, on_screen_text: atom.teaching?.displayLines?.join('\n'),
+      source_pages: atom.sourceRefs?.map(r => r.page) }, index), width: 1920, height: 1080 }));
   const plans = compileVisualPlans({ atoms, projectPlans, assets, sourceSelections, physicalStates });
   // HEPHAESTUS review bindings share this same Cockpit-visible data model.
   // A binding may remain unresolved even when no current teaching atom names

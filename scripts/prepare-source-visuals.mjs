@@ -37,6 +37,23 @@ function run(command, args, env = process.env) {
 }
 
 async function main() {
+  if (arg('composition-review')) {
+    const input = JSON.parse(readFileSync(required('composition-review'), 'utf8'));
+    const outputDir = required('output-dir');
+    await mkdir(outputDir, { recursive: true });
+    const script = resolve(outputDir, 'composition-script.json');
+    const quality = resolve(outputDir, 'composition-input.json');
+    const output = resolve(outputDir, 'composition-review.json');
+    await writeFile(script, JSON.stringify({ scenes: [input.scene], componentTerms: input.componentTerms }));
+    await writeFile(quality, JSON.stringify({ assets: [{ asset_id: input.scene.id, path: input.outputPath,
+      asset_metadata: { visual_kind: 'instructional-composition', source_page: input.scene.source_pages?.[0], phonePath: input.phonePath,
+        dimensions: { width: 1920, height: 1080 } } }] }));
+    const ai = getAiConfig();
+    await run(arg('python') || process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3'),
+      [resolve(dirname(fileURLToPath(import.meta.url)), 'match-scene-visuals.py'), script, quality, output],
+      { ...process.env, OPENAI_MODEL: ai.model || '', OPENAI_API_KEY: ai.apiKey || '', ...(ai.baseURL ? { OPENAI_BASE_URL: ai.baseURL } : {}), MOBIUS_VISUAL_MATCH_MAX_CALLS: '1' });
+    return;
+  }
   const scriptPath = required('script');
   const manifestPath = required('asset-manifest');
   const outputDir = resolve(required('output-dir'));

@@ -36,7 +36,7 @@ import ffprobeStatic from 'ffprobe-static';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { PRESENTATION_TOKENS, resolvePanelStyle, resolveFont, solvePresentationLayout } = require('../src/services/presentationDesignSystem.cjs');
+const { PRESENTATION_TOKENS, resolvePanelStyle, resolveFont, teachingSceneLayout } = require('../src/services/presentationDesignSystem.cjs');
 
 const FFMPEG_BIN = process.env.MOBIUS_FFMPEG_PATH || ffmpegStatic || 'ffmpeg';
 const FFPROBE_BIN = process.env.MOBIUS_FFPROBE_PATH || ffprobeStatic.path || 'ffprobe';
@@ -58,6 +58,7 @@ const configPath = getArg('config');
 const outputPath = getArg('out');
 const dryRun = hasFlag('dry-run');
 const verbose = hasFlag('verbose');
+const still = hasFlag('still');
 
 if (!configPath) {
   console.error('Usage: node scripts/render-storyboard-ffmpeg.mjs --config <path> [--out <path>] [--dry-run] [--verbose]');
@@ -106,7 +107,7 @@ function validateConfig(cfg) {
       if (!scene.background) {
         errors.push(`Scene ${i} (${scene.id || '?'}): missing background (color or image)`);
       }
-      if (scene.narrationText && scene.audio?.speechRequired !== false) {
+      if (!still && scene.narrationText && scene.audio?.speechRequired !== false) {
         const audioPath = scene.audio?.file;
         if (!audioPath || !existsSync(audioPath)) {
           errors.push(`Scene ${i} (${scene.id || '?'}): narrationText requires a readable audio.file`);
@@ -128,6 +129,7 @@ function validateConfig(cfg) {
 }
 
 const validationErrors = validateConfig(config);
+if (still && (config.scenes?.length !== 1 || !outputPath || !/\.png$/i.test(outputPath))) validationErrors.push('Still review requires exactly one scene and a PNG output.');
 if (validationErrors.length > 0) {
   console.error('Render config validation failed:');
   validationErrors.forEach((e) => console.error(`  - ${e}`));
@@ -274,25 +276,7 @@ function getSceneLayout(scene, w, h) {
   }
   const isTeaching = layout.mode === 'split-teaching';
   if (isTeaching) {
-    const overlays = scene.overlays || [];
-    const findText = (type, position) => overlays.find((overlay) => overlay.type === type && (!position || overlay.position === position))?.text || '';
-    const solved = solvePresentationLayout({
-      width: w,
-      height: h,
-      sceneType: layout.metadataCard ? 'metadata' : (layout.presentationLayout?.contentType === 'list' ? 'list' : 'teaching'),
-      title: findText('title', 'metadata-title'),
-      heading: findText('heading', 'panel-heading'),
-      body: findText('body', 'panel-body'),
-      tags: findText('tags', 'panel-tags'),
-      reference: findText('reference'),
-      itemCount: Math.max(1, String(findText('body', 'panel-body')).split(/\r?\n/).filter(Boolean).length),
-      preferredImageProminence: Number(layout.visualWidthRatio) || 0.56,
-      imageAspect: Number(layout.visualAspectRatio) || 1,
-      preferredFontPx: layout.metadataCard ? 50 : null,
-      minimumFontPx: layout.metadataCard ? 44 : null,
-      textSide: layout.textSide === 'right' ? 'right' : 'left',
-      imageSide: layout.imageSide === 'left' ? 'left' : 'right',
-    });
+    const solved = teachingSceneLayout(scene, w, h);
     return { ...solved, mode: layout.mode, isTeaching: true, metadataCard: layout.metadataCard === true, margins };
   }
   const contentWidth = w - (margins.x * 2);
@@ -879,6 +863,13 @@ function buildSceneCommand(scene, index) {
 
   filterChain += `[vout]`;
 
+  // The same visual filter graph, no audio inputs/encoding or video segments.
+  if (still) {
+    mkdirSync(dirname(finalOutput), { recursive: true });
+    return { segmentPath: finalOutput, ffmpegArgs: ['-hide_banner', '-loglevel', verbose ? 'info' : 'error', '-y',
+      ...inputArgs, '-filter_complex', filterChain, '-map', '[vout]', '-an', '-frames:v', '1', '-c:v', 'png', '-update', '1', finalOutput] };
+  }
+
   // Audio input
   const audioArgs = [];
   const audioInputBase = inputArgs.filter((value) => value === '-i').length;
@@ -945,6 +936,7 @@ for (let i = 0; i < config.scenes.length; i++) {
 // ---------------------------------------------------------------------------
 // Concatenate all segments
 // ---------------------------------------------------------------------------
+if (still) { console.log(`[render-storyboard] Still review complete: ${finalOutput}`); process.exit(0); }
 console.log(`[render-storyboard] Concatenating ${segmentPaths.length} segments...`);
 const expectedDurationSec = config.scenes.reduce((sum, scene) => sum + Number(scene.durationSec || 0), 0);
 

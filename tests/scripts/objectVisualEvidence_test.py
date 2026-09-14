@@ -15,6 +15,47 @@ qualifier = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(qualifier)
 
 class ObjectEvidenceTests(unittest.TestCase):
+    def test_invalid_provider_verdict_preserves_response_and_suspends_without_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'
+            script = {'scenes': [{'id': 'scene', 'source_pages': [2], 'visualRequirement': {'requiredObjects': ['board']}}]}
+            qa = {'assets': [{'asset_id': 'final', 'path': str(pixels), 'asset_metadata': {'source_page': 2}}]}
+            calls = []
+            def create(**kwargs):
+                calls.append(kwargs)
+                return types.SimpleNamespace(usage=None, choices=[types.SimpleNamespace(message=types.SimpleNamespace(content='{"objects":[]}'))])
+            client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            first = matcher.run(script, qa, Path(directory), 1, client)
+            replay = matcher.run(script, qa, Path(directory), 1, client)
+            self.assertEqual(len(calls), 1)
+            self.assertIsNotNone(first['summary']['providerBlocker'])
+            self.assertEqual(replay['summary']['providerCalls'], 0)
+            row = first['scenes'][0]['candidates'][0]
+            self.assertEqual(row['validationIssue'], 'exact requested referents required')
+            self.assertEqual(json.loads(Path(row['responseReceipt']).read_text())['content'], '{"objects":[]}')
+
+    def test_composition_reviews_final_pixels_and_phone_without_revalidating_component(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'
+            script = {'scenes': [{'id': 'scene', 'source_pages': [2], 'visualRequirement': {'requiredObjects': ['board'], 'purpose': 'Identify board'}}]}
+            qa = {'assets': [{'asset_id': 'final', 'path': str(pixels), 'asset_metadata': {'source_page': 2,
+                'visual_kind': 'instructional-composition', 'phonePath': str(pixels)}}]}
+            calls = []
+            def create(**kwargs):
+                calls.append(kwargs)
+                row = {'requiredObject': 'board', 'present': True, 'confidence': .99, 'complete': True,
+                    'isolated': True, 'stateCompatible': True, 'bbox': [.1, .1, .9, .9], 'reason': 'Synthetic composition fixture',
+                    'purposeSatisfied': True, 'phoneReadable': True}
+                return types.SimpleNamespace(usage=None, choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=json.dumps({'objects': [row]})))])
+            client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            first = matcher.run(script, qa, Path(directory), 1, client)
+            replay = matcher.run(script, qa, Path(directory), 1, client)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(replay['summary']['providerCalls'], 0)
+            self.assertEqual(first['scenes'][0]['candidates'][0]['objects'][0]['visualRole'], 'COMPOSITION')
+            self.assertEqual(len(calls[0]['messages'][0]['content']), 3)
+            self.assertIn('WHOLE SCENE', calls[0]['messages'][0]['content'][0]['text'])
+
     def test_native_recovery_uses_same_page_real_detail_without_granting_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             a = Path(directory) / 'pixels'

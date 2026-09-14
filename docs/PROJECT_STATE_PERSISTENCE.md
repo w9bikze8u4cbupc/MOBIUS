@@ -1,5 +1,42 @@
 # Canonical project persistence and explicit recovery
 
+## Enriched visual state: measured string duplication recovery
+
+The complete resumed isolated Cowboy state contained 63,684,834 logical UTF-8
+bytes. Container interning alone produced a 25,557,296-byte state envelope
+(25,558,721-byte diagnostic DTO). Repeated page excerpts, paths, explanations and
+quotes remained inline across distinct objects. A 3,785-byte page string alone
+occurred 376 times. No candidates/reviews need to be removed to recover this cost.
+
+The existing v1 graph now interns repeated long strings as well as containers.
+Its historical decoder already supports primitive definitions; no new storage,
+compression, budget increase or relaxed integrity check is involved. With the
+same state the real route accepted a 19,222,391-byte DTO, below 20,971,520 by
+1,749,129 bytes (8.34%). The stored row was 19,222,632 bytes. Three identical
+POSTs and a fresh file-store instance retained identical content/size. The real
+Cockpit routes reloaded all 71 reviews and all 1,075 image references successfully.
+Provider/extraction/rule generation calls for this proof: zero.
+
+Evidence: `out/first-pedagogical-visual-proof/cowboy/history/` preserves each
+execution; `persistence-enriched-cowboy-resume.log` records the complete original
+enriched-state proof. Later visual-binding changes have separately measured
+current-state sizes in `cowboy/proof.json`. A persistence PASS is not visual QA.
+
+With recovered native provenance and renderer-aligned bounds, the final enriched
+Cowboy DTO is 20,496,536 bytes and its stored row 20,496,777 bytes; the current
+transport margin is only 474,984 bytes (2.27%), not the earlier 8.34%. Three
+replays still show zero growth. Future new evidence remains budget-checked and
+may legitimately require explicit recovery; this proof is not an unbounded-size
+guarantee. The same isolated proof rejects wrong project/source identities and
+an oversized full uncompressed body without changing the stored row.
+
+The existing proof supports `--cache-only true`, measures logical state, compact
+state, actual DTO and disk independently, verifies three zero-growth replays and
+Cockpit hydration after reopening the file database. Its isolated HTTP fixture
+consumes responses and closes each observation's connection: synchronous full
+state serialization must not race an expired keep-alive socket. No live API or
+provider credentials are modified by the fixture's in-process authentication.
+
 ## Contract
 
 `mobius-project-state-transport-v1` is shared by the normal production worker,

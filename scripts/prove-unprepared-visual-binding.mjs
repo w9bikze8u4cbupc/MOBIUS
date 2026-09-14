@@ -110,6 +110,7 @@ const canonicalEnv = canonicalRuntimeConfigurationEnvironment({ root: process.cw
 const run = () => {
   const result = spawnSync(process.execPath, prepareArgs, { windowsHide: true, encoding: 'utf8',
     env: { ...canonicalEnv, MOBIUS_VISUAL_MATCH_MAX_CALLS: args['max-visual-calls'],
+      ...(args['cache-only'] === 'true' ? { MOBIUS_VISUAL_CACHE_ONLY: 'true' } : {}),
       ...(proofScene ? { MOBIUS_VISUAL_SCENE_ID: `knowledge-${proofScene.id}`, MOBIUS_VISUAL_BUDGET_LEDGER: path.resolve(args['budget-ledger']), MOBIUS_VISUAL_BUDGET_GROUP: args['budget-group'] } : {}),
       ...(args['reuse-analysis'] && !args['allow-analysis'] ? { MOBIUS_VISUAL_CACHE_ONLY: 'true' } : {}) }, timeout: 12 * 60 * 1000 });
   if (result.status !== 0) throw new Error(`Visual preparation failed (${result.status}): ${result.stderr}`);
@@ -131,6 +132,9 @@ write('canonical-state.json', transport.packProjectState(compiled));
 process.env.DB_DATA_DIR = dataRoot;
 process.env.DB_DATA_FILE = path.join(dataRoot, 'projects.json');
 process.env.DB_IN_MEMORY = 'false';
+// Isolated in-process API authentication only; never a provider credential or
+// a change to the configured/live MOBIUS API.
+process.env.API_KEY = crypto.randomBytes(24).toString('hex');
 const db = (await import(pathToFileURL(path.resolve('src/api/db.js')).href)).default;
 const projectSource = createProjectSourceService({ dataRoot });
 const { descriptor } = await projectSource.persistUpload(projectId, path.resolve(args.pdf), { filename: 'proof-rulebook.pdf' });
@@ -138,23 +142,78 @@ assert.equal(descriptor.sha256, knowledge.sourcePdfSha256);
 const body = { name: knowledge.gameIdentity?.displayName, components, images: [], script: '', scenes: compiled.scenes,
   projectContext: { projectId, sourcePdf: descriptor, sourceSha256: descriptor.sha256, visualReviewItems: compiled.reviewItems,
     canonicalProductionState: compiled } };
-const app = express();
+let app = express();
 app.use(express.json({ limit: transport.API_LIMIT_BYTES }));
 app.use(transport.bodyErrorHandler);
 registerProjectPersistenceRoutes(app, { db, projectSource });
-const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
-const url = `http://127.0.0.1:${server.address().port}`;
+let server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
+let url = `http://127.0.0.1:${server.address().port}`;
 const measured = first.scenes.flatMap((s) => s.candidates).filter((c) => c.status === 'MEASURED');
 const report = { project: knowledge.gameIdentity, sourceSha: descriptor.sha256, sourceImagesCopied: images.length, unavailable,
   provider: first.summary, replay: replay.summary, imagesExamined: new Set(measured.map((c) => c.asset_id)).size,
   objectsMatched: compiled.sourceSelections.flatMap((s) => s.referentSelections || []).filter((s) => s.status === 'AUTO_ACCEPTED').length,
-  fullyIllustratedScenes: compiled.sourceSelections.filter((s) => s.status === 'AUTO_ACCEPTED').length,
+  fullyBoundScenes: compiled.sourceSelections.filter((s) => s.status === 'AUTO_ACCEPTED').length,
   scenes: compiled.scenes.length, reviews: compiled.reviewItems.length, hephaestusProviderCalls: 0, ruleGenerationCalls: 0,
   status: first.summary.providerBlocker ? 'BLOCKED' : 'PARTIEL', inputsHash: hash(knowledge), replayIdentical: true };
 try {
   const packet = transport.packProjectState(body);
+  report.persistence = { logicalStateBytes: transport.bytes(compiled), compactStateBytes: transport.bytes(transport.packProjectState(compiled)),
+    logicalBodyBytes: transport.bytes(body), httpBodyBytes: transport.bytes(packet), budgetBytes: transport.TRANSPORT_BUDGET_BYTES,
+    apiLimitBytes: transport.API_LIMIT_BYTES, replays: [] };
   assert.ok(transport.bytes(packet) < transport.TRANSPORT_BUDGET_BYTES);
-  assert.equal((await fetch(`${url}/api/projects/${projectId}/production-state`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(packet) })).status, 200);
+  // Each bounded persistence observation owns a connection. Packing a complete
+  // state is synchronous and may outlast an idle keep-alive socket's lifetime.
+  const post = async payload => {
+    const response = await fetch(`${url}/api/projects/${projectId}/production-state`, { method: 'POST', headers: { 'content-type': 'application/json', connection: 'close' }, body: JSON.stringify(payload) });
+    await response.arrayBuffer();
+    return response.status;
+  };
+  assert.equal(await post(packet), 200);
+  const diskFile = process.env.DB_DATA_FILE;
+  const initialDisk = hash(fs.readFileSync(diskFile));
+  const load = async () => {
+    const response = await fetch(`${url}/load-project/${projectId}`, { headers: { 'x-api-key': process.env.API_KEY, connection: 'close' } });
+    assert.equal(response.status, 200, 'Real Cockpit hydration route must succeed');
+    return response.json();
+  };
+  const hydrated = await load();
+  assert.equal(hash(hydrated.projectContext.canonicalProductionState), hash(JSON.parse(JSON.stringify(compiled))));
+  assert.equal(hash(hydrated.projectContext.visualReviewItems), hash(compiled.reviewItems));
+  for (let i = 0; i < 3; i++) {
+    const reencoded = transport.packProjectState(transport.unpackProjectState(packet));
+    assert.equal(hash(reencoded), hash(packet));
+    assert.equal(await post(reencoded), 200);
+    assert.equal(hash(fs.readFileSync(diskFile)), initialDisk);
+    report.persistence.replays.push({ httpBodyBytes: transport.bytes(reencoded), storedBytes: fs.statSync(diskFile).size, identical: true });
+  }
+  report.persistence.rejections = [];
+  for (const [label, context] of [
+    ['wrong-project', { ...body.projectContext, projectId: 'foreign-project' }],
+    ['wrong-source-sha', { ...body.projectContext, sourceSha256: '0'.repeat(64) }],
+    ['wrong-descriptor-sha', { ...body.projectContext, sourcePdf: { ...descriptor, sha256: '0'.repeat(64) } }],
+  ]) {
+    const status = await post(transport.packProjectState({ ...body, projectContext: context }));
+    assert.ok([400, 409].includes(status));
+    assert.equal(hash(fs.readFileSync(diskFile)), initialDisk);
+    report.persistence.rejections.push({ label, status, noPartialWrite: true });
+  }
+  if (transport.bytes(body) > transport.API_LIMIT_BYTES) {
+    assert.equal(await post(body), 413);
+    assert.equal(hash(fs.readFileSync(diskFile)), initialDisk);
+    report.persistence.rejections.push({ label: 'oversize-full-unpacked-body', status: 413, noPartialWrite: true });
+  }
+  await new Promise(resolve => server.close(resolve));
+  const resumedDb = (await import(pathToFileURL(path.resolve('src/api/db.js')).href + '?proof-resume=' + Date.now())).default;
+  const resumedApp = express();
+  resumedApp.use(express.json({ limit: transport.API_LIMIT_BYTES }));
+  resumedApp.use(transport.bodyErrorHandler);
+  registerProjectPersistenceRoutes(resumedApp, { db: resumedDb, projectSource });
+  app = resumedApp;
+  server = await new Promise(resolve => { const s = resumedApp.listen(0, '127.0.0.1', () => resolve(s)); });
+  url = `http://127.0.0.1:${server.address().port}`;
+  assert.equal(hash(await load()), hash(hydrated));
+  report.persistence.restartHydrationIdentical = true;
+  report.persistence.storedBytes = fs.statSync(diskFile).size;
   const review = await fetch(`${url}/api/projects/${projectId}/visual-reviews`).then((r) => r.json());
   assert.equal(review.items.length, compiled.reviewItems.length);
   const candidateUrls = [...new Set(review.items.flatMap((r) => r.candidates.map((c) => c.thumbnailUrl)))];
@@ -171,6 +230,36 @@ try {
   report.cockpitImageReferences = imageChecks;
   report.reviewsWithLoadableCandidates = review.items.filter((r) => r.candidates.length && r.candidates.every((c) => imageChecks.find((i) => i.route === c.thumbnailUrl)?.status === 200)).length;
   report.transportBytes = transport.bytes(packet);
+  if (proofScene && args['render-still'] === 'true') {
+    const { materializeInstructionalStill } = require('../src/services/visualPlanMaterializer.cjs');
+    report.instructionalStill = await materializeInstructionalStill({ state: compiled, sceneId: `knowledge-${proofScene.id}`,
+      outputDir: path.join(output, 'instructional-stills'), allowReviewCandidate: true });
+    if (report.instructionalStill.produced && args['verify-still'] === 'true') {
+      const inputPath = path.join(output, 'instructional-stills', 'composition-review-input.json');
+      fs.writeFileSync(inputPath, JSON.stringify({ ...report.instructionalStill,
+        scene: compiled.scenes.find(s => s.id === report.instructionalStill.sceneId),
+        componentTerms: Object.fromEntries(components.map(c => [c.id, c.name])) }));
+      const reviewOutput = path.dirname(inputPath);
+      const inspect = () => {
+        const p = spawnSync(process.execPath, ['scripts/prepare-source-visuals.mjs', '--composition-review', inputPath, '--output-dir', reviewOutput],
+          { windowsHide: true, encoding: 'utf8', env: { ...canonicalEnv, MOBIUS_VISUAL_SCENE_ID: report.instructionalStill.sceneId,
+            MOBIUS_VISUAL_BUDGET_LEDGER: path.resolve(args['budget-ledger']), MOBIUS_VISUAL_BUDGET_GROUP: args['budget-group'] } });
+        if (p.status !== 0) throw new Error('Composition review execution failed; no automatic retry.');
+        return read(path.join(reviewOutput, 'composition-review.json'));
+      };
+      const measuredComposition = inspect();
+      report.compositionReview = measuredComposition;
+      if (!measuredComposition.summary.providerBlocker) {
+        report.compositionReplay = inspect();
+        assert.equal(report.compositionReplay.summary.providerCalls, 0);
+      }
+      const measuredObjects = measuredComposition.scenes.flatMap(s => s.candidates).filter(c => c.status === 'MEASURED').flatMap(c => c.objects);
+      report.instructionalStill.validated = !report.instructionalStill.preparedOnly
+        && measuredObjects.length === proofScene.visualRequirement.requiredObjects.length
+        && measuredObjects.every(o => o.present && o.complete && o.stateCompatible && o.purposeSatisfied && o.phoneReadable && o.confidence >= 0.9);
+    }
+  }
+  report.fullyIllustratedScenes = Number(report.instructionalStill?.validated === true);
   const thumbnails = [...new Map(first.scenes.flatMap((s) => s.candidates).map((c) => [c.asset_id, c])).values()];
   const tiles = [];
   report.thumbnailFailures = [];
@@ -210,4 +299,7 @@ try {
   }
   write('proof.json', report);
   console.log(JSON.stringify({ output, ...report, unavailable: unavailable.length, cockpitImageReferences: imageChecks.length }));
+} catch (error) {
+  write('proof-failure.json', { ...report, status: 'FAIL', error: { code: error.code || null, message: error.message } });
+  throw error;
 } finally { server.closeAllConnections(); await new Promise((resolve) => server.close(resolve)); }

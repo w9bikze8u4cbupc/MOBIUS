@@ -3,6 +3,60 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const sharp = require('sharp');
+const { spawnSync } = require('node:child_process');
+const { buildTeachingScene } = require('../storyboard/tutorial_presentation.cjs');
+const { teachingSceneLayout, containedDisplayBounds } = require('./presentationDesignSystem.cjs');
+
+function canonicalTeachingPresentation(scene, index = 0, asset = {}) {
+  const result = buildTeachingScene({ id: scene.id, index, section: scene.section,
+    narration: scene.narration, onScreenText: scene.on_screen_text, sourcePages: scene.source_pages || [],
+    background: { image: sourceFile(asset) }, visualKind: scene.renderVisual?.kind || 'automatic-component',
+    durationSec: 1, preserveLineBreaks: true });
+  result.durationSec = 1;
+  result.layout.visualAspectRatio = Number(asset.width) / Number(asset.height) || 1;
+  return result;
+}
+
+// A prepared still is a review artifact, never a new accepted binding. A complete
+// mono-object candidate can be shown for detail/layout inspection while its
+// source-quality gate remains blocked. Multi-object/state transitions must use
+// their existing materialized composition, not an isolated object substituted here.
+async function materializeInstructionalStill({ state, sceneId, outputDir, allowReviewCandidate = false } = {}) {
+  const scene = state.scenes.find(s => s.id === sceneId);
+  if (!scene) throw new Error('Unknown canonical scene');
+  const requirement = scene.visualRequirement || {};
+  const selected = state.sourceSelections.find(s => s.ruleAtomId === scene.atomId);
+  let asset = state.assets.find(a => a.id === scene.renderVisual?.assetId);
+  let preparedOnly = false;
+  if (!asset && allowReviewCandidate && requirement.requiredObjects?.length === 1
+    && !requirement.transitionRequired && !requirement.setupPlacementRequired && !requirement.requiredRelationship
+    && !requirement.requiredState && !requirement.requiredQuantities?.length) {
+    const { objectEvidenceFor } = require('./sourceAssetResolver.cjs');
+    asset = (selected?.ranked || []).map(e => e.candidate).find(a => {
+      const proof = objectEvidenceFor(a, requirement.requiredObjects[0], scene.id);
+      return proof?.visualRole === 'COMPONENT' && proof.present === true && proof.complete === true
+        && proof.isolated === true && proof.stateCompatible === true && proof.confidence >= 0.9;
+    });
+    preparedOnly = Boolean(asset);
+  }
+  if (!asset) return { sceneId, produced: false, validated: false, reason: 'No safe complete object/composition available; requirements retained.' };
+  const presentation = canonicalTeachingPresentation(scene, state.scenes.indexOf(scene), asset);
+  const layout = teachingSceneLayout(presentation);
+  const outputPath = path.resolve(outputDir, `${scene.id}.png`);
+  const configPath = path.resolve(outputDir, `${scene.id}.render-config.json`);
+  await fs.promises.mkdir(path.resolve(outputDir), { recursive: true });
+  const config = { projectId: state.projectId, video: { resolution: { width: 1920, height: 1080 }, fps: 30 }, scenes: [presentation] };
+  await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2));
+  const rendered = spawnSync(process.execPath, [path.resolve(__dirname, '../../scripts/render-storyboard-ffmpeg.mjs'), '--config', configPath, '--out', outputPath, '--still'], { encoding: 'utf8', windowsHide: true });
+  await fs.promises.writeFile(path.resolve(outputDir, `${scene.id}.render.log`), `${rendered.stdout || ''}${rendered.stderr || ''}`);
+  if (rendered.status !== 0) throw new Error('Normal storyboard still rendering failed; see render log.');
+  const phonePath = path.resolve(outputDir, `${scene.id}.phone.png`);
+  await sharp(outputPath).resize(390, 219, { fit: 'contain' }).png().toFile(phonePath);
+  return { sceneId, produced: true, validated: false, preparedOnly, outputPath, phonePath, configPath,
+    sourceAssetId: asset.id, sourcePath: sourceFile(asset), sourceRefs: asset.sourceRefs,
+    bindingStatus: selected?.status, requirement, actualDisplayBounds: containedDisplayBounds(asset, { width: layout.imageWidth, height: layout.imageHeight }),
+    reason: 'Normal renderer output requires physical/composition review; production state and decisions unchanged.' };
+}
 
 const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v1';
 
@@ -122,4 +176,4 @@ async function materializeVisualPlanFrames({ state, outputDir, width = 1400, hei
   return { contract: VISUAL_PLAN_MATERIALIZER_CONTRACT, outputDir: absoluteOutput, records, scenes };
 }
 
-module.exports = { VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames };
+module.exports = { VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, canonicalTeachingPresentation, materializeInstructionalStill };

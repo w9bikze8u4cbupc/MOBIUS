@@ -23,10 +23,12 @@ image_data_url = _probe_module.image_data_url
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
-def schema():
+def schema(role=None):
     props = {"requiredObject": {"type": "string"}, "present": {"type": "boolean"},
         "confidence": {"type": "number"}, "complete": {"type": "boolean"}, "isolated": {"type": "boolean"},
         "stateCompatible": {"type": "boolean"}, "bbox": {"type": "array", "items": {"type": "number"}}, "reason": {"type": "string"}}
+    if role == 'COMPOSITION':
+        props.update({k: {'type': 'boolean'} for k in ('purposeSatisfied', 'phoneReadable')})
     return {"type": "json_schema", "json_schema": {"name": "object_pixel_evidence", "strict": True, "schema": {
         "type": "object", "properties": {"objects": {"type": "array", "items": {"type": "object",
         "properties": props, "required": list(props), "additionalProperties": False}}},
@@ -113,7 +115,7 @@ def reserve_call(identity, provider_failure=None):
         group = os.environ['MOBIUS_VISUAL_BUDGET_GROUP']
         rows = data['calls']
         if provider_failure:
-            data['providerBlocker'] = provider_failure
+            data['providerBlocker'] = data.get('providerBlocker') or provider_failure
         elif data.get('providerBlocker'):
             return False
         if not provider_failure and (len(rows) >= data['maxTotal'] or sum(r['group'] == group for r in rows) >= data['maxPerGroup']):
@@ -195,10 +197,21 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
     cache_dir.mkdir(parents=True, exist_ok=True)
     source_identities = [(a.get('asset_id'), hashlib.sha256(Path(a['path']).read_bytes()).hexdigest())
         for a in qa.get('assets', []) if a.get('path') and Path(a['path']).is_file()]
+    source_identities += [('phone:' + a.get('asset_id', ''), hashlib.sha256(Path(a['asset_metadata']['phonePath']).read_bytes()).hexdigest())
+        for a in qa.get('assets', []) if (a.get('asset_metadata') or {}).get('phonePath')]
     run_cache = cache_dir / ('run-' + digest([SEARCH_CONTRACT, CONTRACT, MODEL, script, source_identities,
         [a.get('asset_metadata') for a in qa.get('assets', [])], os.getenv('MOBIUS_VISUAL_SCENE_ID'), max_calls, client is not None, recovery_epoch()]) + '.json')
     if run_cache.exists():
         previous = json.loads(run_cache.read_text(encoding='utf-8'))
+        # Older composition executions recorded a schema failure but did not
+        # propagate the suspension. Preserve that receipt; do not issue it again.
+        invalid_composition = next((c for s in previous['scenes'] for c in s['candidates']
+            if c.get('evidencePacket', {}).get('visualRole') == 'COMPOSITION'
+            and c.get('status') != 'MEASURED' and str(c.get('reason', '')).startswith('ValueError;')), None)
+        if invalid_composition and previous['summary'].get('providerCalls', 0) > 0:
+            blocker = 'VISUAL_RESPONSE_INVALID: archived composition validation failed; no automatic retry'
+            reserve_call({}, provider_failure=blocker)
+            previous = {**previous, 'summary': {**previous['summary'], 'providerBlocker': blocker}}
         return {**previous, 'summary': {**previous['summary'], 'providerCalls': 0,
             'cacheHits': sum(c['status'] == 'MEASURED' for s in previous['scenes'] for c in s['candidates']), 'runCacheReused': True}}
     calls = hits = 0
@@ -216,8 +229,12 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
             if asset['asset_id'] in visited:
                 continue
             visited.add(asset['asset_id'])
-            role = 'LOCALIZATION' if (asset.get('asset_metadata') or {}).get('visual_kind') == 'source-page-localization' else 'COMPONENT'
+            kind = (asset.get('asset_metadata') or {}).get('visual_kind')
+            role = 'COMPOSITION' if kind == 'instructional-composition' else ('LOCALIZATION' if kind == 'source-page-localization' else 'COMPONENT')
             scoped_packet = {**packet, 'visualRole': role, 'searchContract': SEARCH_CONTRACT}
+            if role == 'COMPOSITION':
+                phone = (asset.get('asset_metadata') or {}).get('phonePath')
+                scoped_packet['phoneSha256'] = hashlib.sha256(Path(phone).read_bytes()).hexdigest() if phone else None
             packet_hash = digest(scoped_packet)
             pixels = Path(asset["path"]).read_bytes()
             image_hash = hashlib.sha256(pixels).hexdigest()
@@ -225,6 +242,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
             cache = cache_dir / (digest(identity) + ".json")
             result = {"asset_id": asset["asset_id"], "path": asset["path"], "status": "UNKNOWN",
                 "objects": [], "evidencePacket": scoped_packet}
+            provider_attempted = False
             try:
                 if cache.exists():
                     stored = json.loads(cache.read_text(encoding="utf-8"))
@@ -248,6 +266,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                         results.append(result)
                         continue
                     calls += 1
+                    provider_attempted = True
                     prompt = ("Inspect ONLY these pixels and supplied official context. Caller terms are hypotheses, not proof. "
                         "Return exactly one verdict per requiredObject. Confidence 0..1; unknown means false. "
                         "complete requires every physical boundary/corner; isolated requires unrelated content not dominating. "
@@ -257,14 +276,37 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                         "stateCompatible concerns intrinsic face/orientation only, NOT scene quantity, ownership, transitions or positions. "
                         "Scene relationships require separate final composition validation. "
                         "Do not invent game facts. Explain visible evidence and missing evidence.\n" + json.dumps(scoped_packet, ensure_ascii=False))
-                    response = client.chat.completions.create(model=MODEL, max_completion_tokens=1800, response_format=schema(),
-                        messages=[{"role": "user", "content": [{"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": probe, "detail": "high"}}]}])
+                    content = [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": probe, "detail": "high"}}]
+                    if role == 'COMPOSITION':
+                        content[0]['text'] = ('Inspect this FINAL instructional composition and its phone-scale preview against the supplied requirements. '
+                            'No new game facts. Evaluate every required object, full boundaries, quantity, placement and stated relations. '
+                            'stateCompatible here concerns the WHOLE SCENE, including requested transitions, not only object orientation. '
+                            'purposeSatisfied must be false if the visual does not teach the supplied purpose. '
+                            'phoneReadable means the referent and required instructional text/symbols remain identifiable at phone scale; '
+                            'do not require reading unrelated decorative/map text. Explain all missing evidence. '
+                            'Return exact requested object IDs, bbox in the FINAL full-size image, confidence 0..1, unknown=false.\n'
+                            + json.dumps(scoped_packet, ensure_ascii=False))
+                        phone = (asset.get('asset_metadata') or {}).get('phonePath')
+                        if phone:
+                            content.append({'type': 'image_url', 'image_url': {'url': image_data_url(Path(phone)), 'detail': 'high'}})
+                    response = client.chat.completions.create(model=MODEL, max_completion_tokens=1800, response_format=schema(role),
+                        messages=[{"role": "user", "content": content}])
+                    # Keep the actual completion before schema validation. Never
+                    # persist a client, headers, credentials or raw API exceptions.
+                    receipt = cache.with_suffix('.response.json')
+                    receipt_tmp = receipt.with_suffix('.tmp')
+                    receipt_tmp.write_text(json.dumps({'identity': identity, 'content': response.choices[0].message.content,
+                        'finishReason': getattr(response.choices[0], 'finish_reason', None),
+                        'usage': response.usage.model_dump() if response.usage else None}, ensure_ascii=False), encoding='utf-8')
+                    receipt_tmp.replace(receipt)
+                    result['responseReceipt'] = str(receipt)
                     objects = validate_rows(json.loads(response.choices[0].message.content)["objects"], packet)
                     tmp = cache.with_suffix(".tmp")
                     tmp.write_text(json.dumps({"identity": identity, "objects": objects,
                         "usage": response.usage.model_dump() if response.usage else None}, ensure_ascii=False), encoding="utf-8")
                     tmp.replace(cache)
+                if role == 'COMPOSITION' and any(type(r.get(k)) is not bool for r in objects for k in ('purposeSatisfied', 'phoneReadable')):
+                    raise ValueError('Incomplete composition verdict')
                 result.update(status="MEASURED", objects=[{**r, "contract": CONTRACT, "assetId": asset["asset_id"],
                     "imageSha256": image_hash, "evidencePacketHash": packet_hash, "model": MODEL,
                     "method": "provider-pixel-analysis", "visualRole": role, "evidenceRequirement": packet['requirement']} for r in objects])
@@ -294,7 +336,10 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                                 'asset_metadata': {'source_page': crop['source_page'], 'dimensions': crop['dimensions']}})
             except Exception as exc:
                 result["reason"] = f"{type(exc).__name__}; HTTP {getattr(exc, 'status_code', 'unavailable')}"
-                if not isinstance(exc, (ValueError, KeyError)):
+                safe_issues = {'exact requested referents required', 'invalid confidence', 'incomplete verdict', 'invalid bounds', 'Incomplete composition verdict'}
+                if str(exc) in safe_issues:
+                    result['validationIssue'] = str(exc)
+                if provider_attempted or not isinstance(exc, (ValueError, KeyError)):
                     blocker = result["reason"]
                     # Stop across resumed directories too; no automatic retry after a provider error.
                     try:

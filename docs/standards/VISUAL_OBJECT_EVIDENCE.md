@@ -1,5 +1,56 @@
 # Visual object evidence — bounded recovery, not a publishability certificate
 
+## Stable state and the first actual instructional still (limited / PARTIAL)
+
+The resumed full-project persistence proof now retains the enriched evidence
+under the unchanged transport limit; see `docs/PROJECT_STATE_PERSISTENCE.md`.
+Native extraction authority is recovered from HEPHAESTUS's successful extraction
+record plus the matching PDF SHA and actual image SHA, never its filename. Native
+extraction method separator variants normalize to the same authority. A measured
+complete/isolated native object may naturally meet its raster edge; absent native
+provenance, measured incompleteness or wrong identity still rejects it.
+
+The canonical compiler and FFmpeg renderer share the teaching layout calculation.
+Detail QA measures the contained image rectangle with the renderer's 2px rounding
+reserve, not the whole panel. Native dimensions remain authoritative: upscaled
+derivatives do not create source detail. The 0.8 detail floor is unchanged.
+
+`materializeInstructionalStill` uses the existing teaching-scene factory and the
+normal storyboard FFmpeg filter graph (`--still`, exactly one scene, PNG only).
+It emits no video/audio and grants no validation by rendering. Complete but
+unaccepted mono-object candidates can be prepared explicitly for review; they
+cannot flow into accepted production state. A missing transition cannot be
+substituted with a standalone board. The proof's binding and validated-composition
+counts are separate. Existing rule text and requirements remain unchanged.
+
+On the fixed Terraforming scene, the normal resolver now selects the native board:
+763x645 real source pixels, drawn in 814x688 pixels (0.9373 source/display ratio).
+The normal renderer produced the complete teaching scene and a 390px phone view.
+Physical inspection identifies the whole board without cutoff; small map labels
+are not phone-readable, and the existing teaching text remains English. This is
+an identification illustration, not a demonstration of all board mechanics.
+
+The single remaining Terraforming visual call examined that final composition
+and phone image. Its response was rejected by the object schema (`ValueError`);
+the old response path did not retain the pre-validation content, so the exact
+offending field cannot be established retrospectively. **Automatic composition
+validation remains unproven.** No retry is authorized. New response receipts now
+precede validation; malformed completion output suspends calls and stays auditable.
+The bounded matcher retains its model, ledger, per-game caps and zero-retry policy.
+Cached historical composition failures are superseded only as execution state,
+never counted as new requests or successful measurements.
+
+Cowboy still lacks a complete source-bound board and a source-grounded fuel-state
+transition composition. Existing crop/native-fragment rejections remain intact;
+no fragment is accepted and no rule/state is invented. Total calls are 14/16:
+Cowboy 6/8, Terraforming 8/8. Two Cowboy calls remain unspent; further calls are
+suspended following the composition-check failure. Replay uses zero calls.
+RF-003/005/011/014 persistence evidence is strengthened; RF-016 and autonomous
+pedagogical visual recovery remain PARTIAL, not tutorial publishability.
+
+Real still: `out/first-pedagogical-visual-proof/terraforming/instructional-stills/knowledge-rule-903e605ffa070b8279d7.png`.
+The proof reports and prior attempts are retained in the same evidence tree.
+
 ## Canonical path
 
 `sourcePageVisuals` synchronizes already stored API page pixels by canonical project/PDF identity. It verifies every page before recording readiness. `prepare-source-visuals` combines source candidates and source-grounded terms; `qualify-source-visuals` performs conservative candidate screening; `match-scene-visuals` produces bounded object-specific pixel measurements; `sourceVisualSelection` carries those measurements into `sourceAssetResolver` and `canonicalProductionCompiler`. The existing project persistence and Cockpit queue own the result.

@@ -10,6 +10,22 @@ function sha256File(filePath) {
   try { return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex'); } catch { return null; }
 }
 
+// Recover extraction authority from the durable extractor record, not from an
+// asset's name/category. Identity/completeness still require separate pixels QA.
+export function nativeManifestProvenance(manifest, asset, file, verifiedPdfSha) {
+  const sourceSha = asset.sourcePdfSha256 || asset.provenance?.sourcePdfSha256 || manifest.source?.sha256;
+  const nativeRun = manifest.contract === HEPHAESTUS_MANIFEST_CONTRACT
+    || (manifest.success === true && manifest.stats?.native_images > 0);
+  if (!nativeRun || asset.native !== true || !verifiedPdfSha || sourceSha !== verifiedPdfSha
+    || !Number.isInteger(asset.page_index) || asset.page_index < 0
+    || !(asset.original_dimensions?.width > 0 && asset.original_dimensions?.height > 0)) return null;
+  const assetSha256 = sha256File(file);
+  if (!assetSha256) return null;
+  return { extractionMethod: 'pymupdf-native-raster', sourcePdfSha256: sourceSha,
+    sourcePage: asset.page_index + 1, assetSha256, nativeImage: true,
+    originalDimensions: asset.original_dimensions, xref: asset.xref ?? asset.provenance?.xref ?? null };
+}
+
 function resolveAssetPath(asset, manifestPath) {
   const dir = path.dirname(manifestPath);
   const candidates = [asset.file_path, asset.filePath, asset.fileKey, asset.renderPath]

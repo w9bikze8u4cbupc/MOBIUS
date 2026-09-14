@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'node:crypto';
+import { nativeManifestProvenance } from './hephaestusEvidence.js';
 import { curateHephaestusAssets } from './hephaestusCuration.js';
 import editorialStandard from './editorialStandard.cjs';
 
@@ -192,6 +194,9 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
     return { manifestPath: manifestPath || null, assets: [], warnings: ['asset manifest unavailable'] };
   }
   const payload = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const pdfPath = payload.pdf_path || payload.source?.canonicalPath || payload.source?.path;
+  const verifiedPdfSha = pdfPath && fs.existsSync(pdfPath)
+    ? crypto.createHash('sha256').update(fs.readFileSync(pdfPath)).digest('hex') : null;
   const qualityReportPath = options.qualityReportPath;
   const semanticReportPath = options.semanticReportPath;
   const hephaestusEvidencePath = options.hephaestusEvidencePath;
@@ -241,12 +246,16 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
       const componentEvidence = evidenceByAssetId.get(asset.id) || null;
       const bindings = bindingsByAssetId.get(asset.id) || [];
       const sourcePage = componentEvidence?.pageNumber || asset.source_page || (Number.isInteger(Number(asset.page_index)) ? Number(asset.page_index) + 1 : null);
+      const renderPath = resolveAssetPath(asset, manifestPath, componentEvidence);
+      const nativeProvenance = nativeManifestProvenance(payload, asset, renderPath, verifiedPdfSha);
       return {
       ...asset,
       // The combined manifest is stored under production/source-visual-review,
       // while the native pixels remain under HEPHAESTUS.  Evidence owns that
       // canonical absolute path, so resolve it before relative manifest paths.
-      renderPath: resolveAssetPath(asset, manifestPath, componentEvidence),
+      renderPath,
+      extractionMethod: asset.extractionMethod || nativeProvenance?.extractionMethod,
+      nativeSourceEvidence: nativeProvenance,
       source_page: sourcePage,
       nativeWidthPx: asset.original_dimensions?.width || componentEvidence?.nativeWidthPx || asset.dimensions?.width || null,
       nativeHeightPx: asset.original_dimensions?.height || componentEvidence?.nativeHeightPx || asset.dimensions?.height || null,
@@ -262,7 +271,7 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
       componentEvidence,
       componentBindings: bindings,
       provenance: {
-        ...(asset.provenance || {}), ...(componentEvidence?.provenance || {}),
+        ...(asset.provenance || {}), ...(componentEvidence?.provenance || {}), ...(nativeProvenance || {}),
         sourcePage,
         componentBindings: bindings.map((binding) => ({ componentId: binding.componentId, confidence: binding.confidence, reviewState: binding.reviewState })),
       },

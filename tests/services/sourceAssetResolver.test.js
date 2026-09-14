@@ -9,6 +9,36 @@ const { sourceAuthorityRank } = require('../../src/services/sourceDetailLineage.
 const existingFile = path.resolve(__dirname, '../../package.json');
 const proof = require('../fixtures/objectEvidence.cjs');
 
+test('native authority separators are normalized without filename-derived authority', () => {
+  const { normalizeCandidate } = require('../../src/services/sourceAssetResolver.cjs');
+  expect(normalizeCandidate({ extractionMethod: 'pymupdf-native-raster' }).sourceAuthority).toBe('NATIVE_EMBEDDED');
+  expect(normalizeCandidate({ filePath: 'pymupdf-native-raster.png' }).sourceAuthority).toBe('UNKNOWN');
+});
+
+test('measured complete native edge is not a cutoff; negative pixels and missing provenance remain rejected', () => {
+  const verdict = proof('native', existingFile, 'board', { contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT', bbox: [0, 0, 1, 1] });
+  const candidate = asset('native', { semanticObjects: ['board'], objectVisualEvidence: [verdict], sourcePdfSha256: 'source',
+    nativeSourceEvidence: { nativeImage: true, assetSha256: verdict.imageSha256, sourcePdfSha256: 'source' } });
+  const rank = c => rankSourceAssetCandidates({ requirement: { requiredObjects: ['board'] }, candidates: [c] })[0];
+  expect(rank(candidate).valid).toBe(true);
+  expect(rank({ ...candidate, nativeSourceEvidence: null }).hardViolations).toContain('object-edge-unverified:board');
+  expect(rank({ ...candidate, objectVisualEvidence: [{ ...verdict, complete: false }] }).valid).toBe(false);
+  expect(rank({ ...candidate, objectVisualEvidence: [{ ...verdict, present: false }] }).valid).toBe(false);
+  expect(rank({ ...candidate, width: 150, height: 100 }).hardViolations).toContain('source-detail-insufficient');
+});
+
+test('source detail uses the normal contained drawing, not the entire panel', () => {
+  const { canonicalTeachingPresentation } = require('../../src/services/visualPlanMaterializer.cjs');
+  const { teachingSceneLayout, containedDisplayBounds } = require('../../src/services/presentationDesignSystem.cjs');
+  const c = asset('board', { width: 763, height: 645 });
+  const scene = canonicalTeachingPresentation({ id: 'scene', section: 'components', on_screen_text: 'One board', source_pages: [4] }, 0, c);
+  const layout = teachingSceneLayout(scene);
+  const bounds = containedDisplayBounds(c, { width: layout.imageWidth, height: layout.imageHeight });
+  const r = rankSourceAssetCandidates({ candidates: [c], displayBounds: { presentationScene: scene, width: 1920, height: 1080 } })[0];
+  expect(r.actualDisplayBounds).toEqual(bounds);
+  expect(r.trueSourcePixelsPerDisplayPixel).toBeCloseTo(Math.min(763 / bounds.width, 645 / bounds.height), 4);
+});
+
 function asset(id, overrides = {}) {
   return {
     id,

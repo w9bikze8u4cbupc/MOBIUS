@@ -6,6 +6,17 @@ let loadSourceVisualCatalog;
 let selectSourceVisual;
 let inferVisualTypes;
 
+test('native source authority requires real matching PDF/extraction provenance, not a label', async () => {
+  const { nativeManifestProvenance } = await import('../../src/services/hephaestusEvidence.js');
+  const file = path.resolve(__dirname, '../../package.json');
+  const manifest = { success: true, stats: { native_images: 1 } };
+  const native = { native: true, sourcePdfSha256: 'verified', page_index: 3, original_dimensions: { width: 763, height: 645 } };
+  expect(nativeManifestProvenance(manifest, native, file, 'verified')).toMatchObject({ sourcePage: 4, nativeImage: true, extractionMethod: 'pymupdf-native-raster' });
+  expect(nativeManifestProvenance(manifest, native, file, 'wrong')).toBeNull();
+  expect(nativeManifestProvenance(manifest, { ...native, native: false, label: 'native PDF board' }, file, 'verified')).toBeNull();
+  expect(nativeManifestProvenance({}, native, file, 'verified')).toBeNull();
+});
+
 beforeAll(async () => {
   const mod = await import('../../src/services/sourceVisualSelection.js');
   loadSourceVisualCatalog = mod.loadSourceVisualCatalog;

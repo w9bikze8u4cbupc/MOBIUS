@@ -261,7 +261,30 @@ async function inspectPresentationBoxArt(filePath, { minimumWidth = 720, minimum
   };
 }
 
+// One layout calculation for renderer, source-detail QA and still review.
+function teachingSceneLayout(scene, width = 1920, height = 1080) {
+  const layout = scene.layout || {};
+  const find = (type, position) => (scene.overlays || []).find(o => o.type === type && (!position || o.position === position))?.text || '';
+  return solvePresentationLayout({ width, height,
+    sceneType: layout.metadataCard ? 'metadata' : (layout.presentationLayout?.contentType === 'list' ? 'list' : 'teaching'),
+    title: find('title', 'metadata-title'), heading: find('heading', 'panel-heading'), body: find('body', 'panel-body'),
+    tags: find('tags', 'panel-tags'), reference: find('reference'),
+    itemCount: Math.max(1, String(find('body', 'panel-body')).split(/\r?\n/).filter(Boolean).length),
+    preferredImageProminence: Number(layout.visualWidthRatio) || 0.56,
+    imageAspect: Number(layout.visualAspectRatio) || 1,
+    preferredFontPx: layout.metadataCard ? 50 : null, minimumFontPx: layout.metadataCard ? 44 : null,
+    textSide: layout.textSide === 'right' ? 'right' : 'left', imageSide: layout.imageSide === 'left' ? 'left' : 'right' });
+}
+
+function containedDisplayBounds(source, panel) {
+  const ratio = Math.min(Math.max(1, panel.width - 2) / source.width, Math.max(1, panel.height - 2) / source.height);
+  // Match the renderer's contain filter, including its 2px rounding reserve.
+  return { width: Math.ceil(source.width * ratio), height: Math.ceil(source.height * ratio) };
+}
+
 module.exports = {
+  teachingSceneLayout,
+  containedDisplayBounds,
   PRESENTATION_TOKENS,
   resolveProjectPath,
   resolvePresentationLayout,
