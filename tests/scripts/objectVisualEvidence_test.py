@@ -165,6 +165,17 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(len(json.loads(ledger.read_text())['calls']), 3)
             self.assertFalse(ledger.with_suffix('.lock').exists())
 
+    def test_ledger_without_optional_group_uses_deterministic_default_bucket(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = Path(directory) / 'budget.json'
+            ledger.write_text(json.dumps({'maxTotal': 2, 'maxPerGroup': 1, 'calls': []}))
+            with patch.dict(matcher.os.environ, {'MOBIUS_VISUAL_BUDGET_LEDGER': str(ledger)}, clear=False):
+                matcher.os.environ.pop('MOBIUS_VISUAL_BUDGET_GROUP', None)
+                self.assertTrue(matcher.reserve_call({'image': 'one'}))
+                self.assertFalse(matcher.reserve_call({'image': 'two'}))
+            rows = json.loads(ledger.read_text())['calls']
+            self.assertEqual(rows, [{'group': 'default', 'identity': {'image': 'one'}, 'ordinal': 1}])
+
     @patch.object(matcher, 'MODEL', 'fixture-model')
     def test_verified_unreserved_receipt_is_accounted_once_without_erasing_an_overage(self):
         with tempfile.TemporaryDirectory() as directory:

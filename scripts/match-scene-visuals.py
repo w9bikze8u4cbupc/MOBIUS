@@ -13,7 +13,11 @@ from openai import OpenAI
 
 CONTRACT = "mobius-object-visual-evidence-v2"
 SEARCH_CONTRACT = "mobius-referent-localization-v1"
-SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v3-reuse-priority'
+# v4 fixes the durable-budget boundary: a ledger without an explicitly named
+# substage no longer leaks a KeyError into a faux provider-unavailable result.
+# The version is part of the execution cache identity so that a prior local
+# bookkeeping failure is not replayed as if pixels had been inspected.
+SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v4-budget-group-contract'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v2'
 MODEL = os.getenv("MOBIUS_VISUAL_MATCH_MODEL") or os.getenv("OPENAI_MODEL")
@@ -341,7 +345,13 @@ def reserve_call(identity, provider_failure=None):
     handle = lock.open('x', encoding='utf-8')
     try:
         data = json.loads(ledger.read_text(encoding='utf-8'))
-        group = os.environ['MOBIUS_VISUAL_BUDGET_GROUP']
+        # A durable budget remains useful outside a Director-defined mission
+        # ledger.  Use one deterministic default bucket when no optional
+        # substage group is configured; never turn that configuration omission
+        # into a swallowed KeyError or an invented provider failure.
+        group = str(os.getenv('MOBIUS_VISUAL_BUDGET_GROUP') or 'default').strip() or 'default'
+        if not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', group):
+            raise ValueError('invalid visual budget group')
         rows = data['calls']
         if provider_failure:
             data['providerBlocker'] = data.get('providerBlocker') or provider_failure
