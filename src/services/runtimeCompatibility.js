@@ -14,6 +14,7 @@ export const PROJECT_CONTEXT_PERSISTENCE_CONTRACT = 'mobius-project-context-pers
 export const RENDERER_QA_COMPATIBILITY_CONTRACT = 'mobius-normal-production-qa-v1';
 
 export const CANONICAL_RUNTIME_CONTRACTS = Object.freeze({
+  visualEvidenceReferences:'mobius-project-visual-evidence-references-v1',
   sourceDescriptor: PROJECT_SOURCE_DESCRIPTOR_CONTRACT,
   aiProviderReadiness: AI_PROVIDER_READINESS_CONTRACT,
   hephaestusMaterialization: HEPHAESTUS_MANIFEST_CONTRACT,

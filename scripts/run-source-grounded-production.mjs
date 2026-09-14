@@ -41,6 +41,7 @@ import {
   evaluateProfessionalReleaseGate,
 } from '../src/services/editorialStandard.cjs';
 import { analyzeProductionVideo, buildExternalReviewSummary } from '../src/services/twelveLabsVideoReview.js';
+import {buildTutorialReviewContext} from './build-twelvelabs-context-from-tutorial.mjs';
 import { resolveCanonicalGameIdentity, resolveCanonicalGameMetadata, sanitizeNarrationGameIdentity, titleFromRulebook } from '../src/services/gameIdentity.cjs';
 
 const { DEFAULT_BRAND, buildBrandIntro, buildBrandOutro } = presentation;
@@ -1025,8 +1026,11 @@ export async function runProduction(options = {}) {
   if (String(process.env.MOBIUS_EXTERNAL_VIDEO_QA || '').trim().toLowerCase() === 'twelvelabs') {
     let externalReview;
     try {
+      const context=buildTutorialReviewContext({config,videoPath:outputPath});
+      jsonFile(join(normalized.productionDir,'twelvelabs-context.json'),context);
       externalReview = await analyzeProductionVideo({
         videoPath: outputPath,
+        context,
         cachePath: join(root, 'data', 'twelvelabs', 'editorial-review-cache.json'),
       });
     } catch (error) {

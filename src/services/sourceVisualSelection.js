@@ -4,6 +4,70 @@ import crypto from 'node:crypto';
 import { nativeManifestProvenance } from './hephaestusEvidence.js';
 import { curateHephaestusAssets } from './hephaestusCuration.js';
 import editorialStandard from './editorialStandard.cjs';
+import {getAiConfig,getGenerationOptions} from '../config/aiConfig.js';
+import {createAiProviderRun} from './aiProviderExecutor.js';
+import {reserveGenerationBudget,recordGenerationFailure} from './aiGenerationBudget.js';
+
+export function locateInterleavedSourceQuote(text,quote){
+  // PDF reading order may interleave a card's icon values/labels with prose.
+  // Locate all supplied words in order, but RETURN the exact source span with
+  // every intervening token intact. Never remove costs/numbers from evidence.
+  const tokens=value=>[...value.matchAll(/[\p{L}\p{N}]+/gu)].map(m=>({word:m[0].toLowerCase(),start:m.index,end:m.index+m[0].length}));
+  const source=tokens(text),wanted=tokens(quote);if(wanted.length<5)return null;
+  const matches=[];
+  for(let start=0;start<source.length;start++){
+    if(source[start].word!==wanted[0].word)continue;
+    let index=start,matched=0;
+    while(index<source.length&&index-start<wanted.length+12&&matched<wanted.length){if(source[index].word===wanted[matched].word)matched++;index++;}
+    if(matched===wanted.length)matches.push(text.slice(source[start].start,source[index-1].end));
+  }
+  return matches.length===1?matches[0]:null;
+}
+
+// Extraction fragments are retrieval hints, not physical component names.
+// Keep every original ID/requirement; normalize only its source-grounded search
+// terminology. This grants no pixel identity, binding, or scene acceptance.
+export async function normalizeSourceReferentTerms({model,cachePath,env=process.env,complete}={}){
+  const ai=getAiConfig(env);
+  const packet={contract:'mobius-source-referent-terminology-v1',sourceSha256:model.sourcePdfSha256,
+    components:model.components.map(c=>({id:c.id,name:c.name,category:c.category})),
+    evidence:model.documentMap.pages.filter(p=>p.normalizedText).map(p=>({page:p.humanPageNumber,text:p.normalizedText,hash:p.textHash}))};
+  const hash=crypto.createHash('sha256').update(JSON.stringify({packet,provider:ai.provider,model:ai.model})).digest('hex');
+  const write=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file+'.tmp',JSON.stringify(value,null,2));fs.renameSync(file+'.tmp',file);};
+  const validate=result=>{
+    if(!Array.isArray(result?.referents)||result.referents.length!==packet.components.length)throw Error('REFERENT_COVERAGE_INVALID');
+    const seen=new Set();
+    for(const ref of result.referents){
+      if(!packet.components.some(c=>c.id===ref.id)||seen.has(ref.id))throw Error('REFERENT_ID_INVALID');seen.add(ref.id);
+      if(!['GROUNDED','UNKNOWN'].includes(ref.status))throw Error('REFERENT_STATUS_INVALID');
+      if(ref.status==='GROUNDED'&&(!ref.canonicalTerm?.trim()||!ref.evidence?.length))throw Error('REFERENT_EVIDENCE_MISSING');
+      for(const e of ref.evidence||[]){const page=packet.evidence.find(p=>p.page===e.page);
+        if(!page||!e.quote?.trim())throw Error('REFERENT_EVIDENCE_INVALID');
+        if(!page.text.includes(e.quote)){
+          const exact=locateInterleavedSourceQuote(page.text,e.quote);
+          if(!exact)throw Error('REFERENT_EVIDENCE_INVALID');
+          e.providerQuote=e.quote;e.quote=exact;e.sourceProjection='unique-ordered-source-span-with-interleaved-tokens-preserved';
+        }}
+    }
+    return result;
+  };
+  if(fs.existsSync(cachePath)){const prior=JSON.parse(fs.readFileSync(cachePath));if(prior.inputHash===hash){validate(prior.result);return {...prior,reused:true,providerCalls:0};}}
+  const receiptPath=cachePath+'.'+hash+'.response.json';
+  if(fs.existsSync(receiptPath)){
+    const raw=JSON.parse(fs.readFileSync(receiptPath));const result=validate(JSON.parse(raw.content));
+    const recovered={contract:packet.contract,inputHash:hash,result,usage:raw.usage,providerCalls:0,reused:true,validationRecovery:'exact-source-span-reconciliation; original response retained'};
+    write(cachePath,recovered);return recovered;
+  }
+  const fields={id:{type:'string'},canonicalTerm:{type:'string'},frenchTerm:{type:'string'},category:{type:'string'},status:{type:'string',enum:['GROUNDED','UNKNOWN']},reason:{type:'string'},evidence:{type:'array',items:{type:'object',properties:{page:{type:'integer'},quote:{type:'string'}},required:['page','quote'],additionalProperties:false}}};
+  const schema={type:'json_schema',json_schema:{name:'source_referent_terms',strict:true,schema:{type:'object',properties:{referents:{type:'array',items:{type:'object',properties:fields,required:Object.keys(fields),additionalProperties:false}}},required:['referents'],additionalProperties:false}}};
+  const ledger=reserveGenerationBudget(env,{inputHash:hash,contract:packet.contract,model:ai.model});
+  try{
+    const run=complete?null:createAiProviderRun({env,maxRetries:0,allowedProviders:[ai.provider==='ai-integrations'?'openai':ai.provider]});
+    const response=await(complete||run.complete)({messages:[{role:'user',content:'Normalize each extracted referent into the actual physical object or symbol described by the supplied official text. Keep EVERY original ID. A sentence fragment or action heading is not a separate physical object; name its underlying physical referent only when the text proves it. Distinguish card family, pile/hand/location STATE from intrinsic card identity. Same underlying object may share canonicalTerm; never merge distinct card families by guess. A virtual resource/symbol is not necessarily a physical token. Return UNKNOWN where no exact identity is grounded. Include short EXACT source quotations (copy characters, do not fix spelling) and one-based PDF pages. No image choice, crop coordinates, rules changes or acceptance. Terms remain search hypotheses pending pixels.\n'+JSON.stringify(packet)}],options:getGenerationOptions(ai,{max_completion_tokens:12000,response_format:schema}),maxRetries:0,inputHash:hash,promptTemplateVersion:packet.contract,schemaContractVersion:packet.contract});
+    const raw=response.response.choices[0].message.content;write(receiptPath,{inputHash:hash,content:raw,usage:response.response.usage,provenance:response.provenance});
+    const result=validate(JSON.parse(raw));const receipt={contract:packet.contract,inputHash:hash,result,usage:response.response.usage,providerCalls:1,reused:false};write(cachePath,receipt);return receipt;
+  }catch(error){recordGenerationFailure(ledger,error);throw error;}
+}
 
 const { classifyVisualLanguage } = editorialStandard;
 

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -107,6 +108,23 @@ test('unconfigured access is advisory unavailable and does not make a network re
   assert.equal(result.status, 'unavailable');
   assert.equal(result.classification, 'not_configured');
   assert.equal(called, false);
+});
+
+test('production review binds actual video SHA and context; changed context cannot reuse a verdict',async()=>{
+ const directory=await fs.mkdtemp(path.join(os.tmpdir(),'mobius-review-context-'));
+ const videoPath=path.join(directory,'video.mp4'),cachePath=path.join(directory,'cache.json');
+ await fs.writeFile(videoPath,'media');
+ const sha=crypto.createHash('sha256').update('media').digest('hex');let analyses=0;
+ const fetchImpl=async(url,init)=>{
+  if(url.endsWith('/assets'))return response({_id:'asset-context'});
+  if(url.endsWith('/assets/asset-context'))return response({status:'ready'});
+  analyses++;assert.ok(JSON.parse(init.body).prompt_v2.input_text.includes('exact_narration_text'));return response({data:JSON.stringify(reviewFixture())});
+ };
+ const args={videoPath,cachePath,env:{TWELVELABS_API_KEY:'fixture'},fetchImpl,pollMs:0};
+ const context={video:{sha256:sha},scenes:[{exact_narration_text:'Règle sourcée.'}]};
+ await analyzeProductionVideo({...args,context});await analyzeProductionVideo({...args,context});assert.equal(analyses,1);
+ await analyzeProductionVideo({...args,context:{...context,scenes:[{exact_narration_text:'Autre contexte.'}]}});assert.equal(analyses,2);
+ await assert.rejects(analyzeProductionVideo({...args,context:{video:{sha256:'wrong'}}}),/SHA_MISMATCH/);assert.equal(analyses,2);
 });
 
 function canonicalReviewFixture() {

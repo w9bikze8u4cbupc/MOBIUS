@@ -6,6 +6,7 @@ describe('zero-state production contracts', () => {
     const output=execFileSync(process.execPath,['--input-type=module','-e',`import {sceneForProduction} from '${script}';const scene={id:'fixture',source_pages:[2],sourceRefs:[{page:2,quote:'Keep the remaining reserve'}],visualRequirement:{requiredObjects:['board'],transitionRequired:true}}; console.log(JSON.stringify(sceneForProduction(scene,[],[])));`],{encoding:'utf8'});
     const row=JSON.parse(output.trim().split(/\r?\n/).pop());
     expect(row.visualRequirement).toEqual({requiredObjects:['board'],transitionRequired:true});expect(row.sourceRefs[0].quote).toBe('Keep the remaining reserve');
+    expect(row.source_pages).toEqual([2]);
   });
   test('stage checkpoints reuse only matching content hashes and existing outputs', async () => {
     const { execFileSync } = require('child_process');

@@ -16,6 +16,53 @@ function assertBudget(value, budget = TRANSPORT_BUDGET_BYTES) {
   return size;
 }
 
+// Shared visual evidence belongs to the SAME project context, not to every
+// scene/plan/review occurrence of its candidate. Dynamic scores stay inline.
+const VISUAL_EVIDENCE_CONTRACT='mobius-project-visual-evidence-references-v1';
+const EVIDENCE_FIELDS=['sourceRefs','provenance','objectVisualEvidence','objectAnalysisAttempts','bindingHypotheses'];
+function compactVisualEvidence(body) {
+  const dictionary={...(body.projectContext?.visualEvidence?.entries||{})};
+  function visit(value){
+    if(Array.isArray(value))return value.map(visit);
+    if(!value||typeof value!=='object')return value;
+    const result={};
+    for(const [key,child] of Object.entries(value))result[key]=key==='visualEvidence'?child:visit(child);
+    if(value.candidate?.id && !value.candidate.visualEvidenceRef){
+      const id=digest(value.candidate);dictionary[id]=value.candidate;
+      result.candidate={id:value.candidate.id,visualEvidenceRef:id};
+    }
+    if(typeof value.assetId==='string' && Array.isArray(value.rejectionReasons)){
+      const evidence=Object.fromEntries(EVIDENCE_FIELDS.filter(key=>Object.hasOwn(value,key)).map(key=>[key,value[key]]));
+      if(Object.keys(evidence).length){const id=digest(evidence);dictionary[id]=evidence;for(const key of EVIDENCE_FIELDS)delete result[key];result.visualEvidenceRef=id;}
+    }
+    return result;
+  }
+  const result=visit(body);
+  if(Object.keys(dictionary).length)result.projectContext={...result.projectContext,visualEvidence:{contract:VISUAL_EVIDENCE_CONTRACT,entries:dictionary}};
+  validateVisualEvidenceReferences(result);
+  return result;
+}
+function validateVisualEvidenceReferences(body){
+  const registry=body.projectContext?.visualEvidence;
+  if(registry && (registry.contract!==VISUAL_EVIDENCE_CONTRACT||!registry.entries))throw failure('Unsupported visual evidence registry.');
+  const entries=registry?.entries||{};
+  for(const [id,evidence] of Object.entries(entries))if(digest(evidence)!==id)throw failure('Visual evidence checksum mismatch.');
+  function visit(value){if(!value||typeof value!=='object')return;
+    if(value.visualEvidenceRef && !Object.hasOwn(entries,value.visualEvidenceRef))throw failure('Missing visual evidence reference.');
+    for(const [key,child] of Object.entries(value))if(key!=='visualEvidence')visit(child);
+  }
+  visit(body);
+}
+function hydrateVisualReviewItem(item,registry){
+  return {...item,candidates:(item.candidates||[]).map(candidate=>{
+    if(!candidate.visualEvidenceRef)return candidate;
+    const evidence=registry?.entries?.[candidate.visualEvidenceRef];
+    if(!evidence||digest(evidence)!==candidate.visualEvidenceRef)throw failure('Visual review evidence missing or corrupt.');
+    const {visualEvidenceRef,...inline}=candidate;
+    return {...inline,...evidence};
+  })};
+}
+
 // Tagged nodes cannot collide with user JSON keys. Content-addressed definitions
 // keep every candidate, score and source exactly once, without truncating lists.
 function packProjectState(value) {
@@ -127,4 +174,4 @@ function bodyErrorHandler(error, req, res, next) {
   }
   return next(error);
 }
-module.exports = { CONTRACT, API_LIMIT_BYTES, TRANSPORT_BUDGET_BYTES, EXPANDED_BUDGET_BYTES, bytes, assertBudget, packProjectState, unpackProjectState, packProjectRow, unpackProjectRow, bodyErrorHandler };
+module.exports = { CONTRACT, VISUAL_EVIDENCE_CONTRACT, compactVisualEvidence, validateVisualEvidenceReferences, hydrateVisualReviewItem, API_LIMIT_BYTES, TRANSPORT_BUDGET_BYTES, EXPANDED_BUDGET_BYTES, bytes, assertBudget, packProjectState, unpackProjectState, packProjectRow, unpackProjectRow, bodyErrorHandler };

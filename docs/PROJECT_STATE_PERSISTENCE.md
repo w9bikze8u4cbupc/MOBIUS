@@ -123,3 +123,21 @@ The isolated proof preserves all **71 reviews**, **33 accepted rules**, and
 **zero accepted visual bindings**. Historical Attempts 1–10 remain evidence.
 Persistence PASS does not resolve visual binding quality, authorize another
 attempt, or establish publishability. Human publication authority is unchanged.
+# Enriched production continuation — shared evidence references
+
+The 103-scene continuation exposed a 205,444,763-byte logical send attempt,
+above the unchanged 192 MiB expanded budget. Per-candidate evidence was repeated
+through reviews, ranked plan entries and both storyboard projections.
+`compactVisualEvidence` now retains content-addressed evidence within the SAME
+project context; candidate scores, IDs and rejection reasons remain inline.
+The production route validates references/checksums before writing. Cockpit's
+existing visual-review endpoint hydrates all requested evidence. Historical
+inline states remain readable. No HTTP/expanded limit or visual gate was raised.
+
+Real full-state isolated proof (images response reconstructed as empty, so not
+claimed as historical exact wire bytes): original logical 204,787,564 bytes;
+referenced logical 67,409,620; transport 9,604,898. The real API, durable storage,
+Cockpit evidence loading, restart, identical replay and invalid source/project
+rejection pass with all 139 reviews retained. Proof:
+`out/cowboy-end-to-end/full-state-reference-proof-03/proof.json`.
+This is persistence evidence, not a visual/tutorial quality verdict.

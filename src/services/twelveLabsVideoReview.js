@@ -338,18 +338,20 @@ export async function runTwelveLabsEditorialAnalysis({ videoPath, promptText, sc
   }
 }
 
-function evaluationKey(videoSha256, rubricVersion, model) { return hashValue({ videoSha256, rubricVersion, model }); }
+function evaluationKey(videoSha256, rubricVersion, model, promptSha256, schemaSha256, contextSha256) { return hashValue({ videoSha256, rubricVersion, model, promptSha256, schemaSha256, contextSha256 }); }
 
-export async function analyzeProductionVideo({ videoPath, promptPath = DEFAULT_PROMPT, schemaPath = DEFAULT_SCHEMA, cachePath, env = process.env, model, timeoutMs = 180_000, fetchImpl = fetch, pollMs = 5_000, maxPolls = 120, force = false } = {}) {
+export async function analyzeProductionVideo({ videoPath, context = null, promptPath = DEFAULT_PROMPT, schemaPath = DEFAULT_SCHEMA, cachePath, env = process.env, model, timeoutMs = 180_000, fetchImpl = fetch, pollMs = 5_000, maxPolls = 120, force = false } = {}) {
   const config = getTwelveLabsConfig(env);
   if (!videoPath || !fs.existsSync(videoPath)) throw new Error('Twelve Labs review video does not exist.');
   const videoBytes = await fsPromises.readFile(videoPath);
   const videoSha256 = hashBytes(videoBytes);
-  const prompt = await fsPromises.readFile(promptPath, 'utf8');
+  if(context && context.video?.sha256 !== videoSha256)throw new Error('TWELVELABS_CONTEXT_VIDEO_SHA_MISMATCH');
+  const prompt = (await fsPromises.readFile(promptPath, 'utf8')) + (context ? '\nExpected timeline and narration (verify against actual media; this is not a favourable verdict):\n'+JSON.stringify(context) : '');
   const schema = JSON.parse(await fsPromises.readFile(schemaPath, 'utf8'));
   const resolvedModel = String(model || config.model || TWELVELABS_MODEL);
   const rubricVersion = TWELVELABS_RUBRIC_VERSION;
-  const key = evaluationKey(videoSha256, rubricVersion, resolvedModel);
+  const contextSha256=context?hashValue(context):null;
+  const key = evaluationKey(videoSha256, rubricVersion, resolvedModel, hashBytes(prompt), hashValue(schema), contextSha256);
   const filePath = cacheFilePath(cachePath);
   const cache = readCache(filePath);
   if (!force && cache.evaluations[key]?.status === 'complete') return { ...cache.evaluations[key], cached: true, cacheKey: key };
@@ -370,7 +372,8 @@ export async function analyzeProductionVideo({ videoPath, promptPath = DEFAULT_P
       body: JSON.stringify({
         model_name: resolvedModel,
         video: { type: 'asset_id', asset_id: assetId },
-        prompt,
+        analysis_mode:'general',
+        prompt_v2:{input_text:prompt},
         stream: false,
         temperature: 0.2,
         max_tokens: 4096,
@@ -380,8 +383,8 @@ export async function analyzeProductionVideo({ videoPath, promptPath = DEFAULT_P
     const result = parseStrictReviewJson(responseText(payload), schema);
     const entry = {
       status: 'complete', provider: 'twelvelabs', configured: true, model: resolvedModel,
-      rubricVersion, videoSha256, assetId, analyzedAt: new Date().toISOString(),
-      latencyMs: Date.now() - startedAt, result,
+      rubricVersion, videoSha256, assetId, contextSha256, analyzedAt: new Date().toISOString(),
+      latencyMs: Date.now() - startedAt, result, response:payload,
     };
     cache.evaluations[key] = entry;
     cache.updatedAt = new Date().toISOString();

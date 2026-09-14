@@ -1031,7 +1031,13 @@ async function runMultiPassRulebookIntelligence({ projectSeed, pages = [], gamep
 }
 
 function buildKnowledgeTeachingPlan(model) {
-  const atoms = model.ruleAtoms.filter((atom) => atom.reviewState === 'accepted' && atom.teaching?.narration).sort((a, b) => a.teaching.sequence - b.teaching.sequence || a.id.localeCompare(b.id));
+  // Batch-local sequence numbers are not a global beginner teaching order.
+  // Keep the existing canonical domain progression, then source order. No
+  // accepted rule is removed or rewritten by this deterministic arrangement.
+  const rank = atom => Math.min(...(atom.coverageDomains||[]).map(domain=>COVERAGE_DOMAINS.indexOf(domain)).filter(n=>n>=0),COVERAGE_DOMAINS.length);
+  const page = atom => Math.min(...(atom.sourceRefs||[]).map(ref=>ref.page).filter(n=>n>0),Infinity);
+  const atoms = model.ruleAtoms.filter((atom) => atom.reviewState === 'accepted' && atom.teaching?.narration)
+    .sort((a, b) => rank(a)-rank(b)||page(a)-page(b)||a.teaching.sequence-b.teaching.sequence||a.id.localeCompare(b.id));
   return {
     contract: 'mobius-knowledge-teaching-plan-v1',
     projectId: model.projectId,

@@ -517,6 +517,7 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
       body = req.body?.contract === transport.CONTRACT ? transport.unpackProjectState(req.body) : (req.body || {});
       if (req.body?.contract && req.body.contract !== transport.CONTRACT) throw Object.assign(new Error('Unsupported production state contract.'), { statusCode: 400, code: 'PROJECT_STATE_INVALID' });
       if (!req.body?.contract) transport.assertBudget(body);
+      transport.validateVisualEvidenceReferences(body);
       if (!body || typeof body !== 'object' || Array.isArray(body)) throw Object.assign(new Error('Production state must be an object.'), { statusCode: 400 });
       if (req.body?.contract && (!body.projectContext?.projectId || !body.projectContext?.sourcePdf)) throw Object.assign(new Error('Compact production state requires canonical project and source identities.'), { statusCode: 400 });
     } catch (error) {
@@ -590,7 +591,7 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
     const cached = visualProjectionCache.get(row.id);
     if (cached?.metadata === row.metadata) return cached.context;
     const stored = parseRecoveryMetadata(row.metadata)?.projectContext;
-    const context = stored ? { projectId: stored.projectId,
+    const context = stored ? { projectId: stored.projectId, visualEvidence:stored.visualEvidence,
       visualReviewItems: stored.visualReviewItems || stored.canonicalProductionState?.reviewItems || [] } : null;
     visualProjectionCache.delete(row.id);
     visualProjectionCache.set(row.id, { metadata: row.metadata, context });
@@ -611,7 +612,7 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
   };
   app.get('/api/projects/:projectId/visual-reviews', (req, res) => readVisualContext(req, res, (context, projectId) => {
     const items = context.visualReviewItems || context.canonicalProductionState?.reviewItems || [];
-    return res.json({ projectId, items: items.map((item) => ({ ...item, candidates: (item.candidates || []).map((candidate) => ({
+    return res.json({ projectId, items: items.map((item) => transport.hydrateVisualReviewItem(item,context.visualEvidence)).map((item) => ({ ...item, candidates: (item.candidates || []).map((candidate) => ({
       ...candidate, thumbnailPath: undefined,
       thumbnailUrl: `/api/projects/${encodeURIComponent(projectId)}/visual-reviews/assets/${encodeURIComponent(candidate.assetId)}/file`,
     })) })) });

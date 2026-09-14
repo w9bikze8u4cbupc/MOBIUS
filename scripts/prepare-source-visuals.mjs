@@ -158,7 +158,8 @@ async function main() {
       sourceRefs: row.sourcePage ? [{ page: row.sourcePage }] : [],
       visualRequirement: { requiredObjects: [row.componentId], purpose: 'component-identity-binding' },
     }))],
-    componentTerms: Object.fromEntries(terms.map((row) => [row.componentId, { name: row.componentName, category: row.category, sourcePage: row.sourcePage, status: 'TERM_HYPOTHESIS' }])),
+    componentTerms: { ...Object.fromEntries(terms.map((row) => [row.componentId, { name: row.componentName, category: row.category, sourcePage: row.sourcePage, status: 'TERM_HYPOTHESIS' }])),
+      ...(inputScript.componentTerms || {}) },
   }), 'utf8');
   console.log('[prepare-source-visuals] Matching approved components to tutorial scenes…');
   const ai = getAiConfig();

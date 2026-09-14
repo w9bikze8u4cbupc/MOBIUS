@@ -24,7 +24,7 @@ import {
   normalizeDurableProjectSource,
   sameDurableProjectSource,
 } from '../src/services/projectSourceService.js';
-import { loadSourceVisualCatalog, selectSourceVisual } from '../src/services/sourceVisualSelection.js';
+import { loadSourceVisualCatalog, selectSourceVisual, normalizeSourceReferentTerms } from '../src/services/sourceVisualSelection.js';
 import { runProduction } from './run-source-grounded-production.mjs';
 import editorialStandard from '../src/services/editorialStandard.cjs';
 import { GAME_IDENTITY_CONTRACT_VERSION, resolveCanonicalGameIdentity, titleFromRulebook } from '../src/services/gameIdentity.cjs';
@@ -50,7 +50,7 @@ import { alignCanonicalRuntime, canonicalRuntimeConfigurationEnvironment } from 
 import { preflightAiProviderReadiness } from '../src/services/aiProviderReadiness.js';
 
 const require = createRequire(import.meta.url);
-const { packProjectState } = require('../src/services/projectStateTransport.cjs');
+const { packProjectState, compactVisualEvidence } = require('../src/services/projectStateTransport.cjs');
 const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor.js');
 const { COMPONENT_INVENTORY_CONTRACT_VERSION, extractComponentInventory } = await import('../src/services/componentInventory.js');
 const { generateStoryboard } = require('../src/storyboard/generator.js');
@@ -280,6 +280,9 @@ function pagesForSources(sources, ranges) {
 }
 function teachingSourcePages(scene, ranges, pages = []) {
   const available = new Set(pages.map((page) => Number(page.number)).filter(Number.isFinite));
+  const explicit = [...new Set([...(scene.source_pages || []), ...(scene.sourceRefs || []).map(ref => ref.page)])]
+    .filter(page => Number.isInteger(page) && page > 0 && (!available.size || available.has(page)));
+  if (explicit.length) return explicit.sort((a,b)=>a-b);
   const cited = pagesForSources(scene.sources, ranges);
   const nonCover = cited.filter((page) => page > 1 && (available.size === 0 || available.has(page)));
   // Source offsets are authoritative. The old title table paired scenes with
@@ -296,7 +299,7 @@ function sceneForProduction(scene, ranges, pages = []) {
     id: scene.id,
     section: scene.title,
     narration: scene.spokenText,
-    on_screen_text: overlayText || scene.title,
+    on_screen_text: scene.on_screen_text || overlayText || scene.title,
     source_pages: teachingSourcePages(scene, ranges, pages),
     callouts: directions.flatMap((direction) => direction.callouts || []),
     visual_focus: null,
@@ -367,7 +370,7 @@ export function buildProductionStateBody({ projectId, gameName, language, descri
 }
 
 export async function persistProject(options) {
-  const body = buildProductionStateBody(options);
+  const body = compactVisualEvidence(buildProductionStateBody(options));
   const transport = packProjectState(body); // Validated UTF-8 budget before fetch.
   return postJson(options.baseUrl, `/api/projects/${encodeURIComponent(options.projectId)}/production-state`, transport, options.apiKey, options.fetchImpl || fetch);
 }
@@ -873,9 +876,12 @@ async function runZeroState(options = {}) {
   if (await stopIfRequested(options, checkpoint, 'gameplay-actions', checkpointPath, { projectId, actions: gameplayModel.actions.length })) return { status: 'stopped', stage: 'gameplay-actions' };
 
   const visualScriptPath = path.join(productionDir, 'zero-state-visual-review-script.json');
+  const referentTerms = await normalizeSourceReferentTerms({model:rulebookKnowledgeModel,
+    cachePath:path.join(productionDir,'source-referent-terminology.json'),env:canonicalRuntimeConfigurationEnvironment({root})});
   const visualScript = {
     version: 1, game: gameName, language,
-    componentTerms: Object.fromEntries((rulebookKnowledgeModel.components || []).map(component => [component.id, component.name])),
+    componentTerms: Object.fromEntries(referentTerms.result.referents.map(ref => [ref.id,ref.status==='GROUNDED'?ref.canonicalTerm:rulebookKnowledgeModel.components.find(c=>c.id===ref.id).name])),
+    referentTerminology:referentTerms,
     scenes: storyboardManifest.scenes.map((scene) => sceneForProduction(scene, extraction.pageRanges, extraction.pages)),
   };
   const visualScriptHash = hashValue({ storyboardHash, pages: extraction.pageRanges, visualScript });
