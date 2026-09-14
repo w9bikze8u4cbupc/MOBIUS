@@ -11,7 +11,7 @@ import { mkdir, writeFile } from 'fs/promises';
 import { dirname, resolve } from 'path';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
-import { generateFocusedPageCrops } from '../src/services/sourcePageVisuals.js';
+import { generateFocusedPageCrops, sourceLocalizationPages } from '../src/services/sourcePageVisuals.js';
 import { getAiConfig } from '../src/config/aiConfig.js';
 
 function arg(name) {
@@ -109,7 +109,7 @@ async function main() {
     visualManifestPath = resolve(outputDir, 'source-visual-manifest.json');
     await writeFile(visualManifestPath, `${JSON.stringify({
       ...manifest,
-      images: [...images, ...(cropManifest.assets || [])],
+      images: [...images, ...(cropManifest.assets || []), ...await sourceLocalizationPages({ pageDir: resolve(pageDir), pages: extraction.pages || [], sourceSha256 })],
       focusedCropManifest: cropManifestPath,
     }, null, 2)}\n`, 'utf8');
   }
@@ -139,6 +139,15 @@ async function main() {
     OPENAI_API_KEY: ai.apiKey || '',
     ...(ai.baseURL ? { OPENAI_BASE_URL: ai.baseURL } : {}),
   });
+  const semantic = JSON.parse(readFileSync(semanticPath, 'utf8'));
+  if (semantic.generatedAssets?.length) {
+    const manifest = JSON.parse(readFileSync(visualManifestPath, 'utf8'));
+    const byId = new Map((manifest.images || []).map((a) => [a.id, a]));
+    for (const asset of semantic.generatedAssets) byId.set(asset.id, asset);
+    // Never rewrite the original HEPHAESTUS manifest.
+    visualManifestPath = resolve(outputDir, 'source-visual-manifest.json');
+    await writeFile(visualManifestPath, JSON.stringify({ ...manifest, images: [...byId.values()] }, null, 2), 'utf8');
+  }
   console.log(JSON.stringify({
     script: scriptPath,
     assetManifest: visualManifestPath,

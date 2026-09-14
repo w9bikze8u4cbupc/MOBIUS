@@ -172,4 +172,36 @@ async function auditRasterIsolation(filePath, {
   };
 }
 
-module.exports = { auditOpticalCenter, auditRasterIsolation, compileObjectAwareCrop, contains, intersects, normalizeBox, unionBoxes };
+/** Source-faithful derivative of measured bounds. Geometry is NOT pixel validation. */
+async function materializeMeasuredObjectCrop({ sourcePath, sourceId, sourceSha256, sourcePage, sourcePdfSha256, objectId, bbox, outputDir }) {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const crypto = require('node:crypto');
+  const sharp = require('sharp');
+  const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
+  if (hash(fs.readFileSync(sourcePath)) !== sourceSha256) throw new Error('Localization source SHA mismatch');
+  if (!Array.isArray(bbox) || bbox.length !== 4 || !bbox.every(Number.isFinite)
+    || !(0 <= bbox[0] && bbox[0] < bbox[2] && bbox[2] <= 1 && 0 <= bbox[1] && bbox[1] < bbox[3] && bbox[3] <= 1)) throw new Error('Invalid measured object bounds');
+  const m = await sharp(sourcePath).metadata();
+  const bounds = { x: bbox[0] * m.width, y: bbox[1] * m.height, width: (bbox[2] - bbox[0]) * m.width, height: (bbox[3] - bbox[1]) * m.height };
+  const geometry = compileObjectAwareCrop({ sourceWidth: m.width, sourceHeight: m.height,
+    intendedObjects: [{ id: objectId, bounds }], paddingPx: Math.max(8, Math.ceil(Math.max(bounds.width, bounds.height) * .04)) });
+  const box = geometry.paddedCropBox;
+  if (geometry.violations.length) throw new Error(`Measured localization clipped: ${geometry.violations.join(',')}`);
+  const id = `localized-${hash(JSON.stringify([sourceSha256, objectId, box])).slice(0, 24)}`;
+  fs.mkdirSync(outputDir, { recursive: true });
+  const file = path.join(path.resolve(outputDir), `${id}.png`);
+  const pixels = await sharp(sourcePath).extract({ left: box.x, top: box.y, width: box.width, height: box.height }).png().toBuffer();
+  if (!fs.existsSync(file)) fs.writeFileSync(file, pixels);
+  else if (hash(fs.readFileSync(file)) !== hash(pixels)) throw new Error('Localized crop replay mismatch');
+  return { id, file_path: file, source_page: sourcePage, page_index: sourcePage - 1,
+    sourceAuthority: 'HIGH_DPI_PAGE_CROP', type: 'focused-crop', visual_kind: 'localized-object-crop',
+    sourcePdfSha256, contentHash: hash(pixels), dimensions: { width: box.width, height: box.height },
+    original_dimensions: { width: box.width, height: box.height },
+    cropCompleteness: 'unknown', cropPurity: 'unknown', is_component: null,
+    provenance: { sourcePdfSha256, sourcePage, parentAssetId: sourceId, parentPath: sourcePath,
+      parentSha256: sourceSha256, bbox: box, measuredObjectId: objectId, localizationGeometry: geometry,
+      extraction: 'measured-object-crop-no-resampling', requiresPixelVerification: true } };
+}
+
+module.exports = { auditOpticalCenter, auditRasterIsolation, compileObjectAwareCrop, materializeMeasuredObjectCrop, contains, intersects, normalizeBox, unionBoxes };

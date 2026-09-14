@@ -8,7 +8,7 @@ const { candidateDetailRatio, sourceAuthorityRank } = require('./sourceDetailLin
 
 const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v3';
 const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v2';
-const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v1';
+const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v2';
 const AUTO_ACCEPT_CONFIDENCE = 0.82;
 const AUTO_ACCEPT_MARGIN = 0.08;
 
@@ -170,7 +170,8 @@ function semanticScore(candidate, requiredObjects = []) {
 }
 
 function objectEvidenceFor(candidate, referent, sceneId = null) {
-  const rows = (candidate.objectVisualEvidence || []).filter((row) => row.contract === OBJECT_VISUAL_EVIDENCE_CONTRACT
+  const rows = (candidate.objectVisualEvidence || []).filter((row) => (row.contract === OBJECT_VISUAL_EVIDENCE_CONTRACT
+    || (row.contract === 'mobius-object-visual-evidence-v1' && !row.visualRole))
     && row.requiredObject === referent && row.assetId === candidate.id && row.method === 'provider-pixel-analysis'
     && (!sceneId || row.sceneId === sceneId));
   if (!rows.length || !candidate.filePath || !fs.existsSync(candidate.filePath)) return null;
@@ -195,6 +196,11 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
     const proof = proofs[index];
     const id = requirement.requiredObjects[index];
     if (!proof) { hardViolations.push(`object-pixel-evidence-missing:${id}`); continue; }
+    if (proof.contract === OBJECT_VISUAL_EVIDENCE_CONTRACT && !['LOCALIZATION', 'COMPONENT'].includes(proof.visualRole)) hardViolations.push(`object-role-unverified:${id}`);
+    if (proof.visualRole === 'LOCALIZATION') hardViolations.push(`localization-not-display-evidence:${id}`);
+    if (proof.visualRole === 'COMPONENT' && (requirement.transitionRequired || requirement.setupPlacementRequired
+      || requirement.layeredStateRequired || requirement.trackStateRequired || requirement.requiredRelationship
+      || requirement.requiredQuantities?.length)) hardViolations.push(`composition-state-verification-required:${id}`);
     if (proof.present !== true || Number(proof.confidence) < 0.9) hardViolations.push(`object-identity-unverified:${id}`);
     const box = proof.bbox;
     if (!Array.isArray(box) || box.length !== 4 || !box.every(Number.isFinite)

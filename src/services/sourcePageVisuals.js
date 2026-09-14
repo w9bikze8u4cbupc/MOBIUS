@@ -5,6 +5,25 @@ import sharp from 'sharp';
 
 export const SOURCE_PAGE_VISUALS_CONTRACT = 'mobius-source-page-visuals-v2';
 
+/** Full source context is for localization, never an automatically clean component. */
+export async function sourceLocalizationPages({ pageDir, pages, sourceSha256 }) {
+  const assets = [];
+  for (let index = 0; index < pages.length; index += 1) {
+    const page = pages[index];
+    const file = path.join(pageDir, `page-${index + 1}.png`);
+    if (!fs.existsSync(file)) continue;
+    const m = await sharp(file).metadata();
+    const text = page.normalizedText || page.text || page.content || (page.blocks || []).map((b) => b.text || '').join('\n');
+    assets.push({ id: `source-localization-page-${index + 1}`, file_path: file, source_page: index + 1, page_index: index,
+      visual_kind: 'source-page-localization', type: 'source-page-localization', sourcePdfSha256: sourceSha256,
+      dimensions: { width: m.width, height: m.height }, original_dimensions: { width: m.width, height: m.height },
+      layout_text: text, heading: page.heading || String(text).slice(0, 180), is_component: null,
+      cropCompleteness: 'unknown', cropPurity: 'unknown',
+      provenance: { sourcePage: index + 1, sourcePdfSha256: sourceSha256, extraction: 'existing-page-context-only' } });
+  }
+  return assets;
+}
+
 /** Read-only API hydration. Never extracts, guesses a storage root, or searches the web. */
 export async function hydrateSourcePageVisuals({ baseUrl, projectId, sourceSha256, pageCount, pageDir, fetchImpl = fetch, apiKey } = {}) {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectId || '') || !/^[a-f0-9]{64}$/.test(sourceSha256 || '') || !(pageCount > 0)) throw new Error('SOURCE_PAGE_IDENTITY_INVALID');

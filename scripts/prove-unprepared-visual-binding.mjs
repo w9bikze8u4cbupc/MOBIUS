@@ -12,6 +12,7 @@ import sharp from 'sharp';
 import express from 'express';
 import { loadSourceVisualCatalog } from '../src/services/sourceVisualSelection.js';
 import { hydrateSourcePageVisuals } from '../src/services/sourcePageVisuals.js';
+import { canonicalRuntimeConfigurationEnvironment } from '../src/services/canonicalRuntimeAlignment.js';
 import { createProjectSourceService } from '../src/services/projectSourceService.js';
 import { registerProjectPersistenceRoutes } from '../src/api/projectPersistenceRoutes.js';
 import transport from '../src/services/projectStateTransport.cjs';
@@ -31,6 +32,22 @@ const projectRoot = path.join(dataRoot, projectId);
 const pixelsRoot = path.join(projectRoot, 'pixels');
 fs.mkdirSync(pixelsRoot, { recursive: true });
 const write = (name, value) => fs.writeFileSync(path.join(output, name), JSON.stringify(value, null, 2));
+let proofScene = null;
+if (args['pedagogical-scene'] === 'true') {
+  const eligible = knowledge.ruleAtoms.filter((r) => r.reviewState === 'accepted' && r.domain === 'reference_aid'
+    && r.visualRequirement?.requiredObjects?.length === 1);
+  eligible.sort((a, b) => Math.min(...a.sourceRefs.map((r) => r.page)) - Math.min(...b.sourceRefs.map((r) => r.page)));
+  if (!eligible.length) throw new Error('No eligible existing single-object reference scene. Do not substitute a prepared rule.');
+  proofScene = eligible[0];
+  const selection = { criterion: 'accepted reference_aid with one required object; earliest cited PDF page then existing model order',
+    sourceSha256: knowledge.sourcePdfSha256, ruleId: proofScene.id, requirement: proofScene.visualRequirement };
+  const previous = path.join(output, 'scene-selection.json');
+  if (fs.existsSync(previous)) assert.deepEqual(read(previous), selection);
+  else write('scene-selection.json', selection);
+  if (!args['budget-ledger'] || !args['budget-group']) throw new Error('Bounded pedagogical proof requires a shared budget ledger and group');
+  const ledger = path.resolve(args['budget-ledger']);
+  if (!fs.existsSync(ledger)) fs.writeFileSync(ledger, JSON.stringify({ maxTotal: 16, maxPerGroup: 8, calls: [] }, null, 2), { flag: 'wx' });
+}
 const images = [];
 const unavailable = [];
 const priorEvidence = args.evidence ? read(args.evidence) : {};
@@ -57,7 +74,7 @@ const evidence = { projectId, sourcePdfSha256: knowledge.sourcePdfSha256, assets
 write('input-knowledge.json', knowledge);
 write('input-manifest.json', { ...manifest, images });
 write('input-component-evidence.json', evidence);
-write('input-script.json', { scenes: knowledge.ruleAtoms.map((atom) => ({ id: `knowledge-${atom.id}`,
+write('input-script.json', { scenes: (proofScene ? [proofScene] : knowledge.ruleAtoms).map((atom) => ({ id: `knowledge-${atom.id}`,
   visualRequirement: atom.visualRequirement, sourceRefs: atom.sourceRefs,
   source_pages: (atom.sourceRefs || []).map((ref) => ref.page), narration: atom.teaching?.narration })) });
 const reviewDir = path.join(projectRoot, 'source-visual-review');
@@ -72,9 +89,17 @@ if (args['api-base-url'] && args['source-project-id'] && args.extraction) {
   write('page-hydration.json', hydration);
   prepareArgs.push('--page-dir', pageDir, '--extraction', path.resolve(args.extraction), '--source-sha256', knowledge.sourcePdfSha256);
 }
+if (args['reuse-pages'] && args.extraction) {
+  const pageDir = path.join(projectRoot, 'pages');
+  if (!fs.existsSync(pageDir)) fs.cpSync(path.resolve(args['reuse-pages']), pageDir, { recursive: true, errorOnExist: true });
+  prepareArgs.push('--page-dir', pageDir, '--extraction', path.resolve(args.extraction), '--source-sha256', knowledge.sourcePdfSha256);
+}
+const canonicalEnv = canonicalRuntimeConfigurationEnvironment({ root: process.cwd(), env: process.env });
 const run = () => {
   const result = spawnSync(process.execPath, prepareArgs, { windowsHide: true, encoding: 'utf8',
-    env: { ...process.env, MOBIUS_VISUAL_MATCH_MAX_CALLS: args['max-visual-calls'], ...(args['reuse-analysis'] && !args['allow-analysis'] ? { MOBIUS_VISUAL_CACHE_ONLY: 'true' } : {}) }, timeout: 12 * 60 * 1000 });
+    env: { ...canonicalEnv, MOBIUS_VISUAL_MATCH_MAX_CALLS: args['max-visual-calls'],
+      ...(proofScene ? { MOBIUS_VISUAL_SCENE_ID: `knowledge-${proofScene.id}`, MOBIUS_VISUAL_BUDGET_LEDGER: path.resolve(args['budget-ledger']), MOBIUS_VISUAL_BUDGET_GROUP: args['budget-group'] } : {}),
+      ...(args['reuse-analysis'] && !args['allow-analysis'] ? { MOBIUS_VISUAL_CACHE_ONLY: 'true' } : {}) }, timeout: 12 * 60 * 1000 });
   if (result.status !== 0) throw new Error(`Visual preparation failed (${result.status}): ${result.stderr}`);
   return result.stdout;
 };
@@ -113,7 +138,7 @@ const report = { project: knowledge.gameIdentity, sourceSha: descriptor.sha256, 
   objectsMatched: compiled.sourceSelections.flatMap((s) => s.referentSelections || []).filter((s) => s.status === 'AUTO_ACCEPTED').length,
   fullyIllustratedScenes: compiled.sourceSelections.filter((s) => s.status === 'AUTO_ACCEPTED').length,
   scenes: compiled.scenes.length, reviews: compiled.reviewItems.length, hephaestusProviderCalls: 0, ruleGenerationCalls: 0,
-  status: 'PARTIEL', inputsHash: hash(knowledge), replayIdentical: true };
+  status: first.summary.providerBlocker ? 'BLOCKED' : 'PARTIEL', inputsHash: hash(knowledge), replayIdentical: true };
 try {
   const packet = transport.packProjectState(body);
   assert.ok(transport.bytes(packet) < transport.TRANSPORT_BUDGET_BYTES);

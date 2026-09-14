@@ -81,6 +81,8 @@ def asset_metadata(asset: dict) -> dict:
         "source_page": asset.get("source_page"),
         "page_index": asset.get("page_index"),
         "layout_labels": asset.get("layout_labels") or [],
+        "layout_text": asset.get("layout_text") or '',
+        "heading": asset.get("heading") or '',
         "bbox": asset.get("bbox") or asset.get("bounding_box"),
         "normalized_bbox": asset.get("normalized_bbox"),
         "content_hash": asset.get("contentHash") or asset.get("content_hash"),
@@ -163,7 +165,7 @@ def main() -> None:
         page = int(asset.get("page_index", -1))
         # HEPHAESTUS page_index is zero-based; storyboard source_pages are
         # canonical one-based rulebook pages.
-        if page not in cited_pages and page + 1 not in cited_pages:
+        if asset.get('visual_kind') != 'source-page-localization' and page not in cited_pages and page + 1 not in cited_pages:
             continue
         resolved = asset_path(asset, manifest_path)
         width, height = dimensions(asset)
@@ -178,7 +180,9 @@ def main() -> None:
             typed = [asset for asset in sorted(assets, key=priority, reverse=True)
                      if str(asset.get("visual_kind") or asset.get("classification") or asset.get("type") or "unknown") == asset_type]
             selected.extend(typed[:MAX_PER_TYPE])
-        for asset in sorted(selected, key=priority, reverse=True)[:MAX_PER_PAGE]:
+        ordinary = [a for a in selected if a.get('visual_kind') != 'source-page-localization']
+        context = [a for a in selected if a.get('visual_kind') == 'source-page-localization']
+        for asset in sorted(ordinary, key=priority, reverse=True)[:MAX_PER_PAGE] + context:
             candidates.append({"asset_id": asset.get("id"), "page_index": page, "path": str(asset_path(asset, manifest_path)), "asset_metadata": asset_metadata(asset)})
 
     # Object identity/quality are assessed together by the bounded matcher.
