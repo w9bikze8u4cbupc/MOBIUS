@@ -84,7 +84,12 @@ def packet_for(scene, terms):
     # component inventory is the page that actually shows or names the thing
     # a learner must recognize.  Both are bounded search hypotheses.  They do
     # not assert that an object is visible and remain subject to pixel QA.
-    source_pages = set(scene.get("source_pages") or [])
+    # The rule's citations remain the authority for an instructional
+    # composition. Component-inventory pages broaden only source discovery;
+    # preserve the two sets independently so they cannot silently alter a
+    # final composition's evidence packet or cache identity.
+    rule_source_pages = {page for page in scene.get("source_pages") or [] if isinstance(page, int) and page > 0}
+    source_pages = set(rule_source_pages)
     component_evidence_pages = set()
     for referent in referents:
         for evidence in referent.get('evidence') or []:
@@ -94,6 +99,7 @@ def packet_for(scene, terms):
                 component_evidence_pages.add(page)
     return {"contract": CONTRACT, "requiredObjects": referents, "requirement": req,
         "sourceRefs": scene.get("sourceRefs") or [], "sourcePages": sorted(source_pages),
+        "ruleSourcePages": sorted(rule_source_pages),
         "componentEvidencePages": sorted(component_evidence_pages)}
 
 def component_identity_packet(packet, role, asset=None):
@@ -656,7 +662,17 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     continue
             if role == 'COMPOSITION':
                 # Source-bound requirements identify the referent. Labels are
-                # retrieval hypotheses, not new composition evidence.
+                # retrieval hypotheses, not new composition evidence.  In
+                # particular, componentEvidencePages drives candidate search
+                # for source pixels; it cannot change an already-rendered
+                # composition, its rule citations, or its required state.
+                # Keep it out of the composition packet/cache identity so a
+                # later discovery-index improvement reuses a still-valid
+                # final-pixel verdict instead of spending a duplicate visual
+                # call (or, worse, becoming a budget-only UNKNOWN result).
+                scoped_packet['sourcePages'] = scoped_packet.get('ruleSourcePages', scoped_packet.get('sourcePages', []))
+                scoped_packet.pop('ruleSourcePages', None)
+                scoped_packet.pop('componentEvidencePages', None)
                 scoped_packet['requiredObjects'] = [{'id':o['id'],'term':o['id']} for o in packet['requiredObjects']]
                 scoped_packet['responseContract'] = COMPOSITION_RESPONSE_CONTRACT
                 phone = (asset.get('asset_metadata') or {}).get('phonePath')

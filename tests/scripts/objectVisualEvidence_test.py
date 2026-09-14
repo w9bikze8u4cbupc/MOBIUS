@@ -109,6 +109,38 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(len(calls[0]['messages'][0]['content']), 3)
             self.assertIn('WHOLE SCENE', calls[0]['messages'][0]['content'][0]['text'])
 
+    def test_composition_cache_ignores_component_search_pages_but_not_final_evidence(self):
+        """Discovery-index changes cannot re-spend a final-composition verdict.
+
+        Component inventory pages help locate pixels before a composition is
+        made.  They are not part of the final composition's source authority,
+        requirement, frame hashes, or phone preview, so they must not fork a
+        provider cache entry for identical final pixels.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'
+            scene = {'id': 'scene', 'source_pages': [2], 'visualRequirement': {
+                'requiredObjects': ['board'], 'purpose': 'Identify board'}}
+            qa = {'assets': [{'asset_id': 'final', 'path': str(pixels), 'asset_metadata': {
+                'source_page': 2, 'visual_kind': 'instructional-composition', 'phonePath': str(pixels)}}]}
+            calls = []
+            def create(**kwargs):
+                calls.append(kwargs)
+                row = {'requiredObject': 'board', 'present': True, 'confidence': .99, 'complete': True,
+                    'isolated': True, 'stateCompatible': True, 'bbox': [.1, .1, .9, .9], 'reason': 'Final composition',
+                    'purposeSatisfied': True, 'phoneReadable': True}
+                return types.SimpleNamespace(usage=None, choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=json.dumps({'objects': [row]})))])
+            client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            first = matcher.run({'scenes': [scene]}, qa, Path(directory), 1, client)
+            enriched = matcher.run({'scenes': [scene], 'componentTerms': {
+                'board': {'canonicalTerm': 'Player board', 'evidence': [{'page': 4, 'quote': 'Player board'}]}
+            }}, qa, Path(directory), 1, client)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(enriched['summary']['providerCalls'], 0)
+            self.assertEqual(enriched['summary']['cacheHits'], 1)
+            self.assertNotIn('componentEvidencePages', first['scenes'][0]['candidates'][0]['evidencePacket'])
+            self.assertNotIn('componentEvidencePages', enriched['scenes'][0]['candidates'][0]['evidencePacket'])
+
     def test_native_recovery_uses_same_page_real_detail_without_granting_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             a = Path(directory) / 'pixels'
@@ -240,6 +272,7 @@ class ObjectEvidenceTests(unittest.TestCase):
             ]
             result = matcher.candidates_for(packet, assets)
             self.assertEqual(packet['sourcePages'], [4, 9])
+            self.assertEqual(packet['ruleSourcePages'], [9])
             self.assertEqual(packet['componentEvidencePages'], [4])
             self.assertEqual([row['asset_id'] for row in result][:2], ['inventory-page', 'bound-native'])
             self.assertEqual(result[-1]['asset_id'], 'background')
