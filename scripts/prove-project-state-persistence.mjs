@@ -16,6 +16,7 @@ import transport from '../src/services/projectStateTransport.cjs';
 import { buildWorkerRuntimeRequirements, buildApiRuntimeCapabilities, preflightRuntimeCompatibility } from '../src/services/runtimeCompatibility.js';
 const require = createRequire(import.meta.url);
 const { compileCanonicalProductionState } = require('../src/services/canonicalProductionCompiler.cjs');
+const canonicalStateStorage = require('../src/services/canonicalProductionStateStorage.cjs');
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, all) => v.startsWith('--') ? [...a, [v.slice(2), all[i + 1]]] : a, []));
 if (!args.evidence || !args.pdf || !args.output) throw new Error('Required: --evidence <archived attempt> --pdf <existing PDF> --output <new proof directory>');
 const output = path.resolve(args.output);
@@ -38,6 +39,14 @@ const source = createProjectSourceService({ dataRoot });
 const prior = read('canonical-production-state.json');
 const projectId = prior.projectId; // Same ID, physically isolated data root.
 const { descriptor } = await source.persistUpload(projectId, path.resolve(args.pdf), { filename: 'proof-rulebook.pdf' });
+const compactedPrior = canonicalStateStorage.createCompactCanonicalProductionState(prior, {
+  projectId,
+  sourceSha256: descriptor.sha256,
+  relativePath: 'production/visual-evidence-artifact.json',
+});
+const artifactPath = path.join(dataRoot, projectId, compactedPrior.artifactDescriptor.relativePath);
+fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
+fs.writeFileSync(artifactPath, JSON.stringify(compactedPrior.artifact));
 const extraction = read('zero-state-extraction.json');
 const evidencePath=[path.join(copy,'hephaestus-component-evidence.json'),path.join(b,'hephaestus-component-evidence.json'),path.join(copy,'hephaestus/component-evidence.json')].find(fs.existsSync);
 const evidence = JSON.parse(fs.readFileSync(evidencePath));
@@ -57,10 +66,11 @@ const baseOptions = {
   scenes: prior.scenes, images: [], gameMetadata: read('zero-state-script-package.json').metadata,
   gameplayModel: read('gameplay-actions.json'), endgameModel: read('scoring-endgame.json'),
   rulebookKnowledgeModel: prior.knowledgeModel, tutorialCoverage: read('tutorial-coverage-matrix.json'),
-  canonicalProductionState: prior,
+  canonicalProductionState: compactedPrior.compact,
 };
-const originalBody=buildProductionStateBody(baseOptions);
-const body = transport.compactVisualEvidence(originalBody);
+const originalBody = buildProductionStateBody({ ...baseOptions, canonicalProductionState: prior, scenes: prior.scenes,
+  storyboardManifest: { ...baseOptions.storyboardManifest, scenes: prior.scenes } });
+const body = transport.compactVisualEvidence(buildProductionStateBody(baseOptions));
 const packet = transport.packProjectState(body);
 assert.equal(hash(transport.unpackProjectState(packet)), hash(body));
 const report = { status: 'RUNNING', measurementScope: 'Real HTTP body reconstructed with canonical body builder and archived inputs; historical images response unavailable, images=[]; no claim of exact historical wire bytes.',
@@ -69,6 +79,8 @@ const report = { status: 'RUNNING', measurementScope: 'Real HTTP body reconstruc
   fieldBytes: Object.fromEntries(Object.entries(body).map(([k,v]) => [k,transport.bytes(v)])),
   contextFieldBytes: Object.fromEntries(Object.entries(body.projectContext).map(([k,v])=>[k,transport.bytes(v)])),
   canonicalDuplicationBytes: { sourceSelections: transport.bytes(prior.sourceSelections), richRanked: prior.sourceSelections.reduce((sum, selection) => sum + transport.bytes(selection.ranked || []), 0), assets: transport.bytes(prior.assets) },
+  compactCanonicalStateBytes: compactedPrior.compactBytes,
+  visualEvidenceArtifactBytes: compactedPrior.artifactBytes,
   providers: { llm: 0, hephaestus: 0, tts: 0, render: 0 }, reviews: prior.reviewItems.length,
   compilation: { reviews: compiled.reviewItems.length, accepted: compiled.selectedAssets.length }, checks: {} };
 const save = () => fs.writeFileSync(path.join(output, 'proof.json'), JSON.stringify(report, null, 2));
@@ -108,7 +120,7 @@ try {
   const resumed = await load();
   assert.equal(hash(resumed), hash(first));
   const renderState = buildRenderProjectState(db.get('SELECT * FROM projects WHERE id = ?', [first.id]));
-  assert.deepEqual(renderState.projectContext.visualReviewItems.map(item=>transport.hydrateVisualReviewItem(item,renderState.projectContext.visualEvidence)), prior.reviewItems);
+  assert.deepEqual(renderState.projectContext.visualReviewItems.map(item=>canonicalStateStorage.hydrateVisualReviewItem(item, compactedPrior.artifact)), prior.reviewItems);
   const cockpit=await fetch(`${baseUrl}/api/projects/${projectId}/visual-reviews`).then(r=>r.json());
   assert.equal(cockpit.items.length,prior.reviewItems.length);
   for(const item of cockpit.items){const original=prior.reviewItems.find(r=>r.id===item.id);assert.deepEqual(item.candidates.map(c=>c.objectAnalysisAttempts),original.candidates.map(c=>c.objectAnalysisAttempts));}
@@ -125,14 +137,16 @@ try {
   report.checks.invalidIdentityAndOversizeAreAtomic = true;
   const requirements = buildWorkerRuntimeRequirements({ cwd: process.cwd() });
   const capabilities = buildApiRuntimeCapabilities({ cwd: process.cwd() });
-  const legacy = { ...capabilities, contracts: { ...capabilities.contracts, projectContextPersistence: 'mobius-project-context-persistence-v1' } };
+  const legacy = { ...capabilities, contracts: { ...capabilities.contracts, projectContextPersistence: 'mobius-project-context-persistence-v2' } };
   await assert.rejects(preflightRuntimeCompatibility({ baseUrl: 'http://fixture.invalid', requirements, fetchImpl: async () => new Response(JSON.stringify(legacy), { status: 200 }) }), /contract/i);
   report.checks.runtimeRejectsLegacyPersistence = true;
   // Persist a fresh canonical compilation through the identical body/route.
-  const fresh = transport.compactVisualEvidence(buildProductionStateBody({ ...baseOptions, canonicalProductionState: compiled, scenes: compiled.scenes, storyboardManifest: { ...baseOptions.storyboardManifest, scenes: compiled.scenes } }));
+  const compactedFresh = canonicalStateStorage.createCompactCanonicalProductionState(compiled, { projectId, sourceSha256: descriptor.sha256, relativePath: 'production/visual-evidence-artifact.json' });
+  fs.writeFileSync(artifactPath, JSON.stringify(compactedFresh.artifact));
+  const fresh = transport.compactVisualEvidence(buildProductionStateBody({ ...baseOptions, canonicalProductionState: compactedFresh.compact, scenes: compactedFresh.compact.scenes, storyboardManifest: { ...baseOptions.storyboardManifest, scenes: compactedFresh.compact.scenes } }));
   assert.equal((await post(transport.packProjectState(fresh))).status, 200);
   const loaded=await load();
-  assert.deepEqual(loaded.projectContext.visualReviewItems.map(item=>transport.hydrateVisualReviewItem(item,loaded.projectContext.visualEvidence)), compiled.reviewItems);
+  assert.deepEqual(loaded.projectContext.visualReviewItems.map(item=>canonicalStateStorage.hydrateVisualReviewItem(item,compactedFresh.artifact)), compiled.reviewItems);
   report.checks.compilationToRouteToCockpit = true;
   report.storageBytes = fs.statSync(file).size;
   report.unchangedEvidence = ['zero-state-extraction.json','rulebook-knowledge-model.json'].every(f => hash(fs.readFileSync(path.join(b,f)).toString()) === hash(fs.readFileSync(path.join(path.resolve(args.evidence),'production',f)).toString()));

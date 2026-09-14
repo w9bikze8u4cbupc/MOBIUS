@@ -42,7 +42,7 @@ provider credentials are modified by the fixture's in-process authentication.
 `mobius-project-state-transport-v1` is shared by the normal production worker,
 the existing production-state route and the existing file-backed project store.
 Runtime capability `projectContextPersistence` is now
-`mobius-project-context-persistence-v2`. Required contracts, not equal Git SHAs,
+`mobius-project-context-persistence-v3`. Required contracts, not equal Git SHAs,
 gate the worker before expensive work. Use the existing canonical local runtime
 manager for alignment; do not launch a second API or change Windows tasks.
 The manager drops only the inherited `PSModulePath` for its Windows PowerShell
@@ -63,6 +63,39 @@ The normal POST budget is **20 MiB of UTF-8 JSON**, checked before fetch and at
 the route. Express retains its existing **25 MiB** limit. Expanded logical state
 is bounded at **192 MiB**. A legitimate larger state requires explicit engineering
 recovery, not truncation or a globally increased HTTP limit.
+
+### Referenced visual evidence v1
+
+`mobius-canonical-production-state-storage-v1` is the canonical persisted
+projection of the compiler's intentionally rich in-memory graph. It keeps the
+logical state below a **14 MiB** pre-send budget and stores detailed visual
+candidate evidence once in the same project under
+`production/visual-evidence-artifact.json`
+(`mobius-canonical-visual-evidence-artifact-v1`, **128 MiB** measured artifact
+budget). The state stores only stable asset, selection and candidate references;
+the artifact records the full asset catalogue, every score, rejection, crop
+measurement, provenance and candidate proof exactly once.
+
+The artifact descriptor carries a relative project-owned path, byte count and
+SHA-256 over the canonical JSON value. Cockpit's existing visual-review route
+resolves it only below the persisted project root and rejects a missing,
+out-of-root, wrong-project or checksum-mismatched artifact. It then hydrates the
+same review queue; this is not a second review store and no candidates are
+truncated. Canonical QA hydrates the same artifact before inspecting source
+assets. Historical inline canonical states remain readable.
+
+The normal worker materializes/validates the full state first, atomically writes
+the minified artifact, then atomically writes the compact canonical state. A
+serialization `RangeError` is explicitly `PROJECT_STATE_TOO_LARGE` and therefore
+Inbox `recovery-required`, never a terminal-invalid PDF. The isolated Attempt-10
+proof at `out/persistence-proof-compact-cowboy-20260914-b/proof.json` rebuilt
+the full 26,565,881-byte raw request (rejected with 413/no write), persisted the
+referenced 13,997,516-byte logical request as a 1,938,718-byte transport packet,
+then reloaded all 71 reviews through the real route after a storage restart.
+The compact canonical state was 1,955,165 bytes and its checksummed evidence
+artifact 8,783,923 bytes. The proof also verified identical replay, wrong
+project/SHA/path rejection and atomic rejection of a new oversized request;
+providers/extraction/rules/TTS/render calls were all zero.
 
 The existing `projects.json` stores versioned rows using the same graph encoding.
 Its public DB row interface, `/load-project/:id`, Cockpit and render-state hydration

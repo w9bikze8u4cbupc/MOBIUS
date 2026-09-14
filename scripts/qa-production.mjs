@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { runProductionQualityGate } = require('../src/services/productionQualityGate.cjs');
+const { hydrateCanonicalProductionState } = require('../src/services/canonicalProductionStateStorage.cjs');
 
 function arg(name) {
   const index = process.argv.indexOf(`--${name}`);
@@ -19,7 +20,12 @@ const root = path.resolve(arg('root') || process.cwd());
 const projectId = arg('project-id');
 const statePath = path.resolve(arg('state') || (projectId ? path.join(root, 'data', projectId, 'production', 'canonical-production-state.json') : ''));
 if (!statePath || !fs.existsSync(statePath)) throw new Error('Use --state <canonical-production-state.json> or --project-id <id>.');
-const state = readJson(statePath);
+let state = readJson(statePath);
+if (state?.visualEvidenceArtifact?.relativePath) {
+  const artifactPath = path.resolve(path.dirname(path.dirname(statePath)), state.visualEvidenceArtifact.relativePath);
+  const artifact = readJson(artifactPath);
+  state = hydrateCanonicalProductionState(state, artifact);
+}
 const phase = arg('phase') || 'canonical-state';
 const report = runProductionQualityGate({
   phase,

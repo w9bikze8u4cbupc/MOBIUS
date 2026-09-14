@@ -111,7 +111,7 @@ export function classifyInboxError(error) {
     return { class: 'recovery-required', retryable: true, explicitRecovery: true };
   }
   if (error?.classification === 'recovery_required' || String(error?.code || '').startsWith('PROJECT_STATE_')
-    || /production-state.*\(413\)|project_state_too_large/.test(message)) {
+    || /production-state.*\(413\)|project_state_too_large|invalid string length/.test(message)) {
     return { class: 'recovery-required', retryable: true, explicitRecovery: true };
   }
   const configurationRequired = error?.classification === 'configuration_required'

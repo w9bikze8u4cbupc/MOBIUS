@@ -15,7 +15,7 @@ function response(body, status = 200) {
 describe('canonical runtime compatibility', () => {
   test('legacy project persistence is incompatible even when all generation contracts match', () => {
     const stale = buildApiRuntimeCapabilities({ env: { MOBIUS_BUILD_SHA: '2'.repeat(40) } });
-    stale.contracts.projectContextPersistence = 'mobius-project-context-persistence-v1';
+    stale.contracts.projectContextPersistence = 'mobius-project-context-persistence-v2';
     expect(evaluateRuntimeCompatibility(stale, requirements).compatible).toBe(false);
     expect(stale.contracts.hephaestusMaterialization).toBe(requirements.requiredContracts.hephaestusMaterialization);
   });

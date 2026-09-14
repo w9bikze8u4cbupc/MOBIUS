@@ -10,7 +10,10 @@ export const PROJECT_SOURCE_DESCRIPTOR_CONTRACT = 'mobius-project-source-v1';
 // must not consider a legacy API compatible merely because the older stage
 // names still match.
 export const CANONICAL_PRODUCTION_STAGE_CONTRACT = 'mobius-canonical-production-stages-v1.3';
-export const PROJECT_CONTEXT_PERSISTENCE_CONTRACT = 'mobius-project-context-persistence-v2';
+// v3 requires the project-owned, checksummed visual-evidence sidecar. A v2
+// API could accept the compact state but cannot hydrate Cockpit candidates,
+// so it is not safe to begin a production run against it.
+export const PROJECT_CONTEXT_PERSISTENCE_CONTRACT = 'mobius-project-context-persistence-v3';
 export const RENDERER_QA_COMPATIBILITY_CONTRACT = 'mobius-normal-production-qa-v1';
 
 export const CANONICAL_RUNTIME_CONTRACTS = Object.freeze({

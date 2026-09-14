@@ -25,6 +25,7 @@ test('413 requires explicit recovery, releases owned metadata and cannot loop on
   assert.equal(recovered.status, 'waiting'); assert.equal(recovered.item.recoveryRequired, false);
   assert.equal(recovered.item.failureHistory.length, 1);
   assert.deepEqual(classifyInboxError(new Error('invalid PDF')), { class: 'terminal', retryable: false });
+  assert.deepEqual(classifyInboxError(new RangeError('Invalid string length')), { class: 'recovery-required', retryable: true, explicitRecovery: true });
 });
 
 test('expired live lease is protected, foreign token cannot be released or overwritten', async () => {

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { setProjectState } from './renderJobConfig.js';
 import transport from '../services/projectStateTransport.cjs';
+import canonicalStateStorage from '../services/canonicalProductionStateStorage.cjs';
 import {
   normalizeDurableProjectSource,
   projectSourceService,
@@ -592,27 +593,70 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
     if (cached?.metadata === row.metadata) return cached.context;
     const stored = parseRecoveryMetadata(row.metadata)?.projectContext;
     const context = stored ? { projectId: stored.projectId, visualEvidence:stored.visualEvidence,
-      visualReviewItems: stored.visualReviewItems || stored.canonicalProductionState?.reviewItems || [] } : null;
-    visualProjectionCache.delete(row.id);
-    visualProjectionCache.set(row.id, { metadata: row.metadata, context });
-    while (visualProjectionCache.size > 4) visualProjectionCache.delete(visualProjectionCache.keys().next().value);
-    return context;
+      visualReviewItems: stored.visualReviewItems || stored.canonicalProductionState?.reviewItems || [],
+      visualEvidenceArtifact: stored.visualEvidenceArtifact || null } : null;
+    if (!context?.visualEvidenceArtifact) {
+      visualProjectionCache.delete(row.id);
+      visualProjectionCache.set(row.id, { metadata: row.metadata, context });
+      while (visualProjectionCache.size > 4) visualProjectionCache.delete(visualProjectionCache.keys().next().value);
+      return context;
+    }
+    // The sidecar is the same canonical project state, not a second Cockpit
+    // queue. Resolve it only beneath the project root and verify its bytes and
+    // checksum before a browser can hydrate any candidate evidence.
+    return (async () => {
+      const descriptor = context.visualEvidenceArtifact;
+      if (descriptor.contract !== canonicalStateStorage.VISUAL_EVIDENCE_ARTIFACT_CONTRACT
+        || typeof descriptor.relativePath !== 'string') {
+        throw Object.assign(new Error('Visual evidence artifact descriptor is invalid.'), { code: 'VISUAL_EVIDENCE_ARTIFACT_INVALID' });
+      }
+      const sourceFile = await projectSource.resolveFile(context.projectId);
+      const projectRoot = path.dirname(path.dirname(fs.realpathSync(sourceFile)));
+      const requested = path.resolve(projectRoot, descriptor.relativePath);
+      const realArtifact = fs.realpathSync(requested);
+      const relative = path.relative(projectRoot, realArtifact);
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        throw Object.assign(new Error('Visual evidence artifact is outside the project root.'), { code: 'VISUAL_EVIDENCE_ARTIFACT_INVALID' });
+      }
+      const artifact = JSON.parse(fs.readFileSync(realArtifact, 'utf8'));
+      canonicalStateStorage.validateArtifact(artifact, descriptor);
+      if (artifact.projectId !== context.projectId) {
+        throw Object.assign(new Error('Visual evidence artifact project identity does not match.'), { code: 'VISUAL_EVIDENCE_ARTIFACT_INVALID' });
+      }
+      context.visualEvidenceArtifactData = artifact;
+      visualProjectionCache.delete(row.id);
+      visualProjectionCache.set(row.id, { metadata: row.metadata, context });
+      while (visualProjectionCache.size > 4) visualProjectionCache.delete(visualProjectionCache.keys().next().value);
+      return context;
+    })();
   };
   const readVisualContext = (req, res, next) => {
     const projectId = normalizeRecoveryProjectId(req.params.projectId);
     if (!projectId) return res.status(400).json({ code: 'PROJECT_ID_INVALID' });
     return db.all('SELECT * FROM projects', [], (error, rows = []) => {
       if (error) return res.status(500).json({ code: 'PROJECT_LOOKUP_FAILED' });
-      for (const row of rows.slice().sort((a, b) => Number(b.id) - Number(a.id))) {
-        const context = visualProjection(row);
-        if (context?.projectId === projectId) return next(context, projectId);
-      }
-      return res.status(404).json({ code: 'PROJECT_NOT_FOUND' });
+      return (async () => {
+        for (const row of rows.slice().sort((a, b) => Number(b.id) - Number(a.id))) {
+          let context;
+          try { context = await visualProjection(row); }
+          catch (artifactError) {
+            if (parseRecoveryMetadata(row.metadata)?.projectContext?.projectId === projectId) {
+              return res.status(409).json({ code: artifactError.code || 'VISUAL_EVIDENCE_ARTIFACT_UNAVAILABLE', classification: 'recovery_required' });
+            }
+            continue;
+          }
+          if (context?.projectId === projectId) return next(context, projectId);
+        }
+        return res.status(404).json({ code: 'PROJECT_NOT_FOUND' });
+      })();
     });
   };
   app.get('/api/projects/:projectId/visual-reviews', (req, res) => readVisualContext(req, res, (context, projectId) => {
     const items = context.visualReviewItems || context.canonicalProductionState?.reviewItems || [];
-    return res.json({ projectId, items: items.map((item) => transport.hydrateVisualReviewItem(item,context.visualEvidence)).map((item) => ({ ...item, candidates: (item.candidates || []).map((candidate) => ({
+    return res.json({ projectId, items: items.map((item) => {
+      const internal = canonicalStateStorage.hydrateVisualReviewItem(item, context.visualEvidenceArtifactData);
+      return transport.hydrateVisualReviewItem(internal, context.visualEvidence);
+    }).map((item) => ({ ...item, candidates: (item.candidates || []).map((candidate) => ({
       ...candidate, thumbnailPath: undefined,
       thumbnailUrl: `/api/projects/${encodeURIComponent(projectId)}/visual-reviews/assets/${encodeURIComponent(candidate.assetId)}/file`,
     })) })) });
@@ -620,7 +664,8 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
   app.get('/api/projects/:projectId/visual-reviews/assets/:assetId/file', (req, res) => readVisualContext(req, res, async (context, projectId) => {
     try {
       const items = context.visualReviewItems || context.canonicalProductionState?.reviewItems || [];
-      const candidate = items.flatMap((item) => item.candidates || []).find((row) => row.assetId === req.params.assetId);
+      const candidate = items.flatMap((item) => canonicalStateStorage.hydrateVisualReviewItem(item, context.visualEvidenceArtifactData).candidates || [])
+        .find((row) => row.assetId === req.params.assetId);
       if (!candidate?.thumbnailPath) return res.status(404).json({ code: 'REVIEW_IMAGE_MISSING' });
       const sourceFile = await projectSource.resolveFile(projectId);
       const root = fs.realpathSync(path.dirname(path.dirname(sourceFile)));

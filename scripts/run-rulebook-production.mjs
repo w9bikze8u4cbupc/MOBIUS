@@ -51,6 +51,7 @@ import { preflightAiProviderReadiness } from '../src/services/aiProviderReadines
 
 const require = createRequire(import.meta.url);
 const { packProjectState, compactVisualEvidence } = require('../src/services/projectStateTransport.cjs');
+const { createCompactCanonicalProductionState } = require('../src/services/canonicalProductionStateStorage.cjs');
 const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor.js');
 const { COMPONENT_INVENTORY_CONTRACT_VERSION, extractComponentInventory } = await import('../src/services/componentInventory.js');
 const { generateStoryboard } = require('../src/storyboard/generator.js');
@@ -102,9 +103,27 @@ function visualAnalysisContinuationIdentity(report = {}) {
   return deferred ? hashValue(report) : null;
 }
 function exists(filePath) { return Boolean(filePath && fs.existsSync(filePath)); }
-async function saveJson(filePath, value) {
+async function saveJson(filePath, value, { pretty = true } = {}) {
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  let serialized;
+  try {
+    serialized = `${JSON.stringify(value, null, pretty ? 2 : undefined)}\n`;
+  } catch (error) {
+    if (error instanceof RangeError || /invalid string length/i.test(String(error?.message || ''))) {
+      throw Object.assign(new Error(`Project state serialization failed for ${path.basename(filePath)}; explicit recovery is required.`), {
+        code: 'PROJECT_STATE_TOO_LARGE', statusCode: 413, classification: 'recovery_required', cause: error,
+      });
+    }
+    throw error;
+  }
+  // A state/checkpoint is never replaced by a partially written JSON file.
+  const temporary = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, serialized, { encoding: 'utf8', flag: 'wx' });
+    await fs.promises.rename(temporary, filePath);
+  } finally {
+    try { if (fs.existsSync(temporary)) await fs.promises.unlink(temporary); } catch {}
+  }
 }
 
 function archiveContractArtifacts(productionDir, paths, reason) {
@@ -362,6 +381,7 @@ export function buildProductionStateBody({ projectId, gameName, language, descri
     visualPlans: canonicalProductionState?.visualPlans || [],
     physicalGameStates: canonicalProductionState?.physicalStates || [],
     visualReviewItems: canonicalProductionState?.reviewItems || [],
+    visualEvidenceArtifact: canonicalProductionState?.visualEvidenceArtifact || null,
     ruleReviewItems,
     productionQa: canonicalProductionState?.qa || null,
     generatorProductization: canonicalProductionState ? {
@@ -937,6 +957,7 @@ async function runZeroState(options = {}) {
 
   const catalog = loadSourceVisualCatalog(combinedVisualManifestPath, { qualityReportPath: qualityPath, semanticReportPath: semanticPath, hephaestusEvidencePath: hephEvidencePath });
   const canonicalStatePath = path.join(productionDir, 'canonical-production-state.json');
+  const visualEvidenceArtifactPath = path.join(productionDir, 'visual-evidence-artifact.json');
   const visualPlansPath = path.join(productionDir, 'visual-plans.json');
   const physicalStatesPath = path.join(productionDir, 'physical-game-states.json');
   const visualReviewItemsPath = path.join(productionDir, 'visual-review-items.json');
@@ -1014,6 +1035,18 @@ async function runZeroState(options = {}) {
       records: materialized.records,
     },
   };
+  // The compiler/materializer above operate on the complete evidence graph.
+  // Persist only its compact canonical projection and a single checksummed
+  // project-owned evidence artifact before any API write. This keeps the
+  // Cockpit lossless while preventing repeated candidate copies from turning
+  // a recoverable review state into an HTTP/V8 size failure.
+  const persistedCanonicalState = createCompactCanonicalProductionState(canonicalProductionState, {
+    projectId,
+    sourceSha256: identity.sha256,
+    relativePath: path.relative(projectDir, visualEvidenceArtifactPath).replace(/\\/g, '/'),
+  });
+  await saveJson(visualEvidenceArtifactPath, persistedCanonicalState.artifact, { pretty: false });
+  canonicalProductionState = persistedCanonicalState.compact;
   await saveJson(canonicalStatePath, canonicalProductionState);
   await saveJson(visualPlansPath, { contract: 'mobius-canonical-visual-plans-v1', plans: canonicalProductionState.visualPlans });
   await saveJson(physicalStatesPath, { contract: 'mobius-physical-game-state-collection-v1', states: canonicalProductionState.physicalStates });
