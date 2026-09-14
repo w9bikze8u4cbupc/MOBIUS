@@ -180,6 +180,15 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(result[0]['asset_id'], 'context')
             self.assertEqual(len(result), 2)
 
+    def test_prioritized_analysis_spends_bounded_budget_on_track_before_multi_component_summary(self):
+        scenes = [
+            {'id': 'summary', 'visualRequirement': {'requiredObjects': ['a', 'b', 'c']}},
+            {'id': 'ordinary', 'visualRequirement': {'requiredObjects': ['card']}},
+            {'id': 'track', 'visualRequirement': {'requiredObjects': ['board'], 'trackStateRequired': True, 'transitionRequired': True}}
+        ]
+        self.assertEqual([scene['id'] for scene in matcher.prioritize_scenes(scenes)], ['track', 'ordinary', 'summary'])
+        self.assertEqual([scene['id'] for scene in scenes], ['summary', 'ordinary', 'track'])
+
     def test_unknown_component_hypothesis_is_not_dropped_before_pixel_analysis(self):
         self.assertTrue(qualifier.eligible_hypothesis({'is_component': None, 'type': 'focused-page-crop'}))
         self.assertTrue(qualifier.eligible_hypothesis({}))

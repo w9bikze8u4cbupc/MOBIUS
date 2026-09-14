@@ -13,7 +13,7 @@ from openai import OpenAI
 
 CONTRACT = "mobius-object-visual-evidence-v2"
 SEARCH_CONTRACT = "mobius-referent-localization-v1"
-SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v2'
+SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v3-reuse-priority'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 MODEL = os.getenv("MOBIUS_VISUAL_MATCH_MODEL") or os.getenv("OPENAI_MODEL")
 _probe_spec = importlib.util.spec_from_file_location('mobius_visual_probe', Path(__file__).with_name('qualify-source-visuals.py'))
@@ -49,6 +49,34 @@ def packet_for(scene, terms):
     return {"contract": CONTRACT, "requiredObjects": [{"id": ident, "term": terms.get(ident) or ident}
         for ident in req.get("requiredObjects", [])], "requirement": req,
         "sourceRefs": scene.get("sourceRefs") or [], "sourcePages": scene.get("source_pages") or []}
+
+def analysis_priority(scene, object_frequency):
+    """Order bounded pixel work by instructional evidence value, not narration order.
+
+    This changes only the order in which an otherwise fixed call budget is spent.
+    Track/transition scenes with one referent can establish reusable physical-state
+    evidence; broad multi-component summaries cannot legitimately displace them.
+    The canonical storyboard remains in its original teaching order.
+    """
+    req = scene.get('visualRequirement') or {}
+    required = req.get('requiredObjects') or []
+    if req.get('trackStateRequired'):
+        state_rank = 0
+    elif req.get('transitionRequired'):
+        state_rank = 1
+    else:
+        state_rank = 2
+    object_rank = 0 if len(required) == 1 else 1
+    reuse_rank = -max((object_frequency.get(ident, 0) for ident in required), default=0)
+    return (state_rank, object_rank, reuse_rank, str(scene.get('id') or ''))
+
+def prioritize_scenes(scenes):
+    """Return analysis order without mutating the authored scene sequence."""
+    frequencies = {}
+    for scene in scenes:
+        for ident in ((scene.get('visualRequirement') or {}).get('requiredObjects') or []):
+            frequencies[ident] = frequencies.get(ident, 0) + 1
+    return sorted(scenes, key=lambda scene: analysis_priority(scene, frequencies))
 
 def candidates_for(packet, assets):
     # Page/term proximity generates hypotheses only. Identity still needs pixels.
@@ -291,7 +319,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
     blocker = None
     scenes = []
     generated = []
-    for scene in script.get("scenes", []):
+    for scene in prioritize_scenes(script.get("scenes", [])):
         if os.getenv('MOBIUS_VISUAL_SCENE_ID') and scene.get('id') != os.environ['MOBIUS_VISUAL_SCENE_ID']:
             continue
         packet = packet_for(scene, script.get("componentTerms") or {})
