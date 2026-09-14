@@ -172,6 +172,61 @@ async function auditRasterIsolation(filePath, {
   };
 }
 
+const DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-derived-object-visual-evidence-v1';
+
+function digestJson(value) {
+  return require('node:crypto').createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+function normalizedChildBox(parentBox, cropBox, parentWidth, parentHeight) {
+  const left = (parentBox[0] * parentWidth - cropBox.x) / cropBox.width;
+  const top = (parentBox[1] * parentHeight - cropBox.y) / cropBox.height;
+  const right = (parentBox[2] * parentWidth - cropBox.x) / cropBox.width;
+  const bottom = (parentBox[3] * parentHeight - cropBox.y) / cropBox.height;
+  const values = [left, top, right, bottom].map((value) => Number(value.toFixed(8)));
+  if (!values.every((value) => Number.isFinite(value)) || values[0] <= 0 || values[1] <= 0 || values[2] >= 1 || values[3] >= 1
+    || values[2] <= values[0] || values[3] <= values[1]) throw new Error('Measured component crop loses required boundary margin');
+  return values;
+}
+
+function derivedEvidence({ parentEvidence, crop, parentWidth, parentHeight, parentAssetId, parentImageSha256, sourcePdfSha256 }) {
+  if (!parentEvidence || parentEvidence.method !== 'provider-pixel-analysis'
+    || !['COMPONENT', 'TRACK'].includes(parentEvidence.visualRole)
+    || !Array.isArray(parentEvidence.bbox) || parentEvidence.bbox.length !== 4
+    || !parentEvidence.bbox.every(Number.isFinite)) return null;
+  const cropBox = crop.provenance?.bbox;
+  if (!cropBox || !Number.isFinite(cropBox.x) || !Number.isFinite(cropBox.y)
+    || !Number.isFinite(cropBox.width) || !Number.isFinite(cropBox.height)) return null;
+  const bbox = normalizedChildBox(parentEvidence.bbox, cropBox, parentWidth, parentHeight);
+  const transformPoint = (point) => ({
+    ...point,
+    x: Number(((Number(point.x) * parentWidth - cropBox.x) / cropBox.width).toFixed(8)),
+    y: Number(((Number(point.y) * parentHeight - cropBox.y) / cropBox.height).toFixed(8)),
+  });
+  const trackPoints = parentEvidence.visualRole === 'TRACK'
+    ? (parentEvidence.trackPoints || []).map(transformPoint) : undefined;
+  if (trackPoints && trackPoints.some((point) => !Number.isFinite(point.x) || !Number.isFinite(point.y)
+    || point.x < 0 || point.x > 1 || point.y < 0 || point.y > 1)) return null;
+  return {
+    ...parentEvidence,
+    contract: DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT,
+    method: 'deterministic-evidence-bound-crop',
+    assetId: crop.id,
+    imageSha256: crop.contentHash,
+    bbox,
+    ...(trackPoints ? { trackPoints } : {}),
+    derivedFrom: {
+      parentAssetId,
+      parentImageSha256,
+      sourcePdfSha256: sourcePdfSha256 || null,
+      parentEvidenceHash: digestJson(parentEvidence),
+      cropBox,
+      transform: 'exact-parent-pixel-crop-v1',
+    },
+    parentEvidence,
+  };
+}
+
 /** Source-faithful derivative of measured bounds. Geometry is NOT pixel validation. */
 async function materializeMeasuredObjectCrop({ sourcePath, sourceId, sourceSha256, sourcePage, sourcePdfSha256, sourcePdfPath, objectId, bbox, outputDir, recoveryMode = 'page-region' }) {
   const fs = require('node:fs');
@@ -188,7 +243,7 @@ async function materializeMeasuredObjectCrop({ sourcePath, sourceId, sourceSha25
     intendedObjects: [{ id: objectId, bounds }], paddingPx: Math.max(8, Math.ceil(Math.max(bounds.width, bounds.height) * .04)) });
   const box = geometry.paddedCropBox;
   if (geometry.violations.length) throw new Error(`Measured localization clipped: ${geometry.violations.join(',')}`);
-  if (sourcePdfPath) {
+  if (sourcePdfPath && recoveryMode !== 'parent-pixels') {
     if (hash(fs.readFileSync(sourcePdfPath)) !== sourcePdfSha256) throw new Error('Source PDF identity mismatch');
     const region = [box.x / m.width, box.y / m.height, (box.x + box.width) / m.width, (box.y + box.height) / m.height];
     const id = `pdf-region-${hash(JSON.stringify([sourcePdfSha256, sourcePage, objectId, region, 300, recoveryMode])).slice(0, 24)}`;
@@ -225,4 +280,65 @@ async function materializeMeasuredObjectCrop({ sourcePath, sourceId, sourceSha25
       extraction: 'measured-object-crop-no-resampling', requiresPixelVerification: true } };
 }
 
-module.exports = { auditOpticalCenter, auditRasterIsolation, compileObjectAwareCrop, materializeMeasuredObjectCrop, contains, intersects, normalizeBox, unionBoxes };
+/**
+ * Reframes a provider-measured component from its exact parent pixels.  This
+ * carries the original pixel verdict only when the child has deterministic
+ * margin-preserving lineage; it never turns an arbitrary crop or a PDF
+ * re-rasterization into a measured component.
+ */
+async function deriveEvidenceBoundObjectCrop({ parentAsset = {}, componentEvidence, linkedEvidence = [], outputDir }) {
+  if (!componentEvidence || componentEvidence.visualRole !== 'COMPONENT'
+    || componentEvidence.present !== true || componentEvidence.complete !== true || componentEvidence.isolated !== true
+    || Number(componentEvidence.confidence) < 0.9) throw new Error('A complete measured component verdict is required for evidence-bound crop derivation');
+  const sourcePath = parentAsset.filePath || parentAsset.file_path || parentAsset.renderPath || parentAsset.path;
+  if (!sourcePath) throw new Error('Measured component crop parent path is required');
+  const fs = require('node:fs');
+  const crypto = require('node:crypto');
+  const sharp = require('sharp');
+  const parentImageSha256 = crypto.createHash('sha256').update(fs.readFileSync(sourcePath)).digest('hex');
+  if (parentImageSha256 !== componentEvidence.imageSha256) throw new Error('Measured component crop parent evidence SHA mismatch');
+  const metadata = await sharp(sourcePath).metadata();
+  const crop = await materializeMeasuredObjectCrop({
+    sourcePath,
+    sourceId: parentAsset.id || componentEvidence.assetId,
+    sourceSha256: parentImageSha256,
+    sourcePage: Number(parentAsset.source_page || parentAsset.sourcePage || parentAsset.pageNumber),
+    sourcePdfSha256: parentAsset.sourcePdfSha256,
+    objectId: componentEvidence.requiredObject,
+    bbox: componentEvidence.bbox,
+    outputDir,
+    // This exact subset is the only form whose parent proof can be carried.
+    recoveryMode: 'parent-pixels',
+  });
+  const sourcePdfSha256 = parentAsset.sourcePdfSha256 || null;
+  const inherited = [componentEvidence, ...linkedEvidence]
+    .filter((row) => row?.assetId === componentEvidence.assetId
+      && row.requiredObject === componentEvidence.requiredObject
+      && row.imageSha256 === parentImageSha256)
+    .map((row) => derivedEvidence({ parentEvidence: row, crop, parentWidth: metadata.width, parentHeight: metadata.height,
+      parentAssetId: componentEvidence.assetId, parentImageSha256, sourcePdfSha256 }))
+    .filter(Boolean);
+  return {
+    ...crop,
+    sourceAuthority: parentAsset.sourceAuthority || crop.sourceAuthority,
+    visual_kind: 'evidence-bound-component-crop',
+    type: 'focused-crop',
+    objectVisualEvidence: inherited,
+    provenance: {
+      ...crop.provenance,
+      requiresPixelVerification: false,
+      evidenceBoundCrop: {
+        contract: DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT,
+        parentAssetId: componentEvidence.assetId,
+      parentImageSha256,
+      sourcePdfSha256,
+      cropBox: crop.provenance?.bbox || null,
+      componentEvidenceHash: digestJson(componentEvidence),
+      parentEvidenceHashes: inherited.map((row) => row.derivedFrom.parentEvidenceHash),
+      transform: 'exact-parent-pixel-crop-v1',
+      },
+    },
+  };
+}
+
+module.exports = { DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT, auditOpticalCenter, auditRasterIsolation, compileObjectAwareCrop, materializeMeasuredObjectCrop, deriveEvidenceBoundObjectCrop, contains, intersects, normalizeBox, unionBoxes };

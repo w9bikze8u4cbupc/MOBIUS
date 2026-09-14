@@ -13,6 +13,9 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { generateFocusedPageCrops, sourceLocalizationPages } from '../src/services/sourcePageVisuals.js';
 import { getAiConfig } from '../src/config/aiConfig.js';
+import evidenceBoundCropService from '../src/services/evidenceBoundVisualCrop.cjs';
+
+const { appendEvidenceBoundCrops } = evidenceBoundCropService;
 
 function arg(name) {
   const index = process.argv.indexOf(`--${name}`);
@@ -181,6 +184,7 @@ async function main() {
     visualManifestPath = resolve(outputDir, 'source-visual-manifest.json');
     await writeFile(visualManifestPath, JSON.stringify({ ...manifest, images: [...byId.values()] }, null, 2), 'utf8');
   }
+  visualManifestPath = await appendEvidenceBoundCrops({ semantic, visualManifestPath, outputDir });
   console.log(JSON.stringify({
     script: scriptPath,
     assetManifest: visualManifestPath,

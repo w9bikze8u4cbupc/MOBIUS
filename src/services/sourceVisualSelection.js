@@ -359,7 +359,10 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
       componentRefs: [],
       referentAliases: [],
       bindingHypotheses: bindings,
-      objectVisualEvidence: objectEvidenceByAssetId.get(asset.id) || [],
+      // Derived crops carry a strictly validated parent-pixel verdict in the
+      // manifest itself. Keep it alongside matcher evidence so the canonical
+      // resolver, Cockpit, and replay all see the same source proof.
+      objectVisualEvidence: [...(objectEvidenceByAssetId.get(asset.id) || []), ...(asset.objectVisualEvidence || [])],
       objectAnalysisAttempts: analysisByAssetId.get(asset.id) || [],
       semanticObjects: [...new Set([
         ...(asset.semanticObjects || []), asset.label, asset.category, componentEvidence?.componentName, componentEvidence?.category,

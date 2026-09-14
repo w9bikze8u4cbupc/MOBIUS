@@ -14,6 +14,19 @@ test('composition review may use an explicitly bounded sub-stage ledger group', 
   }).MOBIUS_VISUAL_BUDGET_GROUP).toBe('composition');
 });
 
+test('track preparation prefers stronger measured state evidence before native area', () => {
+  const { chooseTrackCandidate } = require('../../src/services/visualPlanMaterializer.cjs');
+  const candidate = (id, overrides = {}) => ({
+    asset: { id, nativeWidthPx: 1000, nativeHeightPx: 1000 },
+    component: { isolated: true, confidence: .99 },
+    track: { isolated: true, confidence: .99, stateStages: [{ position: 1 }, { position: 2 }, { position: 3 }] },
+    ...overrides,
+  });
+  const largerButWeaker = candidate('larger', { asset: { id: 'larger', nativeWidthPx: 3000, nativeHeightPx: 3000 },
+    track: { isolated: false, confidence: .96, stateStages: [{ position: 1 }, { position: 2 }] } });
+  expect(chooseTrackCandidate([largerButWeaker, candidate('measured-sequence')]).asset.id).toBe('measured-sequence');
+});
+
 test('mono-image still uses the real storyboard renderer and never auto-certifies composition', async () => {
   const { materializeInstructionalStill } = require('../../src/services/visualPlanMaterializer.cjs');
   const state = { projectId: 'test-normal-still', assets: [{ id: 'asset', filePath: fixture, width: 1600, height: 900 }],

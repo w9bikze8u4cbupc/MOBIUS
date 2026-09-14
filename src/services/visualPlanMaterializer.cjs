@@ -10,6 +10,35 @@ const crypto = require('node:crypto');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const xml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 
+function trackCandidateQuality({ asset, component, track }) {
+  const stages = track.stateStages || [];
+  const distinctPositions = new Set(stages.map((stage) => stage.position)).size;
+  const sourceArea = Number(asset.nativeWidthPx || 0) * Number(asset.nativeHeightPx || 0);
+  // Authority, measured object integrity and a source-grounded sequence are
+  // pedagogical evidence. Native area breaks ties; it cannot select a larger
+  // asset whose state proof is weaker.
+  return [
+    track.isolated === true ? 1 : 0,
+    component.isolated === true ? 1 : 0,
+    Number(track.confidence || 0),
+    Number(component.confidence || 0),
+    distinctPositions,
+    stages.length,
+    sourceArea,
+  ];
+}
+
+function chooseTrackCandidate(candidates = []) {
+  return [...candidates].sort((left, right) => {
+    const a = trackCandidateQuality(left);
+    const b = trackCandidateQuality(right);
+    for (let index = 0; index < a.length; index += 1) {
+      if (a[index] !== b[index]) return b[index] - a[index];
+    }
+    return String(left.asset.id).localeCompare(String(right.asset.id));
+  })[0] || null;
+}
+
 /** Source-measured track + provider-written states; preparation is NOT acceptance. */
 async function materializeTrackStateFrames({ projectId, scene, assets, outputDir } = {}) {
   const req=scene.visualRequirement || {};
@@ -21,9 +50,9 @@ async function materializeTrackStateFrames({ projectId, scene, assets, outputDir
     .filter(({asset,component,track})=>component?.present&&component.complete&&component.isolated&&component.confidence>=.9
       &&track?.confidence>=.9&&track.complete&&track.trackPoints?.length>1&&track.stateStages?.length>=2&&track.stateStages.length<=8
       &&track.imageSha256===sha(fs.readFileSync(sourceFile(asset)))&&/^[a-f0-9]{64}$/.test(asset.sourcePdfSha256||''));
-  candidates.sort((a,b)=>(b.asset.nativeWidthPx*b.asset.nativeHeightPx)-(a.asset.nativeWidthPx*a.asset.nativeHeightPx));
   if(!candidates.length)return null;
-  const {asset,track}=candidates[0];
+  const selectedCandidate=chooseTrackCandidate(candidates);
+  const {asset,track}=selectedCandidate;
   const points=new Map(track.trackPoints.map(p=>[p.value,p]));
   const pages=new Set(scene.source_pages||[]);
   if(track.stateStages.some(s=>!points.has(s.position)||!s.sourcePages?.length||s.sourcePages.some(p=>!pages.has(p))))return null;
@@ -65,7 +94,7 @@ async function materializeTrackStateFrames({ projectId, scene, assets, outputDir
       measuredMarkerCenter:{x,y},preparedOnly:true,validated:false});
   }
   return {contract:'mobius-source-measured-track-sequence-v1',sceneId:scene.id,ruleAtomId:scene.atomId,assetId:asset.id,
-    frames,trackEvidence:track,sourceComponentEvidence:candidates[0].component,preparedOnly:true,validated:false};
+    frames,trackEvidence:track,sourceComponentEvidence:selectedCandidate.component,preparedOnly:true,validated:false};
 }
 
 function canonicalTeachingPresentation(scene, index = 0, asset = {}) {
@@ -284,4 +313,4 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
  return {assets:attachSequenceReviewEvidence({assets:state.assets,records:materialized.records,reviewPaths}),reviewPaths};
 }
 
-module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, materializeTrackStateFrames, canonicalTeachingPresentation, materializeInstructionalStill };
+module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, materializeTrackStateFrames, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill };

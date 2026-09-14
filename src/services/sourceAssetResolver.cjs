@@ -7,6 +7,7 @@ const { spawnSync } = require('node:child_process');
 const { candidateDetailRatio, sourceAuthorityRank } = require('./sourceDetailLineage.cjs');
 const { teachingSceneLayout, containedDisplayBounds } = require('./presentationDesignSystem.cjs');
 const { verifiedInstructionalSequence } = require('./physicalGameState.cjs');
+const { DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT } = require('./objectAwareCrop.cjs');
 
 const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v3';
 const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v2';
@@ -175,13 +176,44 @@ function semanticScore(candidate, requiredObjects = []) {
   return overlap / wanted.size;
 }
 
+function hashJson(value) {
+  return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+function validEvidenceBoundCrop(row, candidate, childSha) {
+  if (row.contract !== DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT || row.method !== 'deterministic-evidence-bound-crop'
+    || row.assetId !== candidate.id || row.imageSha256 !== childSha) return false;
+  const parent = row.parentEvidence;
+  const lineage = row.derivedFrom;
+  const recorded = candidate.provenance?.evidenceBoundCrop;
+  if (!parent || !lineage || !recorded || parent.method !== 'provider-pixel-analysis'
+    || !['COMPONENT', 'TRACK'].includes(parent.visualRole)
+    || parent.assetId !== lineage.parentAssetId || parent.imageSha256 !== lineage.parentImageSha256
+    || hashJson(parent) !== lineage.parentEvidenceHash || !recorded.parentEvidenceHashes?.includes(lineage.parentEvidenceHash)
+    || lineage.parentAssetId !== recorded.parentAssetId || lineage.parentImageSha256 !== recorded.parentImageSha256
+    || lineage.transform !== 'exact-parent-pixel-crop-v1' || recorded.transform !== lineage.transform) return false;
+  const parentPath = candidate.provenance?.parentPath;
+  if (!parentPath || !fs.existsSync(parentPath)
+    || crypto.createHash('sha256').update(fs.readFileSync(parentPath)).digest('hex') !== lineage.parentImageSha256) return false;
+  const parentPdf = candidate.provenance?.sourcePdfSha256 || candidate.sourcePdfSha256 || null;
+  if ((lineage.sourcePdfSha256 || null) !== (parentPdf || null)
+    || (recorded.sourcePdfSha256 || null) !== (parentPdf || null)) return false;
+  const expectedBox = candidate.provenance?.bbox;
+  if (!expectedBox || JSON.stringify(expectedBox) !== JSON.stringify(lineage.cropBox)
+    || JSON.stringify(expectedBox) !== JSON.stringify(recorded.cropBox)) return false;
+  return Array.isArray(row.bbox) && row.bbox.length === 4 && row.bbox.every(Number.isFinite)
+    && row.bbox[0] > 0 && row.bbox[1] > 0 && row.bbox[2] < 1 && row.bbox[3] < 1;
+}
+
 function objectEvidenceFor(candidate, referent, sceneId = null, { allowReusableIdentity = false } = {}) {
   const rows = (candidate.objectVisualEvidence || []).filter((row) => (row.contract === OBJECT_VISUAL_EVIDENCE_CONTRACT
-    || (row.contract === 'mobius-object-visual-evidence-v1' && !row.visualRole))
-    && row.requiredObject === referent && row.assetId === candidate.id && row.method === 'provider-pixel-analysis');
+    || (row.contract === 'mobius-object-visual-evidence-v1' && !row.visualRole)
+    || row.contract === DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT)
+    && row.requiredObject === referent && row.assetId === candidate.id);
   if (!rows.length || !candidate.filePath || !fs.existsSync(candidate.filePath)) return null;
   const sha = crypto.createHash('sha256').update(fs.readFileSync(candidate.filePath)).digest('hex');
-  const valid = rows.filter((row) => row.imageSha256 === sha && row.evidencePacketHash && row.model && row.reason);
+  const valid = rows.filter((row) => row.imageSha256 === sha && row.evidencePacketHash && row.model && row.reason
+    && (row.method === 'provider-pixel-analysis' || validEvidenceBoundCrop(row, candidate, sha)));
   const scoped = valid.find((row) => !sceneId || row.sceneId === sceneId);
   if (scoped) return scoped;
   // An exact, provider-measured COMPONENT proof establishes only the visual
