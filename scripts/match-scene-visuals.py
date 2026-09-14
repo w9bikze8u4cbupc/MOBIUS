@@ -78,6 +78,45 @@ def prioritize_scenes(scenes):
             frequencies[ident] = frequencies.get(ident, 0) + 1
     return sorted(scenes, key=lambda scene: analysis_priority(scene, frequencies))
 
+def measured_object(row, role=None):
+    return (row.get('present') is True and row.get('complete') is True
+        and row.get('isolated') is True and row.get('stateCompatible') is True
+        and isinstance(row.get('confidence'), (int, float)) and row['confidence'] >= .9
+        and (role is None or row.get('visualRole') == role))
+
+def scene_measurement_complete(scene, prior):
+    """Whether retained pixel evidence already satisfies this exact scene.
+
+    This is only an execution optimisation. The canonical resolver remains the
+    authority for accepting the candidate after source/detail/state QA.
+    """
+    req = scene.get('visualRequirement') or {}
+    required = set(req.get('requiredObjects') or [])
+    if not required:
+        return False
+    rows = [obj for candidate in prior.get('candidates', []) for obj in candidate.get('objects', [])]
+    component_complete = lambda ident: any(obj.get('requiredObject') == ident and measured_object(obj, 'COMPONENT') for obj in rows)
+    if req.get('trackStateRequired'):
+        return all(component_complete(ident) and any(obj.get('requiredObject') == ident and measured_object(obj, 'TRACK')
+            and len(obj.get('trackPoints') or []) > 1 and len(obj.get('stateStages') or []) >= 2 for obj in rows) for ident in required)
+    stateful = any(req.get(key) for key in ('transitionRequired', 'setupPlacementRequired', 'layeredStateRequired',
+        'requiredRelationship', 'requiredState', 'beforeState', 'actionState', 'afterState')) or bool(req.get('requiredQuantities'))
+    return len(required) == 1 and not stateful and component_complete(next(iter(required)))
+
+def continuation_required(report, max_calls):
+    summary = report.get('summary') or {}
+    if summary.get('providerBlocker'):
+        return False
+    # Older reports lack the explicit flag. Their terminal unknown rows plus a
+    # fully spent bound are the backward-compatible indication of deferral.
+    if summary.get('continuationRequired') is True:
+        return True
+    if int(summary.get('providerCalls') or 0) < int(max_calls):
+        return False
+    return any(candidate.get('status') == 'UNKNOWN'
+        and 'bounded budget exhausted' in str(candidate.get('reason') or '')
+        for scene in report.get('scenes', []) for candidate in scene.get('candidates', []))
+
 def candidates_for(packet, assets):
     # Page/term proximity generates hypotheses only. Identity still needs pixels.
     terms = [r['term'] if isinstance(r['term'], str) else r['term'].get('name', '') for r in packet['requiredObjects']]
@@ -302,8 +341,8 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
         for a in qa.get('assets', []) if (a.get('asset_metadata') or {}).get('phonePath')]
     run_cache = cache_dir / ('run-' + digest([SEARCH_EXECUTION_VERSION, COMPOSITION_RESPONSE_CONTRACT, SEARCH_CONTRACT, CONTRACT, MODEL, script, source_identities,
         [a.get('asset_metadata') for a in qa.get('assets', [])], imported_inventory, os.getenv('MOBIUS_VISUAL_SCENE_ID'), max_calls, client is not None, recovery_epoch()]) + '.json')
-    if run_cache.exists():
-        previous = json.loads(run_cache.read_text(encoding='utf-8'))
+    previous = json.loads(run_cache.read_text(encoding='utf-8')) if run_cache.exists() else None
+    if previous is not None:
         # Older composition executions recorded a schema failure but did not
         # propagate the suspension. Preserve that receipt; do not issue it again.
         invalid_composition = next((c for s in previous['scenes'] for c in s['candidates']
@@ -313,14 +352,21 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
             blocker = 'VISUAL_RESPONSE_INVALID: archived composition validation failed; no automatic retry'
             reserve_call({}, provider_failure=blocker)
             previous = {**previous, 'summary': {**previous['summary'], 'providerBlocker': blocker}}
-        return {**previous, 'summary': {**previous['summary'], 'providerCalls': 0,
-            'cacheHits': sum(c['status'] == 'MEASURED' for s in previous['scenes'] for c in s['candidates']), 'runCacheReused': True}}
+        if not continuation_required(previous, max_calls):
+            return {**previous, 'summary': {**previous['summary'], 'providerCalls': 0,
+                'cacheHits': sum(c['status'] == 'MEASURED' for s in previous['scenes'] for c in s['candidates']), 'runCacheReused': True,
+                'continuationRequired': False}}
     calls = hits = 0
     blocker = None
     scenes = []
-    generated = []
+    generated = list(previous.get('generatedAssets') or []) if previous else []
+    previous_by_scene = {scene.get('scene_id'): scene for scene in (previous.get('scenes') or [])} if previous else {}
     for scene in prioritize_scenes(script.get("scenes", [])):
         if os.getenv('MOBIUS_VISUAL_SCENE_ID') and scene.get('id') != os.environ['MOBIUS_VISUAL_SCENE_ID']:
+            continue
+        prior = previous_by_scene.get(scene.get('id'))
+        if prior and scene_measurement_complete(scene, prior):
+            scenes.append(prior)
             continue
         packet = packet_for(scene, script.get("componentTerms") or {})
         results = []
@@ -531,8 +577,12 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
             results.append(result)
         scenes.append({"scene_id": scene.get("id"), "status": "object-evidence-ready" if any(r["status"] == "MEASURED" for r in results) else "needs_visual_review",
             "selected_asset_id": None, "reason": "Canonical object/detail/state validation required", "candidates": results})
+    deferred = bool(not blocker and calls >= max_calls and any(candidate.get('status') == 'UNKNOWN'
+        and 'bounded budget exhausted' in str(candidate.get('reason') or '')
+        for scene in scenes for candidate in scene.get('candidates', [])))
     report = {"version": 2, "contract": CONTRACT, "searchContract": SEARCH_CONTRACT, "model": MODEL, "scenes": scenes, "generatedAssets": generated,
-        "summary": {"providerCalls": calls, "cacheHits": hits, "maxProviderCalls": max_calls, "retries": 0, "providerBlocker": blocker}}
+        "summary": {"providerCalls": calls, "cacheHits": hits, "maxProviderCalls": max_calls, "retries": 0,
+            "providerBlocker": blocker, "continuationRequired": deferred}}
     tmp = run_cache.with_suffix('.tmp')
     tmp.write_text(json.dumps(report, ensure_ascii=False), encoding='utf-8')
     tmp.replace(run_cache)

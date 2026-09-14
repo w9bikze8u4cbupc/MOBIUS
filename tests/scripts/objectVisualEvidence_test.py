@@ -189,6 +189,44 @@ class ObjectEvidenceTests(unittest.TestCase):
         self.assertEqual([scene['id'] for scene in matcher.prioritize_scenes(scenes)], ['track', 'ordinary', 'summary'])
         self.assertEqual([scene['id'] for scene in scenes], ['summary', 'ordinary', 'track'])
 
+    def test_explicit_bounded_continuation_reuses_complete_scene_and_measures_next_candidate(self):
+        """A later Inbox re-open advances deferred work without repeating pixels.
+
+        The first bounded run proves one exact component and records the other
+        as deferred.  The second run must retain the first scene verbatim and
+        spend its only call on the second scene, not restart the batch.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'
+            script = {'scenes': [
+                {'id': 'a-board', 'source_pages': [2], 'visualRequirement': {'requiredObjects': ['board']}},
+                {'id': 'b-token', 'source_pages': [3], 'visualRequirement': {'requiredObjects': ['token']}}
+            ]}
+            qa = {'assets': [
+                {'asset_id': 'board-page', 'path': str(pixels), 'asset_metadata': {'source_page': 2}},
+                {'asset_id': 'token-page', 'path': str(pixels), 'asset_metadata': {'source_page': 3}}
+            ]}
+            calls = []
+            def create(**kwargs):
+                calls.append(kwargs)
+                text = kwargs['messages'][0]['content'][0]['text']
+                required = 'board' if '"id": "board"' in text else 'token'
+                row = {'requiredObject': required, 'present': True, 'confidence': .99, 'complete': True,
+                    'isolated': True, 'stateCompatible': True, 'bbox': [.1, .1, .9, .9], 'reason': 'fixture object'}
+                return types.SimpleNamespace(usage=None, choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=json.dumps({'objects': [row]})))])
+            client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            first = matcher.run(script, qa, Path(directory), 1, client)
+            self.assertEqual(first['summary']['providerCalls'], 1)
+            self.assertTrue(first['summary']['continuationRequired'])
+            self.assertEqual(first['scenes'][0]['scene_id'], 'a-board')
+            self.assertEqual(first['scenes'][1]['candidates'][0]['status'], 'UNKNOWN')
+            second = matcher.run(script, qa, Path(directory), 1, client)
+            self.assertEqual(second['summary']['providerCalls'], 1)
+            self.assertFalse(second['summary']['continuationRequired'])
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(second['scenes'][0], first['scenes'][0])
+            self.assertEqual(second['scenes'][1]['candidates'][0]['status'], 'MEASURED')
+
     def test_unknown_component_hypothesis_is_not_dropped_before_pixel_analysis(self):
         self.assertTrue(qualifier.eligible_hypothesis({'is_component': None, 'type': 'focused-page-crop'}))
         self.assertTrue(qualifier.eligible_hypothesis({}))

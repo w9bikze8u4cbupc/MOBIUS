@@ -64,7 +64,7 @@ const VOICE_ID = process.env.ELEVENLABS_VOICE_ID_AMELIE || 'UJCi4DDncuo0VJDSIegj
 const VOICE_NAME = 'Amélie';
 const MODEL_ID = 'eleven_multilingual_v2';
 const { DEFAULT_NARRATION_PRESET, getEditorialContract } = editorialStandard;
-const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v10-prioritized-reusable-evidence';
+const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v11-resumable-bounded-evidence';
 const DEFAULT_BASE_URL = process.env.MOBIUS_BASE_URL || 'http://127.0.0.1:5001';
 
 function argsToObject(argv = process.argv.slice(2)) {
@@ -89,6 +89,17 @@ function stable(value) {
 function hashValue(value) { return crypto.createHash('sha256').update(stable(value)).digest('hex'); }
 function jsonIf(filePath, fallback = null) {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return fallback; }
+}
+function visualAnalysisContinuationIdentity(report = {}) {
+  const summary = report.summary || {};
+  if (summary.providerBlocker) return null;
+  const deferred = summary.continuationRequired === true || (Number(summary.providerCalls || 0) >= Number(summary.maxProviderCalls || Infinity)
+    && (report.scenes || []).some((scene) => (scene.candidates || []).some((candidate) => candidate.status === 'UNKNOWN'
+      && String(candidate.reason || '').includes('bounded budget exhausted'))));
+  // The next Inbox re-open may advance only a report that explicitly exhausted
+  // its bounded work. A complete report remains replayable without invoking
+  // the visual provider again.
+  return deferred ? hashValue(report) : null;
 }
 function exists(filePath) { return Boolean(filePath && fs.existsSync(filePath)); }
 async function saveJson(filePath, value) {
@@ -893,6 +904,7 @@ async function runZeroState(options = {}) {
   const semanticPath = path.join(visualReviewDir, 'source-visual-semantic-matches.json');
   const focusedCropManifestPath = path.join(visualReviewDir, 'focused-page-crops.json');
   const combinedVisualManifestPath = path.join(visualReviewDir, 'source-visual-manifest.json');
+  const priorVisualAnalysis = jsonIf(semanticPath, {});
   const visualReviewHash = hashValue({
     pipeline: VISUAL_PIPELINE_VERSION,
     visualScriptHash,
@@ -902,6 +914,7 @@ async function runZeroState(options = {}) {
     matchModel: process.env.MOBIUS_VISUAL_MATCH_MODEL || aiPreflight.status.model,
     providerConfiguration: aiPreflight.status.configurationFingerprint,
     providerRecovery: visualProviderRecoveryIdentity(process.env),
+    continuation: visualAnalysisContinuationIdentity(priorVisualAnalysis),
   });
   if (!stageReady(checkpoint, 'visual-review', visualReviewHash, [qualityPath, semanticPath, combinedVisualManifestPath, focusedCropManifestPath])) {
     const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
