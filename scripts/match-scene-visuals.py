@@ -327,6 +327,53 @@ def reserve_call(identity, provider_failure=None):
         lock.unlink()
 
 
+def reconcile_provider_receipt(filename, receipt_path, group):
+    """Account for a verified completion receipt if an older caller lost its reservation.
+
+    This is deliberately a repair operation, not a way to obtain capacity: the
+    receipt must already contain a complete provider identity and its identity
+    remains idempotent in the shared ledger. Any over-cap historical receipt is
+    retained visibly as an accounting exception rather than silently erased.
+    """
+    ledger, receipt_file = Path(filename), Path(receipt_path)
+    receipt = json.loads(receipt_file.read_text(encoding='utf-8'))
+    identity = receipt.get('identity')
+    if (not isinstance(identity, dict) or not isinstance(receipt.get('content'), str)
+            or identity.get('contract') != CONTRACT or not isinstance(identity.get('model'), str) or not identity.get('model')
+            or not all(isinstance(identity.get(key), str) and identity[key] for key in ('packet', 'image'))
+            or not isinstance(group, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', group)):
+        raise ValueError('A complete same-model provider receipt and bounded group are required')
+    lock = ledger.with_suffix('.lock')
+    handle = lock.open('x', encoding='utf-8')
+    try:
+        data = json.loads(ledger.read_text(encoding='utf-8'))
+        rows = data.setdefault('calls', [])
+        recorded_models = {row.get('identity', {}).get('model') for row in rows if isinstance(row.get('identity'), dict)}
+        recorded_models.update(record.get('model') for record in data.get('continuations', []) if isinstance(record, dict))
+        recorded_models.discard(None)
+        if (recorded_models and identity['model'] not in recorded_models) or (not recorded_models and MODEL and identity['model'] != MODEL):
+            raise ValueError('Receipt model does not match the durable budget authority')
+        existing = next((row for row in rows if row.get('identity') == identity), None)
+        if existing:
+            return {'recorded': False, 'reason': 'receipt-identity-already-accounted', 'ordinal': existing.get('ordinal')}
+        group_cap = data.get('groupCaps', {}).get(group, data.get('maxPerGroup', 0))
+        over_cap = len(rows) >= data.get('maxTotal', 0) or sum(row.get('group') == group for row in rows) >= group_cap
+        row = {'group': group, 'identity': identity, 'ordinal': len(rows) + 1,
+            'reconciledReceipt': str(receipt_file.resolve()), 'recordedAt': datetime.now(timezone.utc).isoformat()}
+        rows.append(row)
+        if over_cap:
+            exceptions = data.setdefault('accountingExceptions', [])
+            exceptions.append({'type': 'UNRESERVED_PROVIDER_RECEIPT_OVER_CAP', 'ordinal': row['ordinal'],
+                'group': group, 'receipt': str(receipt_file.resolve()), 'recordedAt': row['recordedAt']})
+        tmp = ledger.with_suffix('.tmp')
+        tmp.write_text(json.dumps(data, indent=2), encoding='utf-8')
+        tmp.replace(ledger)
+        return {'recorded': True, 'overCap': over_cap, 'ordinal': row['ordinal']}
+    finally:
+        handle.close()
+        lock.unlink()
+
+
 def authorize_continuation(filename, request_path):
     """Explicit bounded operator mandate. Never a retry triggered by an error.
 
@@ -795,6 +842,9 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
 def main():
     if len(sys.argv) == 4 and sys.argv[1] == '--authorize-continuation':
         print(json.dumps(authorize_continuation(*sys.argv[2:])))
+        return
+    if len(sys.argv) == 5 and sys.argv[1] == '--reconcile-provider-receipt':
+        print(json.dumps(reconcile_provider_receipt(*sys.argv[2:])))
         return
     if len(sys.argv) == 6 and sys.argv[1] == '--reopen-provider-blocker':
         print(json.dumps(reopen_provider_blocker(*sys.argv[2:])))

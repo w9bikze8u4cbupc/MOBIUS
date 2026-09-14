@@ -165,6 +165,25 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(len(json.loads(ledger.read_text())['calls']), 3)
             self.assertFalse(ledger.with_suffix('.lock').exists())
 
+    @patch.object(matcher, 'MODEL', 'fixture-model')
+    def test_verified_unreserved_receipt_is_accounted_once_without_erasing_an_overage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger, receipt = Path(directory) / 'budget.json', Path(directory) / 'receipt.json'
+            ledger.write_text(json.dumps({'maxTotal': 1, 'maxPerGroup': 1, 'calls': []}))
+            receipt.write_text(json.dumps({'identity': {'contract': matcher.CONTRACT, 'model': matcher.MODEL,
+                'packet': 'packet', 'image': 'image'}, 'content': '{"objects":[]}'}))
+            first = matcher.reconcile_provider_receipt(ledger, receipt, 'composition')
+            self.assertEqual(first, {'recorded': True, 'overCap': False, 'ordinal': 1})
+            self.assertEqual(matcher.reconcile_provider_receipt(ledger, receipt, 'composition')['reason'], 'receipt-identity-already-accounted')
+            second = Path(directory) / 'over-cap.json'
+            second.write_text(json.dumps({'identity': {'contract': matcher.CONTRACT, 'model': matcher.MODEL,
+                'packet': 'next-packet', 'image': 'next-image'}, 'content': '{"objects":[]}'}))
+            overage = matcher.reconcile_provider_receipt(ledger, second, 'composition')
+            data = json.loads(ledger.read_text())
+            self.assertTrue(overage['overCap'])
+            self.assertEqual(len(data['calls']), 2)
+            self.assertEqual(data['accountingExceptions'][0]['type'], 'UNRESERVED_PROVIDER_RECEIPT_OVER_CAP')
+
     def test_ambiguous_budget_owner_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             ledger = Path(directory) / 'budget.json'

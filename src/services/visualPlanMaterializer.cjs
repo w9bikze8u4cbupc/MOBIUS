@@ -290,6 +290,9 @@ function attachSequenceReviewEvidence({ assets, records, reviewPaths=[] }) {
 // explicitly capped group for that final composition measurement.
 function compositionReviewEnvironment(env = process.env) {
  const group=String(env.MOBIUS_VISUAL_COMPOSITION_BUDGET_GROUP||'').trim();
+ if(String(env.MOBIUS_VISUAL_REQUIRE_BUDGET_LEDGER||'').toLowerCase()==='true'&&!String(env.MOBIUS_VISUAL_BUDGET_LEDGER||'').trim()){
+   throw new Error('VISUAL_BUDGET_LEDGER_REQUIRED_BEFORE_COMPOSITION_PROVIDER_CALL');
+ }
  return group ? {...env,MOBIUS_VISUAL_BUDGET_GROUP:group} : env;
 }
 

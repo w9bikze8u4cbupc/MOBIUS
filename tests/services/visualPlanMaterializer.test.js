@@ -12,6 +12,7 @@ test('composition review may use an explicitly bounded sub-stage ledger group', 
     MOBIUS_VISUAL_BUDGET_GROUP: 'source',
     MOBIUS_VISUAL_COMPOSITION_BUDGET_GROUP: 'composition',
   }).MOBIUS_VISUAL_BUDGET_GROUP).toBe('composition');
+  expect(() => compositionReviewEnvironment({ MOBIUS_VISUAL_REQUIRE_BUDGET_LEDGER: 'true' })).toThrow('VISUAL_BUDGET_LEDGER_REQUIRED');
 });
 
 test('track preparation prefers stronger measured state evidence before native area', () => {
