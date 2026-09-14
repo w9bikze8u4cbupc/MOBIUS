@@ -207,6 +207,33 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(result[0]['asset_id'], 'context')
             self.assertEqual(len(result), 2)
 
+    def test_component_inventory_pages_and_bindings_expand_search_without_proving_identity(self):
+        """Inventory provenance is a retrieval hint, never an auto-acceptance."""
+        with tempfile.TemporaryDirectory() as directory:
+            page, native, background = [Path(directory) / name for name in ['page', 'native', 'background']]
+            page.write_bytes(b'component-page')
+            native.write_bytes(b'bound-native-pixels')
+            background.write_bytes(b'background')
+            scene = {'id': 'teach-card', 'source_pages': [9], 'visualRequirement': {'requiredObjects': ['comp-card']}}
+            packet = matcher.packet_for(scene, {'comp-card': {
+                'canonicalTerm': 'Criminal card', 'category': 'card',
+                'evidence': [{'page': 4, 'quote': '21 Criminal cards'}]}})
+            assets = [
+                {'asset_id': 'background', 'path': str(background), 'asset_metadata': {
+                    'source_page': 9, 'classification': 'background', 'dimensions': {'width': 9000, 'height': 9000}}},
+                {'asset_id': 'inventory-page', 'path': str(page), 'asset_metadata': {
+                    'source_page': 4, 'visual_kind': 'source-page-localization', 'heading': 'Criminal cards'}},
+                {'asset_id': 'bound-native', 'path': str(native), 'asset_metadata': {
+                    'source_page': 4, 'retrieval_context': {'role': 'PAGE_SEARCH_HYPOTHESIS'},
+                    'component_bindings': [{'componentId': 'comp-card', 'confidence': .41, 'reviewState': 'needs_review'}]}},
+            ]
+            result = matcher.candidates_for(packet, assets)
+            self.assertEqual(packet['sourcePages'], [4, 9])
+            self.assertEqual(packet['componentEvidencePages'], [4])
+            self.assertEqual([row['asset_id'] for row in result][:2], ['inventory-page', 'bound-native'])
+            self.assertEqual(result[-1]['asset_id'], 'background')
+            self.assertTrue(all('objects' not in row for row in result))
+
     def test_prioritized_analysis_spends_bounded_budget_on_track_before_multi_component_summary(self):
         scenes = [
             {'id': 'summary', 'visualRequirement': {'requiredObjects': ['a', 'b', 'c']}},

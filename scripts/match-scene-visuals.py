@@ -76,8 +76,21 @@ def _referent_identity(ident, entry):
 def packet_for(scene, terms):
     req = scene.get("visualRequirement") or {}
     referents = [_referent_identity(ident, terms.get(ident)) for ident in req.get("requiredObjects", [])]
+    # A rule's cited page often explains an action, while the authoritative
+    # component inventory is the page that actually shows or names the thing
+    # a learner must recognize.  Both are bounded search hypotheses.  They do
+    # not assert that an object is visible and remain subject to pixel QA.
+    source_pages = set(scene.get("source_pages") or [])
+    component_evidence_pages = set()
+    for referent in referents:
+        for evidence in referent.get('evidence') or []:
+            page = evidence.get('page') if isinstance(evidence, dict) else None
+            if isinstance(page, int) and page > 0:
+                source_pages.add(page)
+                component_evidence_pages.add(page)
     return {"contract": CONTRACT, "requiredObjects": referents, "requirement": req,
-        "sourceRefs": scene.get("sourceRefs") or [], "sourcePages": scene.get("source_pages") or []}
+        "sourceRefs": scene.get("sourceRefs") or [], "sourcePages": sorted(source_pages),
+        "componentEvidencePages": sorted(component_evidence_pages)}
 
 def component_identity_packet(packet, role, asset=None):
     """Build an exact-pixel identity packet independent of one teaching scene.
@@ -236,22 +249,34 @@ def budget_exhausted_reason(reason):
     return 'bounded budget exhausted' in value or 'cumulative visual budget exhausted' in value
 
 def candidates_for(packet, assets):
-    # Page/term proximity generates hypotheses only. Identity still needs pixels.
+    # Page/term/binding proximity generates hypotheses only. Identity still
+    # needs pixels.  In particular, a low-confidence HEPHAESTUS binding only
+    # widens the bounded search; it cannot accept an asset or bypass crop,
+    # detail, physical-state, and source-authority gates.
     terms = [r['term'] if isinstance(r['term'], str) else r['term'].get('name', '') for r in packet['requiredObjects']]
     tokens = set(re.findall(r'[a-z]{3,}', ' '.join(terms).lower())) - {'the', 'and'}
+    requested_ids = {row.get('id') for row in packet.get('requiredObjects') or [] if isinstance(row, dict) and row.get('id')}
+    component_evidence_pages = {page for page in packet.get('componentEvidencePages') or [] if isinstance(page, int) and page > 0}
     rows = []
     seen = set()
     for a in assets:
         if not a.get('path') or not Path(a['path']).is_file() or a.get('category') == 'blank_or_unusable':
             continue
         m = a.get('asset_metadata') or {}
-        if m.get('retrieval_context') and not m.get('visual_kind'):
+        binding_ids = {row.get('componentId') for row in m.get('component_bindings') or []
+            if isinstance(row, dict) and row.get('componentId')}
+        bound_referent = bool(requested_ids & binding_ids)
+        # Native images linked only to a page remain deliberately deferred
+        # until localization.  An explicit *hypothesis* binding is useful
+        # enough to inspect, but only as one candidate among others.
+        if m.get('retrieval_context') and not m.get('visual_kind') and not bound_referent:
             # Text linked native images are expanded only after pixel localization;
             # an entire page's logos/backgrounds must not consume the first budget.
             continue
-        text = str(m.get('layout_text') or '').lower()
+        text = ' '.join(str(v or '') for v in [m.get('layout_text'), m.get('heading'),
+            m.get('category'), a.get('label'), *list(m.get('semanticObjects') or [])]).lower()
         overlap = sum(t.rstrip('s') in text for t in tokens)
-        linked = m.get('source_page') in packet['sourcePages'] or overlap == len(tokens) and bool(tokens)
+        linked = bound_referent or m.get('source_page') in packet['sourcePages'] or overlap == len(tokens) and bool(tokens)
         if not linked:
             continue
         pixel_hash = hashlib.sha256(Path(a['path']).read_bytes()).hexdigest()
@@ -262,10 +287,19 @@ def candidates_for(packet, assets):
     def key(a):
         m = a.get("asset_metadata") or {}
         d = m.get("original_dimensions") or m.get("dimensions") or {}
-        text = str(m.get('layout_text') or '').lower()
+        bindings = {row.get('componentId') for row in m.get('component_bindings') or []
+            if isinstance(row, dict) and row.get('componentId')}
+        bound_referent = bool(requested_ids & bindings)
+        text = ' '.join(str(v or '') for v in [m.get('layout_text'), m.get('heading'),
+            m.get('category'), a.get('label'), *list(m.get('semanticObjects') or [])]).lower()
         heading = str(m.get('heading') or '').lower()
         score = sum(8 for t in tokens if t.rstrip('s') in heading)
         score += sum(min(5, text.count(t.rstrip('s'))) for t in tokens)
+        score += 6 if bound_referent else 0
+        # An inventory/source-term page is an explicit referent hypothesis,
+        # not merely a coincidental keyword on a later rules page.  Prioritize
+        # it for bounded inspection while leaving final identity to pixels.
+        score += 12 if m.get('source_page') in component_evidence_pages else 0
         score += 5 if m.get('visual_kind') == 'source-page-localization' else 0
         score += 2 if m.get('source_page') in packet['sourcePages'] else 0
         score -= 20 if re.search(r'background|logo|decorative', str(m.get('classification') or '')) else 0

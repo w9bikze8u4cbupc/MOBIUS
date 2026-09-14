@@ -21,6 +21,7 @@ from PIL import Image
 MODEL = os.getenv("MOBIUS_VISUAL_QA_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5-mini"
 MAX_PER_PAGE = 18
 MAX_PER_TYPE = 6
+MAX_BOUND_HYPOTHESES_PER_PAGE = 6
 
 SCHEMA = {
     "type": "json_schema",
@@ -73,6 +74,11 @@ def priority(asset: dict) -> tuple[int, int, int]:
     return type_rank, int(asset.get("confidence") or 0) * 1000, width * height
 
 
+def binding_ids(asset: dict) -> set[str]:
+    return {str(row.get("componentId")) for row in (asset.get("component_bindings") or asset.get("componentBindings") or [])
+            if isinstance(row, dict) and row.get("componentId")}
+
+
 def asset_metadata(asset: dict) -> dict:
     return {
         "type": asset.get("type"),
@@ -92,6 +98,15 @@ def asset_metadata(asset: dict) -> dict:
         "provenance": asset.get("provenance"),
         "dimensions": asset.get("dimensions"),
         "original_dimensions": asset.get("original_dimensions"),
+        # These source-extracted fields are retrieval hypotheses only.  They
+        # travel with the screening candidate so the object matcher can choose
+        # what to inspect; its provider pixel verdict remains the only source
+        # of accepted identity/completeness/state evidence.
+        "component_bindings": asset.get("component_bindings") or asset.get("componentBindings") or [],
+        "semanticObjects": asset.get("semanticObjects") or [],
+        "referentAliases": asset.get("referentAliases") or [],
+        "label": asset.get("label"),
+        "category": asset.get("category"),
     }
 
 
@@ -102,6 +117,16 @@ def local_judgement(asset: dict) -> dict:
     kind = str(asset.get("visual_kind") or asset.get("type") or asset.get("classification") or "").lower()
     if metrics.get("nearBlank") is True or width < 96 or height < 96 or width * height < 20000:
         return {"primary_explanatory": False, "quality_score": 0, "category": "blank_or_unusable", "reason": "local-quality-rejected: blank or too small"}
+    # Some PDFs expose textured paper/background XObjects as large native
+    # images.  They are not blank by a single brightness test, but their
+    # jointly negligible contrast and edge density prove that they cannot show
+    # a readable board-game referent.  Reject only this narrow low-information
+    # case; all real component identity remains unknown until pixel QA.
+    contrast = metrics.get("contrast")
+    edge_density = metrics.get("edgeDensity")
+    if (isinstance(contrast, (int, float)) and isinstance(edge_density, (int, float))
+            and contrast <= 0.02 and edge_density <= 0.01):
+        return {"primary_explanatory": False, "quality_score": 0, "category": "blank_or_unusable", "reason": "local-quality-rejected: low-information raster"}
     return {"primary_explanatory": False, "quality_score": 0, "category": "uncertain", "evidenceStatus": "UNKNOWN", "reason": "geometry is a candidate-screening hint, not object pixel validation"}
 
 
@@ -165,6 +190,9 @@ def main() -> None:
     script = json.loads(script_path.read_text(encoding="utf-8"))
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     cited_pages = {int(page) for scene in script.get("scenes", []) for page in scene.get("source_pages", [])}
+    requested_component_ids = {str(referent) for scene in script.get("scenes", [])
+                               for referent in (scene.get("visualRequirement") or {}).get("requiredObjects", [])
+                               if isinstance(referent, str) and referent}
     by_page: dict[int, list[dict]] = {}
     for asset in manifest.get("images", []):
         if not eligible_hypothesis(asset):
@@ -187,6 +215,16 @@ def main() -> None:
             typed = [asset for asset in sorted(assets, key=priority, reverse=True)
                      if str(asset.get("visual_kind") or asset.get("classification") or asset.get("type") or "unknown") == asset_type]
             selected.extend(typed[:MAX_PER_TYPE])
+        # Coarse HEPHAESTUS bindings are not visual validation, but dropping
+        # every one before object-scoped QA creates a dead end: the actual
+        # pixels never reach the one service that can reject or corroborate
+        # the hypothesis.  Admit a small, page-local set alongside ordinary
+        # candidates.  The matcher still requires an explicit provider pixel
+        # verdict before any component reference can become usable.
+        bound = [asset for asset in sorted(assets, key=priority, reverse=True)
+                 if binding_ids(asset) & requested_component_ids]
+        selected.extend(bound[:MAX_BOUND_HYPOTHESES_PER_PAGE])
+        selected = list({asset.get("id"): asset for asset in selected if asset.get("id")}.values())
         ordinary = [a for a in selected if a.get('visual_kind') != 'source-page-localization']
         context = [a for a in selected if a.get('visual_kind') == 'source-page-localization']
         for asset in sorted(ordinary, key=priority, reverse=True)[:MAX_PER_PAGE] + context:

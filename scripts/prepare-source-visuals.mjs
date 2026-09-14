@@ -64,8 +64,32 @@ async function main() {
   const python = arg('python') || process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
   if (!existsSync(scriptPath)) throw new Error(`Reviewed scene script not found: ${scriptPath}`);
   if (!existsSync(manifestPath)) throw new Error(`Asset manifest not found: ${manifestPath}`);
-
   await mkdir(outputDir, { recursive: true });
+
+  const inputScript = JSON.parse(readFileSync(scriptPath, 'utf8'));
+  // Teaching citations establish a rule, but the component inventory can be
+  // the authoritative page that names or pictures the referent.  Carry those
+  // pages into bounded *candidate discovery* only.  This makes no identity,
+  // crop, detail, or physical-state assertion; the object matcher remains the
+  // sole pixel authority.
+  const sourceEvidenceScript = {
+    ...inputScript,
+    sourceSearchContract: 'mobius-component-inventory-search-hypotheses-v1',
+    scenes: (inputScript.scenes || []).map((scene) => {
+      const pages = new Set(scene.source_pages || []);
+      for (const referent of scene.visualRequirement?.requiredObjects || []) {
+        const term = inputScript.componentTerms?.[referent] || {};
+        for (const evidence of term.evidence || []) {
+          if (Number.isInteger(Number(evidence?.page)) && Number(evidence.page) > 0) pages.add(Number(evidence.page));
+        }
+        if (Number.isInteger(Number(term.sourcePage)) && Number(term.sourcePage) > 0) pages.add(Number(term.sourcePage));
+      }
+      return { ...scene, source_pages: [...pages].sort((a, b) => a - b) };
+    }),
+  };
+  const sourceEvidenceScriptPath = resolve(outputDir, 'source-evidence-visual-script.json');
+  await writeFile(sourceEvidenceScriptPath, JSON.stringify(sourceEvidenceScript, null, 2), 'utf8');
+
   const qualityPath = resolve(outputDir, 'source-visual-quality.json');
   const semanticPath = resolve(outputDir, 'source-visual-semantic-matches.json');
   const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -147,16 +171,15 @@ async function main() {
   }
 
   console.log('[prepare-source-visuals] Qualifying source components…');
-  await run(python, [qualityScript, scriptPath, visualManifestPath, qualityPath]);
+  await run(python, [qualityScript, sourceEvidenceScriptPath, visualManifestPath, qualityPath]);
   const evidenceFile = arg('hephaestus-evidence');
   const terms = evidenceFile && existsSync(resolve(evidenceFile))
     ? JSON.parse(readFileSync(resolve(evidenceFile), 'utf8')).componentBindings || [] : [];
   const scopedScript = resolve(outputDir, 'object-evidence-script.json');
-  const inputScript = JSON.parse(readFileSync(scriptPath, 'utf8'));
   const sceneObjects = new Set((inputScript.scenes || []).flatMap((scene) => scene.visualRequirement?.requiredObjects || []));
   await writeFile(scopedScript, JSON.stringify({
-    ...inputScript,
-    scenes: [...(inputScript.scenes || []), ...terms.filter((row) => !sceneObjects.has(row.componentId)).map((row) => ({
+    ...sourceEvidenceScript,
+    scenes: [...(sourceEvidenceScript.scenes || []), ...terms.filter((row) => !sceneObjects.has(row.componentId)).map((row) => ({
       id: `knowledge-component-${row.componentId}`, source_pages: row.sourcePage ? [row.sourcePage] : [],
       sourceRefs: row.sourcePage ? [{ page: row.sourcePage }] : [],
       visualRequirement: { requiredObjects: [row.componentId], purpose: 'component-identity-binding' },
