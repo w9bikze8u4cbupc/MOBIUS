@@ -368,6 +368,35 @@ class ObjectEvidenceTests(unittest.TestCase):
         self.assertIn('This criminal', scoped['assetOfficialContext'][0]['text'])
         self.assertNotIn('transitionRequired', scoped['requirement'])
         self.assertNotIn('beforeState', json.dumps(scoped))
+        self.assertNotIn('The number of Clues required', json.dumps(scoped))
+
+    def test_component_identity_reuses_exact_pixels_across_distinct_rule_scenes(self):
+        """Rule prose cannot fork a reusable component-identity measurement."""
+        with tempfile.TemporaryDirectory() as directory:
+            pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'
+            scenes = [
+                {'id': 'discard', 'source_pages': [2], 'sourceRefs': [{'page': 2, 'quote': 'Discard this card'}],
+                    'visualRequirement': {'requiredObjects': ['card'], 'transitionRequired': True}},
+                {'id': 'draw', 'source_pages': [7], 'sourceRefs': [{'page': 7, 'quote': 'Draw this card'}],
+                    'visualRequirement': {'requiredObjects': ['card'], 'transitionRequired': True}},
+            ]
+            qa = {'assets': [{'asset_id': 'card-source', 'path': str(pixels), 'asset_metadata': {
+                'source_page': 4, 'layout_text': 'Criminal card', 'heading': 'Criminal cards'}}]}
+            calls = []
+            def create(**kwargs):
+                calls.append(kwargs)
+                row = {'requiredObject': 'card', 'present': True, 'confidence': .99, 'complete': True,
+                    'isolated': True, 'stateCompatible': True, 'bbox': [.1, .1, .9, .9], 'reason': 'Complete card'}
+                return types.SimpleNamespace(usage=None, choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=json.dumps({'objects': [row]})))])
+            client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            result = matcher.run({'scenes': scenes, 'componentTerms': {'card': {
+                'canonicalTerm': 'Criminal card', 'evidence': [{'page': 4, 'quote': 'Criminal cards'}]}}}, qa, Path(directory), 2, client)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(result['summary']['providerCalls'], 1)
+            self.assertEqual(result['summary']['cacheHits'], 1)
+            packets = [scene['candidates'][0]['evidencePacket'] for scene in result['scenes']]
+            self.assertEqual(packets[0], packets[1])
+            self.assertEqual(packets[0]['sourcePages'], [4])
 
     def test_context_enriched_contract_reuses_only_prior_localization_not_component_verdict(self):
         with tempfile.TemporaryDirectory() as directory:

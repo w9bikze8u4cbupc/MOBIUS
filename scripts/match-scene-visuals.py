@@ -19,7 +19,7 @@ SEARCH_CONTRACT = "mobius-referent-localization-v1"
 # bookkeeping failure is not replayed as if pixels had been inspected.
 SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v4-budget-group-contract'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
-COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v2'
+COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v3'
 MODEL = os.getenv("MOBIUS_VISUAL_MATCH_MODEL") or os.getenv("OPENAI_MODEL")
 _probe_spec = importlib.util.spec_from_file_location('mobius_visual_probe', Path(__file__).with_name('qualify-source-visuals.py'))
 _probe_module = importlib.util.module_from_spec(_probe_spec)
@@ -131,8 +131,15 @@ def component_identity_packet(packet, role, asset=None):
             'category': row.get('category'), 'frenchTerm': row.get('frenchTerm'),
             'componentEvidence': row.get('evidence') or [],
         } for row in packet.get('requiredObjects') or []],
-        'officialContext': _bounded_official_context(packet.get('sourceRefs'), maximum=2, characters=900),
-        'sourcePages': sorted({ref['page'] for ref in _bounded_official_context(packet.get('sourceRefs'), maximum=3, characters=1)}),
+        # Deliberately exclude this teaching scene's rule excerpts. They
+        # describe an action/state and would make the exact same physical
+        # component look like a new identity problem in every scene. The
+        # component's own authoritative inventory evidence (above) and the
+        # exact page that supplied these pixels (below) are sufficient and
+        # reusable identity authority; scene evidence is reserved for the
+        # later composition/state verdict.
+        'sourcePages': sorted({entry['page'] for row in packet.get('requiredObjects') or []
+            for entry in row.get('evidence') or [] if isinstance(entry, dict) and isinstance(entry.get('page'), int) and entry['page'] > 0}),
     }
     metadata = (asset or {}).get('asset_metadata') or {}
     page = metadata.get('source_page')
