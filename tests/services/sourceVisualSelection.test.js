@@ -7,12 +7,19 @@ let selectSourceVisual;
 let inferVisualTypes;
 
 test('visual provider outage is explicit recovery, not a fabricated Cockpit decision', async () => {
-  const { visualProviderFailure } = await import('../../src/services/sourceVisualSelection.js');
+  const { visualProviderFailure, visualProviderRecoveryIdentity } = await import('../../src/services/sourceVisualSelection.js');
   expect(visualProviderFailure({ summary: { providerBlocker: null } })).toBeNull();
   const error = visualProviderFailure({ summary: { providerBlocker: 'InternalServerError; HTTP 520; private diagnostic omitted' } });
   expect(error).toMatchObject({ code: 'VISUAL_PROVIDER_UNAVAILABLE', httpStatus: 520, classification: 'provider_unavailable', explicitRecovery: true });
   expect(error.message).toBe('VISUAL_PROVIDER_UNAVAILABLE: HTTP 520');
   expect(visualProviderFailure({ summary: { providerBlocker: 'ValueError; HTTP unavailable' } })).toMatchObject({ code: 'VISUAL_PROVIDER_RESPONSE_INVALID', classification: 'retryable_engineering' });
+  const ledgerRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-visual-recovery-'));
+  const ledger = path.join(ledgerRoot, 'visual-ledger.json');
+  fs.writeFileSync(ledger, JSON.stringify({ recoveryEpoch: 'provider-recovered-v1' }));
+  expect(visualProviderRecoveryIdentity({ MOBIUS_VISUAL_BUDGET_LEDGER: ledger })).toBe('mobius-visual-provider-recovery-v1:provider-recovered-v1');
+  fs.writeFileSync(ledger, '{not-json');
+  expect(visualProviderRecoveryIdentity({ MOBIUS_VISUAL_BUDGET_LEDGER: ledger })).toBeNull();
+  fs.rmSync(ledgerRoot, { recursive: true, force: true });
 });
 
 test('native source authority requires real matching PDF/extraction provenance, not a label', async () => {

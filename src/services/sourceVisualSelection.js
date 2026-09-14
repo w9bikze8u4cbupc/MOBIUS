@@ -23,6 +23,24 @@ export function visualProviderFailure(report) {
   return error;
 }
 
+/**
+ * A provider recovery is an explicit lifecycle event, not a quality change.
+ * It invalidates only the bounded visual-analysis checkpoint so a retained
+ * transient failure cannot be replayed as if it were fresh evidence.
+ */
+export function visualProviderRecoveryIdentity(env = process.env) {
+  const ledgerPath = String(env.MOBIUS_VISUAL_BUDGET_LEDGER || '').trim();
+  if (!ledgerPath || !fs.existsSync(ledgerPath)) return null;
+  try {
+    const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+    const epoch = String(ledger.recoveryEpoch || '').trim();
+    return /^[A-Za-z0-9_-]{4,100}$/.test(epoch) ? `mobius-visual-provider-recovery-v1:${epoch}` : null;
+  } catch {
+    // A malformed optional ledger must never create a fake cache identity.
+    return null;
+  }
+}
+
 export function locateInterleavedSourceQuote(text,quote){
   // PDF reading order may interleave a card's icon values/labels with prose.
   // Locate all supplied words in order, but RETURN the exact source span with

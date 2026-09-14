@@ -24,7 +24,7 @@ import {
   normalizeDurableProjectSource,
   sameDurableProjectSource,
 } from '../src/services/projectSourceService.js';
-import { loadSourceVisualCatalog, selectSourceVisual, normalizeSourceReferentTerms, visualProviderFailure } from '../src/services/sourceVisualSelection.js';
+import { loadSourceVisualCatalog, selectSourceVisual, normalizeSourceReferentTerms, visualProviderFailure, visualProviderRecoveryIdentity } from '../src/services/sourceVisualSelection.js';
 import { runProduction } from './run-source-grounded-production.mjs';
 import editorialStandard from '../src/services/editorialStandard.cjs';
 import { GAME_IDENTITY_CONTRACT_VERSION, resolveCanonicalGameIdentity, titleFromRulebook } from '../src/services/gameIdentity.cjs';
@@ -901,6 +901,7 @@ async function runZeroState(options = {}) {
     qualityMode: 'LOCAL_SCREENING_NOT_PIXEL_VALIDATION',
     matchModel: process.env.MOBIUS_VISUAL_MATCH_MODEL || aiPreflight.status.model,
     providerConfiguration: aiPreflight.status.configurationFingerprint,
+    providerRecovery: visualProviderRecoveryIdentity(process.env),
   });
   if (!stageReady(checkpoint, 'visual-review', visualReviewHash, [qualityPath, semanticPath, combinedVisualManifestPath, focusedCropManifestPath])) {
     const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
