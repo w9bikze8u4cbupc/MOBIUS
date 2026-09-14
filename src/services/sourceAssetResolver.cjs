@@ -175,14 +175,33 @@ function semanticScore(candidate, requiredObjects = []) {
   return overlap / wanted.size;
 }
 
-function objectEvidenceFor(candidate, referent, sceneId = null) {
+function objectEvidenceFor(candidate, referent, sceneId = null, { allowReusableIdentity = false } = {}) {
   const rows = (candidate.objectVisualEvidence || []).filter((row) => (row.contract === OBJECT_VISUAL_EVIDENCE_CONTRACT
     || (row.contract === 'mobius-object-visual-evidence-v1' && !row.visualRole))
-    && row.requiredObject === referent && row.assetId === candidate.id && row.method === 'provider-pixel-analysis'
-    && (!sceneId || row.sceneId === sceneId));
+    && row.requiredObject === referent && row.assetId === candidate.id && row.method === 'provider-pixel-analysis');
   if (!rows.length || !candidate.filePath || !fs.existsSync(candidate.filePath)) return null;
   const sha = crypto.createHash('sha256').update(fs.readFileSync(candidate.filePath)).digest('hex');
-  return rows.find((row) => row.imageSha256 === sha && row.evidencePacketHash && row.model && row.reason) || null;
+  const valid = rows.filter((row) => row.imageSha256 === sha && row.evidencePacketHash && row.model && row.reason);
+  const scoped = valid.find((row) => !sceneId || row.sceneId === sceneId);
+  if (scoped) return scoped;
+  // An exact, provider-measured COMPONENT proof establishes only the visual
+  // identity of the same physical object. It can be reused by a different
+  // static scene, but never as proof of a relationship, state, transition or
+  // placement that was not measured in that scene.
+  if (!allowReusableIdentity || !sceneId) return null;
+  return valid.find((row) => (row.visualRole === 'COMPONENT'
+      || (row.contract === 'mobius-object-visual-evidence-v1' && !row.visualRole))
+    && row.present === true && row.complete === true && row.isolated === true
+    && row.stateCompatible === true && Number(row.confidence) >= 0.9) || null;
+}
+
+function requiresSceneSpecificEvidence(requirement = {}) {
+  return Boolean(requirement.transitionRequired || requirement.setupPlacementRequired
+    || requirement.layeredStateRequired || requirement.trackStateRequired
+    || requirement.requiredRelationship || requirement.requiredState
+    || requirement.beforeState || requirement.actionState || requirement.afterState
+    || requirement.requiredOrientation || requirement.faceStateRequired
+    || requirement.requiredQuantities?.length || Object.keys(requirement.physicalStateRequirement || requirement.physicalState || {}).length);
 }
 
 function evaluateCandidate(candidate, requirement = {}, displayBounds = { width: 900, height: 700 }) {
@@ -199,7 +218,10 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
   const semantic = semanticScore(candidate, requirement.requiredObjects || []);
   const authority = Math.min(1, candidate.sourceAuthorityRank / 50);
   const detail = Math.min(1, detailRatio);
-  const proofs = (requirement.requiredObjects || []).map((id) => objectEvidenceFor(candidate, id, requirement.evidenceSceneId));
+  const sceneSpecificEvidence = requiresSceneSpecificEvidence(requirement);
+  const proofs = (requirement.requiredObjects || []).map((id) => objectEvidenceFor(candidate, id, requirement.evidenceSceneId, {
+    allowReusableIdentity: !sceneSpecificEvidence,
+  }));
   const complete = proofs.length ? proofs.every((proof) => proof?.complete === true) : candidate.cropCompleteness === 'complete';
   const pure = proofs.length ? proofs.every((proof) => proof?.isolated === true) : candidate.cropPurity === 'clean';
   const accepted = candidate.reviewState === 'accepted';
@@ -212,10 +234,7 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
     if (!proof) { hardViolations.push(`object-pixel-evidence-missing:${id}`); continue; }
     if (proof.contract === OBJECT_VISUAL_EVIDENCE_CONTRACT && !['LOCALIZATION', 'COMPONENT'].includes(proof.visualRole)) hardViolations.push(`object-role-unverified:${id}`);
     if (proof.visualRole === 'LOCALIZATION') hardViolations.push(`localization-not-display-evidence:${id}`);
-    if (proof.visualRole === 'COMPONENT' && (requirement.transitionRequired || requirement.setupPlacementRequired
-      || requirement.layeredStateRequired || requirement.trackStateRequired || requirement.requiredRelationship
-      || requirement.requiredState || requirement.beforeState || requirement.actionState || requirement.afterState
-      || requirement.requiredQuantities?.length) && !sequence) hardViolations.push(`composition-state-verification-required:${id}`);
+    if (proof.visualRole === 'COMPONENT' && sceneSpecificEvidence && !sequence) hardViolations.push(`composition-state-verification-required:${id}`);
     if (proof.present !== true || Number(proof.confidence) < 0.9) hardViolations.push(`object-identity-unverified:${id}`);
     const box = proof.bbox;
     if (!Array.isArray(box) || box.length !== 4 || !box.every(Number.isFinite)
@@ -230,10 +249,12 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
       if ((box[0] <= 0 || box[1] <= 0 || box[2] >= 1 || box[3] >= 1) && !nativeBoundary) hardViolations.push(`object-edge-unverified:${id}`);
     }
     if (proof.stateCompatible !== true) hardViolations.push(`object-state-unverified:${id}`);
-    for (const key of ['requiredState', 'requiredOrientation', 'requiredQuantities', 'requiredRelationship', 'beforeState', 'actionState', 'afterState', 'transitionRequired', 'setupPlacementRequired', 'layeredStateRequired', 'faceStateRequired', 'trackStateRequired']) {
-      const expected = requirement[key];
-      if (expected == null || expected === false || (Array.isArray(expected) && !expected.length)) continue;
-      if (JSON.stringify(proof.evidenceRequirement?.[key]) !== JSON.stringify(expected)) hardViolations.push(`object-evidence-state-scope-mismatch:${key}`);
+    if (sceneSpecificEvidence) {
+      for (const key of ['requiredState', 'requiredOrientation', 'requiredQuantities', 'requiredRelationship', 'beforeState', 'actionState', 'afterState', 'transitionRequired', 'setupPlacementRequired', 'layeredStateRequired', 'faceStateRequired', 'trackStateRequired']) {
+        const expected = requirement[key];
+        if (expected == null || expected === false || (Array.isArray(expected) && !expected.length)) continue;
+        if (JSON.stringify(proof.evidenceRequirement?.[key]) !== JSON.stringify(expected)) hardViolations.push(`object-evidence-state-scope-mismatch:${key}`);
+      }
     }
   }
   if (!fileExists) hardViolations.push('missing-file');

@@ -32,9 +32,10 @@ test.each([
 ])('%s cannot auto-bind', (_, override) => {
   expect(evaluateCandidate(candidate({ objectVisualEvidence: [proof('image', file, 'comp-57', override)] }), requirement).valid).toBe(false);
 });
-test('measured exact object can pass while changed scene/state cannot reuse its verdict', () => {
+test('measured exact object identity can be reused by a static scene but never for changed state', () => {
   expect(evaluateCandidate(candidate(), requirement).valid).toBe(true);
-  expect(evaluateCandidate(candidate(), { ...requirement, evidenceSceneId: 'other-scene' }).valid).toBe(false);
+  expect(evaluateCandidate(candidate(), { ...requirement, evidenceSceneId: 'other-scene' }).valid).toBe(true);
+  expect(evaluateCandidate(candidate(), { ...requirement, evidenceSceneId: 'other-scene', transitionRequired: true }).valid).toBe(false);
   expect(evaluateCandidate(candidate(), { ...requirement, requiredState: 'DISCARDED' }).valid).toBe(false);
 });
 test('unknown component names remain hypotheses, without contaminating candidate identity', () => {
