@@ -15,7 +15,7 @@ CONTRACT = "mobius-object-visual-evidence-v2"
 SEARCH_CONTRACT = "mobius-referent-localization-v1"
 SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v3-reuse-priority'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
-COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v1'
+COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v2'
 MODEL = os.getenv("MOBIUS_VISUAL_MATCH_MODEL") or os.getenv("OPENAI_MODEL")
 _probe_spec = importlib.util.spec_from_file_location('mobius_visual_probe', Path(__file__).with_name('qualify-source-visuals.py'))
 _probe_module = importlib.util.module_from_spec(_probe_spec)
@@ -45,13 +45,41 @@ def schema(role=None, referent_ids=None):
         "properties": props, "required": list(props), "additionalProperties": False}}},
         "required": ["objects"], "additionalProperties": False}}}
 
+def _bounded_official_context(refs, maximum=3, characters=1200):
+    """Keep source-grounded identity context without smuggling scene state.
+
+    Component pixel verification sometimes needs the rulebook sentence which
+    identifies a family, not just the family name.  The context remains a
+    bounded, auditable copy of official extraction evidence; narration and
+    visual-requirement state are deliberately excluded.
+    """
+    rows = []
+    for ref in refs or []:
+        page = ref.get('page') if isinstance(ref, dict) else None
+        quote = ref.get('quote') if isinstance(ref, dict) else None
+        if not isinstance(page, int) or page <= 0 or not isinstance(quote, str) or not quote.strip():
+            continue
+        rows.append({'page': page, 'quote': quote.strip()[:characters],
+            'excerptHash': ref.get('excerptHash') if isinstance(ref.get('excerptHash'), str) else None})
+        if len(rows) >= maximum:
+            break
+    return rows
+
+def _referent_identity(ident, entry):
+    if isinstance(entry, dict):
+        term = entry.get('canonicalTerm') or entry.get('name') or entry.get('term') or ident
+        return {'id': ident, 'term': term, 'category': entry.get('category') or None,
+            'frenchTerm': entry.get('frenchTerm') or None,
+            'evidence': _bounded_official_context(entry.get('evidence'), maximum=2, characters=480)}
+    return {'id': ident, 'term': entry or ident, 'category': None, 'frenchTerm': None, 'evidence': []}
+
 def packet_for(scene, terms):
     req = scene.get("visualRequirement") or {}
-    return {"contract": CONTRACT, "requiredObjects": [{"id": ident, "term": terms.get(ident) or ident}
-        for ident in req.get("requiredObjects", [])], "requirement": req,
+    referents = [_referent_identity(ident, terms.get(ident)) for ident in req.get("requiredObjects", [])]
+    return {"contract": CONTRACT, "requiredObjects": referents, "requirement": req,
         "sourceRefs": scene.get("sourceRefs") or [], "sourcePages": scene.get("source_pages") or []}
 
-def component_identity_packet(packet, role):
+def component_identity_packet(packet, role, asset=None):
     """Build an exact-pixel identity packet independent of one teaching scene.
 
     COMPONENT and LOCALIZATION analyses establish only that the supplied pixels
@@ -61,19 +89,37 @@ def component_identity_packet(packet, role):
     card/board/token be reused as identity evidence without laundering it into
     a later state proof. TRACK and COMPOSITION remain scene-scoped below.
     """
-    return {
+    result = {
         'contract': CONTRACT,
         'identityContract': COMPONENT_IDENTITY_PACKET_CONTRACT,
         'visualRole': role,
         'searchContract': SEARCH_CONTRACT,
-        'requiredObjects': packet.get('requiredObjects') or [],
+        'requiredObjects': [{'id': row['id'], 'term': row.get('term') or row['id']}
+            for row in packet.get('requiredObjects') or []],
         'requirement': {
             'actualGameAssetRequired': bool((packet.get('requirement') or {}).get('actualGameAssetRequired')),
             'identityOnly': True,
         },
-        'sourceRefs': [],
-        'sourcePages': [],
+        # These excerpts establish a component's source-defined family. They
+        # are not scene direction: transition, quantity, placement and state
+        # remain intentionally absent from an identity-only measurement.
+        'identityEvidence': [{
+            'requiredObject': row['id'], 'canonicalTerm': row.get('term') or row['id'],
+            'category': row.get('category'), 'frenchTerm': row.get('frenchTerm'),
+            'componentEvidence': row.get('evidence') or [],
+        } for row in packet.get('requiredObjects') or []],
+        'officialContext': _bounded_official_context(packet.get('sourceRefs'), maximum=2, characters=900),
+        'sourcePages': sorted({ref['page'] for ref in _bounded_official_context(packet.get('sourceRefs'), maximum=3, characters=1)}),
     }
+    metadata = (asset or {}).get('asset_metadata') or {}
+    page = metadata.get('source_page')
+    text = metadata.get('layout_text')
+    if isinstance(page, int) and page > 0 and isinstance(text, str) and text.strip():
+        # The crop is a derivative of this page.  Its extracted text is
+        # authoritative page context, not a filename or an inferred label.
+        result['assetOfficialContext'] = [{'page': page, 'text': text.strip()[:1800]}]
+        result['sourcePages'] = sorted(set(result['sourcePages']) | {page})
+    return result
 
 def analysis_priority(scene, object_frequency):
     """Order bounded pixel work by instructional evidence value, not narration order.
@@ -380,6 +426,35 @@ def validate_rows(rows, packet):
             raise ValueError("invalid bounds")
     return rows
 
+def retained_localizations(output_path):
+    """Recover a valid old localization when only its identity context evolved.
+
+    A page-level bounding box is a pixel measurement.  Adding official text
+    that clarifies a family name must not spend another provider call on the
+    identical page.  This deliberately never reuses COMPONENT verdicts: a
+    newly supplied official context can legitimately change whether a cropped
+    named member is recognized as the requested family.
+    """
+    path = Path(output_path)
+    if not path.is_file():
+        return {}
+    try:
+        report = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+    result = {}
+    for scene in report.get('scenes') or []:
+        for candidate in scene.get('candidates') or []:
+            rows = candidate.get('objects') or []
+            if candidate.get('status') != 'MEASURED' or not rows:
+                continue
+            if any(row.get('visualRole') != 'LOCALIZATION' or not row.get('imageSha256') for row in rows):
+                continue
+            key = (candidate.get('asset_id'), rows[0].get('imageSha256'), tuple(sorted(row.get('requiredObject') for row in rows)))
+            if None not in key[2]:
+                result.setdefault(key, rows)
+    return result
+
 def run(script, qa, cache_dir, max_calls=8, client=None):
     cache_dir.mkdir(parents=True, exist_ok=True)
     imported_roots = [Path(p).resolve() for p in json.loads(os.getenv('MOBIUS_VISUAL_CACHE_SOURCES', '[]'))]
@@ -392,6 +467,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
     run_cache = cache_dir / ('run-' + digest([SEARCH_EXECUTION_VERSION, COMPOSITION_RESPONSE_CONTRACT, SEARCH_CONTRACT, CONTRACT, MODEL, script, source_identities,
         [a.get('asset_metadata') for a in qa.get('assets', [])], imported_inventory, os.getenv('MOBIUS_VISUAL_SCENE_ID'), max_calls, client is not None, recovery_epoch()]) + '.json')
     previous = json.loads(run_cache.read_text(encoding='utf-8')) if run_cache.exists() else None
+    retained = retained_localizations(os.getenv('MOBIUS_VISUAL_PREVIOUS_REPORT', ''))
     if previous is not None:
         # Older composition executions recorded a schema failure but did not
         # propagate the suspension. Preserve that receipt; do not issue it again.
@@ -442,7 +518,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
             visited.add(visit_id)
             kind = (asset.get('asset_metadata') or {}).get('visual_kind')
             role = 'TRACK' if kind == 'track-geometry' else ('COMPOSITION' if kind == 'instructional-composition' else ('LOCALIZATION' if kind == 'source-page-localization' else 'COMPONENT'))
-            scoped_packet = component_identity_packet(packet, role) if role in ('LOCALIZATION', 'COMPONENT') \
+            scoped_packet = component_identity_packet(packet, role, asset) if role in ('LOCALIZATION', 'COMPONENT') \
                 else {**packet, 'visualRole': role, 'searchContract': SEARCH_CONTRACT}
             focus = (asset.get('asset_metadata') or {}).get('localizedReferent')
             if focus and role == 'COMPONENT':
@@ -489,6 +565,15 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     objects = validate_rows(json.loads(receipt['content'])['objects'], scoped_packet)
                     result['responseReceipt'] = str(receipt_path)
                     result['validationRecovery'] = 'exact-supplied-referent-pair; no new provider call'
+                    hits += 1
+                elif role == 'LOCALIZATION' and (rows := retained.get((asset['asset_id'], image_hash,
+                    tuple(sorted(obj['id'] for obj in scoped_packet['requiredObjects']))))):
+                    # Exact pixels and referent IDs match a persisted v1
+                    # localization. Validate it against the current schema and
+                    # create the new cache identity for deterministic replay.
+                    objects = validate_rows(rows, scoped_packet)
+                    cache.write_text(json.dumps({'identity': identity, 'objects': objects}, ensure_ascii=False), encoding='utf-8')
+                    result['validationRecovery'] = 'official-context-enriched-localization; no new provider call'
                     hits += 1
                 elif client is None or calls >= max_calls or blocker or os.getenv('MOBIUS_VISUAL_CACHE_ONLY') == 'true':
                     result["reason"] = blocker or "pixel analysis unavailable or bounded budget exhausted"
@@ -610,7 +695,14 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                             generated.append(crop)
                             # Verify immediately, before looking for the next source page.
                             queue.insert(queue.index(asset) + 1, {'asset_id': crop['id'], 'path': crop['file_path'],
-                                'asset_metadata': {'source_page': crop['source_page'], 'dimensions': crop['dimensions'], 'localizedReferent':obj['requiredObject']}})
+                                'asset_metadata': {'source_page': crop['source_page'], 'dimensions': crop['dimensions'],
+                                    'localizedReferent':obj['requiredObject'],
+                                    # Preserve the exact source-page context which
+                                    # located this derivative. A crop's pixels can
+                                    # show a named member of a card family without
+                                    # printing the family term itself.
+                                    'layout_text': (asset.get('asset_metadata') or {}).get('layout_text') or '',
+                                    'heading': (asset.get('asset_metadata') or {}).get('heading') or ''}})
                         if crop_input.get('sourcePdfPath'):
                             # Native tiles can restore the unobscured source
                             # object behind a page's vector callouts. They remain
@@ -625,7 +717,10 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                                 if native_crop['id'] not in {g['id'] for g in generated}:
                                     generated.append(native_crop)
                                     queue.insert(queue.index(asset) + 1, {'asset_id': native_crop['id'], 'path': native_crop['file_path'],
-                                        'asset_metadata': {'source_page': native_crop['source_page'], 'dimensions': native_crop['dimensions'], 'localizedReferent':obj['requiredObject']}})
+                                        'asset_metadata': {'source_page': native_crop['source_page'], 'dimensions': native_crop['dimensions'],
+                                            'localizedReferent':obj['requiredObject'],
+                                            'layout_text': (asset.get('asset_metadata') or {}).get('layout_text') or '',
+                                            'heading': (asset.get('asset_metadata') or {}).get('heading') or ''}})
             except Exception as exc:
                 result["reason"] = f"{type(exc).__name__}; HTTP {getattr(exc, 'status_code', 'unavailable')}"
                 safe_issues = {'exact requested referents required', 'invalid confidence', 'incomplete verdict', 'invalid bounds', 'Incomplete composition verdict'}

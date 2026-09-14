@@ -253,6 +253,53 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertTrue(packet['requirement']['identityOnly'])
             self.assertNotIn('transitionRequired', packet['requirement'])
 
+    def test_component_identity_keeps_bounded_official_family_context_but_not_scene_state(self):
+        scene = {'id': 'criminal-card', 'source_pages': [7], 'sourceRefs': [{
+            'page': 7, 'quote': 'The number of Clues required is indicated on the Criminal card.', 'excerptHash': 'abc'}],
+            'visualRequirement': {'requiredObjects': ['criminal'], 'transitionRequired': True,
+                'beforeState': 'before', 'actionState': 'action', 'afterState': 'after'}}
+        packet = matcher.packet_for(scene, {'criminal': {
+            'canonicalTerm': 'Criminal card', 'frenchTerm': 'carte Criminel', 'category': 'card',
+            'evidence': [{'page': 3, 'quote': '21 Criminal cards'}]}})
+        scoped = matcher.component_identity_packet(packet, 'COMPONENT', {'asset_metadata': {
+            'source_page': 13, 'layout_text': 'This criminal originally has 3 Resistance tokens.'}})
+        self.assertEqual(scoped['identityContract'], matcher.COMPONENT_IDENTITY_PACKET_CONTRACT)
+        self.assertEqual(scoped['identityEvidence'][0]['category'], 'card')
+        self.assertEqual(scoped['identityEvidence'][0]['componentEvidence'][0]['quote'], '21 Criminal cards')
+        self.assertEqual(scoped['assetOfficialContext'][0]['page'], 13)
+        self.assertIn('This criminal', scoped['assetOfficialContext'][0]['text'])
+        self.assertNotIn('transitionRequired', scoped['requirement'])
+        self.assertNotIn('beforeState', json.dumps(scoped))
+
+    def test_context_enriched_contract_reuses_only_prior_localization_not_component_verdict(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'
+            old = Path(directory) / 'previous.json'
+            image_hash = matcher.hashlib.sha256(pixels.read_bytes()).hexdigest()
+            old.write_text(json.dumps({'scenes': [{'candidates': [
+                {'asset_id': 'page', 'status': 'MEASURED', 'objects': [{'requiredObject': 'card', 'present': True,
+                    'confidence': .99, 'complete': True, 'isolated': True, 'stateCompatible': True,
+                    'bbox': [.1,.1,.9,.9], 'reason': 'old page measurement', 'visualRole': 'LOCALIZATION',
+                    'imageSha256': image_hash}]}
+            ]}]}))
+            script = {'scenes': [{'id': 'scene', 'source_pages': [2], 'visualRequirement': {'requiredObjects': ['card']}}],
+                'componentTerms': {'card': {'canonicalTerm': 'Criminal card', 'evidence': [{'page': 2, 'quote': 'Criminal card'}]}}}
+            qa = {'assets': [
+                {'asset_id': 'page', 'path': str(pixels), 'asset_metadata': {'source_page': 2, 'visual_kind': 'source-page-localization', 'layout_text': 'Criminal card'}}]}
+            calls=[]
+            def create(**kwargs):
+                calls.append(kwargs)
+                row={'requiredObject':'card','present':True,'confidence':.99,'complete':True,'isolated':True,'stateCompatible':True,'bbox':[.1,.1,.9,.9],'reason':'fresh crop'}
+                return types.SimpleNamespace(usage=None, choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=json.dumps({'objects':[row]})))])
+            client=types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            with patch.dict(matcher.os.environ, {'MOBIUS_VISUAL_PREVIOUS_REPORT': str(old)}, clear=False):
+                result=matcher.run(script,qa,Path(directory)/'cache',2,client)
+            page=next(c for c in result['scenes'][0]['candidates'] if c['asset_id']=='page')
+            crop=next(c for c in result['scenes'][0]['candidates'] if c['asset_id'].startswith('localized-'))
+            self.assertEqual(page['validationRecovery'], 'official-context-enriched-localization; no new provider call')
+            self.assertEqual(crop['status'], 'MEASURED')
+            self.assertEqual(len(calls), 1)
+
     def test_unknown_component_hypothesis_is_not_dropped_before_pixel_analysis(self):
         self.assertTrue(qualifier.eligible_hypothesis({'is_component': None, 'type': 'focused-page-crop'}))
         self.assertTrue(qualifier.eligible_hypothesis({}))

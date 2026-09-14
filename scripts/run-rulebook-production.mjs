@@ -891,7 +891,17 @@ async function runZeroState(options = {}) {
     cachePath:path.join(productionDir,'source-referent-terminology.json'),env:canonicalRuntimeConfigurationEnvironment({root})});
   const visualScript = {
     version: 1, game: gameName, language,
-    componentTerms: Object.fromEntries(referentTerms.result.referents.map(ref => [ref.id,ref.status==='GROUNDED'?ref.canonicalTerm:rulebookKnowledgeModel.components.find(c=>c.id===ref.id).name])),
+    // Preserve source-grounded terminology evidence through visual identity
+    // measurement.  A crop may show a named member of a card family rather
+    // than print the family label; the exact official evidence is necessary
+    // to verify the category without treating a filename as proof.
+    componentTerms: Object.fromEntries(referentTerms.result.referents.map(ref => [ref.id, {
+      canonicalTerm: ref.status === 'GROUNDED' ? ref.canonicalTerm : rulebookKnowledgeModel.components.find(c=>c.id===ref.id).name,
+      frenchTerm: ref.frenchTerm || null,
+      category: ref.category || null,
+      evidence: ref.evidence || [],
+      status: ref.status,
+    }])),
     referentTerminology:referentTerms,
     scenes: storyboardManifest.scenes.map((scene) => sceneForProduction(scene, extraction.pageRanges, extraction.pages)),
   };

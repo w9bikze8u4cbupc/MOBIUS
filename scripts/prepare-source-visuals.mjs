@@ -168,6 +168,9 @@ async function main() {
     OPENAI_MODEL: ai.model || '',
     OPENAI_API_KEY: ai.apiKey || '',
     ...(ai.baseURL ? { OPENAI_BASE_URL: ai.baseURL } : {}),
+    // Keep an immutable previous report available only to migrate exact
+    // page-localization measurements when their identity context evolves.
+    MOBIUS_VISUAL_PREVIOUS_REPORT: semanticPath,
   });
   const semantic = JSON.parse(readFileSync(semanticPath, 'utf8'));
   if (semantic.generatedAssets?.length) {
