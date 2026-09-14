@@ -25,10 +25,12 @@ image_data_url = _probe_module.image_data_url
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
-def schema(role=None):
+def schema(role=None, referent_ids=None):
     props = {"requiredObject": {"type": "string"}, "present": {"type": "boolean"},
         "confidence": {"type": "number"}, "complete": {"type": "boolean"}, "isolated": {"type": "boolean"},
         "stateCompatible": {"type": "boolean"}, "bbox": {"type": "array", "items": {"type": "number", "minimum": 0, "maximum": 1}, "maxItems": 4}, "reason": {"type": "string"}}
+    if referent_ids:
+        props['requiredObject']['enum'] = referent_ids
     if role == 'COMPOSITION':
         props.update({k: {'type': 'boolean'} for k in ('purposeSatisfied', 'phoneReadable')})
     if role == 'TRACK':
@@ -241,6 +243,13 @@ def recovery_epoch():
 
 def validate_rows(rows, packet):
     ids = {item["id"] for item in packet["requiredObjects"]}
+    # Some structured responses echoed the EXACT supplied "ID: label" instead
+    # of the ID alone. Canonicalize only this unambiguous supplied pair, retaining
+    # the provider identifier for audit. No fuzzy matching or invented referent.
+    if isinstance(rows, list):
+        pairs = {f"{item['id']}: {item['term']}": item['id'] for item in packet['requiredObjects'] if isinstance(item['term'], str)}
+        rows = [{**row, 'providerRequiredObject': row['requiredObject'], 'requiredObject': pairs[row['requiredObject']]}
+            if row.get('requiredObject') in pairs else row for row in rows]
     if not isinstance(rows, list) or len(rows) != len(ids) or {r.get("requiredObject") for r in rows} != ids:
         raise ValueError("exact requested referents required")
     for r in rows:
@@ -334,6 +343,15 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     objects = validate_rows(stored["objects"], scoped_packet)
                     result['measurementCache'] = str(read_cache)
                     hits += 1
+                elif cache.with_suffix('.response.json').exists():
+                    receipt_path = cache.with_suffix('.response.json')
+                    receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
+                    if receipt.get('identity') != identity:
+                        raise ValueError('cache identity mismatch')
+                    objects = validate_rows(json.loads(receipt['content'])['objects'], scoped_packet)
+                    result['responseReceipt'] = str(receipt_path)
+                    result['validationRecovery'] = 'exact-supplied-referent-pair; no new provider call'
+                    hits += 1
                 elif client is None or calls >= max_calls or blocker or os.getenv('MOBIUS_VISUAL_CACHE_ONLY') == 'true':
                     result["reason"] = blocker or "pixel analysis unavailable or bounded budget exhausted"
                     results.append(result)
@@ -395,7 +413,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                                 content.append({'type':'text','text':frame['id']})
                                 for key in ('outputPath', 'phonePath'):
                                     content.append({'type':'image_url','image_url':{'url':image_data_url(Path(frame[key])), 'detail':'high'}})
-                    response = client.chat.completions.create(model=MODEL, max_completion_tokens=4800 if role == 'TRACK' else 1800, response_format=schema(role),
+                    response = client.chat.completions.create(model=MODEL, max_completion_tokens=4800 if role == 'TRACK' else 1800, response_format=schema(role, [obj['id'] for obj in scoped_packet['requiredObjects']]),
                         messages=[{"role": "user", "content": content}])
                     # Keep the actual completion before schema validation. Never
                     # persist a client, headers, credentials or raw API exceptions.

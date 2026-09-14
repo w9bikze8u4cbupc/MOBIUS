@@ -15,6 +15,15 @@ qualifier = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(qualifier)
 
 class ObjectEvidenceTests(unittest.TestCase):
+    def test_exact_echoed_id_label_can_be_canonicalized_but_wrong_identity_cannot(self):
+        packet={'requiredObjects':[{'id':'c','term':'Card'}]}
+        row={'requiredObject':'c: Card','present':True,'confidence':.99,'complete':True,'isolated':True,'stateCompatible':True,'bbox':[.1,.1,.9,.9],'reason':'Visible card'}
+        result=matcher.validate_rows([row],packet)[0]
+        self.assertEqual(result['requiredObject'],'c')
+        self.assertEqual(result['providerRequiredObject'],'c: Card')
+        with self.assertRaises(ValueError):matcher.validate_rows([{**row,'requiredObject':'other: Card'}],packet)
+        self.assertEqual(matcher.schema('COMPONENT',['c'])['json_schema']['schema']['properties']['objects']['items']['properties']['requiredObject']['enum'],['c'])
+
     def test_track_plan_is_source_bound_and_not_a_component_acceptance(self):
         with tempfile.TemporaryDirectory() as directory:
             pixels=ROOT/'tests/fixtures/images/test-bg-100x100.png'
