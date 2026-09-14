@@ -15,6 +15,7 @@ CONTRACT = "mobius-object-visual-evidence-v2"
 SEARCH_CONTRACT = "mobius-referent-localization-v1"
 SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v3-reuse-priority'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
+COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v1'
 MODEL = os.getenv("MOBIUS_VISUAL_MATCH_MODEL") or os.getenv("OPENAI_MODEL")
 _probe_spec = importlib.util.spec_from_file_location('mobius_visual_probe', Path(__file__).with_name('qualify-source-visuals.py'))
 _probe_module = importlib.util.module_from_spec(_probe_spec)
@@ -50,6 +51,30 @@ def packet_for(scene, terms):
         for ident in req.get("requiredObjects", [])], "requirement": req,
         "sourceRefs": scene.get("sourceRefs") or [], "sourcePages": scene.get("source_pages") or []}
 
+def component_identity_packet(packet, role):
+    """Build an exact-pixel identity packet independent of one teaching scene.
+
+    COMPONENT and LOCALIZATION analyses establish only that the supplied pixels
+    contain a complete physical object in a compatible intrinsic orientation.
+    They do not prove a rule transition, quantity, placement, or relationship.
+    Keeping those scene facts out of the measurement cache lets one measured
+    card/board/token be reused as identity evidence without laundering it into
+    a later state proof. TRACK and COMPOSITION remain scene-scoped below.
+    """
+    return {
+        'contract': CONTRACT,
+        'identityContract': COMPONENT_IDENTITY_PACKET_CONTRACT,
+        'visualRole': role,
+        'searchContract': SEARCH_CONTRACT,
+        'requiredObjects': packet.get('requiredObjects') or [],
+        'requirement': {
+            'actualGameAssetRequired': bool((packet.get('requirement') or {}).get('actualGameAssetRequired')),
+            'identityOnly': True,
+        },
+        'sourceRefs': [],
+        'sourcePages': [],
+    }
+
 def analysis_priority(scene, object_frequency):
     """Order bounded pixel work by instructional evidence value, not narration order.
 
@@ -84,6 +109,25 @@ def measured_object(row, role=None):
         and isinstance(row.get('confidence'), (int, float)) and row['confidence'] >= .9
         and (role is None or row.get('visualRole') == role))
 
+def component_identity_proven(referent, report):
+    """True only for a complete, isolated provider measurement of this object."""
+    return any(obj.get('requiredObject') == referent and measured_object(obj, 'COMPONENT')
+        for scene in report.get('scenes', []) for candidate in scene.get('candidates', [])
+        for obj in candidate.get('objects', []))
+
+def scene_needs_identity_work(scene, report):
+    required = (scene.get('visualRequirement') or {}).get('requiredObjects') or []
+    return bool(required) and any(not component_identity_proven(ident, report) for ident in required)
+
+def prior_scene_referents(scene):
+    """Recover canonical referent IDs from a persisted matcher scene."""
+    for candidate in scene.get('candidates', []):
+        refs = (candidate.get('evidencePacket') or {}).get('requiredObjects') or []
+        ids = [ref.get('id') for ref in refs if isinstance(ref, dict) and ref.get('id')]
+        if ids:
+            return ids
+    return []
+
 def scene_measurement_complete(scene, prior):
     """Whether retained pixel evidence already satisfies this exact scene.
 
@@ -113,9 +157,15 @@ def continuation_required(report, max_calls):
         return True
     if int(summary.get('providerCalls') or 0) < int(max_calls):
         return False
-    return any(candidate.get('status') == 'UNKNOWN'
-        and 'bounded budget exhausted' in str(candidate.get('reason') or '')
-        for scene in report.get('scenes', []) for candidate in scene.get('candidates', []))
+    # Only missing physical identity can schedule another bounded matcher run.
+    # A retained unknown state/composition candidate belongs to later normal
+    # composition materialization, not an excuse to repeatedly inspect pixels.
+    return any((refs := prior_scene_referents(scene))
+        and any(not component_identity_proven(referent, report) for referent in refs)
+        and any(candidate.get('status') == 'UNKNOWN'
+            and 'bounded budget exhausted' in str(candidate.get('reason') or '')
+            for candidate in scene.get('candidates', []))
+        for scene in report.get('scenes', []))
 
 def candidates_for(packet, assets):
     # Page/term proximity generates hypotheses only. Identity still needs pixels.
@@ -368,7 +418,20 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
         if prior and scene_measurement_complete(scene, prior):
             scenes.append(prior)
             continue
+        if prior and previous and not scene_needs_identity_work(scene, previous):
+            # A separate scene already established the exact physical referent.
+            # Retain this scene's state review untouched; component discovery is
+            # complete and must not spend another provider call here.
+            scenes.append(prior)
+            continue
         packet = packet_for(scene, script.get("componentTerms") or {})
+        if previous:
+            packet['requiredObjects'] = [obj for obj in packet['requiredObjects']
+                if not component_identity_proven(obj['id'], previous)]
+        if not packet['requiredObjects']:
+            if prior:
+                scenes.append(prior)
+            continue
         results = []
         queue = candidates_for(packet, qa.get("assets", [])) if packet['requiredObjects'] else []
         visited = set()
@@ -379,7 +442,8 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
             visited.add(visit_id)
             kind = (asset.get('asset_metadata') or {}).get('visual_kind')
             role = 'TRACK' if kind == 'track-geometry' else ('COMPOSITION' if kind == 'instructional-composition' else ('LOCALIZATION' if kind == 'source-page-localization' else 'COMPONENT'))
-            scoped_packet = {**packet, 'visualRole': role, 'searchContract': SEARCH_CONTRACT}
+            scoped_packet = component_identity_packet(packet, role) if role in ('LOCALIZATION', 'COMPONENT') \
+                else {**packet, 'visualRole': role, 'searchContract': SEARCH_CONTRACT}
             focus = (asset.get('asset_metadata') or {}).get('localizedReferent')
             if focus and role == 'COMPONENT':
                 scoped_packet['requiredObjects'] = [obj for obj in packet['requiredObjects'] if obj['id'] == focus]

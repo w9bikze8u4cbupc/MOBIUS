@@ -227,6 +227,32 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(second['scenes'][0], first['scenes'][0])
             self.assertEqual(second['scenes'][1]['candidates'][0]['status'], 'MEASURED')
 
+    def test_component_identity_measurement_is_shared_by_stateful_scenes_without_claiming_state_proof(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'
+            script = {'scenes': [
+                {'id': 'static-board', 'source_pages': [2], 'visualRequirement': {'requiredObjects': ['board']}},
+                {'id': 'stateful-board', 'source_pages': [3], 'visualRequirement': {
+                    'requiredObjects': ['board'], 'transitionRequired': True,
+                    'beforeState': 'before', 'actionState': 'action', 'afterState': 'after'}}
+            ]}
+            qa = {'assets': [{'asset_id': 'board', 'path': str(pixels), 'asset_metadata': {'source_page': 2, 'layout_text': 'board'}}]}
+            calls = []
+            def create(**kwargs):
+                calls.append(kwargs)
+                row = {'requiredObject': 'board', 'present': True, 'confidence': .99, 'complete': True,
+                    'isolated': True, 'stateCompatible': True, 'bbox': [.1, .1, .9, .9], 'reason': 'fixture board'}
+                return types.SimpleNamespace(usage=None, choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=json.dumps({'objects': [row]})))])
+            client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            result = matcher.run(script, qa, Path(directory), 2, client)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(result['summary']['providerCalls'], 1)
+            self.assertEqual(result['summary']['cacheHits'], 1)
+            packet = result['scenes'][1]['candidates'][0]['evidencePacket']
+            self.assertEqual(packet['identityContract'], matcher.COMPONENT_IDENTITY_PACKET_CONTRACT)
+            self.assertTrue(packet['requirement']['identityOnly'])
+            self.assertNotIn('transitionRequired', packet['requirement'])
+
     def test_unknown_component_hypothesis_is_not_dropped_before_pixel_analysis(self):
         self.assertTrue(qualifier.eligible_hypothesis({'is_component': None, 'type': 'focused-page-crop'}))
         self.assertTrue(qualifier.eligible_hypothesis({}))
