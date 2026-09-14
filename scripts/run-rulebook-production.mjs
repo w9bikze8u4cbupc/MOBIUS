@@ -898,7 +898,7 @@ async function runZeroState(options = {}) {
   });
   if (!stageReady(checkpoint, 'visual-review', visualReviewHash, [qualityPath, semanticPath, combinedVisualManifestPath, focusedCropManifestPath])) {
     const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
-    const result = spawnSync(process.execPath, [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--hephaestus-evidence', hephEvidencePath, '--output-dir', visualReviewDir, '--page-dir', pageDir, '--extraction', path.join(productionDir, 'zero-state-extraction.json'), '--source-sha256', identity.sha256], {
+    const result = spawnSync(process.execPath, [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--hephaestus-evidence', hephEvidencePath, '--output-dir', visualReviewDir, '--page-dir', pageDir, '--extraction', path.join(productionDir, 'zero-state-extraction.json'), '--source-sha256', identity.sha256, '--source-pdf', await sourceService.resolveFile(projectId)], {
       cwd: root, env: { ...canonicalRuntimeConfigurationEnvironment({ root }), PYTHON: python }, stdio: 'inherit', windowsHide: true,
     });
     if (result.status !== 0) throw new Error(`prepare-source-visuals exited with code ${result.status}`);
