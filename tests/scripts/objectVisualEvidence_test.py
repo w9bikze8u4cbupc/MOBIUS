@@ -15,6 +15,14 @@ qualifier = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(qualifier)
 
 class ObjectEvidenceTests(unittest.TestCase):
+    def test_shared_ledger_budget_receipt_is_explicitly_resumable(self):
+        report = {'summary': {'providerCalls': 0, 'maxProviderCalls': 1, 'providerBlocker': None}, 'scenes': [{
+            'candidates': [{'status': 'UNKNOWN', 'reason': 'cumulative visual budget exhausted or provider blocked'}]
+        }]}
+        self.assertTrue(matcher.continuation_required(report, 1))
+        self.assertTrue(matcher.budget_exhausted_reason('pixel analysis unavailable or bounded budget exhausted'))
+        self.assertFalse(matcher.budget_exhausted_reason('AuthenticationError; HTTP 401'))
+
     def test_exact_echoed_id_label_can_be_canonicalized_but_wrong_identity_cannot(self):
         packet={'requiredObjects':[{'id':'c','term':'Card'}]}
         row={'requiredObject':'c: Card','present':True,'confidence':.99,'complete':True,'isolated':True,'stateCompatible':True,'bbox':[.1,.1,.9,.9],'reason':'Visible card'}

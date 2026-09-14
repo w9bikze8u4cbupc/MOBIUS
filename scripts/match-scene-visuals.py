@@ -201,6 +201,16 @@ def continuation_required(report, max_calls):
     # fully spent bound are the backward-compatible indication of deferral.
     if summary.get('continuationRequired') is True:
         return True
+    # A shared mission ledger can reject the very first call in this local
+    # batch.  That is still a deferred, explicitly resumable outcome: it must
+    # not be mistaken for a complete negative measurement just because this
+    # particular process spent zero calls.  The next run is permitted only
+    # after a new recovery epoch changes the cache identity.
+    if any(candidate.get('status') == 'UNKNOWN'
+           and budget_exhausted_reason(candidate.get('reason'))
+           for scene in report.get('scenes', [])
+           for candidate in scene.get('candidates', [])):
+        return True
     if int(summary.get('providerCalls') or 0) < int(max_calls):
         return False
     # Only missing physical identity can schedule another bounded matcher run.
@@ -209,9 +219,21 @@ def continuation_required(report, max_calls):
     return any((refs := prior_scene_referents(scene))
         and any(not component_identity_proven(referent, report) for referent in refs)
         and any(candidate.get('status') == 'UNKNOWN'
-            and 'bounded budget exhausted' in str(candidate.get('reason') or '')
+            and budget_exhausted_reason(candidate.get('reason'))
             for candidate in scene.get('candidates', []))
         for scene in report.get('scenes', []))
+
+
+def budget_exhausted_reason(reason):
+    """Recognize every canonical no-call budget receipt.
+
+    The provider runner has two truthful messages: a local per-run cap and a
+    shared-ledger cap.  Both are deferrals, never evidence that pixels were
+    inspected.  Keep this narrowly scoped to budget language so provider
+    failures still remain blocked until their explicit recovery path runs.
+    """
+    value = str(reason or '').lower()
+    return 'bounded budget exhausted' in value or 'cumulative visual budget exhausted' in value
 
 def candidates_for(packet, assets):
     # Page/term proximity generates hypotheses only. Identity still needs pixels.
@@ -759,8 +781,8 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
             results.append(result)
         scenes.append({"scene_id": scene.get("id"), "status": "object-evidence-ready" if any(r["status"] == "MEASURED" for r in results) else "needs_visual_review",
             "selected_asset_id": None, "reason": "Canonical object/detail/state validation required", "candidates": results})
-    deferred = bool(not blocker and calls >= max_calls and any(candidate.get('status') == 'UNKNOWN'
-        and 'bounded budget exhausted' in str(candidate.get('reason') or '')
+    deferred = bool(not blocker and any(candidate.get('status') == 'UNKNOWN'
+        and budget_exhausted_reason(candidate.get('reason'))
         for scene in scenes for candidate in scene.get('candidates', [])))
     report = {"version": 2, "contract": CONTRACT, "searchContract": SEARCH_CONTRACT, "model": MODEL, "scenes": scenes, "generatedAssets": generated,
         "summary": {"providerCalls": calls, "cacheHits": hits, "maxProviderCalls": max_calls, "retries": 0,

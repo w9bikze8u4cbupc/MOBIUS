@@ -94,9 +94,11 @@ function jsonIf(filePath, fallback = null) {
 function visualAnalysisContinuationIdentity(report = {}) {
   const summary = report.summary || {};
   if (summary.providerBlocker) return null;
-  const deferred = summary.continuationRequired === true || (Number(summary.providerCalls || 0) >= Number(summary.maxProviderCalls || Infinity)
-    && (report.scenes || []).some((scene) => (scene.candidates || []).some((candidate) => candidate.status === 'UNKNOWN'
-      && String(candidate.reason || '').includes('bounded budget exhausted'))));
+  const deferredReason = (value) => /(?:bounded|cumulative visual) budget exhausted/i.test(String(value || ''));
+  // The shared ledger may stop a fresh batch before its local cap is spent.
+  // Preserve that as a resumable deferral, not a final lack-of-evidence.
+  const deferred = summary.continuationRequired === true || (report.scenes || []).some((scene) => (scene.candidates || []).some((candidate) => candidate.status === 'UNKNOWN'
+    && deferredReason(candidate.reason)));
   // The next Inbox re-open may advance only a report that explicitly exhausted
   // its bounded work. A complete report remains replayable without invoking
   // the visual provider again.

@@ -1,10 +1,18 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const sharp = require('sharp');
-const { materializeVisualPlanFrames } = require('../../src/services/visualPlanMaterializer.cjs');
+const { materializeVisualPlanFrames, compositionReviewEnvironment } = require('../../src/services/visualPlanMaterializer.cjs');
 
 const fixture = path.resolve(__dirname, '../../src/assets/branding/les-jeux-mobius-banner-canonical.png');
 const outputDir = path.resolve(__dirname, '../../out/test-visual-plan-materializer');
+
+test('composition review may use an explicitly bounded sub-stage ledger group', () => {
+  expect(compositionReviewEnvironment({ MOBIUS_VISUAL_BUDGET_GROUP: 'source' }).MOBIUS_VISUAL_BUDGET_GROUP).toBe('source');
+  expect(compositionReviewEnvironment({
+    MOBIUS_VISUAL_BUDGET_GROUP: 'source',
+    MOBIUS_VISUAL_COMPOSITION_BUDGET_GROUP: 'composition',
+  }).MOBIUS_VISUAL_BUDGET_GROUP).toBe('composition');
+});
 
 test('mono-image still uses the real storyboard renderer and never auto-certifies composition', async () => {
   const { materializeInstructionalStill } = require('../../src/services/visualPlanMaterializer.cjs');

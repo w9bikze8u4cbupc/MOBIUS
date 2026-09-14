@@ -255,6 +255,15 @@ function attachSequenceReviewEvidence({ assets, records, reviewPaths=[] }) {
  return assets.map(asset=>({...asset,instructionalSequences:[...(asset.instructionalSequences||[]),...reviewed.filter(r=>r.assetId===asset.id)]}));
 }
 
+// A production may resume an already-prepared state composition while the
+// broader source-discovery batch is intentionally exhausted. Keep the same
+// durable ledger, but allow an operator-owned runtime policy to reserve an
+// explicitly capped group for that final composition measurement.
+function compositionReviewEnvironment(env = process.env) {
+ const group=String(env.MOBIUS_VISUAL_COMPOSITION_BUDGET_GROUP||'').trim();
+ return group ? {...env,MOBIUS_VISUAL_BUDGET_GROUP:group} : env;
+}
+
 async function reviewPreparedSequences({state,materialized,outputDir,env=process.env}){
  const reviewPaths=[];
  for(const sequence of materialized.records.filter(r=>r.frames?.length && !r.validated)){
@@ -265,7 +274,7 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
     phonePath:sequence.frames[0].phonePath,
     componentTerms:Object.fromEntries((state.knowledgeModel.components||[]).map(c=>[c.id,c.name]))}));
   const result=spawnSync(process.execPath,[path.resolve(__dirname,'../../scripts/prepare-source-visuals.mjs'),
-    '--composition-review',inputPath,'--output-dir',folder],{env,windowsHide:true,encoding:'utf8',timeout:180000});
+    '--composition-review',inputPath,'--output-dir',folder],{env:compositionReviewEnvironment(env),windowsHide:true,encoding:'utf8',timeout:180000});
   fs.writeFileSync(path.join(folder,'execution.log'),`${result.stdout||''}${result.stderr||''}`);
   const reviewPath=path.join(folder,'composition-review.json');
   if(result.status!==0 || !fs.existsSync(reviewPath))throw new Error('COMPOSITION_REVIEW_EXECUTION_FAILED');
@@ -275,4 +284,4 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
  return {assets:attachSequenceReviewEvidence({assets:state.assets,records:materialized.records,reviewPaths}),reviewPaths};
 }
 
-module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, materializeTrackStateFrames, canonicalTeachingPresentation, materializeInstructionalStill };
+module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, materializeTrackStateFrames, canonicalTeachingPresentation, materializeInstructionalStill };
