@@ -339,6 +339,10 @@ function main() {
         preserveLineBreaks: scene.preserve_line_breaks === true,
       });
     teaching.durationSec = durationSec;
+    if(scene.visual_full_frame===true){
+      teaching.layout={...teaching.layout,mode:'visual-first-full-frame'};
+      teaching.overlays=[];
+    }
     teaching.visualSelection = visual;
     teaching.layout.visualFocus = teaching.layout.visualFocus || scene.visual_focus || null;
     captions.scene = teaching;

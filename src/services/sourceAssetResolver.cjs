@@ -6,6 +6,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { candidateDetailRatio, sourceAuthorityRank } = require('./sourceDetailLineage.cjs');
 const { teachingSceneLayout, containedDisplayBounds } = require('./presentationDesignSystem.cjs');
+const { verifiedInstructionalSequence } = require('./physicalGameState.cjs');
 
 const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v3';
 const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v2';
@@ -24,6 +25,10 @@ function assetPath(asset = {}) {
 
 function normalizeAuthority(asset = {}) {
   const raw = String(asset.sourceAuthority || asset.sourceType || asset.extractionMethod || '').toUpperCase().replace(/[\s-]+/g, '_');
+  const region=asset.provenance?.sourceRegion;
+  if(region?.method==='pymupdf-native-raster-cluster' && region.sourcePdfSha256===asset.sourcePdfSha256
+    && region.nativeRasterContributors?.length && assetPath(asset) && fs.existsSync(assetPath(asset))
+    && crypto.createHash('sha256').update(fs.readFileSync(assetPath(asset))).digest('hex')===region.sha256)return 'NATIVE_EMBEDDED';
   if (/PUBLISHER|PRESS/.test(raw)) return 'OFFICIAL_PUBLISHER_HIGH_RES';
   if (/AUTHORIZED_EXACT_EDITION|OFFICIAL_HIGH_RES/.test(raw)) return 'AUTHORIZED_EXACT_EDITION_HIGH_RES';
   if (/BGG/.test(raw)) return 'OFFICIAL_BGG_ASSET';
@@ -182,12 +187,14 @@ function objectEvidenceFor(candidate, referent, sceneId = null) {
 
 function evaluateCandidate(candidate, requirement = {}, displayBounds = { width: 900, height: 700 }) {
   const fileExists = Boolean(candidate.filePath && fs.existsSync(candidate.filePath));
+  const sequence=verifiedInstructionalSequence(candidate,requirement,requirement.evidenceSceneId);
   let actualDisplayBounds = displayBounds;
   if (displayBounds?.presentationScene) {
     const s = displayBounds.presentationScene;
     const layout = teachingSceneLayout({ ...s, layout: { ...s.layout, visualAspectRatio: candidate.width / candidate.height || 1 } }, displayBounds.width, displayBounds.height);
     actualDisplayBounds = containedDisplayBounds(candidate, { width: layout.imageWidth, height: layout.imageHeight });
   }
+  if(sequence)actualDisplayBounds=sequence.frames[0].actualDisplayBounds;
   const detailRatio = candidateDetailRatio(candidate, actualDisplayBounds);
   const semantic = semanticScore(candidate, requirement.requiredObjects || []);
   const authority = Math.min(1, candidate.sourceAuthorityRank / 50);
@@ -208,7 +215,7 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
     if (proof.visualRole === 'COMPONENT' && (requirement.transitionRequired || requirement.setupPlacementRequired
       || requirement.layeredStateRequired || requirement.trackStateRequired || requirement.requiredRelationship
       || requirement.requiredState || requirement.beforeState || requirement.actionState || requirement.afterState
-      || requirement.requiredQuantities?.length)) hardViolations.push(`composition-state-verification-required:${id}`);
+      || requirement.requiredQuantities?.length) && !sequence) hardViolations.push(`composition-state-verification-required:${id}`);
     if (proof.present !== true || Number(proof.confidence) < 0.9) hardViolations.push(`object-identity-unverified:${id}`);
     const box = proof.bbox;
     if (!Array.isArray(box) || box.length !== 4 || !box.every(Number.isFinite)
@@ -347,7 +354,12 @@ function resolveSourceAssets({ atom, requirement = atom?.visualRequirement || {}
     contract: SOURCE_ASSET_RESOLVER_CONTRACT,
     ruleAtomId: atom?.id || null,
     status: autoAccept ? 'AUTO_ACCEPTED' : (best ? 'REVIEW_REQUIRED' : 'UNRESOLVED'),
-    selectedAssets: autoAccept ? selected.map((entry) => entry.candidate) : [],
+    selectedAssets: autoAccept ? selected.map((entry) => ({...entry.candidate,
+      cropCompleteness:'complete',cropPurity:'clean',reviewState:'accepted',
+      qualification:{contract:SOURCE_ASSET_RESOLVER_CONTRACT,sceneId:requirement.evidenceSceneId,
+        requiredObjects:requirement.requiredObjects,confidence:entry.confidence,
+        actualDisplayBounds:entry.actualDisplayBounds,sourcePixelsPerDisplayPixel:entry.trueSourcePixelsPerDisplayPixel,
+        evidence:'canonical-source-resolver-all-hard-gates-passed'}})) : [],
     suggestedAssets: selected.map((entry) => entry.candidate),
     // Internal compiler evidence retains the candidate object; public `ranked`
     // below stays JSON-safe and stable for Cockpit/project persistence.

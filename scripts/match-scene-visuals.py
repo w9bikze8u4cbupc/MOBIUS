@@ -13,6 +13,8 @@ from openai import OpenAI
 
 CONTRACT = "mobius-object-visual-evidence-v2"
 SEARCH_CONTRACT = "mobius-referent-localization-v1"
+SEARCH_EXECUTION_VERSION = 'native-region-and-track-planning-v1'
+COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 MODEL = os.getenv("MOBIUS_VISUAL_MATCH_MODEL") or os.getenv("OPENAI_MODEL")
 _probe_spec = importlib.util.spec_from_file_location('mobius_visual_probe', Path(__file__).with_name('qualify-source-visuals.py'))
 _probe_module = importlib.util.module_from_spec(_probe_spec)
@@ -26,9 +28,15 @@ def digest(value):
 def schema(role=None):
     props = {"requiredObject": {"type": "string"}, "present": {"type": "boolean"},
         "confidence": {"type": "number"}, "complete": {"type": "boolean"}, "isolated": {"type": "boolean"},
-        "stateCompatible": {"type": "boolean"}, "bbox": {"type": "array", "items": {"type": "number"}}, "reason": {"type": "string"}}
+        "stateCompatible": {"type": "boolean"}, "bbox": {"type": "array", "items": {"type": "number", "minimum": 0, "maximum": 1}, "maxItems": 4}, "reason": {"type": "string"}}
     if role == 'COMPOSITION':
         props.update({k: {'type': 'boolean'} for k in ('purposeSatisfied', 'phoneReadable')})
+    if role == 'TRACK':
+        point={'value':{'type':'number'},'x':{'type':'number'},'y':{'type':'number'}}
+        stage={'label':{'type':'string'},'caption':{'type':'string'},'narration':{'type':'string'},'position':{'type':'number'},'isExample':{'type':'boolean'},'sourcePages':{'type':'array','items':{'type':'integer'}}}
+        props.update({'trackLabelFrench':{'type':'string'},
+            'trackPoints':{'type':'array','items':{'type':'object','properties':point,'required':list(point),'additionalProperties':False}},
+            'stateStages':{'type':'array','items':{'type':'object','properties':stage,'required':list(stage),'additionalProperties':False}}})
     return {"type": "json_schema", "json_schema": {"name": "object_pixel_evidence", "strict": True, "schema": {
         "type": "object", "properties": {"objects": {"type": "array", "items": {"type": "object",
         "properties": props, "required": list(props), "additionalProperties": False}}},
@@ -118,7 +126,8 @@ def reserve_call(identity, provider_failure=None):
             data['providerBlocker'] = data.get('providerBlocker') or provider_failure
         elif data.get('providerBlocker'):
             return False
-        if not provider_failure and (len(rows) >= data['maxTotal'] or sum(r['group'] == group for r in rows) >= data['maxPerGroup']):
+        group_cap = data.get('groupCaps', {}).get(group, data['maxPerGroup'])
+        if not provider_failure and (len(rows) >= data['maxTotal'] or sum(r['group'] == group for r in rows) >= group_cap):
             return False
         if not provider_failure:
             rows.append({'group': group, 'identity': identity, 'ordinal': len(rows) + 1})
@@ -126,6 +135,58 @@ def reserve_call(identity, provider_failure=None):
         tmp.write_text(json.dumps(data, indent=2), encoding='utf-8')
         tmp.replace(ledger)
         return True
+    finally:
+        handle.close()
+        lock.unlink()
+
+
+def authorize_continuation(filename, request_path):
+    """Explicit bounded operator mandate. Never a retry triggered by an error.
+
+    Keep all spent calls, old caps and failures. Authentication/quota suspension
+    still requires the access-recovery operation, not a budget extension.
+    """
+    request_file = Path(request_path).resolve()
+    request = json.loads(request_file.read_text(encoding='utf-8'))
+    ident = request.get('id', '')
+    allocations = request.get('additionalCallsByGroup', {})
+    if (not re.fullmatch(r'[A-Za-z0-9_-]{4,100}', ident)
+            or not request.get('authorization') or not request.get('reason')
+            or request.get('model') != MODEL or not allocations
+            or any(not isinstance(g, str) or type(n) is not int or not 0 < n <= 100 for g, n in allocations.items())
+            or sum(allocations.values()) > 100):
+        raise ValueError('A bounded explicit same-model continuation mandate is required')
+    ledger = Path(filename)
+    lock = ledger.with_suffix('.lock')
+    handle = lock.open('x', encoding='utf-8')
+    try:
+        data = json.loads(ledger.read_text(encoding='utf-8'))
+        history = data.setdefault('continuations', [])
+        previous = next((r for r in history if r['id'] == ident), None)
+        request_hash = digest(request)
+        if previous:
+            if previous['requestHash'] != request_hash:
+                raise ValueError('Continuation ID already belongs to another mandate')
+            return previous
+        blocker = str(data.get('providerBlocker') or '')
+        if re.search(r'401|403|429|Authentication|quota|credit', blocker, re.I):
+            raise ValueError('Access/account failure requires verified access recovery, not extra budget')
+        spent = {g: sum(r['group'] == g for r in data['calls']) for g in set(allocations) | {r['group'] for r in data['calls']}}
+        record = {'id': ident, 'recordedAt': datetime.now(timezone.utc).isoformat(),
+            'requestHash': request_hash, 'requestPath': str(request_file), 'model': MODEL,
+            'authorization': request['authorization'], 'reason': request['reason'],
+            'priorBlocker': data.get('providerBlocker'), 'priorMaxTotal': data['maxTotal'],
+            'priorMaxPerGroup': data['maxPerGroup'], 'callsPreserved': len(data['calls']),
+            'additionalCallsByGroup': allocations}
+        history.append(record)
+        data['maxTotal'] = len(data['calls']) + sum(allocations.values())
+        data['groupCaps'] = {g: n + allocations.get(g, 0) for g, n in spent.items()}
+        data['providerBlocker'] = None
+        data['recoveryEpoch'] = ident
+        tmp = ledger.with_suffix('.tmp')
+        tmp.write_text(json.dumps(data, indent=2), encoding='utf-8')
+        tmp.replace(ledger)
+        return record
     finally:
         handle.close()
         lock.unlink()
@@ -195,12 +256,15 @@ def validate_rows(rows, packet):
 
 def run(script, qa, cache_dir, max_calls=8, client=None):
     cache_dir.mkdir(parents=True, exist_ok=True)
+    imported_roots = [Path(p).resolve() for p in json.loads(os.getenv('MOBIUS_VISUAL_CACHE_SOURCES', '[]'))]
+    imported_inventory = [(str(root), sorted((p.name,p.stat().st_size,p.stat().st_mtime_ns)
+        for p in root.glob('*.json') if re.fullmatch(r'[a-f0-9]{64}\.json',p.name))) for root in imported_roots]
     source_identities = [(a.get('asset_id'), hashlib.sha256(Path(a['path']).read_bytes()).hexdigest())
         for a in qa.get('assets', []) if a.get('path') and Path(a['path']).is_file()]
     source_identities += [('phone:' + a.get('asset_id', ''), hashlib.sha256(Path(a['asset_metadata']['phonePath']).read_bytes()).hexdigest())
         for a in qa.get('assets', []) if (a.get('asset_metadata') or {}).get('phonePath')]
-    run_cache = cache_dir / ('run-' + digest([SEARCH_CONTRACT, CONTRACT, MODEL, script, source_identities,
-        [a.get('asset_metadata') for a in qa.get('assets', [])], os.getenv('MOBIUS_VISUAL_SCENE_ID'), max_calls, client is not None, recovery_epoch()]) + '.json')
+    run_cache = cache_dir / ('run-' + digest([SEARCH_EXECUTION_VERSION, COMPOSITION_RESPONSE_CONTRACT, SEARCH_CONTRACT, CONTRACT, MODEL, script, source_identities,
+        [a.get('asset_metadata') for a in qa.get('assets', [])], imported_inventory, os.getenv('MOBIUS_VISUAL_SCENE_ID'), max_calls, client is not None, recovery_epoch()]) + '.json')
     if run_cache.exists():
         previous = json.loads(run_cache.read_text(encoding='utf-8'))
         # Older composition executions recorded a schema failure but did not
@@ -226,29 +290,44 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
         queue = candidates_for(packet, qa.get("assets", [])) if packet['requiredObjects'] else []
         visited = set()
         for asset in queue:
-            if asset['asset_id'] in visited:
+            visit_id = (asset['asset_id'], (asset.get('asset_metadata') or {}).get('visual_kind'))
+            if visit_id in visited:
                 continue
-            visited.add(asset['asset_id'])
+            visited.add(visit_id)
             kind = (asset.get('asset_metadata') or {}).get('visual_kind')
-            role = 'COMPOSITION' if kind == 'instructional-composition' else ('LOCALIZATION' if kind == 'source-page-localization' else 'COMPONENT')
+            role = 'TRACK' if kind == 'track-geometry' else ('COMPOSITION' if kind == 'instructional-composition' else ('LOCALIZATION' if kind == 'source-page-localization' else 'COMPONENT'))
             scoped_packet = {**packet, 'visualRole': role, 'searchContract': SEARCH_CONTRACT}
             if role == 'COMPOSITION':
+                # Source-bound requirements identify the referent. Labels are
+                # retrieval hypotheses, not new composition evidence.
+                scoped_packet['requiredObjects'] = [{'id':o['id'],'term':o['id']} for o in packet['requiredObjects']]
+                scoped_packet['responseContract'] = COMPOSITION_RESPONSE_CONTRACT
                 phone = (asset.get('asset_metadata') or {}).get('phonePath')
                 scoped_packet['phoneSha256'] = hashlib.sha256(Path(phone).read_bytes()).hexdigest() if phone else None
+                frames = (asset.get('asset_metadata') or {}).get('sequenceFrames', [])
+                if len(frames) > 8:
+                    raise ValueError('Unbounded composition sequence')
+                scoped_packet['sequenceFrames'] = [{
+                    'id': f['id'], 'stage': f['stage'],
+                    'imageSha256': hashlib.sha256(Path(f['outputPath']).read_bytes()).hexdigest(),
+                    'phoneSha256': hashlib.sha256(Path(f['phonePath']).read_bytes()).hexdigest()
+                } for f in frames]
             packet_hash = digest(scoped_packet)
             pixels = Path(asset["path"]).read_bytes()
             image_hash = hashlib.sha256(pixels).hexdigest()
             identity = {"contract": CONTRACT, "model": MODEL, "packet": packet_hash, "image": image_hash}
             cache = cache_dir / (digest(identity) + ".json")
+            read_cache = next((p for p in [cache] + [root / cache.name for root in imported_roots] if p.is_file()), cache)
             result = {"asset_id": asset["asset_id"], "path": asset["path"], "status": "UNKNOWN",
                 "objects": [], "evidencePacket": scoped_packet}
             provider_attempted = False
             try:
-                if cache.exists():
-                    stored = json.loads(cache.read_text(encoding="utf-8"))
+                if read_cache.exists():
+                    stored = json.loads(read_cache.read_text(encoding="utf-8"))
                     if stored.get("identity") != identity:
                         raise ValueError("cache identity mismatch")
                     objects = validate_rows(stored["objects"], packet)
+                    result['measurementCache'] = str(read_cache)
                     hits += 1
                 elif client is None or calls >= max_calls or blocker or os.getenv('MOBIUS_VISUAL_CACHE_ONLY') == 'true':
                     result["reason"] = blocker or "pixel analysis unavailable or bounded budget exhausted"
@@ -277,6 +356,17 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                         "Scene relationships require separate final composition validation. "
                         "Do not invent game facts. Explain visible evidence and missing evidence.\n" + json.dumps(scoped_packet, ensure_ascii=False))
                     content = [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": probe, "detail": "high"}}]
+                    if role == 'TRACK':
+                        content[0]['text'] = ('Map the VISIBLE numbered track belonging to the exact requested referent on this verified component. '
+                            'Return normalized x,y marker centers for every clearly readable printed track value, no guessed coordinates or values. '
+                            'Plan a short source-grounded pedagogical state sequence in natural French Canadian using ONLY the supplied rule evidence. '
+                            'Preserve the stated initial value and the stated retention/reset behavior across turns. '
+                            'A gain or expenditure can be a CONDITIONAL ILLUSTRATIVE EXAMPLE: set isExample=true and explicitly say "Si" or "Par exemple"; '
+                            'never claim a named card or ability supplies an invented amount. Include end-of-turn and next-turn states if retention is required. '
+                            'Each state position must be an observed printed track value. Cite only supplied source pages. '
+                            'Track geometry is a measurement, these states are a PLAN requiring final composition verification, not accepted production. '
+                            'If source evidence or pixels are insufficient, return empty trackPoints/stateStages and explain. '
+                            'Standard bbox is normalized [left,top,right,bottom], confidence is 0..1, requiredObject is the exact ID.\n'+json.dumps(scoped_packet,ensure_ascii=False))
                     if role == 'COMPOSITION':
                         content[0]['text'] = ('Inspect this FINAL instructional composition and its phone-scale preview against the supplied requirements. '
                             'No new game facts. Evaluate every required object, full boundaries, quantity, placement and stated relations. '
@@ -284,12 +374,23 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                             'purposeSatisfied must be false if the visual does not teach the supplied purpose. '
                             'phoneReadable means the referent and required instructional text/symbols remain identifiable at phone scale; '
                             'do not require reading unrelated decorative/map text. Explain all missing evidence. '
-                            'Return exact requested object IDs, bbox in the FINAL full-size image, confidence 0..1, unknown=false.\n'
+                            'Return exact requested object IDs, bbox NORMALIZED [left,top,right,bottom] each in 0..1 '
+                            'relative to the FINAL full-size image, NEVER pixel coordinates. Confidence 0..1, unknown=false.\n'
                             + json.dumps(scoped_packet, ensure_ascii=False))
                         phone = (asset.get('asset_metadata') or {}).get('phonePath')
                         if phone:
                             content.append({'type': 'image_url', 'image_url': {'url': image_data_url(Path(phone)), 'detail': 'high'}})
-                    response = client.chat.completions.create(model=MODEL, max_completion_tokens=1800, response_format=schema(role),
+                        if frames:
+                            content[0]['text'] += ('\nThe following images are the COMPLETE ordered state sequence, '
+                                'each followed by its phone preview. Judge transitions and retained/reset values across ALL frames. '
+                                'Annotations may indicate a track value without pretending to be a photographed physical marker. '
+                                'Reject if the highlighted printed value differs from the caption, or source-bound states conflict. '
+                                'Conditional examples are not claimed card-specific facts. Return bbox in the first frame.')
+                            for frame in frames:
+                                content.append({'type':'text','text':frame['id']})
+                                for key in ('outputPath', 'phonePath'):
+                                    content.append({'type':'image_url','image_url':{'url':image_data_url(Path(frame[key])), 'detail':'high'}})
+                    response = client.chat.completions.create(model=MODEL, max_completion_tokens=4800 if role == 'TRACK' else 1800, response_format=schema(role),
                         messages=[{"role": "user", "content": content}])
                     # Keep the actual completion before schema validation. Never
                     # persist a client, headers, credentials or raw API exceptions.
@@ -301,20 +402,34 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     receipt_tmp.replace(receipt)
                     result['responseReceipt'] = str(receipt)
                     objects = validate_rows(json.loads(response.choices[0].message.content)["objects"], packet)
-                    tmp = cache.with_suffix(".tmp")
-                    tmp.write_text(json.dumps({"identity": identity, "objects": objects,
-                        "usage": response.usage.model_dump() if response.usage else None}, ensure_ascii=False), encoding="utf-8")
-                    tmp.replace(cache)
                 if role == 'COMPOSITION' and any(type(r.get(k)) is not bool for r in objects for k in ('purposeSatisfied', 'phoneReadable')):
                     raise ValueError('Incomplete composition verdict')
+                if role == 'TRACK':
+                    for obj in objects:
+                        points=obj.get('trackPoints',[])
+                        if (not isinstance(points,list) or any(not all(isinstance(p.get(k),(int,float)) for k in ('value','x','y'))
+                                or not 0 <= p['x'] <= 1 or not 0 <= p['y'] <= 1 for p in points)
+                                or len({p['value'] for p in points}) != len(points)):
+                            raise ValueError('Invalid measured track geometry')
+                        if any(s.get('position') not in {p['value'] for p in points} or not s.get('sourcePages')
+                            or any(p not in packet['sourcePages'] for p in s['sourcePages']) for s in obj.get('stateStages',[])):
+                            raise ValueError('Invalid source-bound track state')
+                if provider_attempted:
+                    tmp = cache.with_suffix('.tmp')
+                    tmp.write_text(json.dumps({'identity': identity, 'objects': objects,
+                        'usage': response.usage.model_dump() if response.usage else None}, ensure_ascii=False), encoding='utf-8')
+                    tmp.replace(cache)
                 result.update(status="MEASURED", objects=[{**r, "contract": CONTRACT, "assetId": asset["asset_id"],
                     "imageSha256": image_hash, "evidencePacketHash": packet_hash, "model": MODEL,
                     "method": "provider-pixel-analysis", "visualRole": role, "evidenceRequirement": packet['requirement']} for r in objects])
+                if role == 'COMPONENT' and packet['requirement'].get('trackStateRequired') and all(
+                    o['present'] and o['complete'] and o['isolated'] and o['confidence'] >= .9 for o in objects):
+                    queue.insert(queue.index(asset)+1,{**asset,'asset_metadata':{**(asset.get('asset_metadata') or {}),'visual_kind':'track-geometry'}})
                 if role == 'LOCALIZATION':
                     if any(o['present'] and o['confidence'] >= .9 for o in objects):
                         alternatives = native_localization_alternatives(asset, qa.get('assets', []))
                         for candidate in reversed(alternatives):
-                            if candidate['asset_id'] not in visited:
+                            if (candidate['asset_id'], (candidate.get('asset_metadata') or {}).get('visual_kind')) not in visited:
                                 queue.insert(queue.index(asset) + 1, candidate)
                     for obj in objects:
                         if not obj['present'] or obj['confidence'] < .9 or not obj['complete']:
@@ -322,6 +437,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                         crop_input = {'sourcePath': asset['path'], 'sourceId': asset['asset_id'],
                             'sourceSha256': image_hash, 'sourcePage': (asset.get('asset_metadata') or {}).get('source_page'),
                             'sourcePdfSha256': (asset.get('asset_metadata') or {}).get('source_pdf_sha256'),
+                            'sourcePdfPath': (asset.get('asset_metadata') or {}).get('source_pdf_path'),
                             'objectId': obj['requiredObject'], 'bbox': obj['bbox'], 'outputDir': str(cache_dir.parent / 'localized-crops')}
                         js = "let s='';process.stdin.on('data',x=>s+=x);process.stdin.on('end',async()=>{try{console.log(JSON.stringify(await require('./src/services/objectAwareCrop.cjs').materializeMeasuredObjectCrop(JSON.parse(s))))}catch(e){console.error(e.message);process.exitCode=1}})"
                         child = subprocess.run(['node', '-e', js], input=json.dumps(crop_input), capture_output=True, text=True, encoding='utf-8', timeout=60)
@@ -334,6 +450,21 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                             # Verify immediately, before looking for the next source page.
                             queue.insert(queue.index(asset) + 1, {'asset_id': crop['id'], 'path': crop['file_path'],
                                 'asset_metadata': {'source_page': crop['source_page'], 'dimensions': crop['dimensions']}})
+                        if crop_input.get('sourcePdfPath'):
+                            # Native tiles can restore the unobscured source
+                            # object behind a page's vector callouts. They remain
+                            # an unverified search candidate, never an acceptance.
+                            native_input = {**crop_input, 'recoveryMode': 'native-cluster'}
+                            native_child = subprocess.run(['node', '-e', js], input=json.dumps(native_input),
+                                capture_output=True, text=True, encoding='utf-8', timeout=60)
+                            if native_child.returncode:
+                                result['nativeClusterRecovery'] = 'NO_VALID_CLUSTER'
+                            else:
+                                native_crop = json.loads(native_child.stdout)
+                                if native_crop['id'] not in {g['id'] for g in generated}:
+                                    generated.append(native_crop)
+                                    queue.insert(queue.index(asset) + 1, {'asset_id': native_crop['id'], 'path': native_crop['file_path'],
+                                        'asset_metadata': {'source_page': native_crop['source_page'], 'dimensions': native_crop['dimensions']}})
             except Exception as exc:
                 result["reason"] = f"{type(exc).__name__}; HTTP {getattr(exc, 'status_code', 'unavailable')}"
                 safe_issues = {'exact requested referents required', 'invalid confidence', 'incomplete verdict', 'invalid bounds', 'Incomplete composition verdict'}
@@ -357,6 +488,9 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
     return report
 
 def main():
+    if len(sys.argv) == 4 and sys.argv[1] == '--authorize-continuation':
+        print(json.dumps(authorize_continuation(*sys.argv[2:])))
+        return
     if len(sys.argv) == 6 and sys.argv[1] == '--reopen-provider-blocker':
         print(json.dumps(reopen_provider_blocker(*sys.argv[2:])))
         return

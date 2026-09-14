@@ -1,5 +1,27 @@
 # Visual object evidence — bounded recovery, not a publishability certificate
 
+## Director-authorized end-to-end continuation (supersedes the historical pause)
+
+The original failed calls, caps and reports below remain historical. The new
+authorization is recorded in `out/cowboy-end-to-end/mission.json` and the same
+visual ledger, without resetting counters or changing model/provider.
+
+PDF-native cluster reconstruction now reuses adjacent, equally sampled embedded
+tiles at their actual source positions. It preserves masks and native resolution,
+rejects unsupported rotations/shears, records source SHA/page/transforms, and
+grants no quality verdict. A whole source-bound board was independently recognized.
+Provider-derived track geometry and rule-cited states then drove five normal
+FFmpeg instructional stills, also emitted at phone scale. Full ordered composition
+review is separate from component recognition; exact source, requirement, stage,
+full-frame and phone hashes must match before automatic acceptance.
+
+One fuel lesson is verified by these checks and physical inspection. The first
+composition response used invalid non-normalized bounds and remains rejected;
+an explicitly logged schema correction produced a valid new response. Compatible
+replay uses zero calls. This is not proof of complete tutorial autonomy or a
+publishable video. Current evidence: `out/cowboy-end-to-end/track-sequence-review/`
+and `out/first-pedagogical-visual-proof/cowboy/instructional-materialization/track-sequences/`.
+
 ## Stable state and the first actual instructional still (limited / PARTIAL)
 
 The resumed full-project persistence proof now retains the enriched evidence

@@ -9,7 +9,7 @@ export const PROJECT_SOURCE_DESCRIPTOR_CONTRACT = 'mobius-project-source-v1';
 // v1.1 adds the API-backed, evidence-packet rule synthesis endpoint. A worker
 // must not consider a legacy API compatible merely because the older stage
 // names still match.
-export const CANONICAL_PRODUCTION_STAGE_CONTRACT = 'mobius-canonical-production-stages-v1.2';
+export const CANONICAL_PRODUCTION_STAGE_CONTRACT = 'mobius-canonical-production-stages-v1.3';
 export const PROJECT_CONTEXT_PERSISTENCE_CONTRACT = 'mobius-project-context-persistence-v2';
 export const RENDERER_QA_COMPATIBILITY_CONTRACT = 'mobius-normal-production-qa-v1';
 
@@ -22,6 +22,9 @@ export const CANONICAL_RUNTIME_CONTRACTS = Object.freeze({
   rendererQa: RENDERER_QA_COMPATIBILITY_CONTRACT,
   visualObjectEvidence: 'mobius-object-visual-evidence-v2',
   cockpitVisualEvidence: 'mobius-cockpit-visual-evidence-v1',
+  sourceMeasuredComposition: 'mobius-source-measured-track-sequence-v1',
+  documentCompleteness: 'mobius-rulebook-document-completeness-v1',
+  knowledgeTeaching: 'mobius-source-grounded-teaching-localization-v1',
 });
 
 function sha256(value) {

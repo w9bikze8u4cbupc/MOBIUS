@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import 'dotenv/config';
 import { hydrateSourcePageVisuals } from '../src/services/sourcePageVisuals.js';
+import { materializeKnowledgeTeaching, applyKnowledgeTeaching } from '../src/services/knowledgeTeaching.js';
 
 /**
  * Zero-state rulebook production.
@@ -53,11 +54,11 @@ const { packProjectState } = require('../src/services/projectStateTransport.cjs'
 const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor.js');
 const { COMPONENT_INVENTORY_CONTRACT_VERSION, extractComponentInventory } = await import('../src/services/componentInventory.js');
 const { generateStoryboard } = require('../src/storyboard/generator.js');
-const { buildKnowledgeTeachingPlan, buildTutorialCoverageMatrix, buildRuleReviewItems, RULE_REVIEW_QUEUE_VERSION, RULEATOM_CONTRACT_VERSION, RULEBOOK_INTELLIGENCE_PIPELINE_VERSION, runMultiPassRulebookIntelligence } = require('../src/services/rulebookKnowledge.cjs');
+const { completeRulebookDocumentCoverage, buildKnowledgeTeachingPlan, buildTutorialCoverageMatrix, buildRuleReviewItems, RULE_REVIEW_QUEUE_VERSION, RULEATOM_CONTRACT_VERSION, RULEBOOK_INTELLIGENCE_PIPELINE_VERSION, runMultiPassRulebookIntelligence } = require('../src/services/rulebookKnowledge.cjs');
 const { compileCanonicalProductionState } = require('../src/services/canonicalProductionCompiler.cjs');
 const { recoverAuthorizedBggCandidates, rectifyAuthorizedCandidate } = require('../src/services/sourceAssetResolver.cjs');
 const { buildPhoneScaleQaSheet } = require('../src/services/phoneScaleQa.cjs');
-const { materializeVisualPlanFrames } = require('../src/services/visualPlanMaterializer.cjs');
+const { materializeVisualPlanFrames, reviewPreparedSequences } = require('../src/services/visualPlanMaterializer.cjs');
 
 const VOICE_ID = process.env.ELEVENLABS_VOICE_ID_AMELIE || 'UJCi4DDncuo0VJDSIegj';
 const VOICE_NAME = 'Amélie';
@@ -299,6 +300,7 @@ function sceneForProduction(scene, ranges, pages = []) {
     source_pages: teachingSourcePages(scene, ranges, pages),
     callouts: directions.flatMap((direction) => direction.callouts || []),
     visual_focus: null,
+    ...(scene.visualRequirement ? { visualRequirement: scene.visualRequirement, sourceRefs: scene.sourceRefs || [] } : {}),
   };
 }
 function sourcePageFallback(root, projectId, page) {
@@ -762,12 +764,25 @@ async function runZeroState(options = {}) {
     providerContract,
     domainSynthesize: async (packet) => postJson(baseUrl, '/api/rulebook-knowledge/synthesize-domains', { packet }, apiKey, fetchImpl),
   });
-  const rulebookKnowledgeModel = intelligence.model;
-  const knowledgeTeachingPlan = buildKnowledgeTeachingPlan(rulebookKnowledgeModel);
+  let rulebookKnowledgeModel = intelligence.model;
+  if (rulebookKnowledgeModel.coverage.status === 'PASS') {
+    const complete = await completeRulebookDocumentCoverage({model:rulebookKnowledgeModel,
+      cacheDir:path.join(productionDir,'document-completeness'),providerContract,
+      domainSynthesize:async packet=>postJson(baseUrl,'/api/rulebook-knowledge/synthesize-domains',{packet},apiKey,fetchImpl)});
+    rulebookKnowledgeModel=complete.model;
+    await saveJson(path.join(productionDir,'rulebook-document-completeness.json'),complete);
+  }
   const knowledgeReady = rulebookKnowledgeModel.coverage.status === 'PASS'
     && rulebookKnowledgeModel.completenessCritic.incompleteAtoms.length === 0
     && rulebookKnowledgeModel.contradictionCheck.status === 'PASS'
     && rulebookKnowledgeModel.uncertainties.length === 0;
+  if (knowledgeReady) {
+    const teaching = await materializeKnowledgeTeaching({ model: rulebookKnowledgeModel, language,
+      env: canonicalRuntimeConfigurationEnvironment({ root }),
+      cachePath: path.join(productionDir, 'knowledge-teaching-localization.json') });
+    rulebookKnowledgeModel = applyKnowledgeTeaching(rulebookKnowledgeModel, teaching);
+  }
+  const knowledgeTeachingPlan = buildKnowledgeTeachingPlan(rulebookKnowledgeModel);
   const knowledgeScenes = knowledgeTeachingPlan.scenes.map((item) => ({
     id: `knowledge-${item.atomId}`,
     atomId: item.atomId,
@@ -859,9 +874,11 @@ async function runZeroState(options = {}) {
 
   const visualScriptPath = path.join(productionDir, 'zero-state-visual-review-script.json');
   const visualScript = {
-    version: 1, game: gameName, language, scenes: storyboardManifest.scenes.map((scene) => sceneForProduction(scene, extraction.pageRanges, extraction.pages)),
+    version: 1, game: gameName, language,
+    componentTerms: Object.fromEntries((rulebookKnowledgeModel.components || []).map(component => [component.id, component.name])),
+    scenes: storyboardManifest.scenes.map((scene) => sceneForProduction(scene, extraction.pageRanges, extraction.pages)),
   };
-  const visualScriptHash = hashValue({ storyboardHash, pages: extraction.pageRanges });
+  const visualScriptHash = hashValue({ storyboardHash, pages: extraction.pageRanges, visualScript });
   if (!stageReady(checkpoint, 'visual-script', visualScriptHash, [visualScriptPath])) await saveJson(visualScriptPath, visualScript);
   markStage(checkpoint, 'visual-script', visualScriptHash, [visualScriptPath], { reused: checkpoint.stages['visual-script']?.inputHash === visualScriptHash });
 
@@ -946,12 +963,18 @@ async function runZeroState(options = {}) {
     componentEvidence: hephEvidence,
     sourceAssets: catalog.assets,
     authorizedCandidateManifestPaths,
-    displayBounds: { width: 1080, height: 760 },
   });
-  const materialized = await materializeVisualPlanFrames({
+  let materialized = await materializeVisualPlanFrames({
     state: canonicalProductionState,
     outputDir: path.join(productionDir, 'visual-plan-frames'),
   });
+  if(materialized.records.some(r=>r.frames?.length && !r.validated)){
+    const reviewed=await reviewPreparedSequences({state:canonicalProductionState,materialized,
+      outputDir:path.join(productionDir,'composition-reviews'),env:canonicalRuntimeConfigurationEnvironment({root})});
+    canonicalProductionState=compileCanonicalProductionState({projectId,knowledgeModel:rulebookKnowledgeModel,
+      coverageMatrix:tutorialCoverage,componentEvidence:hephEvidence,sourceAssets:reviewed.assets,authorizedCandidateManifestPaths});
+    materialized=await materializeVisualPlanFrames({state:canonicalProductionState,outputDir:path.join(productionDir,'visual-plan-frames')});
+  }
   canonicalProductionState = {
     ...canonicalProductionState,
     scenes: materialized.scenes,

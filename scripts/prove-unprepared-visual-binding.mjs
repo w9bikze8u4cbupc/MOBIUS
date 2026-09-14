@@ -19,6 +19,33 @@ import transport from '../src/services/projectStateTransport.cjs';
 const require = createRequire(import.meta.url);
 const { compileCanonicalProductionState } = require('../src/services/canonicalProductionCompiler.cjs');
 const args = Object.fromEntries(process.argv.slice(2).reduce((rows, value, index, all) => value.startsWith('--') ? [...rows, [value.slice(2), all[index + 1]]] : rows, []));
+if(args['materialize-only']==='true'){
+  // Resume existing provider measurements through the normal compiler and
+  // materializer, without repeating providers, extraction or the HTTP proof.
+  const folder=path.resolve(args.output);
+  const review=path.join(folder,'data/isolated-visual-binding-proof/source-visual-review');
+  const model=JSON.parse(fs.readFileSync(path.join(folder,'input-knowledge.json')));
+  const componentEvidence=JSON.parse(fs.readFileSync(path.join(folder,'input-component-evidence.json')));
+  const catalog=loadSourceVisualCatalog(path.join(review,'source-visual-manifest.json'),{
+    qualityReportPath:path.join(review,'source-visual-quality.json'),semanticReportPath:path.join(review,'source-visual-semantic-matches.json')});
+  let state=compileCanonicalProductionState({projectId:'isolated-visual-binding-proof',knowledgeModel:model,componentEvidence,sourceAssets:catalog.assets});
+  const materialized=await require('../src/services/visualPlanMaterializer.cjs').materializeVisualPlanFrames({state,outputDir:path.join(folder,'instructional-materialization')});
+  if(args['composition-review']){
+    const sourceAssets=require('../src/services/visualPlanMaterializer.cjs').attachSequenceReviewEvidence({assets:catalog.assets,
+      records:materialized.records,reviewPaths:[path.resolve(args['composition-review'])]});
+    state=compileCanonicalProductionState({projectId:'isolated-visual-binding-proof',knowledgeModel:model,componentEvidence,sourceAssets});
+    const resultPath=path.join(folder,`sequence-binding-${Date.now()}.json`);
+    fs.writeFileSync(resultPath,JSON.stringify({sourceSelections:state.sourceSelections.map(s=>({ruleAtomId:s.ruleAtomId,status:s.status,confidence:s.confidence,
+      candidates:s.ranked.map(r=>({id:r.candidate?.id||r.assetId,valid:r.valid,confidence:r.confidence,violations:r.hardViolations||r.violations}))})),
+      scenes:state.scenes.filter(s=>s.instructionalSequence).map(s=>({id:s.id,visualReviewState:s.visualReviewState,planValidation:s.canonicalVisualPlan.validation,renderVisual:s.renderVisual,
+        frames:s.instructionalSequence.frames.map(f=>({id:f.id,outputPath:f.outputPath,phonePath:f.phonePath}))}))},null,2));
+    console.log(JSON.stringify({bindings:resultPath,accepted:state.sourceSelections.filter(s=>s.status==='AUTO_ACCEPTED').length}));
+  }
+  const target=path.join(folder,`materialization-${Date.now()}.json`);
+  fs.writeFileSync(target,JSON.stringify({providerCalls:0,records:materialized.records},null,2));
+  console.log(JSON.stringify({report:target,preparedSequences:materialized.records.length,providerCalls:0}));
+  process.exit(0);
+}
 for (const name of ['knowledge', 'manifest', 'pdf', 'output', 'max-visual-calls']) if (!args[name]) throw new Error(`Missing --${name}`);
 const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
 const hash = (value) => crypto.createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex');
@@ -92,7 +119,7 @@ write('input-script.json', { scenes: (proofScene ? [proofScene] : knowledge.rule
 const reviewDir = path.join(projectRoot, 'source-visual-review');
 if (args['reuse-analysis'] && !fs.existsSync(path.join(reviewDir, 'object-evidence-cache'))) fs.cpSync(path.resolve(args['reuse-analysis']), path.join(reviewDir, 'object-evidence-cache'), { recursive: true, errorOnExist: true });
 const prepareArgs = ['scripts/prepare-source-visuals.mjs', '--script', path.join(output, 'input-script.json'),
-  '--asset-manifest', path.join(output, 'input-manifest.json'), '--hephaestus-evidence', path.join(output, 'input-component-evidence.json'), '--output-dir', reviewDir];
+  '--asset-manifest', path.join(output, 'input-manifest.json'), '--hephaestus-evidence', path.join(output, 'input-component-evidence.json'), '--source-pdf', path.resolve(args.pdf), '--output-dir', reviewDir];
 if (args['api-base-url'] && args['source-project-id'] && args.extraction) {
   const extraction = read(args.extraction);
   const pageDir = path.join(projectRoot, 'pages');

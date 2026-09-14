@@ -13,6 +13,7 @@ import {
   requireAiReady,
 } from '../config/aiConfig.js';
 import { createAiProviderRun } from '../services/aiProviderExecutor.js';
+import { synthesizeRulebookDomains } from '../services/rulebookDomainProvider.js';
 import { getAiProviderReadiness } from '../services/aiProviderReadiness.js';
 const pdfToImg = {
   pdf: async (...args) => {
@@ -2531,31 +2532,8 @@ app.post('/api/rulebook-knowledge/synthesize-domains', async (req, res) => {
     return res.status(400).json({ code: 'RULEBOOK_DOMAIN_SYNTHESIS_PACKET_INVALID', error: 'The canonical domain-synthesis evidence packet is invalid.' });
   }
   try {
-    const providerRun = createAiProviderRun({ task: 'rulebook-domain-synthesis' });
-    providerRun.assertConfigured();
-    if (providerRun.providers.length === 1 && providerRun.providers[0].name === 'openai') {
-      await requireAiReady({ checkAccess: true });
-    }
-    const config = getAiConfig();
-    const completion = await providerRun.complete({
-      messages: [
-        { role: 'system', content: 'You are a precise rulebook evidence extractor. Return only the requested JSON object.' },
-        { role: 'user', content: buildDomainSynthesisPrompt(packet) },
-      ],
-      options: getGenerationOptions(config, {}, 'rulebook_domain_synthesis'),
-      inputHash: packet.cacheKey,
-      promptTemplateVersion: packet.promptVersion,
-      schemaContractVersion: packet.contract,
-      validate: (response) => parseDomainSynthesisJson(typeof response?.choices?.[0]?.message?.content === 'string' ? response.choices[0].message.content : ''),
-    });
-    return res.json({
-      contract: packet.contract,
-      cacheKey: packet.cacheKey,
-      result: completion.value,
-      provenance: completion.provenance,
-      usage: completion.response?.usage || null,
-      providerAttempts: completion.attempts || [],
-    });
+    await requireAiReady({ checkAccess: true });
+    return res.json(await synthesizeRulebookDomains(packet));
   } catch (error) {
     const compatibilityError = getGenerationOptionCompatibilityError(error);
     const status = compatibilityError?.statusCode || error.statusCode || error.status || 502;

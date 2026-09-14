@@ -3,6 +3,13 @@ import test from 'node:test';
 import { classifyProviderError, createAiProviderRun } from '../../src/services/aiProviderExecutor.js';
 
 const response = (content) => ({ model: 'fallback-model', choices: [{ message: { content } }] });
+test('explicit provider restriction never tries a configured fallback', async()=>{
+ let fallback=0;
+ const run=createAiProviderRun({env:{},allowedProviders:['openai'],maxRetries:0,providers:{
+ openai:{model:'unit',adapter:async()=>{throw Object.assign(new Error('unauthorized'),{status:401});}},
+ anthropic:{model:'other',adapter:async()=>{fallback++;return response('not authorized');}}}});
+ await assert.rejects(run.complete({messages:[{role:'user',content:'fixture'}]}));assert.equal(fallback,0);
+});
 
 test('quota exhaustion disables one provider for the run and falls through once', async () => {
   let exhaustedCalls = 0;

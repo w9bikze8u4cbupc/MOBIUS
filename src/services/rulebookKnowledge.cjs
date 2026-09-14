@@ -828,10 +828,12 @@ function providerAtomFromPacket(raw, packet, sourcePdfSha256, index) {
 function validateProviderAtoms({ rawAtoms = [], packet, sourcePdfSha256 }) {
   const accepted = [];
   const rejected = [];
+  const suppliedEvidence = new Set((packet.evidence || []).map(item => item.id));
   for (const [index, raw] of rawAtoms.entries()) {
     const atom = providerAtomFromPacket(raw, packet, sourcePdfSha256, index);
     const normalized = normalizeRuleAtom(atom, sourcePdfSha256);
     const validation = validateRuleAtom(normalized);
+    if ((raw?.sourceRefs || []).some(ref => !suppliedEvidence.has(ref.evidenceId))) validation.issues.push('citation-not-in-evidence-packet');
     const domainIssues = unique(normalized.coverageDomains.flatMap((domain) => domainRequiredIssues(normalized, domain)));
     if (!normalized.coverageDomains.length) validation.issues.push('coverage-domain-not-requested');
     if (!normalized.sourceRefs.length) validation.issues.push('citation-not-in-evidence-packet');
@@ -1037,7 +1039,93 @@ function buildKnowledgeTeachingPlan(model) {
   };
 }
 
+/** Exhaust full extracted pages after coarse domain coverage, retaining valid
+ * prior claims. The domain badge means presence, not documentary completeness. */
+async function completeRulebookDocumentCoverage({ model, cacheDir, providerContract, domainSynthesize } = {}) {
+  const contract='mobius-rulebook-document-completeness-v1';
+  const pages=(model.documentMap?.pages||[]).filter(p=>p.contentKind==='text-rich');
+  const telemetry={contract,providerCalls:0,cacheHits:0,packets:[]};
+  const extra=[], rejected=[];
+  for(let start=0;start<pages.length;start+=4){
+    const batch=pages.slice(start,start+4);
+    const packet={contract:RULEBOOK_DOMAIN_SYNTHESIS_CONTRACT,promptVersion:contract,kind:'document-completeness',
+      sourcePdfSha256:model.sourcePdfSha256,providerContract,documentMap:{contract:model.documentMap.contract,citationConvention:'one-based-pdf-page'},
+      batchId:`document-pages-${batch.map(p=>p.humanPageNumber).join('-')}`,domains:[...COVERAGE_DOMAINS],
+      components:model.components.map(c=>({id:c.id,name:c.name})),
+      existingClaims:model.ruleAtoms.map(({teaching,...rule})=>rule),
+      evidence:batch.map(p=>({id:`page-${p.humanPageNumber}-${p.textHash.slice(0,12)}`,page:p.humanPageNumber,
+        section:p.heading||p.title,quote:p.normalizedText,excerptHash:p.textHash}))};
+    packet.cacheKey=hashValue(packet);
+    const file=path.join(cacheDir,`${packet.cacheKey}.json`);
+    let response;
+    if(fs.existsSync(file)){response=JSON.parse(fs.readFileSync(file)).response;telemetry.cacheHits++;}
+    else {
+      if(fs.existsSync(`${file}.failure.json`))throw new Error('DOCUMENT_COMPLETENESS_PREVIOUS_FAILURE_REQUIRES_RECOVERY');
+      fs.mkdirSync(cacheDir,{recursive:true});
+      try { response=await domainSynthesize(packet);telemetry.providerCalls++;
+        fs.writeFileSync(`${file}.tmp`,JSON.stringify({contract,packet,response}));fs.renameSync(`${file}.tmp`,file);
+      }catch(error){fs.writeFileSync(`${file}.failure.json`,JSON.stringify({code:error.code||error.name,at:new Date().toISOString()}));throw error;}
+    }
+    const validation=validateProviderAtoms({rawAtoms:response.result?.atoms||[],packet,sourcePdfSha256:model.sourcePdfSha256});
+    if(validation.rejected.length){
+      const corrective=buildValidatorGuidedCorrectivePacket({packet,candidates:validation.rejected,domainRequirements:domainRequirementGuidance()});
+      if(corrective){
+        const repairFile=path.join(cacheDir,`${corrective.cacheKey}.corrective.json`);
+        let repaired;
+        if(fs.existsSync(repairFile)){repaired=JSON.parse(fs.readFileSync(repairFile)).response;telemetry.cacheHits++;}
+        else {
+          if(fs.existsSync(`${repairFile}.failure.json`))throw new Error('DOCUMENT_COMPLETENESS_PREVIOUS_FAILURE_REQUIRES_RECOVERY');
+          try {repaired=await domainSynthesize(corrective);telemetry.providerCalls++;
+            fs.writeFileSync(`${repairFile}.tmp`,JSON.stringify({contract,packet:corrective,response:repaired}));fs.renameSync(`${repairFile}.tmp`,repairFile);
+          }catch(error){fs.writeFileSync(`${repairFile}.failure.json`,JSON.stringify({code:error.code||error.name}));throw error;}
+        }
+        const verified=validateProviderAtoms({rawAtoms:repaired.result?.atoms||[],packet:corrective,sourcePdfSha256:model.sourcePdfSha256});
+        const requestedTitles=new Set(validation.rejected.map(r=>clean(r.title)));
+        const linked=verified.accepted.filter(a=>requestedTitles.has(clean(a.title)));
+        validation.accepted.push(...linked);
+        const recovered=new Set(linked.map(a=>clean(a.title)));
+        validation.rejected=validation.rejected.filter(r=>!recovered.has(clean(r.title)));
+        telemetry.packets.push({kind:'corrective',batchId:packet.batchId,cacheKey:corrective.cacheKey,accepted:linked.length,
+          unlinkedClaimsPreservedInResponse:verified.accepted.length-linked.length,rejected:verified.rejected,usage:repaired.usage});
+        // One bounded identity reconciliation, only when a valid repair could
+        // not be linked. Missing evidence/empty responses never cause a loop.
+        if(validation.rejected.length && verified.accepted.length>linked.length){
+          const reconcile={...buildValidatorGuidedCorrectivePacket({packet,candidates:validation.rejected,domainRequirements:domainRequirementGuidance()}),
+            preserveCandidateTitles:true,promptVersion:'mobius-corrective-identity-reconciliation-v1'};
+          reconcile.cacheKey=hashValue(reconcile);
+          const reconciliationFile=path.join(cacheDir,`${reconcile.cacheKey}.reconciliation.json`);
+          let answer;
+          if(fs.existsSync(reconciliationFile)){answer=JSON.parse(fs.readFileSync(reconciliationFile)).response;telemetry.cacheHits++;}
+          else {
+            if(fs.existsSync(`${reconciliationFile}.failure.json`))throw new Error('DOCUMENT_COMPLETENESS_PREVIOUS_FAILURE_REQUIRES_RECOVERY');
+            try {answer=await domainSynthesize(reconcile);telemetry.providerCalls++;
+              fs.writeFileSync(`${reconciliationFile}.tmp`,JSON.stringify({contract,packet:reconcile,response:answer}));fs.renameSync(`${reconciliationFile}.tmp`,reconciliationFile);
+            }catch(error){fs.writeFileSync(`${reconciliationFile}.failure.json`,JSON.stringify({code:error.code||error.name}));throw error;}
+          }
+          const checked=validateProviderAtoms({rawAtoms:answer.result?.atoms||[],packet:reconcile,sourcePdfSha256:model.sourcePdfSha256});
+          const linkedRepairs=checked.accepted.filter(a=>validation.rejected.some(r=>clean(r.title)===clean(a.title)));
+          validation.accepted.push(...linkedRepairs);
+          validation.rejected=validation.rejected.filter(r=>!linkedRepairs.some(a=>clean(a.title)===clean(r.title)));
+          telemetry.packets.push({kind:'identity-reconciliation',batchId:packet.batchId,cacheKey:reconcile.cacheKey,accepted:linkedRepairs.length,rejected:checked.rejected,usage:answer.usage});
+        }
+      }
+    }
+    extra.push(...validation.accepted);rejected.push(...validation.rejected);
+    telemetry.packets.push({batchId:packet.batchId,cacheKey:packet.cacheKey,pages:batch.map(p=>p.humanPageNumber),
+      accepted:validation.accepted.length,rejected:validation.rejected,usage:response.usage});
+  }
+  const seed={projectId:model.projectId,gameIdentity:model.gameIdentity,sourcePdfSha256:model.sourcePdfSha256,
+    components:model.components,terminology:model.terminology,ruleAtoms:[],coverageApplicability:model.coverageApplicability};
+  const completed=buildRulebookKnowledgeModel({projectSeed:seed,
+    pages:model.documentMap.pages.map(p=>({page:p.humanPageNumber,text:p.normalizedText})),
+    synthesizedAtoms:[...model.ruleAtoms,...extra],synthesisTelemetry:model.synthesisTelemetry});
+  completed.documentCompleteness=telemetry;
+  completed.uncertainties.push(...rejected.map(r=>({category:'DOCUMENT_COMPLETENESS_CANDIDATE_REJECTED',title:r.title,issues:r.issues})));
+  return {model:completed,...telemetry};
+}
+
 module.exports = {
+  completeRulebookDocumentCoverage,
   COVERAGE_DOMAINS,
   HIGH_PRIORITY_DOMAINS,
   RULEBOOK_INTELLIGENCE_PIPELINE_VERSION,

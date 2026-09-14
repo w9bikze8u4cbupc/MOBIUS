@@ -173,7 +173,7 @@ async function auditRasterIsolation(filePath, {
 }
 
 /** Source-faithful derivative of measured bounds. Geometry is NOT pixel validation. */
-async function materializeMeasuredObjectCrop({ sourcePath, sourceId, sourceSha256, sourcePage, sourcePdfSha256, objectId, bbox, outputDir }) {
+async function materializeMeasuredObjectCrop({ sourcePath, sourceId, sourceSha256, sourcePage, sourcePdfSha256, sourcePdfPath, objectId, bbox, outputDir, recoveryMode = 'page-region' }) {
   const fs = require('node:fs');
   const path = require('node:path');
   const crypto = require('node:crypto');
@@ -188,6 +188,27 @@ async function materializeMeasuredObjectCrop({ sourcePath, sourceId, sourceSha25
     intendedObjects: [{ id: objectId, bounds }], paddingPx: Math.max(8, Math.ceil(Math.max(bounds.width, bounds.height) * .04)) });
   const box = geometry.paddedCropBox;
   if (geometry.violations.length) throw new Error(`Measured localization clipped: ${geometry.violations.join(',')}`);
+  if (sourcePdfPath) {
+    if (hash(fs.readFileSync(sourcePdfPath)) !== sourcePdfSha256) throw new Error('Source PDF identity mismatch');
+    const region = [box.x / m.width, box.y / m.height, (box.x + box.width) / m.width, (box.y + box.height) / m.height];
+    const id = `pdf-region-${hash(JSON.stringify([sourcePdfSha256, sourcePage, objectId, region, 300, recoveryMode])).slice(0, 24)}`;
+    const file = path.join(path.resolve(outputDir), `${id}.png`);
+    const result = require('node:child_process').spawnSync(process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3'),
+      [path.resolve(__dirname, '../../scripts/render-rulebook-pages-hdpi.py'), '--region-json'], {
+        input: JSON.stringify({ pdf: sourcePdfPath, sourceSha256: sourcePdfSha256, page: sourcePage, bbox: region, dpi: 300, output: file, mode: recoveryMode }),
+        encoding: 'utf8', windowsHide: true, timeout: 60000,
+      });
+    if (result.status !== 0) throw new Error('SOURCE_REGION_RASTER_FAILED');
+    const raster = JSON.parse(result.stdout);
+    return { id, file_path: file, source_page: sourcePage, page_index: sourcePage - 1,
+      sourceAuthority: raster.method==='pymupdf-native-raster-cluster'?'NATIVE_EMBEDDED':'HIGH_DPI_PAGE_CROP', type: 'focused-crop', visual_kind: 'localized-object-crop',
+      sourcePdfSha256, contentHash: raster.sha256, dimensions: { width: raster.width, height: raster.height },
+      original_dimensions: { width: raster.effectiveSourceWidth, height: raster.effectiveSourceHeight },
+      cropCompleteness: 'unknown', cropPurity: 'unknown', is_component: null,
+      provenance: { sourcePdfSha256, sourcePage, parentAssetId: sourceId, parentPath: sourcePath,
+        parentSha256: sourceSha256, measuredObjectId: objectId, localizationGeometry: geometry,
+        extraction: raster.method, sourceRegion: raster, requiresPixelVerification: true } };
+  }
   const id = `localized-${hash(JSON.stringify([sourceSha256, objectId, box])).slice(0, 24)}`;
   fs.mkdirSync(outputDir, { recursive: true });
   const file = path.join(path.resolve(outputDir), `${id}.png`);

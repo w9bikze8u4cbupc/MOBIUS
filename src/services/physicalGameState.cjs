@@ -4,6 +4,36 @@ const PHYSICAL_GAME_STATE_CONTRACT = 'mobius-physical-game-state-v1';
 const FACE_STATES = new Set(['FACE_UP', 'FACE_DOWN', 'NOT_APPLICABLE', 'UNKNOWN']);
 const VISIBILITY_STATES = new Set(['VISIBLE', 'HIDDEN', 'REMOVED', 'UNKNOWN']);
 const AVAILABILITY_STATES = new Set(['AVAILABLE', 'UNAVAILABLE', 'CONSUMED', 'UNKNOWN']);
+const fs=require('node:fs'), crypto=require('node:crypto');
+const pixelHash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+
+/** A composition verdict belongs to exact source, ordered frames, phones and
+ * requirements. A changed caption/pixel/state never inherits acceptance. */
+function verifiedInstructionalSequence(candidate, requirement, sceneId) {
+ for(const sequence of candidate.instructionalSequences||[]){
+  try {
+   if(sequence.sceneId!==sceneId || sequence.assetId!==candidate.id || sequence.frames?.length<2)continue;
+   const row=sequence.review?.scenes?.find(s=>s.scene_id===sceneId||s.sceneId===sceneId||s.id===sceneId)?.candidates?.find(c=>c.status==='MEASURED');
+   const packet=row?.evidencePacket;
+   if(!row||packet.visualRole!=='COMPOSITION'||packet.responseContract!=='normalized-composition-sequence-v2')continue;
+   const compared={...requirement};delete compared.evidenceSceneId;
+   if(JSON.stringify(packet.requirement)!==JSON.stringify(compared))continue;
+   if(sequence.frames[0].sourceImageSha256!==pixelHash(candidate.filePath))continue;
+   if(sequence.frames.length!==packet.sequenceFrames?.length)continue;
+   if(sequence.frames.some((f,i)=>f.id!==packet.sequenceFrames[i].id
+     || JSON.stringify(f.stage)!==JSON.stringify(packet.sequenceFrames[i].stage)
+     || pixelHash(f.outputPath)!==packet.sequenceFrames[i].imageSha256
+     || pixelHash(f.phonePath)!==packet.sequenceFrames[i].phoneSha256
+     || f.sourcePixelsPerDisplayPixel<.8))continue;
+   const objects=row.objects||[];
+   if(objects.length!==(requirement.requiredObjects||[]).length||objects.some(o=>!requirement.requiredObjects.includes(o.requiredObject)
+     ||o.visualRole!=='COMPOSITION'||o.method!=='provider-pixel-analysis'||o.confidence<.9
+     ||!o.present||!o.complete||!o.isolated||!o.stateCompatible||!o.purposeSatisfied||!o.phoneReadable))continue;
+   return sequence;
+  }catch { /* An unavailable reference is unverified, never accepted. */ }
+ }
+ return null;
+}
 
 const clean = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
 const unique = (values = []) => [...new Set(values.filter(Boolean))];
@@ -118,6 +148,7 @@ function validatePhysicalGameState(state = {}) {
 }
 
 module.exports = {
+  verifiedInstructionalSequence,
   PHYSICAL_GAME_STATE_CONTRACT,
   derivePhysicalGameState,
   normalizePhysicalGameState,

@@ -15,6 +15,42 @@ qualifier = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(qualifier)
 
 class ObjectEvidenceTests(unittest.TestCase):
+    def test_track_plan_is_source_bound_and_not_a_component_acceptance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pixels=ROOT/'tests/fixtures/images/test-bg-100x100.png'
+            script={'scenes':[{'id':'scene','source_pages':[2],'visualRequirement':{'requiredObjects':['board'],'trackStateRequired':True}}]}
+            qa={'assets':[{'asset_id':'board-image','path':str(pixels),'asset_metadata':{'source_page':2,'visual_kind':'track-geometry'}}]}
+            row={'requiredObject':'board','present':True,'confidence':.99,'complete':True,'isolated':True,'stateCompatible':True,'bbox':[.1,.1,.9,.9],'reason':'Fixture geometry',
+                'trackLabelFrench':'Réserve','trackPoints':[{'value':1,'x':.2,'y':.8}],
+                'stateStages':[{'label':'Début','caption':'Un marqueur','narration':'La réserve commence à un.', 'position':1,'isExample':False,'sourcePages':[2]}]}
+            def create(**kwargs):return types.SimpleNamespace(usage=None,choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=json.dumps({'objects':[row]})))])
+            client=types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            first=matcher.run(script,qa,Path(directory),1,client)
+            self.assertEqual(first['scenes'][0]['candidates'][0]['objects'][0]['visualRole'],'TRACK')
+            self.assertEqual(matcher.run(script,qa,Path(directory),1,client)['summary']['providerCalls'],0)
+            self.assertIsNone(first['scenes'][0]['selected_asset_id'])
+
+    @patch.object(matcher, 'MODEL', 'fixture-model')
+    def test_bounded_continuation_preserves_history_and_does_not_reopen_auth(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger, mandate = Path(directory) / 'budget.json', Path(directory) / 'mandate.json'
+            original = {'maxTotal': 16, 'maxPerGroup': 8, 'calls': [{'group': 'a'}, {'group': 'b'}], 'providerBlocker': 'ValueError; HTTP unavailable'}
+            ledger.write_text(json.dumps(original))
+            mandate.write_text(json.dumps({'id': 'new-mission', 'model': matcher.MODEL,
+                'authorization': 'operator fixture', 'reason': 'new corrected evidence path', 'additionalCallsByGroup': {'a': 2}}))
+            first = matcher.authorize_continuation(ledger, mandate)
+            self.assertEqual(first, matcher.authorize_continuation(ledger, mandate))
+            resumed = json.loads(ledger.read_text())
+            self.assertEqual(resumed['calls'], original['calls'])
+            self.assertEqual(resumed['maxTotal'], 4)
+            self.assertEqual(resumed['groupCaps'], {'a': 3, 'b': 1})
+            self.assertEqual(first['priorBlocker'], original['providerBlocker'])
+            with patch.dict(matcher.os.environ, {'MOBIUS_VISUAL_BUDGET_LEDGER': str(ledger), 'MOBIUS_VISUAL_BUDGET_GROUP': 'b'}):
+                self.assertFalse(matcher.reserve_call({'test': True}))
+            original['providerBlocker'] = 'AuthenticationError; HTTP 401'
+            ledger.write_text(json.dumps(original))
+            with self.assertRaises(ValueError): matcher.authorize_continuation(ledger, mandate)
+
     def test_invalid_provider_verdict_preserves_response_and_suspends_without_retry(self):
         with tempfile.TemporaryDirectory() as directory:
             pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'

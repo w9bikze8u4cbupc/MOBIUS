@@ -6,6 +6,67 @@ const sharp = require('sharp');
 const { spawnSync } = require('node:child_process');
 const { buildTeachingScene } = require('../storyboard/tutorial_presentation.cjs');
 const { teachingSceneLayout, containedDisplayBounds } = require('./presentationDesignSystem.cjs');
+const crypto = require('node:crypto');
+const sha = value => crypto.createHash('sha256').update(value).digest('hex');
+const xml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+
+/** Source-measured track + provider-written states; preparation is NOT acceptance. */
+async function materializeTrackStateFrames({ projectId, scene, assets, outputDir } = {}) {
+  const req=scene.visualRequirement || {};
+  if(!req.trackStateRequired || req.requiredObjects?.length!==1)return null;
+  const referent=req.requiredObjects[0];
+  const {objectEvidenceFor}=require('./sourceAssetResolver.cjs');
+  const candidates=assets.map(asset=>({asset,component:objectEvidenceFor(asset,referent,scene.id),
+    track:(asset.objectVisualEvidence||[]).find(r=>r.visualRole==='TRACK'&&r.sceneId===scene.id&&r.requiredObject===referent&&r.assetId===asset.id)}))
+    .filter(({asset,component,track})=>component?.present&&component.complete&&component.isolated&&component.confidence>=.9
+      &&track?.confidence>=.9&&track.complete&&track.trackPoints?.length>1&&track.stateStages?.length>=2&&track.stateStages.length<=8
+      &&track.imageSha256===sha(fs.readFileSync(sourceFile(asset)))&&/^[a-f0-9]{64}$/.test(asset.sourcePdfSha256||''));
+  candidates.sort((a,b)=>(b.asset.nativeWidthPx*b.asset.nativeHeightPx)-(a.asset.nativeWidthPx*a.asset.nativeHeightPx));
+  if(!candidates.length)return null;
+  const {asset,track}=candidates[0];
+  const points=new Map(track.trackPoints.map(p=>[p.value,p]));
+  const pages=new Set(scene.source_pages||[]);
+  if(track.stateStages.some(s=>!points.has(s.position)||!s.sourcePages?.length||s.sourcePages.some(p=>!pages.has(p))))return null;
+  const file=sourceFile(asset), meta=await sharp(file).metadata();
+  // Source fidelity caps enlargement; the rest of the available space teaches
+  // state and progression in large vector text rather than inventing detail.
+  const scale=Math.min(760/meta.width,650/meta.height,
+    1.15*(asset.nativeWidthPx||meta.width)/meta.width,1.15*(asset.nativeHeightPx||meta.height)/meta.height);
+  const size={width:Math.floor(meta.width*scale),height:Math.floor(meta.height*scale)};
+  const ratio=Math.min((asset.nativeWidthPx||meta.width)/size.width,(asset.nativeHeightPx||meta.height)/size.height);
+  if(ratio<.8)return null;
+  const left=90+Math.floor((780-size.width)/2),top=240+Math.floor((620-size.height)/2);
+  const frames=[];
+  await fs.promises.mkdir(outputDir,{recursive:true});
+  const board=await sharp(file).resize(size.width,size.height).png().toBuffer();
+  const backdrop=await sharp(file).resize(1920,1080,{fit:'cover'}).blur(40).modulate({brightness:.20,saturation:.45}).png().toBuffer();
+  const wrap=(value,max=32)=>{const lines=[];let line='';for(const word of String(value).split(/\s+/)){if(line.length+word.length+1>max){lines.push(line);line='';}line+=(line?' ':'')+word;}if(line)lines.push(line);return lines;};
+  for(const [index,stage] of track.stateStages.entries()){
+    const point=points.get(stage.position);
+    const x=Math.round(left+point.x*size.width),y=Math.round(top+point.y*size.height);
+    const caption=wrap(stage.caption);
+    if(caption.length>4)throw new Error('TRACK_CAPTION_GEOMETRY_REQUIRES_REVIEW');
+    const svg=Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"><rect x="42" y="160" width="1836" height="770" rx="28" fill="#231811" fill-opacity=".84" stroke="#be9a58" stroke-width="3"/><text x="88" y="110" fill="#fff3d9" font-family="Arial" font-size="64" font-weight="bold">${xml(track.trackLabelFrench)}</text><text x="980" y="285" fill="#e1c184" font-family="Arial" font-size="56">${xml(stage.label)}</text><text x="980" y="445" fill="#fff3d9" font-family="Arial" font-size="126" font-weight="bold">${xml(stage.position)}</text>${caption.map((s,i)=>`<text x="980" y="${555+i*60}" fill="#fff3d9" font-family="Arial" font-size="48">${xml(s)}</text>`).join('')}<text x="88" y="994" fill="#fff3d9" font-family="Arial" font-size="40">${index+1} / ${track.stateStages.length} · ${xml(stage.isExample?'Exemple conditionnel':'État du jeu')} · Livret p. ${xml(stage.sourcePages.join(', '))}</text></svg>`);
+    const pointer=Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080"><path d="M 918 431 L ${x} ${y}" stroke="#f4d35e" stroke-width="5" fill="none"/><circle cx="${x}" cy="${y}" r="23" fill="none" stroke="#fff3d9" stroke-width="6"/><circle cx="${x}" cy="${y}" r="17" fill="none" stroke="#ec6c3b" stroke-width="5"/></svg>`);
+    const target=path.resolve(outputDir,`${scene.id}-state-${index+1}.png`);
+    const materialized=target.replace(/\.png$/,'.materialized.png');
+    await sharp(backdrop).composite([{input:svg,left:0,top:0},{input:board,left,top},{input:pointer,left:0,top:0}]).png().toFile(materialized);
+    const configPath=target.replace(/\.png$/,'.render-config.json');
+    const renderScene={id:`${scene.id}-state-${index+1}`,type:'teaching',durationSec:1,
+      narrationText:stage.narration,layout:{mode:'visual-first-full-frame'},background:{image:materialized},overlays:[]};
+    await fs.promises.writeFile(configPath,JSON.stringify({projectId,video:{resolution:{width:1920,height:1080},fps:30},scenes:[renderScene]},null,2));
+    const rendered=spawnSync(process.execPath,[path.resolve(__dirname,'../../scripts/render-storyboard-ffmpeg.mjs'),'--config',configPath,'--out',target,'--still'],{encoding:'utf8',windowsHide:true});
+    await fs.promises.writeFile(target.replace(/\.png$/,'.render.log'),`${rendered.stdout||''}${rendered.stderr||''}`);
+    if(rendered.status!==0)throw new Error('NORMAL_TRACK_STILL_RENDER_FAILED');
+    const phone=target.replace(/\.png$/,'.phone.png');await sharp(target).resize(390,219).png().toFile(phone);
+    frames.push({id:`${scene.id}-state-${index+1}`,outputPath:target,phonePath:phone,renderConfigPath:configPath,narration:stage.narration,stage,
+      sourceAssetId:asset.id,sourceImageSha256:track.imageSha256,sourcePdfSha256:asset.sourcePdfSha256,sourceRefs:asset.sourceRefs,
+      actualDisplayBounds:{left,top,...size},sourcePixelsPerDisplayPixel:ratio,
+      measuredMarkerCenter:{x,y},preparedOnly:true,validated:false});
+  }
+  return {contract:'mobius-source-measured-track-sequence-v1',sceneId:scene.id,ruleAtomId:scene.atomId,assetId:asset.id,
+    frames,trackEvidence:track,sourceComponentEvidence:candidates[0].component,preparedOnly:true,validated:false};
+}
 
 function canonicalTeachingPresentation(scene, index = 0, asset = {}) {
   const result = buildTeachingScene({ id: scene.id, index, section: scene.section,
@@ -123,6 +184,14 @@ async function materializeVisualPlanFrames({ state, outputDir, width = 1400, hei
   const records = [];
   const scenes = [];
   for (const scene of state.scenes) {
+    if(scene.instructionalSequence){scenes.push(scene);records.push(scene.instructionalSequence);continue;}
+    const trackSequence=await materializeTrackStateFrames({projectId:state.projectId,scene,assets:state.assets,outputDir:path.join(absoluteOutput,'track-sequences')});
+    if(trackSequence){
+      records.push(trackSequence);
+      // Keep the original requirement/review boundary until final sequence QA.
+      scenes.push({...scene,preparedTrackSequence:trackSequence});
+      continue;
+    }
     const plan = scene.canonicalVisualPlan || {};
     const assets = (plan.actualGameAssetIds || []).map((id) => byId.get(id)).filter((asset) => {
       const file = sourceFile(asset);
@@ -176,4 +245,34 @@ async function materializeVisualPlanFrames({ state, outputDir, width = 1400, hei
   return { contract: VISUAL_PLAN_MATERIALIZER_CONTRACT, outputDir: absoluteOutput, records, scenes };
 }
 
-module.exports = { VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, canonicalTeachingPresentation, materializeInstructionalStill };
+/** Connect normal provider reports to the candidate catalog; this does not
+ * accept candidates. The source resolver rechecks pixels, scope and quality. */
+function attachSequenceReviewEvidence({ assets, records, reviewPaths=[] }) {
+ const reviewed=records.map(record=>{
+   const review=reviewPaths.map(p=>JSON.parse(fs.readFileSync(p))).find(r=>r.scenes?.some(s=>s.scene_id===record.sceneId));
+   return review?{...record,review}:null;
+ }).filter(Boolean);
+ return assets.map(asset=>({...asset,instructionalSequences:[...(asset.instructionalSequences||[]),...reviewed.filter(r=>r.assetId===asset.id)]}));
+}
+
+async function reviewPreparedSequences({state,materialized,outputDir,env=process.env}){
+ const reviewPaths=[];
+ for(const sequence of materialized.records.filter(r=>r.frames?.length && !r.validated)){
+  const scene=state.scenes.find(s=>s.id===sequence.sceneId);
+  const folder=path.resolve(outputDir,sequence.sceneId);fs.mkdirSync(folder,{recursive:true});
+  const inputPath=path.join(folder,'input.json');
+  fs.writeFileSync(inputPath,JSON.stringify({scene,frames:sequence.frames,outputPath:sequence.frames[0].outputPath,
+    phonePath:sequence.frames[0].phonePath,
+    componentTerms:Object.fromEntries((state.knowledgeModel.components||[]).map(c=>[c.id,c.name]))}));
+  const result=spawnSync(process.execPath,[path.resolve(__dirname,'../../scripts/prepare-source-visuals.mjs'),
+    '--composition-review',inputPath,'--output-dir',folder],{env,windowsHide:true,encoding:'utf8',timeout:180000});
+  fs.writeFileSync(path.join(folder,'execution.log'),`${result.stdout||''}${result.stderr||''}`);
+  const reviewPath=path.join(folder,'composition-review.json');
+  if(result.status!==0 || !fs.existsSync(reviewPath))throw new Error('COMPOSITION_REVIEW_EXECUTION_FAILED');
+  reviewPaths.push(reviewPath);
+  if(JSON.parse(fs.readFileSync(reviewPath)).summary?.providerBlocker)break;
+ }
+ return {assets:attachSequenceReviewEvidence({assets:state.assets,records:materialized.records,reviewPaths}),reviewPaths};
+}
+
+module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, materializeTrackStateFrames, canonicalTeachingPresentation, materializeInstructionalStill };

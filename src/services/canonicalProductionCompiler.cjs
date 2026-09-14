@@ -1,6 +1,6 @@
 'use strict';
 
-const { derivePhysicalGameState } = require('./physicalGameState.cjs');
+const { derivePhysicalGameState, normalizePhysicalGameState, verifiedInstructionalSequence } = require('./physicalGameState.cjs');
 const { compileVisualPlans } = require('./visualPlan.cjs');
 const {
   loadAuthorizedCandidateManifests,
@@ -89,11 +89,25 @@ function compileCanonicalProductionState({
     ...authorized.candidates,
   ]);
   const atoms = knowledgeModel.ruleAtoms;
-  const physicalStates = atoms.map(derivePhysicalGameState);
+  let physicalStates = atoms.map(derivePhysicalGameState);
   const sourceSelections = atoms.map((atom, index) => resolveAtomSources(atom, assets, displayBounds || {
     presentationScene: canonicalTeachingPresentation({ id: `knowledge-${atom.id}`, section: atom.teaching?.majorSection,
       narration: atom.teaching?.narration, on_screen_text: atom.teaching?.displayLines?.join('\n'),
       source_pages: atom.sourceRefs?.map(r => r.page) }, index), width: 1920, height: 1080 }));
+  for(const selected of sourceSelections.flatMap(s=>s.selectedAssets||[])){
+    const index=assets.findIndex(a=>a.id===selected.id);if(index>=0)assets[index]=selected;
+  }
+  physicalStates=atoms.map((atom,index)=>{
+    const selected=sourceSelections[index].selectedAssets?.[0];
+    const sequence=selected&&verifiedInstructionalSequence(selected,atom.visualRequirement,`knowledge-${atom.id}`);
+    if(!sequence)return physicalStates[index];
+    return normalizePhysicalGameState({ruleAtomId:atom.id,transitionType:'BEFORE_ACTION_AFTER',
+      stages:sequence.frames.map(f=>({id:f.id,label:f.stage.label,sourceRefs:atom.sourceRefs,
+        items:[{id:atom.visualRequirement.requiredObjects[0],componentRef:atom.visualRequirement.requiredObjects[0],
+          assetId:selected.id,trackPosition:f.stage.position,visibility:'VISIBLE',faceState:'NOT_APPLICABLE',
+          sourceRefs:atom.sourceRefs,confidence:sequence.trackEvidence.confidence,reviewState:'accepted'}]})),
+      sourceRefs:atom.sourceRefs,confidence:sequence.trackEvidence.confidence,reviewState:'accepted'},atom);
+  });
   const plans = compileVisualPlans({ atoms, projectPlans, assets, sourceSelections, physicalStates });
   // HEPHAESTUS review bindings share this same Cockpit-visible data model.
   // A binding may remain unresolved even when no current teaching atom names
@@ -123,6 +137,7 @@ function compileCanonicalProductionState({
     const compiled = plans.find((plan) => plan.ruleAtomId === atom.id);
     const selection = sourceSelections.find((item) => item.ruleAtomId === atom.id);
     const selected = selection?.selectedAssets?.[0] || null;
+    const sequence=selected&&verifiedInstructionalSequence(selected,atom.visualRequirement,`knowledge-${atom.id}`);
     return {
       id: `knowledge-${atom.id}`,
       atomId: atom.id,
@@ -141,11 +156,14 @@ function compileCanonicalProductionState({
       canonicalVisualPlan: compiled,
       imageAssetIds: compiled?.cockpit?.selectedAssetIds || [],
       visualReviewState: compiled?.cockpit?.reviewState || 'needs_visual_review',
+      ...(sequence?{instructionalSequence:{...sequence,preparedOnly:false,validated:compiled.validation.valid,
+        validationBasis:'exact-source-and-sequence-hashes; measured-composition; canonical-source-and-physical-gates'}}:{}),
       ...(selected ? {
         renderVisual: {
-          path: selected.filePath,
+          path: sequence?.frames[0].outputPath || selected.filePath,
           assetId: selected.id,
-          kind: 'automatic-component',
+          kind: sequence?'automatic-visual-plan-composite':'automatic-component',
+          ...(sequence?{fullFrame:true}:{}),
           confidence: selection.confidence,
           reason: selection.reason,
           sourcePage: selected.sourceRefs?.[0]?.page || selected.pageNumber || null,

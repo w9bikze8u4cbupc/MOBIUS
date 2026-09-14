@@ -19,6 +19,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname, join, resolve, basename } from 'node:path';
@@ -122,7 +123,9 @@ function required(value, name) {
 
 function jsonFile(filePath, value) {
   mkdirSync(dirname(filePath), { recursive: true });
-  writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  const temporary=`${filePath}.${process.pid}.tmp`;
+  writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  renameSync(temporary,filePath);
 }
 
 function readJsonIfPresent(filePath, fallback = null) {
@@ -391,6 +394,15 @@ function buildOpeningNarration(normalized) {
 }
 
 function productionScenes(normalized) {
+  normalized={...normalized,scenes:normalized.scenes.flatMap(scene=>{
+    const sequence=scene.instructionalSequence;
+    if(!sequence?.validated)return [scene];
+    return sequence.frames.map((frame,index)=>({...scene,id:index===0?scene.id:frame.id,
+      sourceAtomId:scene.atomId,title:frame.stage.label,on_screen_text:frame.stage.caption,
+      narration:index===0?(scene.spokenText||scene.narration):frame.narration,
+      spokenText:index===0?(scene.spokenText||scene.narration):frame.narration,
+      renderVisual:{...scene.renderVisual,path:frame.outputPath,fullFrame:true},instructionalSequence:undefined}));
+  })};
   const metadata = metadataScriptScene(normalized);
   const existingMetadata = normalized.scenes.find((scene) => scene?.id === 'metadata-card');
   if (existingMetadata) {
@@ -445,6 +457,7 @@ function scriptSceneFromCanonical(scene, index, identity = {}) {
       visual_asset_kind: scene.renderVisual.kind,
       visual_source_page: scene.renderVisual.sourcePage || null,
       visual_provenance: scene.renderVisual.provenance || null,
+      visual_full_frame: scene.renderVisual.fullFrame === true,
     } : {}),
   };
 }
@@ -719,6 +732,10 @@ async function ensureNarration(normalized, tools, checkpoint, inputHash) {
       sampleRate: probe.sampleRate,
       channels: probe.channels,
       status: 'ready',
+    });
+    jsonFile(join(normalized.productionDir,AUDIO_NAME),{
+      provider:'elevenlabs',language:normalized.language,status:'partial',
+      assets:[...new Map([...index.entries(),...records.map(record=>[record.sceneId,record])]).values()],
     });
   }
   const brandMix = await ensureBrandAudioMix(normalized, tools, records, presetHash);

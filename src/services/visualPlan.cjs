@@ -164,6 +164,11 @@ function deriveCompositionType(atom = {}) {
 }
 
 function assetMatchesReferent(asset = {}, referent = '') {
+  if(asset.qualification?.requiredObjects?.includes(referent)
+    && asset.qualification.evidence==='canonical-source-resolver-all-hard-gates-passed'){
+    const proof=require('./sourceAssetResolver.cjs').objectEvidenceFor(asset,referent,asset.qualification.sceneId);
+    if(proof?.present&&proof.complete&&proof.confidence>=.9)return true;
+  }
   const normalize = (value) => String(value || '').toLocaleLowerCase('fr-CA').normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
   const target = normalize(referent);

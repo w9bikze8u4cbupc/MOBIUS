@@ -47,6 +47,7 @@ async function main() {
     await writeFile(script, JSON.stringify({ scenes: [input.scene], componentTerms: input.componentTerms }));
     await writeFile(quality, JSON.stringify({ assets: [{ asset_id: input.scene.id, path: input.outputPath,
       asset_metadata: { visual_kind: 'instructional-composition', source_page: input.scene.source_pages?.[0], phonePath: input.phonePath,
+        sequenceFrames: input.frames || [],
         dimensions: { width: 1920, height: 1080 } } }] }));
     const ai = getAiConfig();
     await run(arg('python') || process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3'),
@@ -89,6 +90,10 @@ async function main() {
     await writeFile(cropManifestPath, `${JSON.stringify(cropManifest, null, 2)}\n`, 'utf8');
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
     const localizationPages = await sourceLocalizationPages({ pageDir: resolve(pageDir), pages: extraction.pages || [], sourceSha256 });
+    const sourcePdfPath = arg('source-pdf') || manifest.pdf_path || manifest.sourcePdfPath;
+    if (sourcePdfPath && existsSync(resolve(sourcePdfPath))) {
+      for (const candidate of localizationPages) candidate.sourcePdfPath = resolve(sourcePdfPath);
+    }
     const pageContexts = new Map(localizationPages.map((p) => [p.source_page, p]));
     // The review manifest is written below production/, not beside the
     // HEPHAESTUS pixels. Rehydrate paths and source-grounded component terms

@@ -88,6 +88,7 @@ def asset_metadata(asset: dict) -> dict:
         "normalized_bbox": asset.get("normalized_bbox"),
         "content_hash": asset.get("contentHash") or asset.get("content_hash"),
         "source_pdf_sha256": asset.get("sourcePdfSha256") or asset.get("source_pdf_sha256"),
+        "source_pdf_path": asset.get("sourcePdfPath") or asset.get("source_pdf_path"),
         "provenance": asset.get("provenance"),
         "dimensions": asset.get("dimensions"),
         "original_dimensions": asset.get("original_dimensions"),

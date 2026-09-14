@@ -5,6 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 let generateNarration;
+let writeSecret;
 
 beforeAll(async () => {
   ({ generateNarration } = await import('../../src/services/elevenLabsService.js'));
@@ -17,8 +18,10 @@ describe('generateNarration', () => {
   beforeEach(() => {
     process.env.ELEVENLABS_API_KEY = 'test-elevenlabs-key';
     execFile.mockReset();
+    writeSecret=jest.fn();
     execFile.mockImplementation((_command, _args, _options, callback) => {
       callback(null, '', '');
+      return {stdin:{end:writeSecret}};
     });
   });
 
@@ -43,7 +46,7 @@ describe('generateNarration', () => {
         '-X',
         'POST',
         'https://api.elevenlabs.io/v1/text-to-speech/voice%2Fid',
-        'xi-api-key: test-elevenlabs-key',
+        '--config',
         'Content-Type: application/json',
         JSON.stringify({
           text: 'Hello from MOBIUS',
@@ -57,6 +60,8 @@ describe('generateNarration', () => {
       expect.any(Function),
     );
     expect(execFile.mock.calls[0][1]).not.toContain('--http2');
+    expect(execFile.mock.calls[0][1].join(' ')).not.toContain('test-elevenlabs-key');
+    expect(writeSecret).toHaveBeenCalledWith('header = "xi-api-key: test-elevenlabs-key"\n');
   });
 
   test('passes an explicit supported voice preset through the provider contract', async () => {
@@ -73,10 +78,11 @@ describe('generateNarration', () => {
       const failure = new Error('curl exited with code 22');
       failure.stderr = 'HTTP 401 Unauthorized';
       callback(failure);
+      return {stdin:{end:writeSecret}};
     });
 
     await expect(generateNarration('Hello', 'voice-id', outputPath))
       .rejects
-      .toThrow('ElevenLabs narration curl request failed: HTTP 401 Unauthorized');
+      .toThrow('ElevenLabs narration request failed: HTTP 401');
   });
 });
