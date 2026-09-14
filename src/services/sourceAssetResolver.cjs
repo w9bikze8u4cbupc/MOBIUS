@@ -10,7 +10,7 @@ const { verifiedInstructionalSequence } = require('./physicalGameState.cjs');
 const { DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT } = require('./objectAwareCrop.cjs');
 
 const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v3';
-const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v2';
+const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v3';
 const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v2';
 const AUTO_ACCEPT_CONFIDENCE = 0.82;
 const AUTO_ACCEPT_MARGIN = 0.08;
@@ -104,6 +104,7 @@ function normalizeVisualReferents({ componentEvidence = {}, sourceAssets = [] } 
   }
   const rawById = new Map((sourceAssets || []).filter((asset) => asset?.id).map((asset) => [asset.id, asset]));
   const ids = new Set([...rawById.keys(), ...evidenceAssets.keys()]);
+  const knownComponentIds = new Set((componentEvidence.componentBindings || []).map((binding) => binding.componentId).filter(Boolean));
   const assets = [...ids].map((id) => {
     const raw = rawById.get(id) || {};
     const evidence = evidenceAssets.get(id) || {};
@@ -115,7 +116,7 @@ function normalizeVisualReferents({ componentEvidence = {}, sourceAssets = [] } 
     const componentRefs = uniqueStrings(raw.componentRefs || []);
     const aliases = uniqueStrings(raw.referentAliases || []);
     const sourcePage = evidence.pageNumber || raw.source_page || raw.sourcePage || (Number.isInteger(Number(raw.page_index)) ? Number(raw.page_index) + 1 : null);
-    return normalizeCandidate({
+    const candidate = normalizeCandidate({
       ...raw,
       ...evidence,
       id,
@@ -154,12 +155,39 @@ function normalizeVisualReferents({ componentEvidence = {}, sourceAssets = [] } 
       cropCompleteness: raw.cropCompleteness || evidence.cropCompleteness || 'unknown',
       cropPurity: raw.cropPurity || evidence.cropPurity || 'unknown',
     });
+    // HEPHAESTUS' coarse binding is a hypothesis. A source-pixel COMPONENT
+    // verdict for the exact current asset can corroborate that hypothesis, but
+    // never replaces scene/state proof or a source-derived component ID.
+    const pixelVerifiedComponentRefs = uniqueStrings((candidate.objectVisualEvidence || [])
+      .map((row) => row.requiredObject)
+      .filter((componentId) => knownComponentIds.has(componentId))
+      .filter((componentId) => {
+        const proof = objectEvidenceFor(candidate, componentId, null, { allowReusableIdentity: true });
+        return proof?.present === true && proof.complete === true && proof.isolated === true
+          && proof.stateCompatible === true && Number(proof.confidence) >= 0.9
+          && (proof.visualRole === 'COMPONENT' || (proof.contract === 'mobius-object-visual-evidence-v1' && !proof.visualRole));
+      }));
+    return normalizeCandidate({
+      ...candidate,
+      componentRefs: uniqueStrings([...(candidate.componentRefs || []), ...pixelVerifiedComponentRefs]),
+      pixelVerifiedComponentRefs,
+      bindingReviewRequired: bindings.some((binding) => (binding.reviewState === 'needs_review'
+        || (binding.reviewRequired === true && binding.reviewState !== 'accepted'))
+        && !pixelVerifiedComponentRefs.includes(binding.componentId)),
+    });
   });
+  const pixelVerifiedBindings = (componentEvidence.componentBindings || []).filter((binding) => assets.some((asset) => asset.id === binding.assetId
+    && (asset.pixelVerifiedComponentRefs || []).includes(binding.componentId))).map((binding) => ({
+    ...binding,
+    reconciliation: 'pixel-verified-component-identity',
+  }));
   return {
     contract: VISUAL_REFERENT_NORMALIZATION_CONTRACT,
     assets,
     bindings: (componentEvidence.componentBindings || []).map((binding) => ({ ...binding })),
-    unresolvedBindings: (componentEvidence.componentBindings || []).filter((binding) => binding.reviewState === 'needs_review' || binding.reviewRequired === true),
+    pixelVerifiedBindings,
+    unresolvedBindings: (componentEvidence.componentBindings || []).filter((binding) => (binding.reviewState === 'needs_review' || binding.reviewRequired === true)
+      && !pixelVerifiedBindings.some((resolved) => resolved.assetId === binding.assetId && resolved.componentId === binding.componentId)),
   };
 }
 

@@ -185,7 +185,7 @@ function compileAutomaticVisualPlan({ atom, sourceSelection = null, physicalStat
   const requirement = atom.visualRequirement || {};
   const selected = sourceSelection?.selectedAssets || [];
   const suggested = sourceSelection?.suggestedAssets || [];
-  const accepted = sourceSelection?.status === 'AUTO_ACCEPTED' && atom.reviewState === 'accepted';
+  const accepted = ['AUTO_ACCEPTED', 'NOT_REQUIRED'].includes(sourceSelection?.status) && atom.reviewState === 'accepted';
   const assetIds = accepted ? selected.map((asset) => asset.id).filter(Boolean) : [];
   const referentEvidence = (requirement.requiredObjects || []).map((referent) => {
     const matching = selected.filter((asset) => assetMatchesReferent(asset, referent)).map((asset) => asset.id);
@@ -238,7 +238,7 @@ function compileAutomaticVisualPlan({ atom, sourceSelection = null, physicalStat
     completeCardAssetIds: selected.filter((asset) => /card|carte|wonder|merveille/i.test(`${asset.category} ${asset.componentName} ${asset.label}`)).map((asset) => asset.id),
     sourceRefs: atom.sourceRefs || [],
     provenance: { compiler: 'mobius-canonical-visual-plan-compiler-v1', sourceResolver: sourceSelection?.contract || null },
-    confidence: Math.min(Number(atom.confidence || 0), Number(sourceSelection?.confidence || 0)),
+    confidence: Math.min(Number(atom.confidence || 0), Number(sourceSelection?.confidence ?? atom.confidence ?? 0)),
     reviewState: accepted ? 'accepted' : 'review-required',
   }, atom);
 }

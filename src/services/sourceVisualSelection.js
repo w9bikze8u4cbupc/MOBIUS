@@ -7,6 +7,14 @@ import editorialStandard from './editorialStandard.cjs';
 import {getAiConfig,getGenerationOptions} from '../config/aiConfig.js';
 import {createAiProviderRun} from './aiProviderExecutor.js';
 import {reserveGenerationBudget,recordGenerationFailure} from './aiGenerationBudget.js';
+import ruleVisualReferentRecovery from './ruleVisualReferentRecovery.cjs';
+
+const {
+  RULE_VISUAL_REFERENT_RECOVERY_CONTRACT,
+  buildRuleVisualReferentRecoveryPacket,
+  hashVisualReferentRecoveryPacket,
+  validateRuleVisualReferentRecovery,
+} = ruleVisualReferentRecovery;
 
 // A provider outage is not a request to adjudicate a visual interpretation.
 // Keep the complete review evidence, but expose only a sanitized machine cause.
@@ -100,6 +108,106 @@ export async function normalizeSourceReferentTerms({model,cachePath,env=process.
     const raw=response.response.choices[0].message.content;write(receiptPath,{inputHash:hash,content:raw,usage:response.response.usage,provenance:response.provenance});
     const result=validate(JSON.parse(raw));const receipt={contract:packet.contract,inputHash:hash,result,usage:response.response.usage,providerCalls:1,reused:false};write(cachePath,receipt);return receipt;
   }catch(error){recordGenerationFailure(ledger,error);throw error;}
+}
+
+/**
+ * Recover a rule's visual referent before source-asset selection. The provider
+ * can only select IDs from the existing source-grounded component inventory,
+ * and can cite only excerpts supplied by the accepted RuleAtoms. This is a
+ * bounded interpretation pass, not an image selector or a rule-authority
+ * substitute.
+ */
+export async function recoverRuleVisualReferents({ model, cachePath, env = process.env, complete } = {}) {
+  const ai = getAiConfig(env);
+  const packet = buildRuleVisualReferentRecoveryPacket(model);
+  const inputHash = hashVisualReferentRecoveryPacket({ packet, provider: ai.provider, model: ai.model });
+  const write = (file, value) => {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(`${file}.tmp`, JSON.stringify(value, null, 2));
+    fs.renameSync(`${file}.tmp`, file);
+  };
+  const validate = (value) => validateRuleVisualReferentRecovery(packet, value?.result || value);
+  if (!packet.candidates.length) {
+    const result = { contract: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT, recoveries: [] };
+    const record = { contract: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT, inputHash, provider: ai.provider, model: ai.model, result, providerCalls: 0, reused: true };
+    if (cachePath) write(cachePath, record);
+    return record;
+  }
+  if (cachePath && fs.existsSync(cachePath)) {
+    const prior = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+    if (prior.inputHash === inputHash) return { ...prior, result: validate(prior), providerCalls: 0, reused: true };
+  }
+  const receiptPath = cachePath ? `${cachePath}.${inputHash}.response.json` : null;
+  if (receiptPath && fs.existsSync(receiptPath)) {
+    const raw = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+    const result = validate(JSON.parse(raw.content));
+    const recovered = {
+      contract: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT,
+      inputHash,
+      provider: ai.provider,
+      model: ai.model,
+      result,
+      usage: raw.usage || null,
+      providerCalls: 0,
+      reused: true,
+      validationRecovery: 'validated-cached-provider-response',
+    };
+    if (cachePath) write(cachePath, recovered);
+    return recovered;
+  }
+  const fields = {
+    ruleAtomId: { type: 'string' },
+    disposition: { type: 'string', enum: ['COMPONENTS_GROUNDED', 'SOURCE_FAITHFUL_DIAGRAM', 'UNRESOLVED'] },
+    componentRefs: { type: 'array', items: { type: 'string' } },
+    evidence: { type: 'array', items: { type: 'object', properties: { page: { type: 'integer' }, quote: { type: 'string' } }, required: ['page', 'quote'], additionalProperties: false } },
+    reason: { type: 'string' },
+  };
+  const schema = {
+    type: 'json_schema',
+    json_schema: {
+      name: 'rule_visual_referent_recovery',
+      strict: true,
+      schema: {
+        type: 'object',
+        properties: { recoveries: { type: 'array', items: { type: 'object', properties: fields, required: Object.keys(fields), additionalProperties: false } } },
+        required: ['recoveries'],
+        additionalProperties: false,
+      },
+    },
+  };
+  const ledger = reserveGenerationBudget(env, { inputHash, contract: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT, model: ai.model });
+  try {
+    const run = complete ? null : createAiProviderRun({ env, maxRetries: 0, allowedProviders: [ai.provider === 'ai-integrations' ? 'openai' : ai.provider] });
+    const response = await (complete || run.complete)({
+      messages: [{
+        role: 'user',
+        content: 'For every requested RuleAtom, recover its visual referent using ONLY the supplied official excerpts and existing component inventory. This does not change rules and does not select an image. Return COMPONENTS_GROUNDED only with existing component IDs directly supported by the excerpt. Return SOURCE_FAITHFUL_DIAGRAM only when the excerpt establishes the teaching point but no physical component is required to teach it; never use it to avoid a missing component. Otherwise return UNRESOLVED. Copy a short exact substring from the supplied excerpt for every evidence row. Never cite another page, invent a component, infer a token from a name, or use outside game knowledge.\n' + JSON.stringify(packet),
+      }],
+      options: getGenerationOptions(ai, { max_completion_tokens: 5000, response_format: schema }, 'rulebook_domain_synthesis'),
+      maxRetries: 0,
+      inputHash,
+      promptTemplateVersion: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT,
+      schemaContractVersion: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT,
+    });
+    const raw = response.response.choices[0].message.content;
+    if (receiptPath) write(receiptPath, { inputHash, content: raw, usage: response.response.usage, provenance: response.provenance });
+    const result = validate(JSON.parse(raw));
+    const record = {
+      contract: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT,
+      inputHash,
+      provider: ai.provider,
+      model: ai.model,
+      result,
+      usage: response.response.usage || null,
+      providerCalls: 1,
+      reused: false,
+    };
+    if (cachePath) write(cachePath, record);
+    return record;
+  } catch (error) {
+    recordGenerationFailure(ledger, error);
+    throw error;
+  }
 }
 
 const { classifyVisualLanguage } = editorialStandard;

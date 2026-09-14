@@ -33,6 +33,23 @@ function uniqueAssets(assets = []) {
 function resolveAtomSources(atom, assets, displayBounds) {
   const requirement = atom.visualRequirement || {};
   const referents = requirement.requiredObjects || [];
+  // A source-grounded diagram is a deliberate visual form for a rule that has
+  // no physical referent. It must not trigger a search through unrelated game
+  // images, nor manufacture a Cockpit source-selection decision.
+  if (!referents.length && requirement.actualGameAssetRequired === false) {
+    return {
+      contract: SOURCE_ASSET_RESOLVER_CONTRACT,
+      ruleAtomId: atom.id,
+      status: 'NOT_REQUIRED',
+      selectedAssets: [],
+      suggestedAssets: [],
+      ranked: [],
+      confidence: Number(atom.confidence || 0),
+      reviewState: 'accepted',
+      reason: 'source-grounded-diagram-no-physical-game-asset-required',
+      reviewItem: null,
+    };
+  }
   if (!referents.length) return resolveSourceAssets({ atom, requirement, candidates: assets, displayBounds });
   const perReferent = referents.map((referent) => resolveSourceAssets({
     atom,

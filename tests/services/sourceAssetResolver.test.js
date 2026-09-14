@@ -104,6 +104,25 @@ test('normalizes a source-grounded component binding into resolver semantics wit
   expect(resolveSourceAssets({ atom: { id: 'coin', visualRequirement: { requiredObjects: ['component-coin'] } }, candidates: normalized.assets }).status).not.toBe('AUTO_ACCEPTED');
 });
 
+test('reconciles a HEPHAESTUS hypothesis only when current source pixels prove the same inventory component', () => {
+  const verdict = proof('measured-board', existingFile, 'component-board', {
+    contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT',
+  });
+  const normalized = normalizeVisualReferents({
+    sourceAssets: [asset('measured-board', { objectVisualEvidence: [verdict], cropCompleteness: 'unknown', cropPurity: 'unknown' })],
+    componentEvidence: {
+      assets: [{ id: 'measured-board', sourceImage: existingFile, pageNumber: 2, reviewState: 'accepted' }],
+      componentBindings: [{ componentId: 'component-board', componentName: 'Board', assetId: 'measured-board', confidence: 0.51, reviewState: 'needs_review', reviewRequired: true }],
+    },
+  });
+  expect(normalized.assets[0].componentRefs).toContain('component-board');
+  expect(normalized.assets[0].pixelVerifiedComponentRefs).toEqual(['component-board']);
+  expect(normalized.pixelVerifiedBindings).toHaveLength(1);
+  expect(normalized.unresolvedBindings).toHaveLength(0);
+  const selection = resolveSourceAssets({ atom: { id: 'board', visualRequirement: { requiredObjects: ['component-board'] } }, candidates: normalized.assets });
+  expect(selection.status).toBe('AUTO_ACCEPTED');
+});
+
 test('rejects an otherwise detailed candidate when its explicit physical state disagrees', () => {
   const result = resolveSourceAssets({
     atom: { id: 'hidden-deck', visualRequirement: { requiredObjects: ['deck'], physicalStateRequirement: { faceState: 'FACE_DOWN' } } },

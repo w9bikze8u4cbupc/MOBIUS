@@ -24,7 +24,7 @@ import {
   normalizeDurableProjectSource,
   sameDurableProjectSource,
 } from '../src/services/projectSourceService.js';
-import { loadSourceVisualCatalog, selectSourceVisual, normalizeSourceReferentTerms, visualProviderFailure, visualProviderRecoveryIdentity } from '../src/services/sourceVisualSelection.js';
+import { loadSourceVisualCatalog, selectSourceVisual, normalizeSourceReferentTerms, recoverRuleVisualReferents, visualProviderFailure, visualProviderRecoveryIdentity } from '../src/services/sourceVisualSelection.js';
 import { runProduction } from './run-source-grounded-production.mjs';
 import editorialStandard from '../src/services/editorialStandard.cjs';
 import { GAME_IDENTITY_CONTRACT_VERSION, resolveCanonicalGameIdentity, titleFromRulebook } from '../src/services/gameIdentity.cjs';
@@ -818,6 +818,20 @@ async function runZeroState(options = {}) {
       cachePath: path.join(productionDir, 'knowledge-teaching-localization.json') });
     rulebookKnowledgeModel = applyKnowledgeTeaching(rulebookKnowledgeModel, teaching);
   }
+  // Rule intelligence may establish a physical teaching obligation without
+  // naming the inventory referent. Recover it from the same official excerpts
+  // before visual evidence is measured; this is cached and strictly limited to
+  // existing component IDs, so it cannot manufacture a source binding.
+  let visualReferentRecovery = null;
+  if (knowledgeReady) {
+    visualReferentRecovery = await recoverRuleVisualReferents({
+      model: rulebookKnowledgeModel,
+      cachePath: path.join(productionDir, 'rule-visual-referent-recovery.json'),
+      env: canonicalRuntimeConfigurationEnvironment({ root }),
+    });
+    const { applyRuleVisualReferentRecovery } = require('../src/services/ruleVisualReferentRecovery.cjs');
+    rulebookKnowledgeModel = applyRuleVisualReferentRecovery(rulebookKnowledgeModel, visualReferentRecovery);
+  }
   const knowledgeTeachingPlan = buildKnowledgeTeachingPlan(rulebookKnowledgeModel);
   const knowledgeScenes = knowledgeTeachingPlan.scenes.map((item) => ({
     id: `knowledge-${item.atomId}`,
@@ -925,6 +939,7 @@ async function runZeroState(options = {}) {
       status: ref.status,
     }])),
     referentTerminology:referentTerms,
+    ruleVisualReferentRecovery: visualReferentRecovery,
     scenes: storyboardManifest.scenes.map((scene) => sceneForProduction(scene, extraction.pageRanges, extraction.pages)),
   };
   const visualScriptHash = hashValue({ storyboardHash, pages: extraction.pageRanges, visualScript });
