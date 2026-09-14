@@ -24,3 +24,23 @@ those tokens and the original provider quote rather than inventing clean evidenc
 One real terminology call was used; recovery reused its receipt without a call.
 139 current reviews remain preserved, with zero full-tutorial bindings on that run.
 The source is recoverable through Inbox; no narration or MP4 exists yet.
+
+September 14 continuation, `canonical-resume-03`: one retained labeled-ID
+response was recovered without a provider call. Six new visual requests followed;
+the sixth stopped with `InternalServerError; HTTP 520`. No retry was issued.
+The shared ledger now contains 59 calls, including the 14 historical calls;
+45/80 additional mission calls consumed, 35 remain suspended (not reset).
+The run persisted 103 scenes and 139 reviews, with zero whole-project accepted
+bindings. The isolated fuel sequence remains a one-lesson proof only.
+
+This run's old return value says `review_required`; its semantic report proves
+a provider outage, not 139 independent human ambiguities. The worker now persists
+partial evidence before throwing a sanitized explicit-recovery provider failure.
+This classification repair is tested, not a claim that a new production ran.
+Canonical compilation also reuses the same domain/source teaching order as the
+teaching planner; it must not revert to provider batch order.
+
+Remaining engineering/product work is not hidden by HTTP 520: compatible derived
+candidates need complete replay through the normal catalogue; multi-object/state
+compositions remain unproven; full narration, MP4, encoded QA and Twelve Labs
+adjudication have not executed. No full-tutorial autonomy or publication claim.

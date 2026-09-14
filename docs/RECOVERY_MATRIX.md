@@ -10,3 +10,11 @@ These entries track the Director-supplied RF references; they do not redefine th
 | RF-016 | Whole composition versus isolated component validation | Exact frame/phone hashes and ordered state checks exercised. Full video QA and Director verdict pending. |
 
 Evidence root: `out/cowboy-end-to-end/`; historical `out/first-pedagogical-visual-proof/` and Attempts 1–10 remain intact. No full-video success is inferred from tests or still images.
+
+September 14 measured updates: whole-project enriched reference proof 03 passed
+the actual API/storage/Cockpit path (67,409,620 logical bytes; 9,604,898 transport
+bytes; unchanged 20,971,520-byte transport budget; 139 reviews retained).
+Canonical resumes 02 and 03 also persisted their full partial states.
+RF-011/RF-014: resume 03 suspended at provider HTTP 520 after six requests and one
+cache recovery. Explicit recovery is required; unavailable pixels must not be
+reported as ordinary operator adjudication. No TTS or full video exists.

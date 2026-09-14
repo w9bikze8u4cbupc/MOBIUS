@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { visualProviderFailure } from '../../src/services/sourceVisualSelection.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -153,6 +154,8 @@ test('Cockpit review can be explicitly reopened after a generator revision witho
 });
 
 test('terminal parser failures are quarantined and not retried forever', () => {
+  assert.deepEqual(classifyInboxError(visualProviderFailure({summary:{providerBlocker:'InternalServerError; HTTP 520'}})),
+    {class:'recovery-required',retryable:true,explicitRecovery:true});
   assert.deepEqual(classifyInboxError(new Error('PDF extraction produced no usable text')), { class: 'terminal', retryable: false });
   assert.deepEqual(classifyInboxError(new Error('ElevenLabs network timeout')), { class: 'retryable', retryable: true });
   const hephaestusError = new Error('HEPHAESTUS materialization failed');

@@ -8,6 +8,21 @@ import {getAiConfig,getGenerationOptions} from '../config/aiConfig.js';
 import {createAiProviderRun} from './aiProviderExecutor.js';
 import {reserveGenerationBudget,recordGenerationFailure} from './aiGenerationBudget.js';
 
+// A provider outage is not a request to adjudicate a visual interpretation.
+// Keep the complete review evidence, but expose only a sanitized machine cause.
+export function visualProviderFailure(report) {
+  const blocker = report?.summary?.providerBlocker;
+  if (!blocker) return null;
+  const http = /HTTP (\d{3})\b/.exec(String(blocker));
+  const status = http ? Number(http[1]) : null;
+  const error = new Error(status ? `VISUAL_PROVIDER_UNAVAILABLE: HTTP ${status}` : 'VISUAL_PROVIDER_RESPONSE_INVALID');
+  error.code = status ? 'VISUAL_PROVIDER_UNAVAILABLE' : 'VISUAL_PROVIDER_RESPONSE_INVALID';
+  error.classification = status ? 'provider_unavailable' : 'retryable_engineering';
+  error.explicitRecovery = true;
+  error.httpStatus = status;
+  return error;
+}
+
 export function locateInterleavedSourceQuote(text,quote){
   // PDF reading order may interleave a card's icon values/labels with prose.
   // Locate all supplied words in order, but RETURN the exact source span with

@@ -11,5 +11,7 @@ This index links implementation evidence, not new product authority. The Directo
 | Physical/visual acceptance | physicalGameState / sourceAssetResolver | Exact source, requirement, ordered stage and frame hashes; complete composition evidence required. |
 | Resume/cost protection | existing visual ledger, aiGenerationBudget, narration sidecars | Historical failed calls retained; no automatic provider retry; compatible caches reused. |
 | Full video review | twelveLabsVideoReview | Access confirmed; actual Cowboy MP4 evaluation still pending. |
+| Provider outage versus human ambiguity | sourceVisualSelection / normal worker / Inbox | Actual HTTP 520 retained; partial state persisted; sanitized explicit-recovery classification tested. No retry or fake visual acceptance. |
+| Global pedagogical order | rulebookKnowledge / canonicalProductionCompiler | One domain/source order reused at both stages; original atoms and facts unchanged. |
 
 See [visual evidence](standards/VISUAL_OBJECT_EVIDENCE.md), [persistence](PROJECT_STATE_PERSISTENCE.md), [recovery](RECOVERY_MATRIX.md) and [production memory](PRODUCTION_MEMORY.md).

@@ -5,6 +5,19 @@ const { compileCanonicalProductionState } = require('../../src/services/canonica
 const existingFile = path.resolve(__dirname, '../../package.json');
 const proof = require('../fixtures/objectEvidence.cjs');
 
+test('compiler preserves the normal source/domain teaching order instead of provider batch order', () => {
+  const model = knowledge();
+  const setup = model.ruleAtoms[0];
+  const objective = { ...setup, id: 'objective-before-setup', coverageDomains: ['objective'],
+    teaching: { ...setup.teaching, sequence: 99 } };
+  model.ruleAtoms = [setup, objective];
+  const expected = require('../../src/services/rulebookKnowledge.cjs').buildKnowledgeTeachingPlan(model).scenes.map(s => s.atomId);
+  const result = compileCanonicalProductionState({projectId:model.projectId,knowledgeModel:model,
+    coverageMatrix:buildTutorialCoverageMatrix(model),sourceAssets:[]});
+  expect(result.scenes.map(s => s.atomId)).toEqual(expected);
+  expect(model.ruleAtoms.map(a => a.id)).toEqual(['setup-board','objective-before-setup']);
+});
+
 function knowledge() {
   return buildRulebookKnowledgeModel({ projectSeed: {
     projectId: 'generic-proof', gameIdentity: { displayName: 'Generic Game' }, sourcePdfSha256: 'a'.repeat(64),

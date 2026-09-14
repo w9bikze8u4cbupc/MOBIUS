@@ -24,7 +24,7 @@ import {
   normalizeDurableProjectSource,
   sameDurableProjectSource,
 } from '../src/services/projectSourceService.js';
-import { loadSourceVisualCatalog, selectSourceVisual, normalizeSourceReferentTerms } from '../src/services/sourceVisualSelection.js';
+import { loadSourceVisualCatalog, selectSourceVisual, normalizeSourceReferentTerms, visualProviderFailure } from '../src/services/sourceVisualSelection.js';
 import { runProduction } from './run-source-grounded-production.mjs';
 import editorialStandard from '../src/services/editorialStandard.cjs';
 import { GAME_IDENTITY_CONTRACT_VERSION, resolveCanonicalGameIdentity, titleFromRulebook } from '../src/services/gameIdentity.cjs';
@@ -1040,9 +1040,16 @@ async function runZeroState(options = {}) {
 
   const imagesResponse = await apiJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/images`, { apiKey });
   const initialStateHash = hashValue({ identity: identity.sha256, scriptHash, storyboardHash, visualCounts });
-  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], gameMetadata, gameplayModel, endgameModel, rulebookKnowledgeModel, tutorialCoverage, canonicalProductionState, production: { status: unresolvedVisuals.length ? 'review_required' : 'ready_for_production', sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, hephaestusEvidencePath: hephEvidencePath, hephaestusEvidenceContract: hephEvidence.contract, gameplayModelPath, gameplayModelContract: gameplayModel.contract, endgameModelPath, endgameModelContract: endgameModel.contract, rulebookKnowledgePath, rulebookKnowledgeContract: rulebookKnowledgeModel.contract, tutorialCoveragePath, tutorialCoverageContract: tutorialCoverage.contract, canonicalStatePath, visualPlansPath, physicalStatesPath, visualReviewItemsPath, productionQaPath, phoneScaleQaPath, inputHash: initialStateHash } });
+  const providerFailure = visualProviderFailure(jsonIf(semanticPath));
+  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], gameMetadata, gameplayModel, endgameModel, rulebookKnowledgeModel, tutorialCoverage, canonicalProductionState, production: {
+    status: providerFailure ? 'provider_blocked' : unresolvedVisuals.length ? 'review_required' : 'ready_for_production',
+    providerFailure: providerFailure ? {code:providerFailure.code,classification:providerFailure.classification,httpStatus:providerFailure.httpStatus,explicitRecovery:true} : null,
+    sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, hephaestusEvidencePath: hephEvidencePath, hephaestusEvidenceContract: hephEvidence.contract, gameplayModelPath, gameplayModelContract: gameplayModel.contract, endgameModelPath, endgameModelContract: endgameModel.contract, rulebookKnowledgePath, rulebookKnowledgeContract: rulebookKnowledgeModel.contract, tutorialCoveragePath, tutorialCoverageContract: tutorialCoverage.contract, canonicalStatePath, visualPlansPath, physicalStatesPath, visualReviewItemsPath, productionQaPath, phoneScaleQaPath, inputHash: initialStateHash } });
   markStage(checkpoint, 'canonical-state', initialStateHash, [storyboardPath, canonicalStatePath, visualPlansPath, physicalStatesPath, visualReviewItemsPath, productionQaPath, phoneScaleQaPath], { reused: false, visualCounts, reviewItems: canonicalProductionState.reviewItems.length });
   await saveJson(checkpointPath, checkpoint);
+  // Persist all partial results first. Never turn an unavailable provider into
+  // a human visual decision or permit final narration from incomplete analysis.
+  if (providerFailure) throw providerFailure;
   if (await stopIfRequested(options, checkpoint, 'canonical-state', checkpointPath, { projectId, visualCounts })) return { status: 'stopped', stage: 'canonical-state' };
 
   if (unresolvedVisuals.length) {
