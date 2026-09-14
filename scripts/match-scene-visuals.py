@@ -13,7 +13,7 @@ from openai import OpenAI
 
 CONTRACT = "mobius-object-visual-evidence-v2"
 SEARCH_CONTRACT = "mobius-referent-localization-v1"
-SEARCH_EXECUTION_VERSION = 'native-region-and-track-planning-v1'
+SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v2'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 MODEL = os.getenv("MOBIUS_VISUAL_MATCH_MODEL") or os.getenv("OPENAI_MODEL")
 _probe_spec = importlib.util.spec_from_file_location('mobius_visual_probe', Path(__file__).with_name('qualify-source-visuals.py'))
@@ -297,6 +297,11 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
             kind = (asset.get('asset_metadata') or {}).get('visual_kind')
             role = 'TRACK' if kind == 'track-geometry' else ('COMPOSITION' if kind == 'instructional-composition' else ('LOCALIZATION' if kind == 'source-page-localization' else 'COMPONENT'))
             scoped_packet = {**packet, 'visualRole': role, 'searchContract': SEARCH_CONTRACT}
+            focus = (asset.get('asset_metadata') or {}).get('localizedReferent')
+            if focus and role == 'COMPONENT':
+                scoped_packet['requiredObjects'] = [obj for obj in packet['requiredObjects'] if obj['id'] == focus]
+                if not scoped_packet['requiredObjects']:
+                    continue
             if role == 'COMPOSITION':
                 # Source-bound requirements identify the referent. Labels are
                 # retrieval hypotheses, not new composition evidence.
@@ -326,7 +331,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     stored = json.loads(read_cache.read_text(encoding="utf-8"))
                     if stored.get("identity") != identity:
                         raise ValueError("cache identity mismatch")
-                    objects = validate_rows(stored["objects"], packet)
+                    objects = validate_rows(stored["objects"], scoped_packet)
                     result['measurementCache'] = str(read_cache)
                     hits += 1
                 elif client is None or calls >= max_calls or blocker or os.getenv('MOBIUS_VISUAL_CACHE_ONLY') == 'true':
@@ -401,7 +406,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                         'usage': response.usage.model_dump() if response.usage else None}, ensure_ascii=False), encoding='utf-8')
                     receipt_tmp.replace(receipt)
                     result['responseReceipt'] = str(receipt)
-                    objects = validate_rows(json.loads(response.choices[0].message.content)["objects"], packet)
+                    objects = validate_rows(json.loads(response.choices[0].message.content)["objects"], scoped_packet)
                 if role == 'COMPOSITION' and any(type(r.get(k)) is not bool for r in objects for k in ('purposeSatisfied', 'phoneReadable')):
                     raise ValueError('Incomplete composition verdict')
                 if role == 'TRACK':
@@ -422,7 +427,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                 result.update(status="MEASURED", objects=[{**r, "contract": CONTRACT, "assetId": asset["asset_id"],
                     "imageSha256": image_hash, "evidencePacketHash": packet_hash, "model": MODEL,
                     "method": "provider-pixel-analysis", "visualRole": role, "evidenceRequirement": packet['requirement']} for r in objects])
-                if role == 'COMPONENT' and packet['requirement'].get('trackStateRequired') and all(
+                if role == 'COMPONENT' and len(packet['requiredObjects']) == 1 and packet['requirement'].get('trackStateRequired') and all(
                     o['present'] and o['complete'] and o['isolated'] and o['confidence'] >= .9 for o in objects):
                     queue.insert(queue.index(asset)+1,{**asset,'asset_metadata':{**(asset.get('asset_metadata') or {}),'visual_kind':'track-geometry'}})
                 if role == 'LOCALIZATION':
@@ -449,7 +454,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                             generated.append(crop)
                             # Verify immediately, before looking for the next source page.
                             queue.insert(queue.index(asset) + 1, {'asset_id': crop['id'], 'path': crop['file_path'],
-                                'asset_metadata': {'source_page': crop['source_page'], 'dimensions': crop['dimensions']}})
+                                'asset_metadata': {'source_page': crop['source_page'], 'dimensions': crop['dimensions'], 'localizedReferent':obj['requiredObject']}})
                         if crop_input.get('sourcePdfPath'):
                             # Native tiles can restore the unobscured source
                             # object behind a page's vector callouts. They remain
@@ -464,7 +469,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                                 if native_crop['id'] not in {g['id'] for g in generated}:
                                     generated.append(native_crop)
                                     queue.insert(queue.index(asset) + 1, {'asset_id': native_crop['id'], 'path': native_crop['file_path'],
-                                        'asset_metadata': {'source_page': native_crop['source_page'], 'dimensions': native_crop['dimensions']}})
+                                        'asset_metadata': {'source_page': native_crop['source_page'], 'dimensions': native_crop['dimensions'], 'localizedReferent':obj['requiredObject']}})
             except Exception as exc:
                 result["reason"] = f"{type(exc).__name__}; HTTP {getattr(exc, 'status_code', 'unavailable')}"
                 safe_issues = {'exact requested referents required', 'invalid confidence', 'incomplete verdict', 'invalid bounds', 'Incomplete composition verdict'}
