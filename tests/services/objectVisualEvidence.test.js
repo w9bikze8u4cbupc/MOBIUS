@@ -16,6 +16,10 @@ test('localization is not final component or scene evidence', () => {
   const component = candidate({ objectVisualEvidence: [proof('image', file, 'comp-57', { contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT' })] });
   expect(evaluateCandidate(component, requirement).valid).toBe(true);
   expect(evaluateCandidate(component, { ...requirement, transitionRequired: true }).hardViolations).toContain('composition-state-verification-required:comp-57');
+  const discarded = candidate({ objectVisualEvidence: [proof('image', file, 'comp-57', {
+    contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT', evidenceRequirement: { requiredState: 'DISCARDED' },
+  })] });
+  expect(evaluateCandidate(discarded, { ...requirement, requiredState: 'DISCARDED' }).hardViolations).toContain('composition-state-verification-required:comp-57');
 });
 test('opaque component identifiers cannot collapse to the shared token comp', () => {
   expect(evaluateCandidate(candidate(), { requiredObjects: ['comp-1'] }).semanticScore).toBe(0);

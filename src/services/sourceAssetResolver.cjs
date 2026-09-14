@@ -200,6 +200,7 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
     if (proof.visualRole === 'LOCALIZATION') hardViolations.push(`localization-not-display-evidence:${id}`);
     if (proof.visualRole === 'COMPONENT' && (requirement.transitionRequired || requirement.setupPlacementRequired
       || requirement.layeredStateRequired || requirement.trackStateRequired || requirement.requiredRelationship
+      || requirement.requiredState || requirement.beforeState || requirement.actionState || requirement.afterState
       || requirement.requiredQuantities?.length)) hardViolations.push(`composition-state-verification-required:${id}`);
     if (proof.present !== true || Number(proof.confidence) < 0.9) hardViolations.push(`object-identity-unverified:${id}`);
     const box = proof.bbox;
