@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from openai import OpenAI
 
@@ -47,6 +48,10 @@ def candidates_for(packet, assets):
         if not a.get('path') or not Path(a['path']).is_file() or a.get('category') == 'blank_or_unusable':
             continue
         m = a.get('asset_metadata') or {}
+        if m.get('retrieval_context') and not m.get('visual_kind'):
+            # Text linked native images are expanded only after pixel localization;
+            # an entire page's logos/backgrounds must not consume the first budget.
+            continue
         text = str(m.get('layout_text') or '').lower()
         overlap = sum(t.rstrip('s') in text for t in tokens)
         linked = m.get('source_page') in packet['sourcePages'] or overlap == len(tokens) and bool(tokens)
@@ -79,6 +84,22 @@ def candidates_for(packet, assets):
         pages.add(group)
     return result[:6]
 
+
+def native_localization_alternatives(asset, assets):
+    """A located but occluded page object may have an unobscured native source.
+    Page proximity is a hypothesis only; each alternative still needs pixel QA.
+    """
+    page = (asset.get('asset_metadata') or {}).get('source_page')
+    rows = [a for a in assets if (a.get('asset_metadata') or {}).get('source_page') == page
+        and (a.get('asset_metadata') or {}).get('retrieval_context')
+        and not (a.get('asset_metadata') or {}).get('visual_kind')
+        and a.get('path') and Path(a['path']).is_file()]
+    def detail(a):
+        m = a['asset_metadata']
+        d = m.get('original_dimensions') or m.get('dimensions') or {}
+        return -(d.get('width', 0) * d.get('height', 0)), a['asset_id']
+    return sorted(rows, key=detail)[:2]
+
 def reserve_call(identity, provider_failure=None):
     """Optional durable mission cap, shared by all phases/directories. Fail closed on concurrent ownership."""
     filename = os.getenv('MOBIUS_VISUAL_BUDGET_LEDGER')
@@ -108,6 +129,53 @@ def reserve_call(identity, provider_failure=None):
         lock.unlink()
 
 
+def reopen_provider_blocker(filename, access_check, prior_failure, recovery_id):
+    """Explicit operator recovery, never an automatic retry or a new allowance."""
+    check_path, failure_path = Path(access_check), Path(prior_failure)
+    check = json.loads(check_path.read_text(encoding='utf-8'))
+    failure = json.loads(failure_path.read_text(encoding='utf-8'))
+    if (check.get('operation') != 'models.retrieve' or check.get('httpStatus') != 200
+            or check.get('authentication') != 'PASS' or check.get('modelAccess') != 'PASS'
+            or not MODEL or check.get('model') != MODEL or check.get('provider') != 'openai'
+            or failure.get('httpStatus') != 401 or not check.get('recordedAt')
+            or not re.fullmatch(r'[A-Za-z0-9_-]{4,100}', recovery_id)):
+        raise ValueError('Explicit recovery requires a successful current-model access receipt and historical failure')
+    if check_path.stat().st_mtime <= failure_path.stat().st_mtime:
+        raise ValueError('Access receipt must be newer than historical failure')
+    ledger = Path(filename)
+    lock = ledger.with_suffix('.lock')
+    handle = lock.open('x', encoding='utf-8')
+    try:
+        data = json.loads(ledger.read_text(encoding='utf-8'))
+        history = data.setdefault('providerRecoveries', [])
+        existing = next((r for r in history if r['id'] == recovery_id), None)
+        if existing:
+            if existing['accessCheck'] != str(check_path.resolve()):
+                raise ValueError('Recovery identity already used by different access evidence')
+            return existing
+        if any(r['accessCheck'] == str(check_path.resolve()) for r in history):
+            raise ValueError('Access receipt already consumed; a later provider failure needs new operator evidence')
+        record = {'id': recovery_id, 'recordedAt': datetime.now(timezone.utc).isoformat(),
+            'accessCheck': str(check_path.resolve()), 'priorFailure': str(failure_path.resolve()),
+            'priorBlocker': data.get('providerBlocker') or 'historical HTTP 401',
+            'callsPreserved': len(data['calls']), 'model': MODEL}
+        history.append(record)
+        data['providerBlocker'] = None
+        data['recoveryEpoch'] = recovery_id
+        tmp = ledger.with_suffix('.tmp')
+        tmp.write_text(json.dumps(data, indent=2), encoding='utf-8')
+        tmp.replace(ledger)
+        return record
+    finally:
+        handle.close()
+        lock.unlink()
+
+
+def recovery_epoch():
+    filename = os.getenv('MOBIUS_VISUAL_BUDGET_LEDGER')
+    return json.loads(Path(filename).read_text(encoding='utf-8')).get('recoveryEpoch') if filename else None
+
+
 def validate_rows(rows, packet):
     ids = {item["id"] for item in packet["requiredObjects"]}
     if not isinstance(rows, list) or len(rows) != len(ids) or {r.get("requiredObject") for r in rows} != ids:
@@ -128,7 +196,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
     source_identities = [(a.get('asset_id'), hashlib.sha256(Path(a['path']).read_bytes()).hexdigest())
         for a in qa.get('assets', []) if a.get('path') and Path(a['path']).is_file()]
     run_cache = cache_dir / ('run-' + digest([SEARCH_CONTRACT, CONTRACT, MODEL, script, source_identities,
-        [a.get('asset_metadata') for a in qa.get('assets', [])], os.getenv('MOBIUS_VISUAL_SCENE_ID'), max_calls, client is not None]) + '.json')
+        [a.get('asset_metadata') for a in qa.get('assets', [])], os.getenv('MOBIUS_VISUAL_SCENE_ID'), max_calls, client is not None, recovery_epoch()]) + '.json')
     if run_cache.exists():
         previous = json.loads(run_cache.read_text(encoding='utf-8'))
         return {**previous, 'summary': {**previous['summary'], 'providerCalls': 0,
@@ -143,7 +211,11 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
         packet = packet_for(scene, script.get("componentTerms") or {})
         results = []
         queue = candidates_for(packet, qa.get("assets", [])) if packet['requiredObjects'] else []
+        visited = set()
         for asset in queue:
+            if asset['asset_id'] in visited:
+                continue
+            visited.add(asset['asset_id'])
             role = 'LOCALIZATION' if (asset.get('asset_metadata') or {}).get('visual_kind') == 'source-page-localization' else 'COMPONENT'
             scoped_packet = {**packet, 'visualRole': role, 'searchContract': SEARCH_CONTRACT}
             packet_hash = digest(scoped_packet)
@@ -197,6 +269,11 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     "imageSha256": image_hash, "evidencePacketHash": packet_hash, "model": MODEL,
                     "method": "provider-pixel-analysis", "visualRole": role, "evidenceRequirement": packet['requirement']} for r in objects])
                 if role == 'LOCALIZATION':
+                    if any(o['present'] and o['confidence'] >= .9 for o in objects):
+                        alternatives = native_localization_alternatives(asset, qa.get('assets', []))
+                        for candidate in reversed(alternatives):
+                            if candidate['asset_id'] not in visited:
+                                queue.insert(queue.index(asset) + 1, candidate)
                     for obj in objects:
                         if not obj['present'] or obj['confidence'] < .9 or not obj['complete']:
                             continue
@@ -235,6 +312,9 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
     return report
 
 def main():
+    if len(sys.argv) == 6 and sys.argv[1] == '--reopen-provider-blocker':
+        print(json.dumps(reopen_provider_blocker(*sys.argv[2:])))
+        return
     if len(sys.argv) != 4:
         raise SystemExit("usage: match-scene-visuals.py SCRIPT.json QUALITY.json OUTPUT.json")
     script, quality, output = map(Path, sys.argv[1:])

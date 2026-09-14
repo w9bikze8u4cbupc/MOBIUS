@@ -15,6 +15,46 @@ qualifier = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(qualifier)
 
 class ObjectEvidenceTests(unittest.TestCase):
+    def test_native_recovery_uses_same_page_real_detail_without_granting_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            a = Path(directory) / 'pixels'
+            a.write_bytes(b'fixture')
+            def row(ident, page, width, native):
+                return {'asset_id': ident, 'path': str(a), 'asset_metadata': {'source_page': page,
+                    'dimensions': {'width': width, 'height': width}, 'original_dimensions': {'width': native, 'height': native},
+                    'retrieval_context': {'role': 'PAGE_SEARCH_HYPOTHESIS'}}}
+            rows = [row('tiny-upscaled', 4, 4000, 100), row('native', 4, 800, 800), row('wrong-page', 8, 2000, 2000)]
+            chosen = matcher.native_localization_alternatives({'asset_metadata': {'source_page': 4}}, rows)
+            self.assertEqual([r['asset_id'] for r in chosen], ['native', 'tiny-upscaled'])
+            self.assertNotIn('objects', chosen[0])
+            self.assertEqual(matcher.candidates_for({'sourcePages': [4], 'requiredObjects': []}, rows), [])
+
+    @patch.object(matcher, 'MODEL', 'fixture-model')
+    def test_explicit_recovery_preserves_budget_and_failure_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger, access, failure = [Path(directory) / name for name in ['budget.json', 'access.json', 'failure.json']]
+            failure.write_text(json.dumps({'httpStatus': 401}))
+            matcher.os.utime(failure, (1, 1))
+            access.write_text(json.dumps({'operation': 'models.retrieve', 'httpStatus': 200,
+                'authentication': 'PASS', 'modelAccess': 'PASS', 'model': matcher.MODEL,
+                'provider': 'openai', 'recordedAt': 'test-fixture'}))
+            original = {'maxTotal': 16, 'maxPerGroup': 8, 'calls': [{'group': 'a'}, {'group': 'b'}], 'providerBlocker': 'HTTP 401'}
+            ledger.write_text(json.dumps(original))
+            r = matcher.reopen_provider_blocker(str(ledger), str(access), str(failure), 'explicit-recovery')
+            self.assertEqual(r, matcher.reopen_provider_blocker(str(ledger), str(access), str(failure), 'explicit-recovery'))
+            data = json.loads(ledger.read_text())
+            self.assertEqual(data['calls'], original['calls'])
+            self.assertEqual(data['maxTotal'], 16)
+            self.assertEqual(data['maxPerGroup'], 8)
+            self.assertEqual(len(data['providerRecoveries']), 1)
+            self.assertEqual(data['providerRecoveries'][0]['priorBlocker'], 'HTTP 401')
+            self.assertIsNone(data['providerBlocker'])
+            with self.assertRaises(ValueError):
+                matcher.reopen_provider_blocker(str(ledger), str(access), str(failure), 'reuse-old-receipt')
+            access.write_text(json.dumps({'httpStatus': 401}))
+            with self.assertRaises(ValueError):
+                matcher.reopen_provider_blocker(str(ledger), str(access), str(failure), 'bad-recovery')
+
     def test_shared_budget_survives_directories_and_provider_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             ledger = Path(directory) / 'budget.json'
@@ -58,6 +98,10 @@ class ObjectEvidenceTests(unittest.TestCase):
         self.assertTrue(qualifier.eligible_hypothesis({'is_component': None, 'type': 'focused-page-crop'}))
         self.assertTrue(qualifier.eligible_hypothesis({}))
         self.assertFalse(qualifier.eligible_hypothesis({'is_component': False}))
+        self.assertTrue(qualifier.eligible_hypothesis({'is_component': False, 'native': True,
+            'classification': 'other', 'retrieval_context': {'role': 'PAGE_SEARCH_HYPOTHESIS'}, 'visual_metrics': {'nearBlank': False}}))
+        self.assertFalse(qualifier.eligible_hypothesis({'is_component': False, 'native': True,
+            'classification': 'other', 'retrieval_context': {}, 'visual_metrics': {'nearBlank': True}}))
 
     def test_local_geometry_never_implies_complete_component(self):
         for kind in ['focused-page-crop', 'focused-page-region', 'card', 'token', 'board']:
@@ -83,6 +127,11 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(second['summary']['providerCalls'], 0)
             self.assertEqual(len(calls), 1)
             self.assertEqual(first['scenes'], second['scenes'])
+            with patch.object(matcher, 'recovery_epoch', return_value='explicit-recovery'):
+                recovered = matcher.run(script, qa, Path(directory), 1, client)
+                self.assertEqual(recovered['summary']['providerCalls'], 0)
+                self.assertEqual(recovered['summary']['cacheHits'], 1)
+            self.assertEqual(len(calls), 1)
             self.assertEqual(calls[0]['model'], matcher.MODEL)
             self.assertTrue(calls[0]['messages'][0]['content'][1]['image_url']['url'].startswith('data:image/jpeg;base64,'))
             with self.assertRaises(ValueError):

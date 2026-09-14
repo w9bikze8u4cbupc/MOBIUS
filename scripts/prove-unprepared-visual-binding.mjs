@@ -24,6 +24,18 @@ const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF
 const hash = (value) => crypto.createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex');
 const output = path.resolve(args.output);
 if (fs.existsSync(output) && !args.resume) throw new Error('Use a fresh isolated proof directory or explicitly resume this isolated proof.');
+// Preserve failed execution reports; valid measurement caches stay in place.
+if (args.resume && fs.existsSync(path.join(output, 'proof.json'))) {
+  const history = path.join(output, 'history', new Date().toISOString().replace(/[:.]/g, '-'));
+  fs.mkdirSync(history, { recursive: true });
+  for (const entry of fs.readdirSync(output, { withFileTypes: true })) {
+    if (entry.isFile()) fs.copyFileSync(path.join(output, entry.name), path.join(history, entry.name), fs.constants.COPYFILE_EXCL);
+  }
+  const review = path.join(output, 'data/isolated-visual-binding-proof/source-visual-review');
+  if (fs.existsSync(review)) for (const entry of fs.readdirSync(review, { withFileTypes: true })) {
+    if (entry.isFile()) fs.copyFileSync(path.join(review, entry.name), path.join(history, `review-${entry.name}`), fs.constants.COPYFILE_EXCL);
+  }
+}
 const knowledge = read(args.knowledge);
 const manifest = read(args.manifest);
 const projectId = 'isolated-visual-binding-proof';

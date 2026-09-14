@@ -83,6 +83,7 @@ def asset_metadata(asset: dict) -> dict:
         "layout_labels": asset.get("layout_labels") or [],
         "layout_text": asset.get("layout_text") or '',
         "heading": asset.get("heading") or '',
+        "retrieval_context": asset.get("retrieval_context"),
         "bbox": asset.get("bbox") or asset.get("bounding_box"),
         "normalized_bbox": asset.get("normalized_bbox"),
         "content_hash": asset.get("contentHash") or asset.get("content_hash"),
@@ -107,6 +108,11 @@ def eligible_hypothesis(asset: dict) -> bool:
     # UNKNOWN is eligible for examination, not a positive or negative verdict.
     # In particular, a layout crop must not need a fabricated is_component=True
     # merely to reach the object-scoped matcher and its already valid cache.
+    if (asset.get('native') and asset.get('classification') == 'other'
+            and asset.get('retrieval_context') and asset.get('visual_metrics', {}).get('nearBlank') is False):
+        # Native geometry's catch-all is not an object-scoped negative pixel verdict.
+        # Admit for examination only; the original classification remains preserved.
+        return True
     return asset.get("is_component") is not False
 
 
@@ -165,7 +171,7 @@ def main() -> None:
         page = int(asset.get("page_index", -1))
         # HEPHAESTUS page_index is zero-based; storyboard source_pages are
         # canonical one-based rulebook pages.
-        if asset.get('visual_kind') != 'source-page-localization' and page not in cited_pages and page + 1 not in cited_pages:
+        if asset.get('visual_kind') != 'source-page-localization' and not asset.get('retrieval_context') and page not in cited_pages and page + 1 not in cited_pages:
             continue
         resolved = asset_path(asset, manifest_path)
         width, height = dimensions(asset)

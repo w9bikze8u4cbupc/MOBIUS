@@ -71,6 +71,8 @@ async function main() {
     });
     await writeFile(cropManifestPath, `${JSON.stringify(cropManifest, null, 2)}\n`, 'utf8');
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    const localizationPages = await sourceLocalizationPages({ pageDir: resolve(pageDir), pages: extraction.pages || [], sourceSha256 });
+    const pageContexts = new Map(localizationPages.map((p) => [p.source_page, p]));
     // The review manifest is written below production/, not beside the
     // HEPHAESTUS pixels. Rehydrate paths and source-grounded component terms
     // from canonical evidence so the QA sidecars see the same candidates as
@@ -89,10 +91,15 @@ async function main() {
     const images = (manifest.images || []).map((asset) => {
       const canonical = evidenceById.get(asset.id) || null;
       const bindings = bindingsByAssetId.get(asset.id) || [];
+      const context = pageContexts.get(canonical?.pageNumber || asset.source_page);
       return {
         ...asset,
         file_path: canonical?.sourceImage || asset.file_path,
         source_page: canonical?.pageNumber || asset.source_page || null,
+        // Page text is retrieval context, never a component identity/quality claim.
+        layout_text: asset.layout_text || context?.layout_text || '',
+        heading: asset.heading || context?.heading || '',
+        retrieval_context: context ? { sourcePage: context.source_page, sourceSha256, role: 'PAGE_SEARCH_HYPOTHESIS' } : null,
         componentRefs: [],
         semanticObjects: [...new Set([
           ...(asset.semanticObjects || []), asset.label, asset.category, canonical?.componentName, canonical?.category,
@@ -109,7 +116,7 @@ async function main() {
     visualManifestPath = resolve(outputDir, 'source-visual-manifest.json');
     await writeFile(visualManifestPath, `${JSON.stringify({
       ...manifest,
-      images: [...images, ...(cropManifest.assets || []), ...await sourceLocalizationPages({ pageDir: resolve(pageDir), pages: extraction.pages || [], sourceSha256 })],
+      images: [...images, ...(cropManifest.assets || []), ...localizationPages],
       focusedCropManifest: cropManifestPath,
     }, null, 2)}\n`, 'utf8');
   }
