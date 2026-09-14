@@ -78,7 +78,12 @@ describe('API render preview dry-run', () => {
     delete process.env.RENDERER_ARGS;
   });
 
-  async function waitForJob(jobId, timeoutMs = 10000) {
+  // The job still has the same 10s completion deadline. Let that assertion,
+  // rather than Jest's unrelated 5s default, report failures on busy runners.
+  const JOB_DEADLINE_MS = 10000;
+  jest.setTimeout(JOB_DEADLINE_MS + 5000);
+
+  async function waitForJob(jobId, timeoutMs = JOB_DEADLINE_MS) {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       const job = getJob(jobId);
