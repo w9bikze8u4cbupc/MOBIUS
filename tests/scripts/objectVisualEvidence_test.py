@@ -300,6 +300,29 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(crop['status'], 'MEASURED')
             self.assertEqual(len(calls), 1)
 
+    def test_positive_component_and_exact_track_survive_context_upgrade_but_negative_component_does_not(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'
+            image_hash = matcher.hashlib.sha256(pixels.read_bytes()).hexdigest()
+            requirement = {'requiredObjects': ['board'], 'trackStateRequired': True}
+            component = {'requiredObject': 'board', 'present': True, 'confidence': .99, 'complete': True,
+                'isolated': True, 'stateCompatible': True, 'bbox': [.1,.1,.9,.9], 'reason': 'complete board',
+                'visualRole': 'COMPONENT', 'imageSha256': image_hash}
+            track = {**component, 'visualRole': 'TRACK', 'trackPoints': [{'value': 1, 'x': .2, 'y': .8}],
+                'stateStages': [{'label':'Début','caption':'Un','narration':'Un.', 'position':1,'isExample':False,'sourcePages':[2]}]}
+            (root/'run-retained.json').write_text(json.dumps({'scenes': [{'scene_id': 'scene', 'candidates': [
+                {'asset_id':'board','status':'MEASURED','evidencePacket':{'requirement':requirement},'objects':[component]},
+                {'asset_id':'board','status':'MEASURED','evidencePacket':{'requirement':requirement},'objects':[track]},
+                {'asset_id':'negative','status':'MEASURED','objects':[ {**component, 'present':False, 'complete':False,
+                    'isolated':False, 'stateCompatible':False, 'confidence':.2, 'bbox':[]} ]}
+            ]}]}))
+            retained = matcher.retained_measurements('', root)
+            identity = ('board', image_hash, ('board',))
+            self.assertIn(('COMPONENT', identity), retained['identity'])
+            self.assertIn(('scene', identity, matcher.digest(requirement)), retained['track'])
+            self.assertNotIn(('COMPONENT', ('negative', image_hash, ('board',))), retained['identity'])
+
     def test_unknown_component_hypothesis_is_not_dropped_before_pixel_analysis(self):
         self.assertTrue(qualifier.eligible_hypothesis({'is_component': None, 'type': 'focused-page-crop'}))
         self.assertTrue(qualifier.eligible_hypothesis({}))

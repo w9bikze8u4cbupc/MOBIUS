@@ -426,33 +426,49 @@ def validate_rows(rows, packet):
             raise ValueError("invalid bounds")
     return rows
 
-def retained_localizations(output_path):
-    """Recover a valid old localization when only its identity context evolved.
+def retained_measurements(output_path, cache_dir):
+    """Recover compatible positive measurements across an additive contract upgrade.
 
-    A page-level bounding box is a pixel measurement.  Adding official text
-    that clarifies a family name must not spend another provider call on the
-    identical page.  This deliberately never reuses COMPONENT verdicts: a
-    newly supplied official context can legitimately change whether a cropped
-    named member is recognized as the requested family.
+    A page-level bounding box and a positive complete component verdict are
+    pixel measurements. Adding official context that clarifies a family name
+    must not spend another provider call on identical pixels. Negative
+    COMPONENT verdicts are deliberately never reused: new official context can
+    legitimately establish a named member as belonging to a card family.
+
+    Track evidence is scene-scoped. It is retained only when the scene ID,
+    source pixels, required referents, and full source requirement are exact.
     """
-    path = Path(output_path)
-    if not path.is_file():
-        return {}
-    try:
-        report = json.loads(path.read_text(encoding='utf-8'))
-    except (OSError, ValueError):
-        return {}
-    result = {}
-    for scene in report.get('scenes') or []:
-        for candidate in scene.get('candidates') or []:
-            rows = candidate.get('objects') or []
-            if candidate.get('status') != 'MEASURED' or not rows:
-                continue
-            if any(row.get('visualRole') != 'LOCALIZATION' or not row.get('imageSha256') for row in rows):
-                continue
-            key = (candidate.get('asset_id'), rows[0].get('imageSha256'), tuple(sorted(row.get('requiredObject') for row in rows)))
-            if None not in key[2]:
-                result.setdefault(key, rows)
+    paths = [Path(output_path)] if output_path else []
+    paths += sorted(Path(cache_dir).glob('run-*.json'))
+    result = {'identity': {}, 'track': {}}
+    seen = set()
+    for path in paths:
+        if path in seen or not path.is_file():
+            continue
+        seen.add(path)
+        try:
+            report = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        for scene in report.get('scenes') or []:
+            for candidate in scene.get('candidates') or []:
+                rows = candidate.get('objects') or []
+                packet = candidate.get('evidencePacket') or {}
+                if candidate.get('status') != 'MEASURED' or not rows:
+                    continue
+                roles = {row.get('visualRole') for row in rows}
+                image_hashes = {row.get('imageSha256') for row in rows}
+                ids = tuple(sorted(row.get('requiredObject') for row in rows))
+                if len(roles) != 1 or len(image_hashes) != 1 or None in image_hashes or None in ids:
+                    continue
+                role = next(iter(roles))
+                identity = (candidate.get('asset_id'), next(iter(image_hashes)), ids)
+                if role == 'LOCALIZATION' or (role == 'COMPONENT' and all(measured_object(row, 'COMPONENT') for row in rows)):
+                    result['identity'].setdefault((role, identity), rows)
+                if role == 'TRACK' and all(measured_object(row, 'TRACK') for row in rows):
+                    requirement = packet.get('requirement')
+                    if isinstance(requirement, dict):
+                        result['track'].setdefault((scene.get('scene_id'), identity, digest(requirement)), rows)
     return result
 
 def run(script, qa, cache_dir, max_calls=8, client=None):
@@ -467,7 +483,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
     run_cache = cache_dir / ('run-' + digest([SEARCH_EXECUTION_VERSION, COMPOSITION_RESPONSE_CONTRACT, SEARCH_CONTRACT, CONTRACT, MODEL, script, source_identities,
         [a.get('asset_metadata') for a in qa.get('assets', [])], imported_inventory, os.getenv('MOBIUS_VISUAL_SCENE_ID'), max_calls, client is not None, recovery_epoch()]) + '.json')
     previous = json.loads(run_cache.read_text(encoding='utf-8')) if run_cache.exists() else None
-    retained = retained_localizations(os.getenv('MOBIUS_VISUAL_PREVIOUS_REPORT', ''))
+    retained = retained_measurements(os.getenv('MOBIUS_VISUAL_PREVIOUS_REPORT', ''), cache_dir)
     if previous is not None:
         # Older composition executions recorded a schema failure but did not
         # propagate the suspension. Preserve that receipt; do not issue it again.
@@ -566,14 +582,21 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     result['responseReceipt'] = str(receipt_path)
                     result['validationRecovery'] = 'exact-supplied-referent-pair; no new provider call'
                     hits += 1
-                elif role == 'LOCALIZATION' and (rows := retained.get((asset['asset_id'], image_hash,
-                    tuple(sorted(obj['id'] for obj in scoped_packet['requiredObjects']))))):
-                    # Exact pixels and referent IDs match a persisted v1
-                    # localization. Validate it against the current schema and
+                elif role in ('LOCALIZATION', 'COMPONENT') and (rows := retained['identity'].get((role, (asset['asset_id'], image_hash,
+                    tuple(sorted(obj['id'] for obj in scoped_packet['requiredObjects'])))))):
+                    # Exact pixels and referent IDs match a retained positive
+                    # measurement. Validate it against the current schema and
                     # create the new cache identity for deterministic replay.
                     objects = validate_rows(rows, scoped_packet)
                     cache.write_text(json.dumps({'identity': identity, 'objects': objects}, ensure_ascii=False), encoding='utf-8')
-                    result['validationRecovery'] = 'official-context-enriched-localization; no new provider call'
+                    result['validationRecovery'] = f'official-context-enriched-{role.lower()}; no new provider call'
+                    hits += 1
+                elif role == 'TRACK' and (rows := retained['track'].get((scene.get('id'),
+                    (asset['asset_id'], image_hash, tuple(sorted(obj['id'] for obj in scoped_packet['requiredObjects']))),
+                    digest(scoped_packet.get('requirement') or {})))):
+                    objects = validate_rows(rows, scoped_packet)
+                    cache.write_text(json.dumps({'identity': identity, 'objects': objects}, ensure_ascii=False), encoding='utf-8')
+                    result['validationRecovery'] = 'exact-scene-track-measurement; no new provider call'
                     hits += 1
                 elif client is None or calls >= max_calls or blocker or os.getenv('MOBIUS_VISUAL_CACHE_ONLY') == 'true':
                     result["reason"] = blocker or "pixel analysis unavailable or bounded budget exhausted"
