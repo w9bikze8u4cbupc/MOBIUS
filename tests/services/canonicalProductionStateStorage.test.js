@@ -24,7 +24,23 @@ function state() {
       referentSelections: [{ requiredObject: 'board', selectedAssets: [asset], suggestedAssets: [asset], candidateAssessments: [['asset', 0.3, ['crop']]] }],
       reviewItem: { id: `review-${index}` },
     })),
-    visualPlans: Array.from({ length: 8 }, (_, index) => ({ ruleAtomId: `atom-${index}`, cockpit: { assetCandidates: [candidate], sourceReferences: candidate.sourceRefs } })),
+    visualPlans: Array.from({ length: 8 }, (_, index) => {
+      const gameState = { setup: `setup-${index}`, evidence: `state ${index} `.repeat(500) };
+      const stateStages = [{ label: 'before', evidence: `stage ${index} `.repeat(500) }];
+      return {
+        ruleAtomId: `atom-${index}`,
+        gameState,
+        stateStages,
+        sourceRefs: candidate.sourceRefs,
+        cockpit: {
+          gameState,
+          stateStages,
+          assetCandidates: [candidate],
+          sourceReferences: candidate.sourceRefs,
+          reviewReason: 'Verify the measured source component.',
+        },
+      };
+    }),
     scenes: Array.from({ length: 8 }, (_, index) => ({ id: `scene-${index}`, atomId: `atom-${index}`, physicalState: { ruleAtomId: `atom-${index}` }, visualPlan: { ruleAtomId: `atom-${index}` }, canonicalVisualPlan: { ruleAtomId: `atom-${index}` } })),
     reviewItems: Array.from({ length: 8 }, (_, index) => ({ id: `review-${index}`, candidates: [candidate] })),
   };
@@ -40,6 +56,10 @@ test('canonical persistence keeps rich candidate evidence once while state remai
   expect(hydrated.assets[0]).toEqual(full.assets[0]);
   expect(hydrated.reviewItems[0].candidates[0]).toEqual(full.reviewItems[0].candidates[0]);
   expect(hydrated.sourceSelections[0].selectedAssets[0]).toEqual(full.assets[0]);
+  expect(hydrated.visualPlans).toEqual(full.visualPlans);
+  expect(result.compact.visualPlans[0].cockpit.gameState).toBeUndefined();
+  expect(result.compact.visualPlans[0].cockpitDerivation.assetCandidateEvidenceRefs[0])
+    .toEqual(expect.objectContaining({ candidateEvidenceRef: expect.any(String) }));
 });
 
 test('sidecar checksum and measured size are strict', () => {

@@ -7,9 +7,12 @@
 // stable references in the canonical state/API payload.
 
 const { createHash } = require('node:crypto');
+const { isDeepStrictEqual } = require('node:util');
 
-const CANONICAL_STATE_STORAGE_CONTRACT = 'mobius-canonical-production-state-storage-v1';
+const CANONICAL_STATE_STORAGE_CONTRACT = 'mobius-canonical-production-state-storage-v2';
+const LEGACY_CANONICAL_STATE_STORAGE_CONTRACT = 'mobius-canonical-production-state-storage-v1';
 const VISUAL_EVIDENCE_ARTIFACT_CONTRACT = 'mobius-canonical-visual-evidence-artifact-v1';
+const VISUAL_PLAN_COCKPIT_DERIVATION_CONTRACT = 'mobius-visual-plan-cockpit-derivation-v1';
 const CANONICAL_STATE_BUDGET_BYTES = 14 * 1024 * 1024;
 const VISUAL_EVIDENCE_ARTIFACT_BUDGET_BYTES = 128 * 1024 * 1024;
 
@@ -97,18 +100,61 @@ function externalizeReviewItem(item, candidates) {
   };
 }
 
-function compactPlan(plan) {
+function compactPlan(plan, candidateEvidence) {
   if (!plan || typeof plan !== 'object') return plan;
-  const cockpit = plan.cockpit && typeof plan.cockpit === 'object'
-    ? {
-      ...plan.cockpit,
-      // Scores are retained once by the selection sidecar. The review queue
-      // remains the source of operator-facing candidate evidence.
-      assetCandidates: undefined,
-      sourceReferences: undefined,
-    }
-    : plan.cockpit;
-  return { ...plan, cockpit };
+  if (!plan.cockpit || typeof plan.cockpit !== 'object') return plan;
+  const { cockpit, ...planFields } = plan;
+  const { assetCandidates, sourceReferences, ...cockpitFields } = cockpit;
+  const derivedFields = Object.keys(cockpitFields)
+    .filter((key) => Object.hasOwn(planFields, key) && isDeepStrictEqual(cockpitFields[key], planFields[key]));
+  const uniqueCockpit = Object.fromEntries(Object.entries(cockpitFields)
+    .filter(([key]) => !derivedFields.includes(key)));
+  const derivation = {
+    contract: VISUAL_PLAN_COCKPIT_DERIVATION_CONTRACT,
+    derivedFields,
+  };
+  if (assetCandidates !== undefined) {
+    derivation.assetCandidatesDeclared = true;
+    derivation.assetCandidateEvidenceRefs = (assetCandidates || []).map((candidate) => {
+      const key = digest(candidate);
+      candidateEvidence[key] ||= candidate;
+      return { assetId: assetId(candidate), candidateEvidenceRef: key };
+    });
+  }
+  if (sourceReferences !== undefined) {
+    derivation.sourceReferencesDeclared = true;
+    if (isDeepStrictEqual(sourceReferences, planFields.sourceRefs)) derivation.sourceReferencesMirrorPlan = true;
+    else derivation.sourceReferences = sourceReferences;
+  }
+  return {
+    ...planFields,
+    ...(Object.keys(uniqueCockpit).length ? { cockpit: uniqueCockpit } : {}),
+    cockpitDerivation: derivation,
+  };
+}
+
+function hydratePlan(plan, artifact) {
+  if (!plan || typeof plan !== 'object' || !plan.cockpitDerivation) return plan;
+  const { cockpitDerivation, cockpit = {}, ...planFields } = plan;
+  if (cockpitDerivation.contract !== VISUAL_PLAN_COCKPIT_DERIVATION_CONTRACT) {
+    throw failure('Visual Plan Cockpit derivation uses an unsupported contract.');
+  }
+  const derived = Object.fromEntries((cockpitDerivation.derivedFields || [])
+    .filter((key) => Object.hasOwn(planFields, key)).map((key) => [key, planFields[key]]));
+  if (cockpitDerivation.assetCandidatesDeclared) {
+    derived.assetCandidates = (cockpitDerivation.assetCandidateEvidenceRefs || []).map((reference) => {
+      const candidate = artifact?.candidateEvidence?.[reference?.candidateEvidenceRef];
+      if (!candidate || digest(candidate) !== reference.candidateEvidenceRef) {
+        throw failure('Visual Plan Cockpit candidate evidence is missing or corrupt.');
+      }
+      return candidate;
+    });
+  }
+  if (cockpitDerivation.sourceReferencesDeclared) {
+    derived.sourceReferences = cockpitDerivation.sourceReferencesMirrorPlan
+      ? (planFields.sourceRefs || []) : (cockpitDerivation.sourceReferences || []);
+  }
+  return { ...planFields, cockpit: { ...derived, ...cockpit } };
 }
 
 function compactScene(scene) {
@@ -159,6 +205,7 @@ function createCompactCanonicalProductionState(state, {
     return selectionReference(selection, key);
   });
   const compactReviews = (state.reviewItems || []).map((item) => externalizeReviewItem(item, candidateEvidence));
+  const compactPlans = (state.visualPlans || []).map((plan) => compactPlan(plan, candidateEvidence));
   const artifact = {
     contract: VISUAL_EVIDENCE_ARTIFACT_CONTRACT,
     projectId,
@@ -192,7 +239,7 @@ function createCompactCanonicalProductionState(state, {
     assets: (state.assets || []).map(assetSummary),
     selectedAssets: (state.selectedAssets || []).map(assetReference),
     sourceSelections: compactSelections,
-    visualPlans: (state.visualPlans || []).map(compactPlan),
+    visualPlans: compactPlans,
     scenes: (state.scenes || []).map(compactScene),
     reviewItems: compactReviews,
   };
@@ -216,7 +263,7 @@ function hydrateVisualReviewItem(item, artifact) {
 }
 
 function hydrateCanonicalProductionState(state, artifact) {
-  if (!state || state.contract !== CANONICAL_STATE_STORAGE_CONTRACT) return state;
+  if (!state || ![CANONICAL_STATE_STORAGE_CONTRACT, LEGACY_CANONICAL_STATE_STORAGE_CONTRACT].includes(state.contract)) return state;
   validateArtifact(artifact, state.visualEvidenceArtifact);
   const byId = new Map(artifact.assetCatalog.map((asset) => [assetId(asset), asset]));
   const selections = (state.sourceSelections || []).map((reference) => {
@@ -235,13 +282,16 @@ function hydrateCanonicalProductionState(state, artifact) {
     assets: artifact.assetCatalog,
     selectedAssets: (state.selectedAssets || []).map((reference) => byId.get(assetId(reference))).filter(Boolean),
     sourceSelections: selections,
+    visualPlans: (state.visualPlans || []).map((plan) => hydratePlan(plan, artifact)),
     reviewItems,
   };
 }
 
 module.exports = {
   CANONICAL_STATE_STORAGE_CONTRACT,
+  LEGACY_CANONICAL_STATE_STORAGE_CONTRACT,
   VISUAL_EVIDENCE_ARTIFACT_CONTRACT,
+  VISUAL_PLAN_COCKPIT_DERIVATION_CONTRACT,
   CANONICAL_STATE_BUDGET_BYTES,
   VISUAL_EVIDENCE_ARTIFACT_BUDGET_BYTES,
   bytes,
