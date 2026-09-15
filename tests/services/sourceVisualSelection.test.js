@@ -41,6 +41,27 @@ test('source-grounded physical referents receive atomic reuse-ranked discovery s
   expect(discovery.every((scene) => !Object.hasOwn(scene.visualRequirement, 'selectedAssetIds'))).toBe(true);
 });
 
+test('component discovery searches a bounded illustrated setup spread without laundering it into identity evidence', async () => {
+  const { buildComponentDiscoveryScenes, COMPONENT_DISCOVERY_CONTRACT } = await import('../../src/services/sourceVisualSelection.js');
+  const scenes = [
+    { id: 'setup', source_pages: [8], section: 'Setup the board', visualRequirement: {
+      actualGameAssetRequired: true, requiredObjects: ['board'], setupPlacementRequired: true,
+    } },
+    { id: 'later-rule', source_pages: [15], visualRequirement: {
+      actualGameAssetRequired: true, requiredObjects: ['board'], transitionRequired: true,
+    } },
+    { id: 'document-limit', source_pages: [20], visualRequirement: { actualGameAssetRequired: false, requiredObjects: [] } },
+  ];
+  const [discovery] = buildComponentDiscoveryScenes({ scenes, componentTerms: {
+    board: { status: 'GROUNDED', category: 'board', evidence: [{ page: 3, quote: '1 board' }] },
+  } });
+  expect(COMPONENT_DISCOVERY_CONTRACT).toBe('mobius-source-component-discovery-v2');
+  expect(discovery.source_pages).toEqual([3]);
+  expect(discovery.sourceRefs).toEqual([{ page: 3, quote: '1 board' }]);
+  expect(discovery.visualSearchPages).toEqual([8, 9, 15]);
+  expect(discovery.visualSearchPages).not.toContain(3);
+});
+
 test('native source authority requires real matching PDF/extraction provenance, not a label', async () => {
   const { nativeManifestProvenance } = await import('../../src/services/hephaestusEvidence.js');
   const file = path.resolve(__dirname, '../../package.json');

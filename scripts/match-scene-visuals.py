@@ -114,6 +114,8 @@ def packet_for(scene, terms):
     # final composition's evidence packet or cache identity.
     rule_source_pages = {page for page in scene.get("source_pages") or [] if isinstance(page, int) and page > 0}
     source_pages = set(rule_source_pages)
+    visual_search_pages = {page for page in scene.get("visualSearchPages") or [] if isinstance(page, int) and page > 0}
+    source_pages.update(visual_search_pages)
     component_evidence_pages = set()
     for referent in referents:
         for evidence in referent.get('evidence') or []:
@@ -124,6 +126,7 @@ def packet_for(scene, terms):
     return {"contract": CONTRACT, "requiredObjects": referents, "requirement": req,
         "sourceRefs": scene.get("sourceRefs") or [], "sourcePages": sorted(source_pages),
         "ruleSourcePages": sorted(rule_source_pages),
+        "visualSearchPages": sorted(visual_search_pages),
         "componentEvidencePages": sorted(component_evidence_pages)}
 
 def component_identity_packet(packet, role, asset=None):
@@ -358,6 +361,7 @@ def candidates_for(packet, assets):
     tokens = set(re.findall(r'[a-z]{3,}', ' '.join(terms).lower())) - {'the', 'and'}
     requested_ids = {row.get('id') for row in packet.get('requiredObjects') or [] if isinstance(row, dict) and row.get('id')}
     component_evidence_pages = {page for page in packet.get('componentEvidencePages') or [] if isinstance(page, int) and page > 0}
+    visual_search_pages = {page for page in packet.get('visualSearchPages') or [] if isinstance(page, int) and page > 0}
     requirement = packet.get('requirement') or {}
     # Stateful source text supplies retrieval vocabulary only. It may rank a
     # page likely to contain a track above an inventory mention, but cannot
@@ -467,6 +471,11 @@ def candidates_for(packet, assets):
         # not merely a coincidental keyword on a later rules page.  Prioritize
         # it for bounded inspection while leaving final identity to pixels.
         score += 12 if m.get('source_page') in component_evidence_pages else 0
+        # A setup/placement page and its bounded spread neighbours are useful
+        # places to look for pixels even when the inventory page is text-only.
+        # This is retrieval priority only; provider inspection must still prove
+        # exact identity, completeness, detail and state compatibility.
+        score += 18 if m.get('source_page') in visual_search_pages else 0
         # A distinct state-term overlap is intentionally stronger than an
         # inventory-page hint. It is evidence-directed retrieval for a
         # stateful teaching requirement, never an acceptance signal.

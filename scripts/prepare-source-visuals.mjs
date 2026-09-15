@@ -62,6 +62,7 @@ function sourceVisualEvidencePages(script = {}) {
   for (const scene of script.scenes || []) {
     if (scene.visualRequirement?.actualGameAssetRequired === false) continue;
     for (const page of scene.source_pages || []) if (Number.isInteger(Number(page)) && Number(page) > 0) requested.add(Number(page));
+    for (const page of scene.visualSearchPages || []) if (Number.isInteger(Number(page)) && Number(page) > 0) requested.add(Number(page));
     for (const referent of scene.visualRequirement?.requiredObjects || []) {
       for (const evidence of script.componentTerms?.[referent]?.evidence || []) {
         if (Number.isInteger(Number(evidence?.page)) && Number(evidence.page) > 0) requested.add(Number(evidence.page));
@@ -125,6 +126,10 @@ async function main() {
       return { ...scene, source_pages: [...pages].sort((a, b) => a - b) };
     }),
   };
+  const componentDiscoveryScenes = buildComponentDiscoveryScenes({
+    scenes: inputScript.scenes || [],
+    componentTerms: inputScript.componentTerms || {},
+  });
   const sourceEvidenceScriptPath = resolve(outputDir, 'source-evidence-visual-script.json');
   await writeFile(sourceEvidenceScriptPath, JSON.stringify(sourceEvidenceScript, null, 2), 'utf8');
 
@@ -164,7 +169,10 @@ async function main() {
         sourcePdfPath: resolvedSourcePdfPath,
         sourceSha256,
         outputDir: resolve(pageDir, 'high-detail-pages'),
-        pages: sourceVisualEvidencePages(sourceEvidenceScript),
+        pages: sourceVisualEvidencePages({
+          ...sourceEvidenceScript,
+          scenes: [...componentDiscoveryScenes, ...(sourceEvidenceScript.scenes || [])],
+        }),
         dpi: 300,
         python,
       })
@@ -232,7 +240,6 @@ async function main() {
     ? JSON.parse(readFileSync(resolve(evidenceFile), 'utf8')).componentBindings || [] : [];
   const scopedScript = resolve(outputDir, 'object-evidence-script.json');
   const sceneObjects = new Set((inputScript.scenes || []).flatMap((scene) => scene.visualRequirement?.requiredObjects || []));
-  const componentDiscoveryScenes = buildComponentDiscoveryScenes({ scenes: sourceEvidenceScript.scenes || [], componentTerms: inputScript.componentTerms || {} });
   await writeFile(scopedScript, JSON.stringify({
     ...sourceEvidenceScript,
     scenes: [...componentDiscoveryScenes, ...(sourceEvidenceScript.scenes || []), ...terms.filter((row) => !sceneObjects.has(row.componentId)).map((row) => ({

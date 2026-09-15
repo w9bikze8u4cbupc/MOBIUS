@@ -146,6 +146,14 @@ does not change the authored storyboard and cannot auto-bind anything by name;
 pixel measurement is the sole identity authority. This reduces duplicate
 inspection while retaining zero-retry provider, ledger and Cockpit behavior.
 
+Component discovery v2 keeps that inventory citation as identity authority but
+also ranks a bounded set of direct setup/placement pages and following spread
+pages as pixel-search hypotheses. This addresses text-only inventories whose
+actual component illustration appears later in the official PDF. Search pages
+remain separately named in the evidence packet: they can schedule inspection
+and high-detail raster reuse, but cannot become a component citation, binding,
+completeness claim or scene-state verdict without measurement of the pixels.
+
 ## Hypothesis versus measurement versus acceptance
 
 - Extracted names, categories, aliases, page proximity and proposed component bindings are search hypotheses, not proof of visible identity. Opaque component IDs remain exact identifiers; `comp-1` and `comp-57` cannot match through the shared word `comp`.

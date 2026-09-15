@@ -352,6 +352,33 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(result[-1]['asset_id'], 'background')
             self.assertTrue(all('objects' not in row for row in result))
 
+    def test_setup_visual_search_pages_rank_candidates_without_becoming_identity_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            inventory, setup = Path(directory) / 'inventory', Path(directory) / 'setup'
+            inventory.write_bytes(b'inventory-pixels')
+            setup.write_bytes(b'setup-pixels')
+            scene = {'id': 'discovery', 'source_pages': [3], 'visualSearchPages': [8, 9],
+                'visualRequirement': {'requiredObjects': ['board'], 'componentDiscovery': True}}
+            packet = matcher.packet_for(scene, {'board': {
+                'canonicalTerm': 'Player board', 'category': 'board',
+                'evidence': [{'page': 3, 'quote': '1 Player board'}]}})
+            result = matcher.candidates_for(packet, [
+                {'asset_id': 'inventory', 'path': str(inventory), 'asset_metadata': {
+                    'source_page': 3, 'visual_kind': 'source-page-localization', 'layout_text': '1 Player board'}},
+                {'asset_id': 'setup', 'path': str(setup), 'asset_metadata': {
+                    'source_page': 9, 'visual_kind': 'source-page-localization', 'layout_text': 'Setup illustration'}},
+            ])
+            self.assertEqual(packet['visualSearchPages'], [8, 9])
+            self.assertEqual([row['asset_id'] for row in result], ['setup', 'inventory'])
+            identity = matcher.component_identity_packet(packet, 'LOCALIZATION', result[0])
+            # Page 9 enters only because these exact pixels came from page 9;
+            # it does not become source-defined component evidence. Page 8 is
+            # merely a neighbouring search hypothesis and remains absent.
+            self.assertNotIn(8, identity['sourcePages'])
+            self.assertEqual(identity['identityEvidence'][0]['componentEvidence'], [
+                {'page': 3, 'quote': '1 Player board', 'excerptHash': None}])
+            self.assertTrue(all('objects' not in row for row in result))
+
     def test_stateful_source_terms_rank_retrieval_but_do_not_prove_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             inventory, state_page = Path(directory) / 'inventory', Path(directory) / 'state'

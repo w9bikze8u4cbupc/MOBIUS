@@ -60,7 +60,7 @@ export function visualProviderRecoveryIdentity(env = process.env) {
   }
 }
 
-export const COMPONENT_DISCOVERY_CONTRACT = 'mobius-source-component-discovery-v1';
+export const COMPONENT_DISCOVERY_CONTRACT = 'mobius-source-component-discovery-v2';
 
 const NON_PHYSICAL_DISCOVERY_CATEGORIES = new Set([
   'action', 'currency', 'effect', 'rule', 'state', 'status', 'value', 'virtual_resource',
@@ -70,6 +70,51 @@ function componentDiscoveryEvidence(term = {}) {
   return (term.evidence || [])
     .filter((row) => Number.isInteger(Number(row?.page)) && Number(row.page) > 0 && String(row?.quote || '').trim())
     .map((row) => ({ page: Number(row.page), quote: String(row.quote).trim() }));
+}
+
+const VISUAL_SEARCH_REQUIREMENT_WEIGHTS = Object.freeze({
+  setupPlacementRequired: 100,
+  layeredStateRequired: 70,
+  trackStateRequired: 60,
+  requiredRelationship: 50,
+  transitionRequired: 40,
+});
+
+function componentVisualSearchPages(id, scenes = []) {
+  const maximumPage = Math.max(0, ...(scenes || []).flatMap((scene) => scene?.source_pages || [])
+    .map(Number).filter((page) => Number.isInteger(page) && page > 0));
+  const ranked = new Map();
+  const illustratedSpreadStarts = new Map();
+  for (const scene of scenes || []) {
+    const requirement = scene?.visualRequirement || {};
+    if (!(requirement.requiredObjects || []).includes(id) || requirement.actualGameAssetRequired === false) continue;
+    const score = Object.entries(VISUAL_SEARCH_REQUIREMENT_WEIGHTS)
+      .reduce((total, [field, weight]) => total + (requirement[field] ? weight : 0), 0)
+      + (/setup|component|placement|board/i.test(String(requirement.purpose || scene?.section || '')) ? 35 : 0);
+    for (const rawPage of scene?.source_pages || []) {
+      const page = Number(rawPage);
+      if (!Number.isInteger(page) || page <= 0) continue;
+      ranked.set(page, Math.max(ranked.get(page) || 0, score));
+      // Illustrated setup spreads frequently follow the text that introduces
+      // them. Reserve one following-page hypothesis after direct evidence
+      // pages have been ranked; otherwise neighbours of one dense rule can
+      // consume the whole bounded search and hide another direct source page.
+      if (score >= VISUAL_SEARCH_REQUIREMENT_WEIGHTS.setupPlacementRequired) {
+        illustratedSpreadStarts.set(page, Math.max(illustratedSpreadStarts.get(page) || 0, score));
+      }
+    }
+  }
+  const direct = [...ranked.entries()]
+    .sort(([leftPage, leftScore], [rightPage, rightScore]) => rightScore - leftScore || leftPage - rightPage)
+    .slice(0, 3)
+    .map(([page]) => page);
+  const followingIllustrations = [...illustratedSpreadStarts.entries()]
+    .sort(([leftPage, leftScore], [rightPage, rightScore]) => rightScore - leftScore || leftPage - rightPage)
+    .map(([page]) => page + 1)
+    .filter((page) => page > 0 && (!maximumPage || page <= maximumPage) && !direct.includes(page))
+    .slice(0, 3);
+  return [...new Set([...direct, ...followingIllustrations])]
+    .sort((left, right) => left - right);
 }
 
 /**
@@ -99,10 +144,12 @@ export function buildComponentDiscoveryScenes({ scenes = [], componentTerms = {}
     // with the teaching scene and never become identity proof by themselves.
     const page = evidence.map((row) => row.page).sort((left, right) => left - right)[0];
     const sourceRefs = evidence.filter((row) => row.page === page);
-    const suffix = crypto.createHash('sha256').update(JSON.stringify([page, id])).digest('hex').slice(0, 12);
+    const visualSearchPages = componentVisualSearchPages(id, scenes).filter((candidate) => candidate !== page);
+    const suffix = crypto.createHash('sha256').update(JSON.stringify([page, id, visualSearchPages])).digest('hex').slice(0, 12);
     discoveries.push({
       id: `source-component-discovery-p${page}-${suffix}`,
       source_pages: [page],
+      visualSearchPages,
       sourceRefs,
       visualRequirement: {
         actualGameAssetRequired: true,
