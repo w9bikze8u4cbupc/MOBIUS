@@ -132,4 +132,14 @@ describe('MOBIUS presentation design system', () => {
       { name: 'body', left: layout.panelX + layout.padding, right: layout.panelX + layout.textWidth, top: layout.bodyY, bottom: layout.bodyY + layout.bodyLines * layout.bodyLineHeightPx },
     ])).toMatchObject({ valid: true, violations: [] });
   });
+
+  test('honors a true-detail image cap instead of forcing a low-detail source to fill half the canvas', () => {
+    const layout = solvePresentationLayout({
+      sceneType: 'teaching', heading: 'Identifier cette carte', body: 'Repérez ce composant.',
+      imageAspect: 375 / 268, maximumImageWidthPx: 468.75, maximumImageHeightPx: 335,
+    });
+    expect(layout.imageWidth).toBeLessThanOrEqual(468);
+    expect(layout.imageHeight).toBeLessThanOrEqual(335);
+    expect(layout.panelX + layout.panelWidth).toBeLessThanOrEqual(layout.imageX);
+  });
 });

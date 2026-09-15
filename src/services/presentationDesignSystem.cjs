@@ -65,6 +65,8 @@ function solvePresentationLayout({
   itemCount = 1,
   contentDensity = null,
   preferredImageProminence = 0.56,
+  maximumImageWidthPx = null,
+  maximumImageHeightPx = null,
   preferredFontPx = null,
   minimumFontPx = null,
   textSide = 'left',
@@ -88,7 +90,9 @@ function solvePresentationLayout({
   for (const panelRatio of panelRatios) for (const imageRatio of imageRatios) {
     const gap = Math.max(Number(PRESENTATION_TOKENS.layout.panelGapPx1080) * scale, Math.round(availableWidth * 0.025));
     const panelWidth = Math.round(availableWidth * panelRatio);
-    const imageWidth = Math.round(availableWidth * imageRatio);
+    const preferredImageWidth = Math.round(availableWidth * imageRatio);
+    const imageWidth = Math.max(1, Math.min(preferredImageWidth,
+      Number(maximumImageWidthPx) > 0 ? Math.floor(Number(maximumImageWidthPx)) : preferredImageWidth));
     const fitsHorizontally = panelWidth + imageWidth + gap <= availableWidth;
     const textWidth = Math.max(100, panelWidth - Math.round(PRESENTATION_TOKENS.layout.panelPaddingPx1080 * scale * 2));
     const bodyFontPx = density === 'heavy'
@@ -113,7 +117,9 @@ function solvePresentationLayout({
     const panelY = Math.round(safeY + Math.max(0, (availableHeight - panelHeight) / 2));
     const panelX = textSide === 'right' ? safeX + imageWidth + gap : safeX;
     const imageX = imageSide === 'left' ? safeX : panelX + panelWidth + gap;
-    const imageHeight = Math.round(Math.min(height * 0.82, imageWidth / Math.max(0.35, Number(imageAspect) || 1)));
+    const preferredImageHeight = Math.min(height * 0.82, imageWidth / Math.max(0.35, Number(imageAspect) || 1));
+    const imageHeight = Math.max(1, Math.round(Math.min(preferredImageHeight,
+      Number(maximumImageHeightPx) > 0 ? Number(maximumImageHeightPx) : preferredImageHeight)));
     const imageY = Math.round((height - imageHeight) / 2);
     const validVertical = panelY >= safeY && panelY + panelHeight <= height - safeY;
     const contentFits = contentHeight + padding * 2 <= panelHeight;
@@ -271,6 +277,8 @@ function teachingSceneLayout(scene, width = 1920, height = 1080) {
     tags: find('tags', 'panel-tags'), reference: find('reference'),
     itemCount: Math.max(1, String(find('body', 'panel-body')).split(/\r?\n/).filter(Boolean).length),
     preferredImageProminence: Number(layout.visualWidthRatio) || 0.56,
+    maximumImageWidthPx: Number(layout.maximumImageWidthPx) || null,
+    maximumImageHeightPx: Number(layout.maximumImageHeightPx) || null,
     imageAspect: Number(layout.visualAspectRatio) || 1,
     preferredFontPx: layout.metadataCard ? 50 : null, minimumFontPx: layout.metadataCard ? 44 : null,
     textSide: layout.textSide === 'right' ? 'right' : 'left', imageSide: layout.imageSide === 'left' ? 'left' : 'right' });

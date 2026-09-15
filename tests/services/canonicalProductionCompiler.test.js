@@ -71,7 +71,7 @@ test('surfaces HEPHAESTUS review bindings in the same actionable Cockpit queue',
       componentBindings: [{ componentId: 'game-board', componentName: 'Game board', category: 'board', assetId: 'weak-board', confidence: 0.55, reviewState: 'needs_review', reviewRequired: true, sourcePage: 2 }],
     },
   });
-  expect(result.visualReferentNormalization.contract).toBe('mobius-visual-referent-normalization-v4');
+  expect(result.visualReferentNormalization.contract).toBe('mobius-visual-referent-normalization-v5');
   expect(result.reviewItems[0]).toMatchObject({
     status: 'needs_visual_review',
     scopeType: 'VISUAL_REQUIREMENT',

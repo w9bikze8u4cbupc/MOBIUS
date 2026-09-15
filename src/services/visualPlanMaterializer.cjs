@@ -508,13 +508,10 @@ function canonicalTeachingPresentation(scene, index = 0, asset = {}) {
   // floor. The layout solver evaluates this preference together with the
   // text panel; it is not a quality verdict and cannot rescue weak evidence.
   const sourceWidth = Number(asset.nativeWidthPx || asset.width || 0);
-  if (sourceWidth > 0) {
-    const availableWidth = 1920 * (1 - (PRESENTATION_TOKENS.layout.safeMargins.x * 2));
-    const maximumDetailSafeRatio = (sourceWidth / .8) / availableWidth;
-    result.layout.visualWidthRatio = Number(Math.max(.5, Math.min(
-      Number(result.layout.visualWidthRatio || .58),
-      maximumDetailSafeRatio - .04,
-    )).toFixed(3));
+  const sourceHeight = Number(asset.nativeHeightPx || asset.height || 0);
+  if (sourceWidth > 0 && sourceHeight > 0) {
+    result.layout.maximumImageWidthPx = Number((sourceWidth / .8).toFixed(3));
+    result.layout.maximumImageHeightPx = Number((sourceHeight / .8).toFixed(3));
   }
   return result;
 }

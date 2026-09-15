@@ -92,6 +92,16 @@ test('canonical resolver auto-accepts only an unambiguous high-confidence candid
   expect(ambiguous.reviewItem.status).toBe('needs_visual_review');
 });
 
+test('strong measured pixels from an authoritative PDF crop can pass without a prior accepted verdict', () => {
+  const candidate = asset('measured-pdf-card', {
+    sourceAuthority: 'HIGH_DPI_PAGE_CROP', reviewState: 'needs_review', width: 800, height: 600,
+  });
+  const resolved = resolveSourceAssets({ atom: { id: 'card' }, requirement: { requiredObjects: ['game board'] },
+    candidates: [candidate], displayBounds: { width: 800, height: 600 } });
+  expect(resolved.status).toBe('AUTO_ACCEPTED');
+  expect(resolved.confidence).toBeGreaterThanOrEqual(0.82);
+});
+
 test('Cockpit retains a deterministic crop-derivation rejection on the candidate it could not derive', () => {
   const atom = { id: 'board-edge', visualRequirement: { requiredObjects: ['game board'] } };
   const selection = resolveSourceAssets({ atom, candidates: [asset('clipped-parent', {
@@ -273,6 +283,65 @@ test('reconciles a HEPHAESTUS hypothesis only when current source pixels prove t
   expect(normalized.unresolvedBindings).toHaveLength(0);
   const selection = resolveSourceAssets({ atom: { id: 'board', visualRequirement: { requiredObjects: ['component-board'] } }, candidates: normalized.assets });
   expect(selection.status).toBe('AUTO_ACCEPTED');
+});
+
+test('reconciles exact component pixels from a different asset without granting scene-state proof', () => {
+  const verdict = proof('verified-different-asset', existingFile, 'component-board', {
+    contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT',
+  });
+  const normalized = normalizeVisualReferents({
+    sourceAssets: [
+      asset('coarse-overview', { objectVisualEvidence: [], cropCompleteness: 'unknown', cropPurity: 'unknown' }),
+      asset('verified-different-asset', { objectVisualEvidence: [verdict] }),
+    ],
+    componentEvidence: {
+      assets: [{ id: 'coarse-overview', sourceImage: existingFile, pageNumber: 2 }],
+      componentBindings: [{ componentId: 'component-board', componentName: 'Board', assetId: 'coarse-overview',
+        confidence: 0.51, reviewState: 'needs_review', reviewRequired: true }],
+    },
+  });
+  expect(normalized.pixelVerifiedBindings).toEqual([expect.objectContaining({
+    componentId: 'component-board', assetId: 'verified-different-asset', hypothesisAssetId: 'coarse-overview',
+    reconciliation: 'pixel-verified-component-identity-supersedes-coarse-asset-hypothesis',
+  })]);
+  expect(normalized.unresolvedBindings).toHaveLength(0);
+  const verified = normalized.assets.find((candidate) => candidate.id === 'verified-different-asset');
+  expect(resolveSourceAssets({ atom: { id: 'static' }, requirement: { requiredObjects: ['component-board'] }, candidates: [verified] }).status)
+    .toBe('AUTO_ACCEPTED');
+  expect(resolveSourceAssets({ atom: { id: 'stateful' }, requirement: { requiredObjects: ['component-board'], transitionRequired: true,
+    beforeState: 'before', actionState: 'action', afterState: 'after', evidenceSceneId: 'knowledge-stateful' }, candidates: [verified] }).status)
+    .toBe('UNRESOLVED');
+});
+
+test('weak or incomplete evidence on a different asset does not resolve a HEPHAESTUS binding', () => {
+  const verdict = proof('weak-different-asset', existingFile, 'component-board', {
+    contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT', confidence: 0.8, complete: false,
+  });
+  const normalized = normalizeVisualReferents({
+    sourceAssets: [asset('weak-different-asset', { objectVisualEvidence: [verdict] })],
+    componentEvidence: { componentBindings: [{ componentId: 'component-board', componentName: 'Board', assetId: 'coarse-overview',
+      confidence: 0.51, reviewState: 'needs_review', reviewRequired: true }] },
+  });
+  expect(normalized.pixelVerifiedBindings).toHaveLength(0);
+  expect(normalized.unresolvedBindings).toHaveLength(1);
+});
+
+test('equivalent variants from one measured proof do not create a false ranking ambiguity', () => {
+  const original = asset('board-original');
+  const originalProof = original.objectVisualEvidence[0];
+  const parentEvidenceHash = require('node:crypto').createHash('sha256').update(JSON.stringify(originalProof)).digest('hex');
+  const derived = asset('board-derived', {
+    objectVisualEvidence: [{ ...originalProof, assetId: 'board-derived' }],
+    provenance: { evidenceBoundCrop: { componentEvidenceHash: parentEvidenceHash } },
+  });
+  const result = resolveSourceAssets({ atom: { id: 'board' }, requirement: { requiredObjects: ['game board'] },
+    candidates: [original, derived], displayBounds: { width: 900, height: 600 } });
+  expect(result.status).toBe('AUTO_ACCEPTED');
+  expect(result.candidateEquivalenceGroups).toEqual([expect.objectContaining({ assetIds: ['board-derived', 'board-original'] })]);
+  const distinct = resolveSourceAssets({ atom: { id: 'board' }, requirement: { requiredObjects: ['game board'] },
+    candidates: [asset('board-a'), asset('board-b')], displayBounds: { width: 900, height: 600 } });
+  expect(distinct.status).toBe('REVIEW_REQUIRED');
+  expect(distinct.candidateEquivalenceGroups).toHaveLength(2);
 });
 
 test('rejects an otherwise detailed candidate when its explicit physical state disagrees', () => {

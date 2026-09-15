@@ -11,8 +11,8 @@ const { verifiedInstructionalSequence } = require('./physicalGameState.cjs');
 const { DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT } = require('./objectAwareCrop.cjs');
 const { componentTrust } = require('./ruleVisualReferentRecovery.cjs');
 
-const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v6';
-const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v4';
+const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v7';
+const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v5';
 const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v2';
 // This version is also a dependency of the orchestration checkpoint.  Keep it
 // exported so a recovery implementation change cannot be silently hidden by a
@@ -20,11 +20,23 @@ const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v2';
 const OFFICIAL_PUBLISHER_SOURCE_RECOVERY_CONTRACT = 'mobius-official-publisher-source-recovery-v3';
 const AUTO_ACCEPT_CONFIDENCE = 0.82;
 const AUTO_ACCEPT_MARGIN = 0.08;
+const fileShaCache = new Map();
 
 const clean = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
 const normalizedTokens = (values) => new Set((Array.isArray(values) ? values : [values])
   .flatMap((value) => clean(value).toLocaleLowerCase('fr-CA').normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/))
   .filter((token) => token.length >= 3));
+
+function sha256File(filePath) {
+  const absolute = path.resolve(filePath);
+  const stat = fs.statSync(absolute);
+  const signature = `${stat.size}:${stat.mtimeMs}`;
+  const cached = fileShaCache.get(absolute);
+  if (cached?.signature === signature) return cached.sha256;
+  const sha256 = crypto.createHash('sha256').update(fs.readFileSync(absolute)).digest('hex');
+  fileShaCache.set(absolute, { signature, sha256 });
+  return sha256;
+}
 
 function assetPath(asset = {}) {
   return asset.displayPath || asset.renderPath || asset.filePath || asset.file_path || asset.path || asset.localPath || asset.sourceImage || null;
@@ -35,7 +47,7 @@ function normalizeAuthority(asset = {}) {
   const region=asset.provenance?.sourceRegion;
   if(region?.method==='pymupdf-native-raster-cluster' && region.sourcePdfSha256===asset.sourcePdfSha256
     && region.nativeRasterContributors?.length && assetPath(asset) && fs.existsSync(assetPath(asset))
-    && crypto.createHash('sha256').update(fs.readFileSync(assetPath(asset))).digest('hex')===region.sha256)return 'NATIVE_EMBEDDED';
+    && sha256File(assetPath(asset))===region.sha256)return 'NATIVE_EMBEDDED';
   if (/PUBLISHER|PRESS/.test(raw)) return 'OFFICIAL_PUBLISHER_HIGH_RES';
   if (/AUTHORIZED_EXACT_EDITION|OFFICIAL_HIGH_RES/.test(raw)) return 'AUTHORIZED_EXACT_EDITION_HIGH_RES';
   if (/BGG/.test(raw)) return 'OFFICIAL_BGG_ASSET';
@@ -195,11 +207,40 @@ function normalizeVisualReferents({ componentEvidence = {}, sourceAssets = [], c
         && !pixelVerifiedComponentRefs.includes(binding.componentId)),
     });
   });
-  const pixelVerifiedBindings = componentBindings.filter((binding) => assets.some((asset) => asset.id === binding.assetId
-    && (asset.pixelVerifiedComponentRefs || []).includes(binding.componentId))).map((binding) => ({
-    ...binding,
-    reconciliation: 'pixel-verified-component-identity',
-  }));
+  // The extraction binding records where HEPHAESTUS first hypothesized a
+  // component. Pixel analysis may subsequently prove that same canonical
+  // component in a different native, publisher, or source-faithful derived
+  // asset. Reconcile by source-grounded component identity, not by preserving
+  // the coarse hypothesis' asset id. The new asset/provenance supersedes only
+  // the binding hypothesis; it does not establish any scene-specific state.
+  const pixelVerifiedBindings = [];
+  const seenVerifiedBindings = new Set();
+  for (const binding of componentBindings) {
+    for (const asset of assets.filter((candidate) => (candidate.pixelVerifiedComponentRefs || []).includes(binding.componentId))) {
+      const key = `${binding.componentId}:${asset.id}`;
+      if (seenVerifiedBindings.has(key)) continue;
+      seenVerifiedBindings.add(key);
+      pixelVerifiedBindings.push({
+        ...binding,
+        assetId: asset.id,
+        hypothesisAssetId: binding.assetId || null,
+        reviewState: 'accepted',
+        reviewRequired: false,
+        confidence: Math.max(Number(binding.confidence || 0), ...asset.objectVisualEvidence
+          .filter((row) => row.requiredObject === binding.componentId)
+          .map((row) => Number(row.confidence || 0))),
+        reconciliation: binding.assetId === asset.id
+          ? 'pixel-verified-component-identity'
+          : 'pixel-verified-component-identity-supersedes-coarse-asset-hypothesis',
+        provenance: {
+          coarseBindingAssetId: binding.assetId || null,
+          verifiedAssetId: asset.id,
+          verifiedAssetSourceRefs: asset.sourceRefs || [],
+          verifiedAssetProvenance: asset.provenance || null,
+        },
+      });
+    }
+  }
   return {
     contract: VISUAL_REFERENT_NORMALIZATION_CONTRACT,
     assets,
@@ -210,7 +251,7 @@ function normalizeVisualReferents({ componentEvidence = {}, sourceAssets = [], c
         rejectionReason: 'Source extraction row is not a canonical physical-component identity.' })),
     unresolvedBindings: componentBindings.filter((binding) => binding.componentTrust.state !== 'REJECTED_EXTRACTION_FRAGMENT')
       .filter((binding) => (binding.reviewState === 'needs_review' || binding.reviewRequired === true)
-      && !pixelVerifiedBindings.some((resolved) => resolved.assetId === binding.assetId && resolved.componentId === binding.componentId)),
+      && !pixelVerifiedBindings.some((resolved) => resolved.componentId === binding.componentId)),
   };
 }
 
@@ -245,7 +286,7 @@ function validEvidenceBoundCrop(row, candidate, childSha) {
     || lineage.transform !== 'exact-parent-pixel-crop-v1' || recorded.transform !== lineage.transform) return false;
   const parentPath = candidate.provenance?.parentPath;
   if (!parentPath || !fs.existsSync(parentPath)
-    || crypto.createHash('sha256').update(fs.readFileSync(parentPath)).digest('hex') !== lineage.parentImageSha256) return false;
+    || sha256File(parentPath) !== lineage.parentImageSha256) return false;
   const parentPdf = candidate.provenance?.sourcePdfSha256 || candidate.sourcePdfSha256 || null;
   if ((lineage.sourcePdfSha256 || null) !== (parentPdf || null)
     || (recorded.sourcePdfSha256 || null) !== (parentPdf || null)) return false;
@@ -262,7 +303,7 @@ function objectEvidenceFor(candidate, referent, sceneId = null, { allowReusableI
     || row.contract === DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT)
     && row.requiredObject === referent && row.assetId === candidate.id);
   if (!rows.length || !candidate.filePath || !fs.existsSync(candidate.filePath)) return null;
-  const sha = crypto.createHash('sha256').update(fs.readFileSync(candidate.filePath)).digest('hex');
+  const sha = sha256File(candidate.filePath);
   const valid = rows.filter((row) => row.imageSha256 === sha && row.evidencePacketHash && row.model && row.reason
     && (row.method === 'provider-pixel-analysis' || validEvidenceBoundCrop(row, candidate, sha)));
   const scoped = valid.find((row) => !sceneId || row.sceneId === sceneId);
@@ -293,7 +334,12 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
   let actualDisplayBounds = displayBounds;
   if (displayBounds?.presentationScene) {
     const s = displayBounds.presentationScene;
-    const layout = teachingSceneLayout({ ...s, layout: { ...s.layout, visualAspectRatio: candidate.width / candidate.height || 1 } }, displayBounds.width, displayBounds.height);
+    const layout = teachingSceneLayout({ ...s, layout: {
+      ...s.layout,
+      visualAspectRatio: candidate.width / candidate.height || 1,
+      maximumImageWidthPx: Number(candidate.nativeWidthPx || candidate.width || 0) / 0.8,
+      maximumImageHeightPx: Number(candidate.nativeHeightPx || candidate.height || 0) / 0.8,
+    } }, displayBounds.width, displayBounds.height);
     actualDisplayBounds = containedDisplayBounds(candidate, { width: layout.imageWidth, height: layout.imageHeight });
   }
   if(sequence)actualDisplayBounds=sequence.frames[0].actualDisplayBounds;
@@ -364,8 +410,12 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
     else if (String(actual).toUpperCase() !== String(expected).toUpperCase()) hardViolations.push(`physical-state-mismatch:${key}`);
   }
   if (invalid) hardViolations.push('invalidated-asset');
+  const measuredEvidenceBonus = proofs.length && proofs.every(Boolean)
+    ? Math.min(0.06, Math.min(...proofs.map((proof) => Number(proof.confidence || 0))) * 0.06)
+    : 0;
   const confidence = Math.max(0, Math.min(1,
-    semantic * 0.38 + authority * 0.24 + detail * 0.18 + (complete ? 0.08 : 0) + (pure ? 0.06 : 0) + (accepted ? 0.06 : 0)));
+    semantic * 0.38 + authority * 0.24 + detail * 0.18 + (complete ? 0.08 : 0) + (pure ? 0.06 : 0)
+      + Math.max(accepted ? 0.06 : 0, measuredEvidenceBonus)));
   return {
     candidate,
     confidence: Number(confidence.toFixed(4)),
@@ -452,13 +502,48 @@ function rankSourceAssetCandidates({ requirement = {}, candidates = [], displayB
   });
 }
 
+function candidateEquivalenceKey(entry, requirement = {}) {
+  const referents = requirement.requiredObjects || [];
+  const proofKeys = referents.map((referent) => {
+    const proof = objectEvidenceFor(entry.candidate, referent, requirement.evidenceSceneId, {
+      allowReusableIdentity: !requiresSceneSpecificEvidence(requirement),
+    });
+    if (!proof) return null;
+    return entry.candidate.provenance?.evidenceBoundCrop?.componentEvidenceHash
+      || proof.derivedFrom?.parentEvidenceHash || hashJson(proof);
+  });
+  if (proofKeys.length && proofKeys.every(Boolean)) return `evidence:${hashJson(proofKeys)}`;
+  const exactPixelSha = entry.candidate.contentHash
+    || (entry.candidate.filePath && fs.existsSync(entry.candidate.filePath)
+      ? sha256File(entry.candidate.filePath) : null);
+  return exactPixelSha ? `pixels:${exactPixelSha}` : `asset:${entry.candidate.id}`;
+}
+
+function groupEquivalentCandidates(entries = [], requirement = {}) {
+  const groups = new Map();
+  for (const entry of entries) {
+    const key = candidateEquivalenceKey(entry, requirement);
+    const group = groups.get(key) || { key, representative: entry, entries: [] };
+    group.entries.push(entry);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
 function resolveSourceAssets({ atom, requirement = atom?.visualRequirement || {}, candidates = [], displayBounds, minimumAssets = 1 } = {}) {
   const ranked = rankSourceAssetCandidates({ requirement, candidates, displayBounds });
   const valid = ranked.filter((entry) => entry.valid);
-  const selected = valid.slice(0, Math.max(1, minimumAssets));
+  // A native candidate and a deterministic crop carrying the exact same
+  // measured component proof are presentation variants, not independent
+  // semantic choices. Compare confidence margins between distinct evidence
+  // groups while retaining every variant for Cockpit/provenance.
+  const equivalentGroups = groupEquivalentCandidates(valid, requirement);
+  const selectedGroups = equivalentGroups.slice(0, Math.max(1, minimumAssets));
+  const selected = selectedGroups.map((group) => group.representative);
   const best = selected[0];
-  const margin = best ? best.confidence - Number(valid[selected.length]?.confidence || 0) : 0;
-  const autoAccept = Boolean(best && best.confidence >= AUTO_ACCEPT_CONFIDENCE && (valid.length <= selected.length || margin >= AUTO_ACCEPT_MARGIN));
+  const margin = best ? best.confidence - Number(equivalentGroups[selectedGroups.length]?.representative?.confidence || 0) : 0;
+  const autoAccept = Boolean(best && best.confidence >= AUTO_ACCEPT_CONFIDENCE
+    && (equivalentGroups.length <= selectedGroups.length || margin >= AUTO_ACCEPT_MARGIN));
   const reason = !best ? 'no-candidate-passed-source-semantic-detail-and-crop-gates'
     : !autoAccept ? 'candidate-requires-operator-review-due-to-confidence-or-ranking-margin'
       : 'source-authority-detail-and-semantic-thresholds-passed';
@@ -486,6 +571,11 @@ function resolveSourceAssets({ atom, requirement = atom?.visualRequirement || {}
       trueSourcePixelsPerDisplayPixel: entry.trueSourcePixelsPerDisplayPixel,
       valid: entry.valid,
       violations: entry.hardViolations,
+    })),
+    candidateEquivalenceGroups: equivalentGroups.map((group) => ({
+      key: group.key,
+      representativeAssetId: group.representative.candidate.id,
+      assetIds: group.entries.map((entry) => entry.candidate.id),
     })),
     confidence: best?.confidence || 0,
     reviewState: autoAccept ? 'accepted' : 'needs_review',

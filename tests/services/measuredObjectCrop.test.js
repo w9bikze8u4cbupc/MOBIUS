@@ -64,6 +64,20 @@ test('evidence-bound crop preserves a complete measured parent only with exact p
   expect(objectEvidenceFor(tampered, 'component', 'scene')).toBeNull();
 });
 
+test('evidence-bound crop preserves true source detail instead of derivative canvas dimensions', async () => {
+  const crop = await deriveEvidenceBoundObjectCrop({
+    parentAsset: { id: 'measured-parent', filePath: sourcePath, source_page: 3, sourcePdfSha256: 'a'.repeat(64),
+      sourceAuthority: 'NATIVE_EMBEDDED', original_dimensions: { width: 50, height: 50 }, dimensions: { width: 100, height: 100 } },
+    componentEvidence: measuredEvidence(), outputDir,
+  });
+  const rendered = await sharp(crop.file_path).metadata();
+  expect(crop.dimensions).toEqual({ width: rendered.width, height: rendered.height });
+  expect(crop.trueDetailDimensions.width).toBeCloseTo(rendered.width / 2, 3);
+  expect(crop.trueDetailDimensions.height).toBeCloseTo(rendered.height / 2, 3);
+  expect(crop.original_dimensions).toEqual(crop.trueDetailDimensions);
+  expect(crop.provenance.derivativeSourceDimensions).toEqual({ width: 100, height: 100 });
+});
+
 test('evidence-bound crop refuses an incomplete parent instead of manufacturing proof', async () => {
   await expect(deriveEvidenceBoundObjectCrop({
     parentAsset: { id: 'measured-parent', filePath: sourcePath, source_page: 3 },

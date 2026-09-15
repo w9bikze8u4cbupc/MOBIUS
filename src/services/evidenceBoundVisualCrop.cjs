@@ -76,6 +76,7 @@ async function appendEvidenceBoundCrops({ semantic = {}, visualManifestPath, out
   const manifest = JSON.parse(fs.readFileSync(visualManifestPath, 'utf8'));
   const parents = new Map((manifest.images || []).map((asset) => [asset.id, asset]));
   const output = new Map((manifest.images || []).map((asset) => [asset.id, asset]));
+  let changed = false;
   const requests = new Map();
   for (const scene of semantic.scenes || []) {
     for (const candidate of scene.candidates || []) {
@@ -111,23 +112,27 @@ async function appendEvidenceBoundCrops({ semantic = {}, visualManifestPath, out
       // safely representable as a candidate-level Cockpit diagnostic.
       if (!failure) throw error;
       const existing = output.get(parent.id) || parent;
-      output.set(parent.id, {
+      const updated = {
         ...existing,
         objectAnalysisAttempts: mergeDerivationFailures([
           ...(existing.objectAnalysisAttempts || []),
           cropDerivationFailure({ parent, componentEvidence, scene, failure }),
         ]),
-      });
+      };
+      if (JSON.stringify(updated) !== JSON.stringify(existing)) changed = true;
+      output.set(parent.id, updated);
       continue;
     }
     const existing = output.get(crop.id) || {};
-    output.set(crop.id, {
+    const updated = {
       ...existing,
       ...crop,
       objectVisualEvidence: mergeEvidence([...(existing.objectVisualEvidence || []), ...(crop.objectVisualEvidence || [])]),
-    });
+    };
+    if (JSON.stringify(updated) !== JSON.stringify(existing)) changed = true;
+    output.set(crop.id, updated);
   }
-  if (output.size === (manifest.images || []).length) return visualManifestPath;
+  if (!changed && output.size === (manifest.images || []).length) return visualManifestPath;
   const target = path.resolve(outputDir, 'source-visual-manifest.json');
   fs.writeFileSync(target, `${JSON.stringify({ ...manifest, images: [...output.values()] }, null, 2)}\n`, 'utf8');
   return target;

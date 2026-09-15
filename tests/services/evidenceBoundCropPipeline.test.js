@@ -37,6 +37,23 @@ test('normal source-visual preparation reconnects measured parent evidence to a 
   expect(fs.existsSync(child.file_path)).toBe(true);
 });
 
+test('replay supersedes stale derived evidence even when the asset count and deterministic child id are unchanged', async () => {
+  const manifestPath = path.join(outputDir, 'manifest.json');
+  fs.writeFileSync(manifestPath, JSON.stringify({ images: [{
+    id: 'parent', file_path: sourcePath, source_page: 3, sourcePdfSha256: 'a'.repeat(64), sourceAuthority: 'NATIVE_EMBEDDED',
+  }] }));
+  const semantic = { scenes: [{ scene_id: 'scene', candidates: [{ asset_id: 'parent', status: 'MEASURED', objects: [proof()] }] }] };
+  const { appendEvidenceBoundCrops } = require('../../src/services/evidenceBoundVisualCrop.cjs');
+  const firstPath = await appendEvidenceBoundCrops({ semantic, visualManifestPath: manifestPath, outputDir });
+  const stale = JSON.parse(fs.readFileSync(firstPath, 'utf8'));
+  const child = stale.images.find((asset) => asset.id !== 'parent');
+  child.objectVisualEvidence = child.objectVisualEvidence.map((row) => ({ ...row, contract: 'mobius-derived-object-visual-evidence-v1' }));
+  fs.writeFileSync(firstPath, JSON.stringify(stale));
+  const replayPath = await appendEvidenceBoundCrops({ semantic, visualManifestPath: firstPath, outputDir });
+  const replayed = JSON.parse(fs.readFileSync(replayPath, 'utf8')).images.find((asset) => asset.id === child.id);
+  expect(replayed.objectVisualEvidence.some((row) => row.contract === 'mobius-derived-object-visual-evidence-v2')).toBe(true);
+});
+
 test('a measured object clipped by its parent is retained as an actionable derivation rejection without aborting other crops', async () => {
   const manifestPath = path.join(outputDir, 'manifest.json');
   fs.writeFileSync(manifestPath, JSON.stringify({ images: [{

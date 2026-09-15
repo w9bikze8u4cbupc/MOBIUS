@@ -172,7 +172,7 @@ async function auditRasterIsolation(filePath, {
   };
 }
 
-const DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-derived-object-visual-evidence-v1';
+const DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-derived-object-visual-evidence-v2';
 
 function digestJson(value) {
   return require('node:crypto').createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -228,7 +228,7 @@ function derivedEvidence({ parentEvidence, crop, parentWidth, parentHeight, pare
 }
 
 /** Source-faithful derivative of measured bounds. Geometry is NOT pixel validation. */
-async function materializeMeasuredObjectCrop({ sourcePath, sourceId, sourceSha256, sourcePage, sourcePdfSha256, sourcePdfPath, objectId, bbox, outputDir, recoveryMode = 'page-region' }) {
+async function materializeMeasuredObjectCrop({ sourcePath, sourceId, sourceSha256, sourcePage, sourcePdfSha256, sourcePdfPath, objectId, bbox, outputDir, recoveryMode = 'page-region', sourceTrueDetailDimensions = null }) {
   const fs = require('node:fs');
   const path = require('node:path');
   const crypto = require('node:crypto');
@@ -242,6 +242,12 @@ async function materializeMeasuredObjectCrop({ sourcePath, sourceId, sourceSha25
   const geometry = compileObjectAwareCrop({ sourceWidth: m.width, sourceHeight: m.height,
     intendedObjects: [{ id: objectId, bounds }], paddingPx: Math.max(8, Math.ceil(Math.max(bounds.width, bounds.height) * .04)) });
   const box = geometry.paddedCropBox;
+  const sourceTrueWidth = Number(sourceTrueDetailDimensions?.width || m.width);
+  const sourceTrueHeight = Number(sourceTrueDetailDimensions?.height || m.height);
+  const trueDetailDimensions = {
+    width: Number((box.width * sourceTrueWidth / m.width).toFixed(3)),
+    height: Number((box.height * sourceTrueHeight / m.height).toFixed(3)),
+  };
   if (geometry.violations.length) throw new Error(`Measured localization clipped: ${geometry.violations.join(',')}`);
   if (sourcePdfPath && recoveryMode !== 'parent-pixels') {
     if (hash(fs.readFileSync(sourcePdfPath)) !== sourcePdfSha256) throw new Error('Source PDF identity mismatch');
@@ -273,10 +279,11 @@ async function materializeMeasuredObjectCrop({ sourcePath, sourceId, sourceSha25
   return { id, file_path: file, source_page: sourcePage, page_index: sourcePage - 1,
     sourceAuthority: 'HIGH_DPI_PAGE_CROP', type: 'focused-crop', visual_kind: 'localized-object-crop',
     sourcePdfSha256, contentHash: hash(pixels), dimensions: { width: box.width, height: box.height },
-    original_dimensions: { width: box.width, height: box.height },
+    original_dimensions: trueDetailDimensions, trueDetailDimensions,
     cropCompleteness: 'unknown', cropPurity: 'unknown', is_component: null,
     provenance: { sourcePdfSha256, sourcePage, parentAssetId: sourceId, parentPath: sourcePath,
       parentSha256: sourceSha256, bbox: box, measuredObjectId: objectId, localizationGeometry: geometry,
+      derivativeSourceDimensions: { width: m.width, height: m.height }, sourceTrueDetailDimensions,
       extraction: 'measured-object-crop-no-resampling', requiresPixelVerification: true } };
 }
 
@@ -307,6 +314,9 @@ async function deriveEvidenceBoundObjectCrop({ parentAsset = {}, componentEviden
     objectId: componentEvidence.requiredObject,
     bbox: componentEvidence.bbox,
     outputDir,
+    sourceTrueDetailDimensions: parentAsset.trueDetailDimensions || parentAsset.original_dimensions
+      || (parentAsset.nativeWidthPx && parentAsset.nativeHeightPx
+        ? { width: parentAsset.nativeWidthPx, height: parentAsset.nativeHeightPx } : null),
     // This exact subset is the only form whose parent proof can be carried.
     recoveryMode: 'parent-pixels',
   });
