@@ -120,7 +120,7 @@ function compileCanonicalProductionState({
   physicalStates=atoms.map((atom,index)=>{
     const selected=sourceSelections[index].selectedAssets?.[0];
     const sequence=selected&&verifiedInstructionalSequence(selected,atom.visualRequirement,`knowledge-${atom.id}`);
-    if(!sequence)return physicalStates[index];
+    if(!sequence || !sequence.trackEvidence)return physicalStates[index];
     return normalizePhysicalGameState({ruleAtomId:atom.id,transitionType:'BEFORE_ACTION_AFTER',
       stages:sequence.frames.map(f=>({id:f.id,label:f.stage.label,sourceRefs:atom.sourceRefs,
         items:[{id:atom.visualRequirement.requiredObjects[0],componentRef:atom.visualRequirement.requiredObjects[0],

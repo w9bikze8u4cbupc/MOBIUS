@@ -10,6 +10,130 @@ const crypto = require('node:crypto');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const xml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 
+function stateValueLabel(item = {}) {
+  if (item.removed || item.visibility === 'REMOVED') return 'Retiré';
+  if (item.consumed || item.availability === 'CONSUMED') return 'Utilisé';
+  if (item.availability === 'UNAVAILABLE') return 'Indisponible';
+  if (item.faceState === 'FACE_DOWN') return 'Face cachée';
+  if (item.faceState === 'FACE_UP') return 'Face visible';
+  if (item.trackPosition != null) return `Position ${item.trackPosition}`;
+  if (item.quantity != null) return `Quantité ${item.quantity}`;
+  return 'En jeu';
+}
+
+function stageStateSignature(stage = {}, referents = []) {
+  return JSON.stringify(referents.map((referent) => {
+    const item = (stage.items || []).find((entry) => entry.componentRef === referent || entry.id === referent) || {};
+    return [referent, item.location || null, item.orientation || null, item.faceState || null,
+      item.visibility || null, item.quantity ?? null, item.trackPosition ?? null,
+      item.availability || null, Boolean(item.consumed), Boolean(item.removed),
+      item.coveredBy || [], item.covers || []];
+  }));
+}
+
+function sourceMeasuredComponentCandidate({ scene, referent, assets = [] } = {}) {
+  const { objectEvidenceFor, evaluateCandidate } = require('./sourceAssetResolver.cjs');
+  const requirement = { actualGameAssetRequired: true, requiredObjects: [referent], evidenceSceneId: scene.id };
+  const candidates = assets.map((asset) => {
+    const component = objectEvidenceFor(asset, referent, scene.id, { allowReusableIdentity: true });
+    if (!(component?.present && component.complete && component.isolated && component.stateCompatible
+      && Number(component.confidence) >= .9) || !sourceFile(asset) || !fs.existsSync(sourceFile(asset))) return null;
+    const measured = evaluateCandidate(asset, requirement, { width: 900, height: 700 });
+    return measured.valid ? { asset, component, measured } : null;
+  }).filter(Boolean);
+  return candidates.sort((left, right) => right.measured.confidence - left.measured.confidence
+    || right.measured.trueSourcePixelsPerDisplayPixel - left.measured.trueSourcePixelsPerDisplayPixel
+    || String(left.asset.id).localeCompare(String(right.asset.id)))[0] || null;
+}
+
+async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index, total, selected, outputDir } = {}) {
+  const frameWidth = 1920, frameHeight = 1080;
+  const cells = gridCells(selected.length, 1660, 500, 0).map((cell) => ({ ...cell, x: cell.x + 130, y: cell.y + 330 }));
+  const primary = sourceFile(selected[0].asset);
+  const backdrop = await sharp(primary).resize(frameWidth, frameHeight, { fit: 'cover' }).blur(40)
+    .modulate({ brightness: .19, saturation: .5 }).png().toBuffer();
+  const layers = [{ input: backdrop, left: 0, top: 0 }];
+  const states = [];
+  let minimumSourcePixelsPerDisplayPixel = Infinity;
+  for (const [position, entry] of selected.entries()) {
+    const cell = cells[position];
+    const item = (stage.items || []).find((value) => value.componentRef === entry.referent || value.id === entry.referent);
+    if (!item) return null;
+    const metadata = await sharp(sourceFile(entry.asset)).metadata();
+    const sourceWidth = Number(entry.asset.nativeWidthPx || metadata.width || 0);
+    const sourceHeight = Number(entry.asset.nativeHeightPx || metadata.height || 0);
+    if (!sourceWidth || !sourceHeight) return null;
+    const scale = Math.min(cell.width / sourceWidth, cell.height / sourceHeight, 1.15);
+    const width = Math.max(1, Math.floor(sourceWidth * scale));
+    const height = Math.max(1, Math.floor(sourceHeight * scale));
+    const sourcePixelsPerDisplayPixel = Math.min(sourceWidth / width, sourceHeight / height);
+    if (sourcePixelsPerDisplayPixel < .8) return null;
+    minimumSourcePixelsPerDisplayPixel = Math.min(minimumSourcePixelsPerDisplayPixel, sourcePixelsPerDisplayPixel);
+    const image = await sharp(sourceFile(entry.asset)).resize(width, height, { fit: 'contain' }).png().toBuffer();
+    const left = cell.x + Math.floor((cell.width - width) / 2);
+    const top = cell.y + Math.floor((cell.height - height) / 2);
+    layers.push({ input: image, left, top, opacity: (item.removed || item.visibility === 'REMOVED') ? .28 : 1 });
+    states.push({ referent: entry.referent, assetId: entry.asset.id, label: stateValueLabel(item),
+      left, top, width, height, item });
+  }
+  const labels = states.map((value) => `<rect x="${value.left}" y="${Math.max(270, value.top - 58)}" width="${value.width}" height="44" rx="12" fill="#231811" fill-opacity=".9"/><text x="${value.left + 16}" y="${Math.max(301, value.top - 27)}" fill="#fff3d9" font-family="Arial" font-size="28" font-weight="bold">${xml(value.label)}</text>`).join('');
+  const headline = String(scene.on_screen_text || scene.title || scene.visualRequirement?.purpose || '').split(/\n/)[0].slice(0, 150);
+  const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><rect x="42" y="38" width="1836" height="1004" rx="32" fill="#231811" fill-opacity=".86" stroke="#be9a58" stroke-width="3"/><text x="96" y="112" fill="#fff3d9" font-family="Arial" font-size="46" font-weight="bold">${xml(headline)}</text><text x="96" y="184" fill="#e1c184" font-family="Arial" font-size="38">${xml(stage.label || `Étape ${index + 1}`)}</text>${labels}<text x="96" y="1000" fill="#fff3d9" font-family="Arial" font-size="34">${index + 1} / ${total} · État source du jeu · Livret p. ${xml((scene.source_pages || []).join(', '))}</text></svg>`);
+  layers.splice(1, 0, { input: svg, left: 0, top: 0 });
+  const target = path.resolve(outputDir, `${sequenceId}-state-${index + 1}.png`);
+  const materialized = target.replace(/\.png$/, '.materialized.png');
+  await sharp({ create: { width: frameWidth, height: frameHeight, channels: 4, background: { r: 31, g: 21, b: 16, alpha: 1 } } }).composite(layers).png().toFile(materialized);
+  const configPath = target.replace(/\.png$/, '.render-config.json');
+  const renderScene = { id: `${sequenceId}-state-${index + 1}`, type: 'teaching', durationSec: 1,
+    narrationText: scene.narration, layout: { mode: 'visual-first-full-frame' }, background: { image: materialized }, overlays: [] };
+  await fs.promises.writeFile(configPath, JSON.stringify({ projectId, video: { resolution: { width: frameWidth, height: frameHeight }, fps: 30 }, scenes: [renderScene] }, null, 2));
+  const rendered = spawnSync(process.execPath, [path.resolve(__dirname, '../../scripts/render-storyboard-ffmpeg.mjs'), '--config', configPath, '--out', target, '--still'], { encoding: 'utf8', windowsHide: true });
+  await fs.promises.writeFile(target.replace(/\.png$/, '.render.log'), `${rendered.stdout || ''}${rendered.stderr || ''}`);
+  if (rendered.status !== 0) throw new Error('NORMAL_STATEFUL_STILL_RENDER_FAILED');
+  const phonePath = target.replace(/\.png$/, '.phone.png');
+  await sharp(target).resize(390, 219).png().toFile(phonePath);
+  return { id: `${sequenceId}-state-${index + 1}`, outputPath: target, phonePath, renderConfigPath: configPath,
+    narration: scene.narration, stage, sourcePixelsPerDisplayPixel: minimumSourcePixelsPerDisplayPixel,
+    actualDisplayBounds: { left: 130, top: 330, width: 1660, height: 500 }, preparedOnly: true, validated: false };
+}
+
+/**
+ * Build a reviewable sequence only when every required physical component has
+ * independently measured pixels and the canonical physical state contains a
+ * real, source-cited change. The provider then verifies the FINAL composition.
+ */
+async function materializeStatefulInstructionalFrames({ projectId, scene, assets, outputDir } = {}) {
+  const requirement = scene.visualRequirement || {};
+  const referents = requirement.requiredObjects || [];
+  const state = scene.physicalState || {};
+  if (requirement.trackStateRequired || !referents.length || referents.length > 4
+    || !(requirement.transitionRequired || requirement.setupPlacementRequired || requirement.layeredStateRequired
+      || requirement.oneShotMarkerRequired || requirement.requiredRelationship || requirement.requiredState)) return null;
+  const stages = state.stages || [];
+  if (state.reviewState !== 'accepted' || stages.length < 2 || stages.length > 6
+    || new Set(stages.map((stage) => stageStateSignature(stage, referents))).size < 2) return null;
+  if (stages.some((stage) => !stage.sourceRefs?.length || referents.some((referent) => !(stage.items || []).some((item) => item.componentRef === referent || item.id === referent)))) return null;
+  if (requirement.requiredRelationship && !(state.relationshipAssertions || []).every((entry) => entry.sourceRefs?.length)) return null;
+  const selected = referents.map((referent) => {
+    const candidate = sourceMeasuredComponentCandidate({ scene, referent, assets });
+    return candidate && { ...candidate, referent };
+  });
+  if (selected.some((entry) => !entry)) return null;
+  const sequenceId = String(scene.id).replace(/[^a-z0-9_-]+/gi, '-');
+  await fs.promises.mkdir(outputDir, { recursive: true });
+  const frames = [];
+  for (const [index, stage] of stages.entries()) {
+    const frame = await renderStatefulFrame({ projectId, scene, sequenceId, stage, index, total: stages.length, selected, outputDir });
+    if (!frame) return null;
+    frames.push(frame);
+  }
+  return { contract: 'mobius-source-measured-state-sequence-v1', sceneId: scene.id, ruleAtomId: scene.atomId,
+    assetId: selected[0].asset.id, sourceAssets: selected.map((entry) => ({ assetId: entry.asset.id,
+      sourceImageSha256: sha(fs.readFileSync(sourceFile(entry.asset))), sourcePdfSha256: entry.asset.sourcePdfSha256,
+      componentEvidence: entry.component })), frames, sourceComponentEvidence: selected.map((entry) => entry.component),
+    preparedOnly: true, validated: false };
+}
+
 function trackCandidateQuality({ asset, component, track }) {
   const stages = track.stateStages || [];
   const distinctPositions = new Set(stages.map((stage) => stage.position)).size;
@@ -148,7 +272,7 @@ async function materializeInstructionalStill({ state, sceneId, outputDir, allowR
     reason: 'Normal renderer output requires physical/composition review; production state and decisions unchanged.' };
 }
 
-const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v1';
+const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v2';
 
 function sourceFile(asset = {}) {
   return asset.displayPath || asset.renderPath || asset.filePath || asset.path || asset.sourceImage || null;
@@ -221,6 +345,12 @@ async function materializeVisualPlanFrames({ state, outputDir, width = 1400, hei
       scenes.push({...scene,preparedTrackSequence:trackSequence});
       continue;
     }
+    const statefulSequence=await materializeStatefulInstructionalFrames({projectId:state.projectId,scene,assets:state.assets,outputDir:path.join(absoluteOutput,'state-sequences')});
+    if(statefulSequence){
+      records.push(statefulSequence);
+      scenes.push({...scene,preparedStatefulSequence:statefulSequence});
+      continue;
+    }
     const plan = scene.canonicalVisualPlan || {};
     const assets = (plan.actualGameAssetIds || []).map((id) => byId.get(id)).filter((asset) => {
       const file = sourceFile(asset);
@@ -281,7 +411,7 @@ function attachSequenceReviewEvidence({ assets, records, reviewPaths=[] }) {
    const review=reviewPaths.map(p=>JSON.parse(fs.readFileSync(p))).find(r=>r.scenes?.some(s=>s.scene_id===record.sceneId));
    return review?{...record,review}:null;
  }).filter(Boolean);
- return assets.map(asset=>({...asset,instructionalSequences:[...(asset.instructionalSequences||[]),...reviewed.filter(r=>r.assetId===asset.id)]}));
+ return assets.map(asset=>({...asset,instructionalSequences:[...(asset.instructionalSequences||[]),...reviewed.filter(r=>(r.sourceAssets||[{assetId:r.assetId}]).some(source=>source.assetId===asset.id))]}));
 }
 
 // A production may resume an already-prepared state composition while the
@@ -316,4 +446,4 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
  return {assets:attachSequenceReviewEvidence({assets:state.assets,records:materialized.records,reviewPaths}),reviewPaths};
 }
 
-module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, materializeTrackStateFrames, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill };
+module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, materializeTrackStateFrames, materializeStatefulInstructionalFrames, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill };

@@ -167,9 +167,16 @@ def analysis_priority(scene, object_frequency):
         state_rank = 1
     else:
         state_rank = 2
+    # Before a scene-specific transition can be proved, Autopilot needs a
+    # reusable exact-pixel identity for every physical referent.  Spending a
+    # bounded budget on a rare transition first is often wasteful when one
+    # complete component would unlock several scenes.  Keep single-referent
+    # work ahead of multi-object summaries, then favour the most reusable
+    # referent; track work remains the tie-breaker among equally reusable
+    # candidates because it can establish an entire measured sequence.
     object_rank = 0 if len(required) == 1 else 1
     reuse_rank = -max((object_frequency.get(ident, 0) for ident in required), default=0)
-    return (state_rank, object_rank, reuse_rank, str(scene.get('id') or ''))
+    return (object_rank, reuse_rank, state_rank, str(scene.get('id') or ''))
 
 def prioritize_scenes(scenes):
     """Return analysis order without mutating the authored scene sequence."""

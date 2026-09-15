@@ -19,6 +19,29 @@ test('composition verdict is invalidated by changed phone pixels, state or requi
  fs.rmSync(folder,{recursive:true,force:true});
 });
 
+test('a multi-component source-measured sequence stays bound to every source asset',()=>{
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
+ const {verifiedInstructionalSequence}=require('../../src/services/physicalGameState.cjs');
+ const folder=fs.mkdtempSync(path.join(os.tmpdir(),'mobius-multi-sequence-'));
+ const first=path.join(folder,'first'),second=path.join(folder,'second'),frame=path.join(folder,'frame');
+ fs.writeFileSync(first,'first pixels');fs.writeFileSync(second,'second pixels');fs.writeFileSync(frame,'final pixels');
+ const hash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+ const requirement={requiredObjects:['card','discard'],transitionRequired:true,beforeState:'Cards are held',afterState:'Cards are discarded'};
+ const frames=[1,2].map(n=>({id:`frame-${n}`,stage:{id:`stage-${n}`},outputPath:frame,phonePath:frame,sourcePixelsPerDisplayPixel:1}));
+ const sequence={sceneId:'scene',assetId:'card-asset',sourceAssets:[
+   {assetId:'card-asset',sourceImageSha256:hash(first)},{assetId:'discard-asset',sourceImageSha256:hash(second)}],frames,
+   review:{scenes:[{scene_id:'scene',candidates:[{status:'MEASURED',evidencePacket:{visualRole:'COMPOSITION',responseContract:'normalized-composition-sequence-v2',requirement,
+     sequenceFrames:frames.map(f=>({id:f.id,stage:f.stage,imageSha256:hash(frame),phoneSha256:hash(frame)}))},objects:[
+       {requiredObject:'card',visualRole:'COMPOSITION',method:'provider-pixel-analysis',confidence:.98,present:true,complete:true,isolated:true,stateCompatible:true,purposeSatisfied:true,phoneReadable:true},
+       {requiredObject:'discard',visualRole:'COMPOSITION',method:'provider-pixel-analysis',confidence:.98,present:true,complete:true,isolated:true,stateCompatible:true,purposeSatisfied:true,phoneReadable:true},
+     ]}]}]}};
+ expect(verifiedInstructionalSequence({id:'card-asset',filePath:first,instructionalSequences:[sequence]},requirement,'scene')).toBe(sequence);
+ expect(verifiedInstructionalSequence({id:'discard-asset',filePath:second,instructionalSequences:[sequence]},requirement,'scene')).toBe(sequence);
+ fs.writeFileSync(second,'changed pixels');
+ expect(verifiedInstructionalSequence({id:'discard-asset',filePath:second,instructionalSequences:[sequence]},requirement,'scene')).toBeNull();
+ fs.rmSync(folder,{recursive:true,force:true});
+});
+
 test('derives a reusable consumed one-shot marker transition', () => {
   const state = derivePhysicalGameState({
     id: 'threshold', domain: 'triggered_effect', componentRefs: ['penalty-token'],

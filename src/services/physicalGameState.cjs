@@ -12,13 +12,20 @@ const pixelHash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).
 function verifiedInstructionalSequence(candidate, requirement, sceneId) {
  for(const sequence of candidate.instructionalSequences||[]){
   try {
-   if(sequence.sceneId!==sceneId || sequence.assetId!==candidate.id || sequence.frames?.length<2)continue;
+   // A source-measured sequence may be based on one track or on several
+   // independently verified components.  In both cases, acceptance belongs
+   // to the exact source pixels, ordered rendered frames and full requirement
+   // packet -- never to a filename match or to a reusable component label.
+   const sourceAssets=sequence.sourceAssets?.length?sequence.sourceAssets:
+    (sequence.assetId?[{assetId:sequence.assetId,sourceImageSha256:sequence.frames?.[0]?.sourceImageSha256}]:[]);
+   const sourceAsset=sourceAssets.find(asset=>asset.assetId===candidate.id);
+   if(sequence.sceneId!==sceneId || !sourceAsset || sequence.frames?.length<2)continue;
    const row=sequence.review?.scenes?.find(s=>s.scene_id===sceneId||s.sceneId===sceneId||s.id===sceneId)?.candidates?.find(c=>c.status==='MEASURED');
    const packet=row?.evidencePacket;
    if(!row||packet.visualRole!=='COMPOSITION'||packet.responseContract!=='normalized-composition-sequence-v2')continue;
    const compared={...requirement};delete compared.evidenceSceneId;
    if(JSON.stringify(packet.requirement)!==JSON.stringify(compared))continue;
-   if(sequence.frames[0].sourceImageSha256!==pixelHash(candidate.filePath))continue;
+   if(sourceAsset.sourceImageSha256!==pixelHash(candidate.filePath))continue;
    if(sequence.frames.length!==packet.sequenceFrames?.length)continue;
    if(sequence.frames.some((f,i)=>f.id!==packet.sequenceFrames[i].id
      || JSON.stringify(f.stage)!==JSON.stringify(packet.sequenceFrames[i].stage)

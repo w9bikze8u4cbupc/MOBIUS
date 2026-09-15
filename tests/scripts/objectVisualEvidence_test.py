@@ -287,6 +287,15 @@ class ObjectEvidenceTests(unittest.TestCase):
         self.assertEqual([scene['id'] for scene in matcher.prioritize_scenes(scenes)], ['track', 'ordinary', 'summary'])
         self.assertEqual([scene['id'] for scene in scenes], ['summary', 'ordinary', 'track'])
 
+    def test_identity_coverage_prioritizes_reused_single_referent_before_an_unrelated_transition(self):
+        scenes = [
+            {'id': 'transition', 'visualRequirement': {'requiredObjects': ['rare'], 'transitionRequired': True}},
+            {'id': 'shared-a', 'visualRequirement': {'requiredObjects': ['shared']}},
+            {'id': 'shared-b', 'visualRequirement': {'requiredObjects': ['shared']}},
+            {'id': 'summary', 'visualRequirement': {'requiredObjects': ['shared', 'rare']}},
+        ]
+        self.assertEqual([scene['id'] for scene in matcher.prioritize_scenes(scenes)][:3], ['shared-a', 'shared-b', 'transition'])
+
     def test_explicit_bounded_continuation_reuses_complete_scene_and_measures_next_candidate(self):
         """A later Inbox re-open advances deferred work without repeating pixels.
 

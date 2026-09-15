@@ -47,6 +47,33 @@ test('missing transition composition cannot be replaced by a recognized standalo
   expect(await materializeInstructionalStill({ state, sceneId: 'transition', outputDir, allowReviewCandidate: true })).toMatchObject({ produced: false, validated: false });
 });
 
+test('stateful materializer prepares a source-bound multi-component sequence only when canonical state changes', async () => {
+  const crypto = require('node:crypto');
+  const { materializeStatefulInstructionalFrames } = require('../../src/services/visualPlanMaterializer.cjs');
+  const hash = crypto.createHash('sha256').update(fs.readFileSync(fixture)).digest('hex');
+  const proof = (requiredObject) => ({ contract: 'mobius-object-visual-evidence-v2', requiredObject, assetId: `${requiredObject}-asset`,
+    imageSha256: hash, evidencePacketHash: `packet-${requiredObject}`, model: 'fixture-model', method: 'provider-pixel-analysis',
+    visualRole: 'COMPONENT', present: true, complete: true, isolated: true, stateCompatible: true, confidence: .99,
+    bbox: [.1, .1, .9, .9], reason: 'Complete fixture component' });
+  const assets = ['card', 'discard'].map((referent) => ({ id: `${referent}-asset`, filePath: fixture, displayPath: fixture,
+    width: 1600, height: 900, nativeWidthPx: 1600, nativeHeightPx: 900, sourceAuthority: 'OFFICIAL_RULEBOOK', sourceAuthorityRank: 50,
+    sourcePdfSha256: 'a'.repeat(64), sourceRefs: [{ page: 2 }], semanticObjects: [referent], objectVisualEvidence: [proof(referent)] }));
+  const scene = { id: 'stateful', atomId: 'atom', title: 'Défausser', narration: 'Montrez le changement.', on_screen_text: 'Défaussez les cartes.', source_pages: [2],
+    visualRequirement: { actualGameAssetRequired: true, requiredObjects: ['card', 'discard'], transitionRequired: true },
+    physicalState: { reviewState: 'accepted', stages: [
+      { id: 'before', label: 'Avant', sourceRefs: [{ page: 2 }], items: [{ id: 'card', componentRef: 'card', visibility: 'VISIBLE', faceState: 'FACE_UP' }, { id: 'discard', componentRef: 'discard', visibility: 'VISIBLE', faceState: 'FACE_DOWN' }] },
+      { id: 'after', label: 'Après', sourceRefs: [{ page: 2 }], items: [{ id: 'card', componentRef: 'card', visibility: 'REMOVED', removed: true, faceState: 'FACE_UP' }, { id: 'discard', componentRef: 'discard', visibility: 'VISIBLE', faceState: 'FACE_UP' }] },
+    ] },
+  };
+  const result = await materializeStatefulInstructionalFrames({ projectId: 'stateful-fixture', scene, assets, outputDir });
+  expect(result).toMatchObject({ contract: 'mobius-source-measured-state-sequence-v1', sceneId: 'stateful', preparedOnly: true });
+  expect(result.sourceAssets).toHaveLength(2);
+  expect(result.frames).toHaveLength(2);
+  expect(await sharp(result.frames[0].outputPath).metadata()).toMatchObject({ width: 1920, height: 1080 });
+  const unchanged = { ...scene, physicalState: { ...scene.physicalState, stages: scene.physicalState.stages.map((stage) => ({ ...stage, items: stage.items.map((item) => ({ ...item, visibility: 'VISIBLE', removed: false, faceState: 'FACE_UP' })) })) } };
+  await expect(materializeStatefulInstructionalFrames({ projectId: 'stateful-fixture', scene: unchanged, assets, outputDir })).resolves.toBeNull();
+}, 60000);
+
 afterAll(() => fs.rmSync(outputDir, { recursive: true, force: true }));
 
 test('normal materializer turns a multi-asset VisualPlan into a provenance-preserving render visual', async () => {
