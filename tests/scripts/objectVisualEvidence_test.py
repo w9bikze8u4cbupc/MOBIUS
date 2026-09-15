@@ -15,6 +15,51 @@ qualifier = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(qualifier)
 
 class ObjectEvidenceTests(unittest.TestCase):
+    def test_new_recovery_epoch_skips_compatible_retained_component_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory)
+            first = cache / 'first.png'
+            second = cache / 'second.png'
+            pixels = (ROOT / 'tests/fixtures/images/test-bg-100x100.png').read_bytes()
+            first.write_bytes(pixels)
+            second.write_bytes(pixels + b'\0')
+            first_hash = matcher.hashlib.sha256(first.read_bytes()).hexdigest()
+            prior_row = {
+                'requiredObject': 'known-board', 'present': True, 'confidence': .99,
+                'complete': True, 'isolated': True, 'stateCompatible': True,
+                'bbox': [.1, .1, .9, .9], 'reason': 'Exact retained board',
+                'visualRole': 'COMPONENT', 'imageSha256': first_hash,
+            }
+            (cache / 'run-prior.json').write_text(json.dumps({'scenes': [{
+                'scene_id': 'prior', 'candidates': [{
+                    'asset_id': 'first', 'status': 'MEASURED', 'objects': [prior_row],
+                    'evidencePacket': {'visualRole': 'COMPONENT'},
+                }],
+            }]}))
+            script = {'scenes': [
+                {'id': 'known', 'source_pages': [2], 'visualRequirement': {'requiredObjects': ['known-board']}},
+                {'id': 'missing', 'source_pages': [3], 'visualRequirement': {'requiredObjects': ['missing-token']}},
+            ]}
+            qa = {'assets': [
+                {'asset_id': 'first', 'path': str(first), 'asset_metadata': {'source_page': 2}},
+                {'asset_id': 'second', 'path': str(second), 'asset_metadata': {'source_page': 3}},
+            ]}
+            calls = []
+            def create(**kwargs):
+                calls.append(kwargs)
+                row = {'requiredObject': 'missing-token', 'present': True, 'confidence': .99,
+                    'complete': True, 'isolated': True, 'stateCompatible': True,
+                    'bbox': [.1, .1, .9, .9], 'reason': 'Exact new token'}
+                return types.SimpleNamespace(usage=None, choices=[types.SimpleNamespace(
+                    message=types.SimpleNamespace(content=json.dumps({'objects': [row]})))])
+            client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            result = matcher.run(script, qa, cache, 1, client)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(result['summary']['providerCalls'], 1)
+            self.assertEqual([scene['scene_id'] for scene in result['scenes']], ['known', 'missing'])
+            self.assertEqual(result['scenes'][0]['candidates'][0]['objects'][0]['requiredObject'], 'known-board')
+            self.assertEqual(result['scenes'][1]['candidates'][0]['objects'][0]['requiredObject'], 'missing-token')
+
     def test_shared_ledger_budget_receipt_is_explicitly_resumable(self):
         report = {'summary': {'providerCalls': 0, 'maxProviderCalls': 1, 'providerBlocker': None}, 'scenes': [{
             'candidates': [{'status': 'UNKNOWN', 'reason': 'cumulative visual budget exhausted or provider blocked'}]

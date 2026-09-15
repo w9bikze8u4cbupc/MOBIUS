@@ -278,6 +278,43 @@ def component_identity_proven(referent, report):
         for scene in report.get('scenes', []) for candidate in scene.get('candidates', [])
         for obj in candidate.get('objects', []))
 
+
+def retained_component_identity_proven(referent, retained, available_asset_identities=None):
+    """Use compatible component proofs before scheduling a new recovery epoch.
+
+    `retained_measurements` deliberately indexes only exact pixels, object IDs,
+    and positive COMPONENT verdicts.  A new recovery epoch changes the bounded
+    search input but not those already measured identities.  Excluding them
+    here prevents the next allowance from being spent walking unrelated pages
+    for a component that the canonical catalogue can already reuse.
+    """
+    available = set(available_asset_identities or [])
+    return any(role == 'COMPONENT' and referent in identity[2]
+        and (not available or (identity[0], identity[1]) in available)
+        for role, identity in (retained.get('identity') or {}))
+
+
+def retained_component_candidates(referents, retained, available_asset_identities=None):
+    """Project exact retained candidates into the current report.
+
+    Reusing an identity must remain visible to the canonical asset catalogue;
+    silently skipping its scene would save a call but discard the evidence
+    needed by downstream resolution.
+    """
+    available = set(available_asset_identities or [])
+    candidates, seen = [], set()
+    for (role, identity), candidate in (retained.get('identityCandidates') or {}).items():
+        if role != 'COMPONENT' or not set(referents) & set(identity[2]):
+            continue
+        if available and (identity[0], identity[1]) not in available:
+            continue
+        candidate_key = (candidate.get('asset_id'), identity[1], identity[2])
+        if candidate_key in seen:
+            continue
+        candidates.append(candidate)
+        seen.add(candidate_key)
+    return candidates
+
 def scene_needs_identity_work(scene, report):
     required = (scene.get('visualRequirement') or {}).get('requiredObjects') or []
     return bool(required) and any(not component_identity_proven(ident, report) for ident in required)
@@ -788,7 +825,7 @@ def retained_measurements(output_path, cache_dir):
     """
     paths = [Path(output_path)] if output_path else []
     paths += sorted(Path(cache_dir).glob('run-*.json'))
-    result = {'identity': {}, 'track': {}}
+    result = {'identity': {}, 'identityCandidates': {}, 'track': {}}
     seen = set()
     for path in paths:
         if path in seen or not path.is_file():
@@ -812,7 +849,9 @@ def retained_measurements(output_path, cache_dir):
                 role = next(iter(roles))
                 identity = (candidate.get('asset_id'), next(iter(image_hashes)), ids)
                 if role == 'LOCALIZATION' or (role == 'COMPONENT' and all(measured_object(row, 'COMPONENT') for row in rows)):
-                    result['identity'].setdefault((role, identity), rows)
+                    key = (role, identity)
+                    result['identity'].setdefault(key, rows)
+                    result['identityCandidates'].setdefault(key, candidate)
                 if role == 'TRACK' and all(measured_object(row, 'TRACK') for row in rows):
                     requirement = packet.get('requirement')
                     if isinstance(requirement, dict):
@@ -828,6 +867,8 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
         for a in qa.get('assets', []) if a.get('path') and Path(a['path']).is_file()]
     source_identities += [('phone:' + a.get('asset_id', ''), hashlib.sha256(Path(a['asset_metadata']['phonePath']).read_bytes()).hexdigest())
         for a in qa.get('assets', []) if (a.get('asset_metadata') or {}).get('phonePath')]
+    available_asset_identities = {(asset_id, image_hash) for asset_id, image_hash in source_identities
+        if not asset_id.startswith('phone:')}
     run_cache = cache_dir / ('run-' + digest([SEARCH_EXECUTION_VERSION, COMPOSITION_RESPONSE_CONTRACT, SEARCH_CONTRACT, CONTRACT, MODEL, script, source_identities,
         [a.get('asset_metadata') for a in qa.get('assets', [])], imported_inventory, os.getenv('MOBIUS_VISUAL_SCENE_ID'), max_calls, client is not None, recovery_epoch()]) + '.json')
     previous = json.loads(run_cache.read_text(encoding='utf-8')) if run_cache.exists() else None
@@ -858,6 +899,17 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
         if prior and scene_measurement_complete(scene, prior):
             scenes.append(prior)
             continue
+        retained_required = (scene.get('visualRequirement') or {}).get('requiredObjects') or []
+        if retained_required and all(retained_component_identity_proven(ident, retained, available_asset_identities) for ident in retained_required):
+            replayed = retained_component_candidates(retained_required, retained, available_asset_identities)
+            if replayed:
+                scenes.append({"scene_id": scene.get('id'), "status": "object-evidence-ready",
+                    "selected_asset_id": None, "reason": "Canonical object/detail/state validation required",
+                    "candidates": replayed})
+                hits += len(replayed)
+            elif prior:
+                scenes.append(prior)
+            continue
         if prior and previous and not scene_needs_identity_work(scene, previous):
             # A separate scene already established the exact physical referent.
             # Retain this scene's state review untouched; component discovery is
@@ -865,9 +917,9 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
             scenes.append(prior)
             continue
         packet = packet_for(scene, script.get("componentTerms") or {})
-        if previous:
-            packet['requiredObjects'] = [obj for obj in packet['requiredObjects']
-                if not component_identity_proven(obj['id'], previous)]
+        packet['requiredObjects'] = [obj for obj in packet['requiredObjects']
+            if not retained_component_identity_proven(obj['id'], retained, available_asset_identities)
+            and not (previous and component_identity_proven(obj['id'], previous))]
         if not packet['requiredObjects']:
             if prior:
                 scenes.append(prior)
