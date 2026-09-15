@@ -36,3 +36,30 @@ test('normal source-visual preparation reconnects measured parent evidence to a 
   expect(child.provenance.evidenceBoundCrop.transform).toBe('exact-parent-pixel-crop-v1');
   expect(fs.existsSync(child.file_path)).toBe(true);
 });
+
+test('a measured object clipped by its parent is retained as an actionable derivation rejection without aborting other crops', async () => {
+  const manifestPath = path.join(outputDir, 'manifest.json');
+  fs.writeFileSync(manifestPath, JSON.stringify({ images: [{
+    id: 'parent', file_path: sourcePath, source_page: 3, sourcePdfSha256: 'a'.repeat(64), sourceAuthority: 'NATIVE_EMBEDDED',
+  }] }));
+  const semantic = { scenes: [{ scene_id: 'scene', candidates: [{ asset_id: 'parent', status: 'MEASURED', objects: [
+    proof({ requiredObject: 'clipped', bbox: [0, 0, 1, 1] }),
+    proof({ requiredObject: 'complete', bbox: [.15, .15, .85, .85] }),
+  ] }] }] };
+  const { appendEvidenceBoundCrops, EVIDENCE_BOUND_CROP_DERIVATION_CONTRACT } = require('../../src/services/evidenceBoundVisualCrop.cjs');
+  const target = await appendEvidenceBoundCrops({ semantic, visualManifestPath: manifestPath, outputDir });
+  const payload = JSON.parse(fs.readFileSync(target, 'utf8'));
+  const parent = payload.images.find((asset) => asset.id === 'parent');
+  const child = payload.images.find((asset) => asset.id !== 'parent');
+  expect(child).toBeDefined();
+  expect(parent.objectAnalysisAttempts).toEqual([expect.objectContaining({
+    contract: EVIDENCE_BOUND_CROP_DERIVATION_CONTRACT,
+    status: 'REJECTED',
+    requiredObject: 'clipped',
+    reasonCode: 'OBJECT_TOUCHES_PARENT_CROP_EDGE',
+    sceneId: 'scene',
+  })]);
+  const replay = await appendEvidenceBoundCrops({ semantic, visualManifestPath: target, outputDir });
+  const replayPayload = JSON.parse(fs.readFileSync(replay, 'utf8'));
+  expect(replayPayload.images.find((asset) => asset.id === 'parent').objectAnalysisAttempts).toHaveLength(1);
+});

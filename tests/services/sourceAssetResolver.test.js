@@ -92,6 +92,22 @@ test('canonical resolver auto-accepts only an unambiguous high-confidence candid
   expect(ambiguous.reviewItem.status).toBe('needs_visual_review');
 });
 
+test('Cockpit retains a deterministic crop-derivation rejection on the candidate it could not derive', () => {
+  const atom = { id: 'board-edge', visualRequirement: { requiredObjects: ['game board'] } };
+  const selection = resolveSourceAssets({ atom, candidates: [asset('clipped-parent', {
+    width: 120,
+    objectAnalysisAttempts: [{
+      contract: 'mobius-evidence-bound-crop-derivation-v1', method: 'deterministic-evidence-bound-crop', status: 'REJECTED',
+      assetId: 'clipped-parent', sceneId: 'knowledge-board-edge', requiredObject: 'game board',
+      reasonCode: 'OBJECT_TOUCHES_PARENT_CROP_EDGE', reason: 'Measured localization clipped: intended-object-touches-crop-edge:game board',
+    }],
+  })] });
+  expect(selection.status).toBe('UNRESOLVED');
+  expect(selection.reviewItem.candidates[0].objectAnalysisAttempts).toEqual([expect.objectContaining({
+    status: 'REJECTED', reasonCode: 'OBJECT_TOUCHES_PARENT_CROP_EDGE', requiredObject: 'game board',
+  })]);
+});
+
 test('a verified semantic composition may reuse exact component identity only after final composition review', () => {
   const crypto = require('node:crypto');
   const { evaluateCandidate } = require('../../src/services/sourceAssetResolver.cjs');

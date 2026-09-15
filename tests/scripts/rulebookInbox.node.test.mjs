@@ -161,6 +161,10 @@ test('terminal parser failures are quarantined and not retried forever', () => {
   const hephaestusError = new Error('HEPHAESTUS materialization failed');
   hephaestusError.code = 'HEPHAESTUS_MATERIALIZATION_FAILED';
   assert.deepEqual(classifyInboxError(hephaestusError), { class: 'retryable', retryable: true });
+  const visualPreparation = Object.assign(new Error('prepare-source-visuals exited with code 1'), {
+    code: 'SOURCE_VISUAL_PREPARATION_FAILED', classification: 'retryable_engineering',
+  });
+  assert.deepEqual(classifyInboxError(visualPreparation), { class: 'retryable', retryable: true });
   const runtimeError = new Error('MOBIUS API runtime does not satisfy worker contracts');
   runtimeError.code = 'RUNTIME_CONTRACT_MISMATCH';
   runtimeError.classification = 'retryable_runtime';

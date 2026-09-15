@@ -66,7 +66,10 @@ const VOICE_ID = process.env.ELEVENLABS_VOICE_ID_AMELIE || 'UJCi4DDncuo0VJDSIegj
 const VOICE_NAME = 'Amélie';
 const MODEL_ID = 'eleven_multilingual_v2';
 const { DEFAULT_NARRATION_PRESET, getEditorialContract } = editorialStandard;
-const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v19-authorized-external-priority';
+// Includes deterministic evidence-bound crop derivation. Bump this whenever a
+// measured candidate can gain new persisted acceptance/rejection provenance so
+// replay cannot silently reuse a manifest produced under an older contract.
+const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v20-crop-derivation-diagnostics';
 const DEFAULT_BASE_URL = process.env.MOBIUS_BASE_URL || 'http://127.0.0.1:5001';
 
 function argsToObject(argv = process.argv.slice(2)) {
@@ -1184,7 +1187,12 @@ async function runZeroState(options = {}) {
         const result = spawnSync(process.execPath, visualArgs, {
           cwd: root, env: { ...canonicalRuntimeConfigurationEnvironment({ root }), PYTHON: python }, stdio: 'inherit', windowsHide: true,
         });
-        if (result.status !== 0) throw new Error(`prepare-source-visuals exited with code ${result.status}`);
+        if (result.status !== 0) {
+          throw Object.assign(new Error(`prepare-source-visuals exited with code ${result.status}`), {
+            code: 'SOURCE_VISUAL_PREPARATION_FAILED',
+            classification: 'retryable_engineering',
+          });
+        }
       },
     });
   }
@@ -1225,7 +1233,12 @@ async function runZeroState(options = {}) {
       const result = spawnSync(process.execPath, [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--hephaestus-evidence', hephEvidencePath, '--output-dir', visualReviewDir, '--page-dir', pageDir, '--extraction', path.join(productionDir, 'zero-state-extraction.json'), '--source-sha256', identity.sha256, '--source-pdf', await sourceService.resolveFile(projectId), '--previous-semantic-report', baseSemanticPath, ...automaticCandidateManifestPaths.flatMap((candidatePath) => ['--authorized-candidate-manifest', candidatePath])], {
         cwd: root, env: { ...canonicalRuntimeConfigurationEnvironment({ root }), PYTHON: python }, stdio: 'inherit', windowsHide: true,
       });
-      if (result.status !== 0) throw new Error(`prepare-source-visuals authorized recovery exited with code ${result.status}`);
+      if (result.status !== 0) {
+        throw Object.assign(new Error(`prepare-source-visuals authorized recovery exited with code ${result.status}`), {
+          code: 'SOURCE_VISUAL_PREPARATION_FAILED',
+          classification: 'retryable_engineering',
+        });
+      }
     }
     markStage(checkpoint, 'authorized-source-visual-review', authorizedReviewHash, [qualityPath, semanticPath, combinedVisualManifestPath, focusedCropManifestPath], {
       recovery: automaticRecovery.status,
