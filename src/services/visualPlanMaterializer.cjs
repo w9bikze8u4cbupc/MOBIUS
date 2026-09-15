@@ -5,7 +5,7 @@ const path = require('node:path');
 const sharp = require('sharp');
 const { spawnSync } = require('node:child_process');
 const { buildTeachingScene } = require('../storyboard/tutorial_presentation.cjs');
-const { teachingSceneLayout, containedDisplayBounds } = require('./presentationDesignSystem.cjs');
+const { teachingSceneLayout, containedDisplayBounds, PRESENTATION_TOKENS } = require('./presentationDesignSystem.cjs');
 const crypto = require('node:crypto');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const xml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
@@ -422,13 +422,100 @@ async function materializeTrackStateFrames({ projectId, scene, assets, outputDir
 }
 
 function canonicalTeachingPresentation(scene, index = 0, asset = {}) {
+  const displayText = String(scene.on_screen_text || '');
   const result = buildTeachingScene({ id: scene.id, index, section: scene.section,
     narration: scene.narration, onScreenText: scene.on_screen_text, sourcePages: scene.source_pages || [],
     background: { image: sourceFile(asset) }, visualKind: scene.renderVisual?.kind || 'automatic-component',
-    durationSec: 1, preserveLineBreaks: true });
+    durationSec: 1, preserveLineBreaks: displayText.includes('\n') });
   result.durationSec = 1;
   result.layout.visualAspectRatio = Number(asset.width) / Number(asset.height) || 1;
+  // Keep a static identity object large enough for phone recognition without
+  // enlarging its true source pixels beyond the canonical 0.8 px/display-px
+  // floor. The layout solver evaluates this preference together with the
+  // text panel; it is not a quality verdict and cannot rescue weak evidence.
+  const sourceWidth = Number(asset.nativeWidthPx || asset.width || 0);
+  if (sourceWidth > 0) {
+    const availableWidth = 1920 * (1 - (PRESENTATION_TOKENS.layout.safeMargins.x * 2));
+    const maximumDetailSafeRatio = (sourceWidth / .8) / availableWidth;
+    result.layout.visualWidthRatio = Number(Math.max(.5, Math.min(
+      Number(result.layout.visualWidthRatio || .58),
+      maximumDetailSafeRatio - .04,
+    )).toFixed(3));
+  }
   return result;
+}
+
+function hasSceneSpecificRequirement(requirement = {}) {
+  return Boolean(requirement.transitionRequired || requirement.setupPlacementRequired
+    || requirement.layeredStateRequired || requirement.trackStateRequired
+    || requirement.oneShotMarkerRequired || requirement.progressiveScoringRequired
+    || requirement.comparisonGroupRequired || requirement.semanticFocusRequired
+    || requirement.discardPileRequired || requirement.deckIdentityRequired
+    || requirement.cardFamilyRequired || requirement.representativeExamplesRequired
+    || requirement.requiredRelationship || requirement.requiredState
+    || requirement.beforeState || requirement.actionState || requirement.afterState
+    || requirement.requiredOrientation || requirement.faceStateRequired
+    || requirement.requiredQuantities?.length || requirement.requiredLabels?.length
+    || Object.keys(requirement.physicalStateRequirement || requirement.physicalState || {}).length);
+}
+
+async function validateDeterministicIdentityStill({ state, scene, asset, selected, presentation, layout, outputPath, phonePath, configPath } = {}) {
+  const requirement = scene.visualRequirement || {};
+  const referents = requirement.requiredObjects || [];
+  const plan = (state.visualPlans || []).find((row) => row.ruleAtomId === scene.atomId) || {};
+  const sourcePath = sourceFile(asset);
+  const actualDisplayBounds = containedDisplayBounds(asset, { width: layout.imageWidth, height: layout.imageHeight });
+  const phoneDisplayBounds = {
+    width: Math.ceil(actualDisplayBounds.width * 390 / 1920),
+    height: Math.ceil(actualDisplayBounds.height * 219 / 1080),
+  };
+  const reasons = [];
+  if (referents.length !== 1 || hasSceneSpecificRequirement(requirement)) reasons.push('not-static-single-object-identity');
+  const selectedAssetIds = selected?.selectedAssetIds || (selected?.selectedAssets || []).map((row) => row.id);
+  if (selected?.status !== 'AUTO_ACCEPTED' || !selectedAssetIds.includes(asset.id)) reasons.push('source-binding-not-auto-accepted');
+  if (!sourcePath || !fs.existsSync(sourcePath)) reasons.push('source-file-missing');
+  const sourceRefs = asset.sourceRefs || [];
+  if (!sourceRefs.some((row) => Number(row.page) > 0) || !asset.sourcePdfSha256) reasons.push('source-provenance-incomplete');
+  if (!asset.sourceAuthority || asset.sourceAuthority === 'UNKNOWN' || Number(asset.sourceAuthorityRank || 0) <= 0) reasons.push('source-authority-unverified');
+  const { evaluateCandidate, objectEvidenceFor } = require('./sourceAssetResolver.cjs');
+  const objectEvidence = referents.length === 1
+    ? objectEvidenceFor(asset, referents[0], scene.id, { allowReusableIdentity: true })
+    : null;
+  if (!(objectEvidence?.visualRole === 'COMPONENT' && objectEvidence.present === true
+    && objectEvidence.complete === true && objectEvidence.isolated === true
+    && objectEvidence.stateCompatible === true && Number(objectEvidence.confidence) >= .9)) {
+    reasons.push('component-pixel-evidence-incomplete');
+  }
+  const evaluation = evaluateCandidate(asset, { ...requirement, evidenceSceneId: scene.id }, actualDisplayBounds);
+  if (!evaluation.valid) reasons.push(...evaluation.hardViolations.map((reason) => `source:${reason}`));
+  const mobileMinimum = Number(plan.mobileMinimumAssetWidthPx || 0);
+  if (mobileMinimum > 0 && phoneDisplayBounds.width < mobileMinimum) reasons.push('phone-object-width-below-plan-minimum');
+  const outputMetadata = fs.existsSync(outputPath) ? await sharp(outputPath).metadata() : {};
+  const phoneMetadata = fs.existsSync(phonePath) ? await sharp(phonePath).metadata() : {};
+  if (outputMetadata.width !== 1920 || outputMetadata.height !== 1080) reasons.push('desktop-render-dimensions-invalid');
+  if (phoneMetadata.width !== 390 || phoneMetadata.height !== 219) reasons.push('phone-render-dimensions-invalid');
+  const valid = reasons.length === 0;
+  return {
+    contract: 'mobius-deterministic-static-identity-composition-v1',
+    valid,
+    reasons,
+    requirementClass: 'STATIC_SINGLE_OBJECT_IDENTITY',
+    sourceAssetId: asset.id,
+    requiredObject: referents[0] || null,
+    sourceImageSha256: sourcePath && fs.existsSync(sourcePath) ? sha(fs.readFileSync(sourcePath)) : null,
+    objectEvidenceHash: objectEvidence ? sha(JSON.stringify(objectEvidence)) : null,
+    objectEvidenceConfidence: Number(objectEvidence?.confidence || 0),
+    sourceAuthority: asset.sourceAuthority || null,
+    sourceRefs,
+    sourcePixelsPerDisplayPixel: evaluation.trueSourcePixelsPerDisplayPixel,
+    actualDisplayBounds,
+    phoneDisplayBounds,
+    mobileMinimumAssetWidthPx: mobileMinimum,
+    renderConfigSha256: fs.existsSync(configPath) ? sha(fs.readFileSync(configPath)) : null,
+    outputSha256: fs.existsSync(outputPath) ? sha(fs.readFileSync(outputPath)) : null,
+    phoneSha256: fs.existsSync(phonePath) ? sha(fs.readFileSync(phonePath)) : null,
+    rendererLayout: presentation.layout?.mode || null,
+  };
 }
 
 // A prepared still is a review artifact, never a new accepted binding. A complete
@@ -466,13 +553,19 @@ async function materializeInstructionalStill({ state, sceneId, outputDir, allowR
   if (rendered.status !== 0) throw new Error('Normal storyboard still rendering failed; see render log.');
   const phonePath = path.resolve(outputDir, `${scene.id}.phone.png`);
   await sharp(outputPath).resize(390, 219, { fit: 'contain' }).png().toFile(phonePath);
-  return { sceneId, produced: true, validated: false, preparedOnly, outputPath, phonePath, configPath,
+  const deterministicValidation = preparedOnly ? null : await validateDeterministicIdentityStill({
+    state, scene, asset, selected, presentation, layout, outputPath, phonePath, configPath,
+  });
+  return { sceneId, produced: true, validated: deterministicValidation?.valid === true, preparedOnly, outputPath, phonePath, configPath,
     sourceAssetId: asset.id, sourcePath: sourceFile(asset), sourceRefs: asset.sourceRefs,
     bindingStatus: selected?.status, requirement, actualDisplayBounds: containedDisplayBounds(asset, { width: layout.imageWidth, height: layout.imageHeight }),
-    reason: 'Normal renderer output requires physical/composition review; production state and decisions unchanged.' };
+    deterministicValidation,
+    reason: deterministicValidation?.valid
+      ? 'Static single-object identity composition passed deterministic source, layout, detail, and phone-scale validation.'
+      : 'Normal renderer output requires physical/composition review; production state and decisions unchanged.' };
 }
 
-const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v4';
+const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v5';
 
 function sourceFile(asset = {}) {
   return asset.displayPath || asset.renderPath || asset.filePath || asset.path || asset.sourceImage || null;
@@ -568,6 +661,41 @@ async function materializeVisualPlanFrames({ state, outputDir, width = 1400, hei
       const file = sourceFile(asset);
       return file && fs.existsSync(path.resolve(file));
     });
+    const staticIdentityEligible = assets.length === 1
+      && scene.visualRequirement?.actualGameAssetRequired === true
+      && scene.visualRequirement?.requiredObjects?.length === 1
+      && !hasSceneSpecificRequirement(scene.visualRequirement);
+    if (staticIdentityEligible) {
+      const instructionalStill = await materializeInstructionalStill({
+        state,
+        sceneId: scene.id,
+        outputDir: path.join(absoluteOutput, 'static-identity-stills'),
+      });
+      if (instructionalStill.produced) {
+        records.push(instructionalStill);
+        if (instructionalStill.validated) {
+          scenes.push({
+            ...scene,
+            instructionalStill,
+            renderVisual: {
+              path: instructionalStill.outputPath,
+              assetId: instructionalStill.sourceAssetId,
+              kind: 'automatic-visual-plan-composite',
+              fullFrame: true,
+              confidence: Number(instructionalStill.deterministicValidation?.objectEvidenceConfidence || 0),
+              reason: 'Canonical static identity scene passed exact-source, component-integrity, detail, and phone-scale validation.',
+              sourcePage: instructionalStill.sourceRefs?.[0]?.page || null,
+              provenance: instructionalStill.sourceRefs,
+            },
+          });
+        } else {
+          // Rendering a reviewable still must not turn an unresolved binding or
+          // a stateful requirement into accepted production state.
+          scenes.push({ ...scene, preparedInstructionalStill: instructionalStill });
+        }
+        continue;
+      }
+    }
     if (assets.length <= 1) {
       scenes.push(scene);
       continue;
@@ -661,4 +789,4 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
  return {assets:attachSequenceReviewEvidence({assets:state.assets,records:materialized.records,reviewPaths}),reviewPaths};
 }
 
-module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, materializeTrackStateFrames, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, materializeSourceGroundedInstructionalDiagram, semanticTeachingStages, instructionalDiagramStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill };
+module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, materializeTrackStateFrames, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, materializeSourceGroundedInstructionalDiagram, semanticTeachingStages, instructionalDiagramStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill, validateDeterministicIdentityStill };

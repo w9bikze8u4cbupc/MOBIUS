@@ -19,6 +19,100 @@ import transport from '../src/services/projectStateTransport.cjs';
 const require = createRequire(import.meta.url);
 const { compileCanonicalProductionState } = require('../src/services/canonicalProductionCompiler.cjs');
 const args = Object.fromEntries(process.argv.slice(2).reduce((rows, value, index, all) => value.startsWith('--') ? [...rows, [value.slice(2), all[index + 1]]] : rows, []));
+const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
+const hash = (value) => crypto.createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex');
+if(args['render-existing-state']){
+  // Zero-provider replay proof: consume a canonical state produced by the
+  // normal compiler and re-materialize only its already-selected generic
+  // scene. The persisted selection criterion is authoritative; this mode
+  // cannot inject a scene, asset, crop or visual verdict.
+  if(!args.output || !args.selection)throw new Error('Existing-state replay requires --output and --selection');
+  const packet=read(path.resolve(args['render-existing-state']));
+  const unpacked=packet.contract===transport.CONTRACT?transport.unpackProjectState(packet):packet;
+  const state=unpacked.projectContext?.canonicalProductionState||unpacked.canonicalProductionState||unpacked;
+  const selection=read(path.resolve(args.selection));
+  const scene=state.scenes?.find(row=>row.atomId===selection.ruleId);
+  if(!scene)throw new Error('Persisted generic scene selection is absent from canonical state');
+  assert.equal(state.knowledgeModel?.sourcePdfSha256,selection.sourceSha256,'Selected source SHA must match canonical knowledge');
+  assert.deepEqual(scene.visualRequirement,selection.requirement,'Canonical scene requirements must remain unchanged');
+  const folder=path.resolve(args.output);
+  fs.mkdirSync(folder,{recursive:true});
+  fs.writeFileSync(path.join(folder,'scene-selection.json'),JSON.stringify(selection,null,2));
+  fs.writeFileSync(path.join(folder,'input-canonical-state.json'),JSON.stringify(transport.packProjectState(state)));
+  const selected=state.sourceSelections.find(row=>row.ruleAtomId===scene.atomId);
+  const result={contract:'mobius-unprepared-visual-binding-replay-proof-v1',generatedAt:new Date().toISOString(),
+    sourceState:path.resolve(args['render-existing-state']),sourceStateSha256:hash(fs.readFileSync(path.resolve(args['render-existing-state']))),
+    sceneId:scene.id,ruleAtomId:scene.atomId,requiredObjects:scene.visualRequirement.requiredObjects,
+    bindingStatus:selected?.status||null,providerCalls:0,replayProviderCalls:0,hephaestusProviderCalls:0,
+    productionRestarted:false,fullyIllustratedScenes:0,objectAssociationsValidated:0};
+  if(scene.instructionalSequence?.validated===true){
+    const { verifiedInstructionalSequence }=require('../src/services/physicalGameState.cjs');
+    let asset=(selected?.selectedAssets||[])[0]||state.assets.find(row=>row.id===scene.renderVisual?.assetId);
+    if(args['visual-manifest']&&args['semantic-report']){
+      const catalog=loadSourceVisualCatalog(path.resolve(args['visual-manifest']),{
+        qualityReportPath:args['quality-report']?path.resolve(args['quality-report']):undefined,
+        semanticReportPath:path.resolve(args['semantic-report'])});
+      const hydrated=catalog.assets.find(row=>row.id===scene.instructionalSequence.assetId);
+      if(hydrated){
+        const { normalizeCandidate }=require('../src/services/sourceAssetResolver.cjs');
+        asset=normalizeCandidate({...hydrated,filePath:hydrated.filePath||hydrated.file_path||hydrated.renderPath,
+          instructionalSequences:[scene.instructionalSequence]});
+      }
+    }
+    assert.ok((selected?.selectedAssetIds||selected?.selectedAssets?.map(row=>row.id)||[]).includes(scene.instructionalSequence.assetId),
+      'Persisted accepted binding must own the sequence source asset');
+    const verified=asset&&verifiedInstructionalSequence(asset,scene.visualRequirement,scene.id);
+    assert.ok(verified,'Canonical state sequence must remain verifiable from exact source evidence');
+    const sequenceFolder=path.join(folder,'instructional-sequence');
+    fs.mkdirSync(sequenceFolder,{recursive:true});
+    const frames=[];
+    for(const [index,frame] of scene.instructionalSequence.frames.entries()){
+      const frameEvidence={id:frame.id,stage:frame.stage};
+      for(const [kind,input] of [['desktop',frame.outputPath],['phone',frame.phonePath]]){
+        assert.ok(input&&fs.existsSync(input),`Canonical ${kind} frame must exist`);
+        const output=path.join(sequenceFolder,`${String(index+1).padStart(2,'0')}-${kind}.png`);
+        fs.copyFileSync(input,output);
+        assert.equal(hash(fs.readFileSync(output)),hash(fs.readFileSync(input)),'Replay frame copy must be pixel-identical');
+        frameEvidence[`${kind}InputPath`]=path.resolve(input);
+        frameEvidence[`${kind}OutputPath`]=output;
+        frameEvidence[`${kind}Sha256`]=hash(fs.readFileSync(output));
+      }
+      frames.push(frameEvidence);
+    }
+    const tileWidth=480,tileHeight=270,columns=2,rows=Math.ceil(frames.length/columns);
+    const layers=[];
+    for(const [index,frame] of frames.entries())layers.push({input:await sharp(frame.desktopOutputPath).resize(tileWidth,tileHeight,{fit:'contain'}).png().toBuffer(),left:(index%columns)*tileWidth,top:Math.floor(index/columns)*tileHeight});
+    result.contactSheet=path.join(folder,'instructional-sequence-contact-sheet.png');
+    await sharp({create:{width:columns*tileWidth,height:rows*tileHeight,channels:4,background:'#17110d'}}).composite(layers).png().toFile(result.contactSheet);
+    const phoneLayers=[];
+    for(const [index,frame] of frames.entries())phoneLayers.push({input:frame.phoneOutputPath,left:(index%columns)*390,top:Math.floor(index/columns)*219});
+    result.phoneContactSheet=path.join(folder,'instructional-sequence-phone-contact-sheet.png');
+    await sharp({create:{width:columns*390,height:rows*219,channels:4,background:'#17110d'}}).composite(phoneLayers).png().toFile(result.phoneContactSheet);
+    result.sequence={contract:scene.instructionalSequence.contract,frames,validated:true,validationBasis:'canonical-provider-measured-composition-sequence'};
+    result.objectAssociationsValidated=scene.visualRequirement.requiredObjects.length;
+    result.fullyIllustratedScenes=1;
+  }else{
+    // Exercise the same collection-level materializer called by normal PDF
+    // production. The proof cannot certify a direct helper path that the
+    // production orchestrator itself does not consume.
+    const { materializeVisualPlanFrames }=require('../src/services/visualPlanMaterializer.cjs');
+    const materialized=await materializeVisualPlanFrames({
+      state:{...state,scenes:[scene]},
+      outputDir:path.join(folder,'normal-visual-plan-materialization'),
+    });
+    const materializedScene=materialized.scenes.find(row=>row.id===scene.id);
+    result.materializationContract=materialized.contract;
+    result.instructionalStill=materializedScene?.instructionalStill||materializedScene?.preparedInstructionalStill||null;
+    assert.ok(result.instructionalStill,'Normal production materializer did not produce the selected scene');
+    result.objectAssociationsValidated=result.instructionalStill.validated?scene.visualRequirement.requiredObjects.length:0;
+    result.fullyIllustratedScenes=Number(result.instructionalStill.validated===true);
+    result.contactSheet=result.instructionalStill.outputPath||null;
+  }
+  result.status=result.fullyIllustratedScenes===1?'PASS':'PARTIEL';
+  fs.writeFileSync(path.join(folder,'proof.json'),JSON.stringify(result,null,2));
+  console.log(JSON.stringify({output:folder,status:result.status,sceneId:scene.id,fullyIllustratedScenes:result.fullyIllustratedScenes,providerCalls:0}));
+  process.exit(result.status==='PASS'?0:2);
+}
 if(args['materialize-only']==='true'){
   // Resume existing provider measurements through the normal compiler and
   // materializer, without repeating providers, extraction or the HTTP proof.
@@ -47,8 +141,6 @@ if(args['materialize-only']==='true'){
   process.exit(0);
 }
 for (const name of ['knowledge', 'manifest', 'pdf', 'output', 'max-visual-calls']) if (!args[name]) throw new Error(`Missing --${name}`);
-const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
-const hash = (value) => crypto.createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex');
 const output = path.resolve(args.output);
 if (fs.existsSync(output) && !args.resume) throw new Error('Use a fresh isolated proof directory or explicitly resume this isolated proof.');
 // Preserve failed execution reports; valid measurement caches stay in place.

@@ -28,7 +28,7 @@ test('track preparation prefers stronger measured state evidence before native a
   expect(chooseTrackCandidate([largerButWeaker, candidate('measured-sequence')]).asset.id).toBe('measured-sequence');
 });
 
-test('mono-image still uses the real storyboard renderer and never auto-certifies composition', async () => {
+test('mono-image still uses the real storyboard renderer and does not certify unmeasured composition', async () => {
   const { materializeInstructionalStill } = require('../../src/services/visualPlanMaterializer.cjs');
   const state = { projectId: 'test-normal-still', assets: [{ id: 'asset', filePath: fixture, width: 1600, height: 900 }],
     sourceSelections: [{ ruleAtomId: 'atom', status: 'AUTO_ACCEPTED' }],
@@ -39,6 +39,89 @@ test('mono-image still uses the real storyboard renderer and never auto-certifie
   expect(await sharp(result.outputPath).metadata()).toMatchObject({ width: 1920, height: 1080 });
   expect(await sharp(result.phonePath).metadata()).toMatchObject({ width: 390, height: 219 });
   expect(fs.readdirSync(outputDir).some(f => f.endsWith('.mp4'))).toBe(false);
+}, 30000);
+
+test('static single-object identity still is deterministically certified from an accepted exact source binding', async () => {
+  const crypto = require('node:crypto');
+  const { materializeInstructionalStill } = require('../../src/services/visualPlanMaterializer.cjs');
+  const imageSha256 = crypto.createHash('sha256').update(fs.readFileSync(fixture)).digest('hex');
+  const asset = { id: 'board-asset', filePath: fixture, width: 1600, height: 900, nativeWidthPx: 1600, nativeHeightPx: 900,
+    sourceAuthority: 'NATIVE_EMBEDDED', sourceAuthorityRank: 35, sourcePdfSha256: 'a'.repeat(64),
+    nativeSourceEvidence: { nativeImage: true, sourcePdfSha256: 'a'.repeat(64), assetSha256: imageSha256,
+      sourcePage: 4, originalDimensions: { width: 1600, height: 900 } },
+    sourceRefs: [{ page: 4 }], semanticObjects: ['board'], reviewState: 'accepted',
+    objectVisualEvidence: [{ contract: 'mobius-object-visual-evidence-v2', assetId: 'board-asset', requiredObject: 'board',
+      imageSha256, evidencePacketHash: 'packet-board', model: 'fixture-model', method: 'provider-pixel-analysis',
+      visualRole: 'COMPONENT', sceneId: 'identity', present: true, complete: true, isolated: true,
+      stateCompatible: true, confidence: .99, bbox: [0, 0, 1, 1], reason: 'The complete board is visible.' }] };
+  const requirement = { actualGameAssetRequired: true, requiredObjects: ['board'], requiredQuantities: [] };
+  const state = { projectId: 'test-identity-still', assets: [asset],
+    visualPlans: [{ ruleAtomId: 'atom', mobileMinimumAssetWidthPx: 180 }],
+    sourceSelections: [{ ruleAtomId: 'atom', status: 'AUTO_ACCEPTED', selectedAssetIds: [asset.id] }],
+    scenes: [{ id: 'identity', atomId: 'atom', section: 'components', narration: 'Le plateau de jeu.', on_screen_text: 'Le plateau de jeu',
+      source_pages: [4], visualRequirement: requirement, renderVisual: { assetId: 'board-asset' } }] };
+  const result = await materializeInstructionalStill({ state, sceneId: 'identity', outputDir });
+  expect(result).toMatchObject({ produced: true, preparedOnly: false, validated: true,
+    deterministicValidation: { contract: 'mobius-deterministic-static-identity-composition-v1', valid: true,
+      requiredObject: 'board', sourceAuthority: 'NATIVE_EMBEDDED' } });
+  expect(result.deterministicValidation.phoneDisplayBounds.width).toBeGreaterThanOrEqual(180);
+  expect(result.deterministicValidation.sourcePixelsPerDisplayPixel).toBeGreaterThanOrEqual(.8);
+}, 30000);
+
+test('normal production materializer promotes only a validated static identity still to the render visual', async () => {
+  const crypto = require('node:crypto');
+  const imageSha256 = crypto.createHash('sha256').update(fs.readFileSync(fixture)).digest('hex');
+  const asset = { id: 'production-board', filePath: fixture, width: 1600, height: 900, nativeWidthPx: 1600, nativeHeightPx: 900,
+    sourceAuthority: 'NATIVE_EMBEDDED', sourceAuthorityRank: 35, sourcePdfSha256: 'b'.repeat(64),
+    nativeSourceEvidence: { nativeImage: true, sourcePdfSha256: 'b'.repeat(64), assetSha256: imageSha256,
+      sourcePage: 4, originalDimensions: { width: 1600, height: 900 } },
+    sourceRefs: [{ page: 4 }], semanticObjects: ['board'], reviewState: 'accepted',
+    objectVisualEvidence: [{ contract: 'mobius-object-visual-evidence-v2', assetId: 'production-board', requiredObject: 'board',
+      imageSha256, evidencePacketHash: 'packet-production-board', model: 'fixture-model', method: 'provider-pixel-analysis',
+      visualRole: 'COMPONENT', sceneId: 'production-identity', present: true, complete: true, isolated: true,
+      stateCompatible: true, confidence: .99, bbox: [0, 0, 1, 1], reason: 'The complete board is visible.' }] };
+  const state = { projectId: 'normal-production-static-identity', assets: [asset],
+    visualPlans: [{ ruleAtomId: 'atom', mobileMinimumAssetWidthPx: 180, actualGameAssetIds: [asset.id] }],
+    sourceSelections: [{ ruleAtomId: 'atom', status: 'AUTO_ACCEPTED', selectedAssetIds: [asset.id] }],
+    scenes: [{ id: 'production-identity', atomId: 'atom', section: 'components', narration: 'Le plateau de jeu.',
+      on_screen_text: 'Le plateau de jeu', source_pages: [4],
+      canonicalVisualPlan: { actualGameAssetIds: [asset.id], mobileMinimumAssetWidthPx: 180 },
+      visualRequirement: { actualGameAssetRequired: true, requiredObjects: ['board'], requiredQuantities: [] },
+      renderVisual: { assetId: asset.id } }] };
+  const result = await materializeVisualPlanFrames({ state, outputDir });
+  expect(result.records).toHaveLength(1);
+  expect(result.scenes[0]).toMatchObject({
+    instructionalStill: { produced: true, validated: true, sourceAssetId: asset.id },
+    renderVisual: { kind: 'automatic-visual-plan-composite', fullFrame: true, assetId: asset.id },
+  });
+}, 30000);
+
+test('deterministic identity validation refuses a transition even with an accepted exact component', async () => {
+  const crypto = require('node:crypto');
+  const { materializeInstructionalStill } = require('../../src/services/visualPlanMaterializer.cjs');
+  const imageSha256 = crypto.createHash('sha256').update(fs.readFileSync(fixture)).digest('hex');
+  const asset = { id: 'track-asset', filePath: fixture, width: 1600, height: 900, nativeWidthPx: 1600, nativeHeightPx: 900,
+    sourceAuthority: 'NATIVE_EMBEDDED', sourceAuthorityRank: 35, sourcePdfSha256: 'a'.repeat(64), sourceRefs: [{ page: 4 }],
+    semanticObjects: ['track'], reviewState: 'accepted', objectVisualEvidence: [{ contract: 'mobius-object-visual-evidence-v2',
+      assetId: 'track-asset', requiredObject: 'track', imageSha256, evidencePacketHash: 'packet-track', model: 'fixture-model',
+      method: 'provider-pixel-analysis', visualRole: 'COMPONENT', sceneId: 'transition-exact', present: true, complete: true,
+      isolated: true, stateCompatible: true, confidence: .99, bbox: [0, 0, 1, 1], reason: 'The complete track is visible.' }] };
+  const state = { projectId: 'test-transition-still', assets: [asset], visualPlans: [{ ruleAtomId: 'atom' }],
+    sourceSelections: [{ ruleAtomId: 'atom', status: 'AUTO_ACCEPTED', selectedAssets: [asset] }],
+    scenes: [{ id: 'transition-exact', atomId: 'atom', section: 'tour', narration: 'Déplacez le marqueur.', on_screen_text: 'Déplacez le marqueur',
+      source_pages: [4], visualRequirement: { actualGameAssetRequired: true, requiredObjects: ['track'], transitionRequired: true },
+      renderVisual: { assetId: 'track-asset' } }] };
+  const result = await materializeInstructionalStill({ state, sceneId: 'transition-exact', outputDir });
+  expect(result).toMatchObject({ produced: true, validated: false,
+    deterministicValidation: { valid: false, reasons: expect.arrayContaining(['not-static-single-object-identity']) } });
+
+  const production = await materializeVisualPlanFrames({
+    state: { ...state, scenes: [{ ...state.scenes[0], canonicalVisualPlan: { actualGameAssetIds: [asset.id] } }] },
+    outputDir,
+  });
+  expect(production.records).toHaveLength(0);
+  expect(production.scenes[0].instructionalStill).toBeUndefined();
+  expect(production.scenes[0].preparedInstructionalStill).toBeUndefined();
 }, 30000);
 
 test('missing transition composition cannot be replaced by a recognized standalone component', async () => {

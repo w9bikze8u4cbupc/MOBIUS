@@ -15,7 +15,7 @@ const { runProductionQualityGate } = require('./productionQualityGate.cjs');
 const { canonicalTeachingPresentation } = require('./visualPlanMaterializer.cjs');
 const { buildKnowledgeTeachingPlan } = require('./rulebookKnowledge.cjs');
 
-const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v5';
+const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v6';
 
 function uniqueAssets(assets = []) {
   const byId = new Map();

@@ -1,5 +1,38 @@
 # Visual object evidence — bounded recovery, not a publishability certificate
 
+## Two-game autonomous scene proof, 2026-09-15 — LIMITED PASS
+
+The existing unprepared proof now has a zero-provider replay mode. It accepts
+only a canonical state plus the previously persisted generic scene-selection
+criterion; it cannot supply a scene, asset, crop, state or verdict. Stateful
+sequences are revalidated against the normal source catalogue, source pixels,
+complete requirement packet, ordered frame/phone hashes and composition
+measurement before their frames are copied byte-for-byte into the isolated
+proof package.
+
+For a static one-object identity lesson, the collection-level normal production
+materializer (`materializeVisualPlanFrames`) may now issue
+the narrow deterministic verdict
+`mobius-deterministic-static-identity-composition-v1`. This requires an
+`AUTO_ACCEPTED` exact component binding, source authority and PDF provenance,
+matching provider pixel evidence, no state/relationship/quantity/transition
+requirement, a successful normal FFmpeg still, the existing 0.8 true-source
+detail floor, and the VisualPlan's phone-width minimum. A review candidate,
+missing hash, weak detail, wrong/cut object, or any stateful requirement remains
+unvalidated. Single-line teaching copy uses the content-driven teaching layout
+rather than the denser list layout; source detail constrains its maximum image
+prominence instead of being enlarged into a pass.
+
+The isolated final replay proves one scene per game with **zero new provider
+calls**: Cowboy's five-state fuel lesson and Terraforming Mars's complete-board
+identification lesson. Physical inspection confirms the highlighted Cowboy
+values 1 → 3 → 2 → 2 → 2 and the retained value across turns; Terraforming's
+whole board and all outer edges remain recognizable in the 390×219 output.
+The latter's small printed map labels are not claimed readable, because the
+lesson only identifies the board. Evidence:
+`out/first-pedagogical-visual-proof/final-autonomous-scenes/`. This is a limited
+two-scene proof, not whole-tutorial visual autonomy or publishability.
+
 ## Director-authorized end-to-end continuation (supersedes the historical pause)
 
 The original failed calls, caps and reports below remain historical. The new
