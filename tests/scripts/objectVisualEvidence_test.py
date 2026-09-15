@@ -500,6 +500,15 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(packets[0], packets[1])
             self.assertEqual(packets[0]['sourcePages'], [4])
 
+    def test_component_discovery_runs_before_repeated_teaching_scenes(self):
+        scenes = [
+            {'id': 'lesson', 'visualRequirement': {'requiredObjects': ['card'], 'transitionRequired': True}},
+            {'id': 'discovery', 'visualRequirement': {'requiredObjects': ['card', 'token'], 'componentDiscovery': True,
+                'purpose': 'component-identity-discovery'}},
+        ]
+        ordered = matcher.prioritize_scenes(scenes, {}, [])
+        self.assertEqual([scene['id'] for scene in ordered], ['discovery', 'lesson'])
+
     def test_context_enriched_contract_reuses_only_prior_localization_not_component_verdict(self):
         with tempfile.TemporaryDirectory() as directory:
             pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'

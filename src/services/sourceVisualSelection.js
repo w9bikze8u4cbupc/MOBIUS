@@ -60,6 +60,60 @@ export function visualProviderRecoveryIdentity(env = process.env) {
   }
 }
 
+export const COMPONENT_DISCOVERY_CONTRACT = 'mobius-source-component-discovery-v1';
+
+const NON_PHYSICAL_DISCOVERY_CATEGORIES = new Set([
+  'action', 'currency', 'effect', 'rule', 'state', 'status', 'value', 'virtual_resource',
+]);
+
+function componentDiscoveryEvidence(term = {}) {
+  return (term.evidence || [])
+    .filter((row) => Number.isInteger(Number(row?.page)) && Number(row.page) > 0 && String(row?.quote || '').trim())
+    .map((row) => ({ page: Number(row.page), quote: String(row.quote).trim() }));
+}
+
+/**
+ * Create source-identity discovery work from the same source-grounded
+ * component terminology used by normal visual plans. It does not add an
+ * asset, a binding, or a teaching scene: it merely lets one bounded
+ * localization pass discover several real components on their official
+ * inventory/setup page before unrelated rule scenes compete for the budget.
+ */
+export function buildComponentDiscoveryScenes({ scenes = [], componentTerms = {} } = {}) {
+  const required = new Set((scenes || []).flatMap((scene) => scene?.visualRequirement?.requiredObjects || []));
+  const groups = new Map();
+  for (const id of [...required].sort()) {
+    const term = componentTerms?.[id];
+    if (!term || typeof term !== 'object' || term.status !== 'GROUNDED') continue;
+    if (NON_PHYSICAL_DISCOVERY_CATEGORIES.has(String(term.category || '').toLowerCase())) continue;
+    const evidence = componentDiscoveryEvidence(term);
+    if (!evidence.length) continue;
+    // A component may be mentioned throughout the rules. Its earliest exact
+    // component evidence is the stable discovery page; other citations stay
+    // with the teaching scene and never become identity proof by themselves.
+    const page = evidence.map((row) => row.page).sort((left, right) => left - right)[0];
+    const group = groups.get(page) || [];
+    group.push({ id, evidence: evidence.filter((row) => row.page === page) });
+    groups.set(page, group);
+  }
+  return [...groups.entries()].sort(([left], [right]) => left - right).map(([page, members]) => {
+    const ids = members.map((member) => member.id).sort();
+    const suffix = crypto.createHash('sha256').update(JSON.stringify([page, ids])).digest('hex').slice(0, 12);
+    return {
+      id: `source-component-discovery-p${page}-${suffix}`,
+      source_pages: [page],
+      sourceRefs: members.flatMap((member) => member.evidence),
+      visualRequirement: {
+        actualGameAssetRequired: true,
+        requiredObjects: ids,
+        purpose: 'component-identity-discovery',
+        componentDiscovery: true,
+      },
+      discoveryContract: COMPONENT_DISCOVERY_CONTRACT,
+    };
+  });
+}
+
 export function locateInterleavedSourceQuote(text,quote){
   // PDF reading order may interleave a card's icon values/labels with prose.
   // Locate all supplied words in order, but RETURN the exact source span with

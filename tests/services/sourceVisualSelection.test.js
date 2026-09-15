@@ -24,6 +24,22 @@ test('visual provider outage is explicit recovery, not a fabricated Cockpit deci
   fs.rmSync(ledgerRoot, { recursive: true, force: true });
 });
 
+test('source-grounded physical referents receive a shared component-discovery scene without creating a binding', async () => {
+  const { buildComponentDiscoveryScenes } = await import('../../src/services/sourceVisualSelection.js');
+  const scenes = [{ id: 'lesson-a', visualRequirement: { actualGameAssetRequired: true, requiredObjects: ['board', 'token', 'currency'] } }];
+  const componentTerms = {
+    board: { status: 'GROUNDED', category: 'board', evidence: [{ page: 3, quote: '1 player board' }] },
+    token: { status: 'GROUNDED', category: 'token', evidence: [{ page: 3, quote: '20 tokens' }] },
+    currency: { status: 'GROUNDED', category: 'currency', evidence: [{ page: 3, quote: 'virtual currency' }] },
+  };
+  const discovery = buildComponentDiscoveryScenes({ scenes, componentTerms });
+  expect(discovery).toHaveLength(1);
+  expect(discovery[0]).toMatchObject({ source_pages: [3], visualRequirement: {
+    actualGameAssetRequired: true, requiredObjects: ['board', 'token'], purpose: 'component-identity-discovery', componentDiscovery: true,
+  } });
+  expect(discovery[0].visualRequirement).not.toHaveProperty('selectedAssetIds');
+});
+
 test('native source authority requires real matching PDF/extraction provenance, not a label', async () => {
   const { nativeManifestProvenance } = await import('../../src/services/hephaestusEvidence.js');
   const file = path.resolve(__dirname, '../../package.json');

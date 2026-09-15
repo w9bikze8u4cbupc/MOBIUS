@@ -4,7 +4,7 @@ These entries track the Director-supplied RF references; they do not redefine th
 
 | References | Reused/reconnected protection | Current proof status |
 |---|---|---|
-| RF-001 / RF-002 | Source identity, object-level pixel review, native reconstruction, state-dependent composition acceptance | One five-state fuel lesson rendered and independently reviewed. Whole-tutorial visual coverage pending. |
+| RF-001 / RF-002 | Source identity, object-level pixel review, native reconstruction, high-detail PDF localization, state-dependent composition acceptance | One five-state fuel lesson rendered and independently reviewed. Official cited pages can now be re-rasterized at 300 dpi with SHA/page lineage for localization only; whole-tutorial visual coverage remains pending. |
 | RF-003 / RF-005 | Compact project transport, source isolation, owned locks, atomic checkpoints | Existing enriched whole-project proof preserved. New full tutorial state must pass the same limits. |
 | RF-011 / RF-014 | Source/model/contract caches, provider budget reservation, per-segment narration checkpoints | Compatible source and provider receipts retained; failures never become successful evidence. |
 | RF-016 | Whole composition versus isolated component validation | Exact frame/phone hashes and ordered state checks exercised. Full video QA and Director verdict pending. |

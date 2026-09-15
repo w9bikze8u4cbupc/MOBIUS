@@ -17,7 +17,7 @@ SEARCH_CONTRACT = "mobius-referent-localization-v1"
 # substage no longer leaks a KeyError into a faux provider-unavailable result.
 # The version is part of the execution cache identity so that a prior local
 # bookkeeping failure is not replayed as if pixels had been inspected.
-SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v9-response-budget'
+SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v10-hdpi-component-discovery'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v3'
 RESPONSE_BUDGET_CONTRACT = 'mobius-visual-response-budget-v1'
@@ -185,6 +185,12 @@ def analysis_priority(scene, object_frequency):
     """
     req = scene.get('visualRequirement') or {}
     required = req.get('requiredObjects') or []
+    # A source-grounded inventory/setup discovery scene is not a teaching
+    # scene and cannot bind an asset by itself. It only establishes reusable
+    # pixel identities before many narrative scenes repeat the same component
+    # lookup under a bounded provider budget.
+    if req.get('componentDiscovery'):
+        return (-1, -len(required), 0, str(scene.get('id') or ''))
     if req.get('trackStateRequired'):
         state_rank = 0
     elif req.get('transitionRequired'):

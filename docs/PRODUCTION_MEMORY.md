@@ -7,6 +7,17 @@ The fuel lesson now has five normal-renderer instructional frames, provider-deri
 
 The Director explicitly authorized resumed full production and a new bounded mission allowance. The old 14-call visual envelope remains historical. Additional calls retain the same ledger and provider; no counters are reset. Current counters and receipts are in `out/cowboy-end-to-end/` and the historical visual ledger.
 
+September 15 visual recovery checkpoint: the canonical Inbox worker reused the
+PDF, 994 HEPHAESTUS images, knowledge and compact persistence, then stopped at
+the normal Cockpit boundary with four automatic source bindings and 99 missing
+visual bindings. The shared `default` visual budget reached its recorded cap
+(49); there was no provider failure and no false acceptance. The next generic
+slice adds SHA-verified 300 dpi page-localization caches and source-grounded
+component-discovery packets so a measured component identity can be reused by
+the many teaching scenes that require it. A high-detail page is still
+`UNKNOWN` until object, crop, detail and state checks pass; this does not claim
+visual completion, narration readiness or an MP4.
+
 Twelve Labs non-generative access succeeded. ElevenLabs account-reading endpoints report missing permission; this does not establish a TTS failure. No subscription or credential/model change is authorized or performed.
 
 Normal worker: `tutorial:inbox:once` → `run-rulebook-production` → `run-source-grounded-production`. Reuse compatible extraction, knowledge, measurements and narration segments. PR #476 remains unmerged. No publication or production deployment is implied.

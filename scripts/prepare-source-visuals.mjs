@@ -11,10 +11,11 @@ import { mkdir, writeFile } from 'fs/promises';
 import { dirname, resolve } from 'path';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
-import { generateFocusedPageCrops, sourceLocalizationPages } from '../src/services/sourcePageVisuals.js';
+import { generateFocusedPageCrops, materializeHighDetailSourcePages, sourceLocalizationPages } from '../src/services/sourcePageVisuals.js';
 import { getAiConfig } from '../src/config/aiConfig.js';
 import evidenceBoundCropService from '../src/services/evidenceBoundVisualCrop.cjs';
 import sourceAssetResolver from '../src/services/sourceAssetResolver.cjs';
+import { buildComponentDiscoveryScenes } from '../src/services/sourceVisualSelection.js';
 
 const { appendEvidenceBoundCrops } = evidenceBoundCropService;
 const { authorizedCandidatesForVisualAnalysis } = sourceAssetResolver;
@@ -47,6 +48,20 @@ function run(command, args, env = process.env) {
       else reject(new Error(`${command} exited with code ${code}`));
     });
   });
+}
+
+function sourceVisualEvidencePages(script = {}) {
+  const requested = new Set();
+  for (const scene of script.scenes || []) {
+    if (scene.visualRequirement?.actualGameAssetRequired === false) continue;
+    for (const page of scene.source_pages || []) if (Number.isInteger(Number(page)) && Number(page) > 0) requested.add(Number(page));
+    for (const referent of scene.visualRequirement?.requiredObjects || []) {
+      for (const evidence of script.componentTerms?.[referent]?.evidence || []) {
+        if (Number.isInteger(Number(evidence?.page)) && Number(evidence.page) > 0) requested.add(Number(evidence.page));
+      }
+    }
+  }
+  return [...requested].sort((left, right) => left - right);
 }
 
 async function main() {
@@ -129,8 +144,22 @@ async function main() {
     });
     await writeFile(cropManifestPath, `${JSON.stringify(cropManifest, null, 2)}\n`, 'utf8');
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-    const localizationPages = await sourceLocalizationPages({ pageDir: resolve(pageDir), pages: extraction.pages || [], sourceSha256 });
     const sourcePdfPath = arg('source-pdf') || manifest.pdf_path || manifest.sourcePdfPath;
+    const resolvedSourcePdfPath = sourcePdfPath && existsSync(resolve(sourcePdfPath)) ? resolve(sourcePdfPath) : null;
+    // Local page rasters preserve authoritative PDF pixels at a useful search
+    // resolution. They are source-localization hypotheses only; no crop,
+    // component, or visual-plan acceptance is inferred from their creation.
+    const highDetail = resolvedSourcePdfPath
+      ? await materializeHighDetailSourcePages({
+        sourcePdfPath: resolvedSourcePdfPath,
+        sourceSha256,
+        outputDir: resolve(pageDir, 'high-detail-pages'),
+        pages: sourceVisualEvidencePages(sourceEvidenceScript),
+        dpi: 300,
+        python,
+      })
+      : null;
+    const localizationPages = await sourceLocalizationPages({ pageDir: resolve(pageDir), pages: extraction.pages || [], sourceSha256, highDetailManifest: highDetail });
     if (sourcePdfPath && existsSync(resolve(sourcePdfPath))) {
       for (const candidate of localizationPages) candidate.sourcePdfPath = resolve(sourcePdfPath);
     }
@@ -181,6 +210,8 @@ async function main() {
       ...manifest,
       images: [...images, ...(cropManifest.assets || []), ...localizationPages],
       focusedCropManifest: cropManifestPath,
+      highDetailSourcePages: highDetail ? { contract: highDetail.contract, sourceSha256: highDetail.sourceSha256, dpi: highDetail.dpi,
+        pages: highDetail.pages.map((row) => ({ page: row.page, sha256: row.sha256, width: row.width, height: row.height })) } : null,
     }, null, 2)}\n`, 'utf8');
   }
 
@@ -191,9 +222,10 @@ async function main() {
     ? JSON.parse(readFileSync(resolve(evidenceFile), 'utf8')).componentBindings || [] : [];
   const scopedScript = resolve(outputDir, 'object-evidence-script.json');
   const sceneObjects = new Set((inputScript.scenes || []).flatMap((scene) => scene.visualRequirement?.requiredObjects || []));
+  const componentDiscoveryScenes = buildComponentDiscoveryScenes({ scenes: sourceEvidenceScript.scenes || [], componentTerms: inputScript.componentTerms || {} });
   await writeFile(scopedScript, JSON.stringify({
     ...sourceEvidenceScript,
-    scenes: [...(sourceEvidenceScript.scenes || []), ...terms.filter((row) => !sceneObjects.has(row.componentId)).map((row) => ({
+    scenes: [...componentDiscoveryScenes, ...(sourceEvidenceScript.scenes || []), ...terms.filter((row) => !sceneObjects.has(row.componentId)).map((row) => ({
       id: `knowledge-component-${row.componentId}`, source_pages: row.sourcePage ? [row.sourcePage] : [],
       sourceRefs: row.sourcePage ? [{ page: row.sourcePage }] : [],
       visualRequirement: { requiredObjects: [row.componentId], purpose: 'component-identity-binding' },

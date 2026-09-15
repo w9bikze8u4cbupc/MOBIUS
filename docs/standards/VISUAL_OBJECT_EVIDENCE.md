@@ -86,6 +86,24 @@ crop completeness or acceptance.
 
 No extraction is required when source pages and HEPHAESTUS already exist. Different worker/API data roots must not produce an empty focused-crop manifest after a false ready checkpoint. Page synchronization is read-only at the API and validates source SHA/page count, scoped URLs, image decoding and local checksums.
 
+### High-detail localization and component discovery
+
+When the synchronized API page is too small to support reliable localization,
+the normal source-visual preparation path may rasterize only the cited official
+PDF pages at 300 dpi. The cache is keyed by canonical PDF path, SHA, page and
+DPI; each raster records its source page and hash. It is a `LOCALIZATION`
+hypothesis, not a clean crop, component binding or quality verdict. The normal
+object matcher must still measure the exact object, and the deterministic crop,
+detail, silhouette and physical-state gates remain unchanged.
+
+Before narrative scenes consume the bounded visual budget independently, the
+same source-grounded component terminology may create one discovery packet per
+official inventory/setup page. Only physical, already referenced,
+`GROUNDED` referents with exact page evidence participate. The resulting packet
+does not change the authored storyboard and cannot auto-bind anything by name;
+pixel measurement is the sole identity authority. This reduces duplicate
+inspection while retaining zero-retry provider, ledger and Cockpit behavior.
+
 ## Hypothesis versus measurement versus acceptance
 
 - Extracted names, categories, aliases, page proximity and proposed component bindings are search hypotheses, not proof of visible identity. Opaque component IDs remain exact identifiers; `comp-1` and `comp-57` cannot match through the shared word `comp`.
