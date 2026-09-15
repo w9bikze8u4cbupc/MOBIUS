@@ -39,6 +39,13 @@ function args(name) {
   return values;
 }
 
+export function assertRequiredVisualBudgetEnvironment(env = process.env) {
+  if (String(env.MOBIUS_VISUAL_REQUIRE_BUDGET_LEDGER || '').toLowerCase() === 'true'
+    && !String(env.MOBIUS_VISUAL_BUDGET_LEDGER || '').trim()) {
+    throw new Error('VISUAL_BUDGET_LEDGER_REQUIRED_BEFORE_PROVIDER_CALL');
+  }
+}
+
 function run(command, args, env = process.env) {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(command, args, { stdio: 'inherit', env, windowsHide: true });
@@ -65,6 +72,7 @@ function sourceVisualEvidencePages(script = {}) {
 }
 
 async function main() {
+  assertRequiredVisualBudgetEnvironment();
   if (arg('composition-review')) {
     const input = JSON.parse(readFileSync(required('composition-review'), 'utf8'));
     const outputDir = required('output-dir');

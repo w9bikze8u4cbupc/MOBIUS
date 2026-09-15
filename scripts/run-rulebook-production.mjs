@@ -69,8 +69,13 @@ const { DEFAULT_NARRATION_PRESET, getEditorialContract } = editorialStandard;
 // Includes deterministic evidence-bound crop derivation. Bump this whenever a
 // measured candidate can gain new persisted acceptance/rejection provenance so
 // replay cannot silently reuse a manifest produced under an older contract.
-const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v23-atomic-component-discovery';
+const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v24-canonical-provider-budget';
 const DEFAULT_BASE_URL = process.env.MOBIUS_BASE_URL || 'http://127.0.0.1:5001';
+const VISUAL_PROVIDER_BUDGET_CONTRACT = 'mobius-project-visual-provider-budget-v1';
+const VISUAL_PROVIDER_RECEIPT_CONTRACTS = new Set([
+  'mobius-object-visual-evidence-v1',
+  'mobius-object-visual-evidence-v2',
+]);
 
 function argsToObject(argv = process.argv.slice(2)) {
   const values = {};
@@ -170,6 +175,112 @@ async function saveJson(filePath, value, { pretty = true } = {}) {
   } finally {
     try { if (fs.existsSync(temporary)) await fs.promises.unlink(temporary); } catch {}
   }
+}
+
+function boundedPositiveInteger(value, fallback, maximum = 128) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= maximum ? parsed : fallback;
+}
+
+function sha256File(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+function findProviderReceipts(root, relative = '') {
+  if (!exists(root)) return [];
+  const rows = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const child = path.join(root, entry.name);
+    const childRelative = path.join(relative, entry.name);
+    if (entry.isDirectory()) rows.push(...findProviderReceipts(child, childRelative));
+    else if (entry.isFile() && entry.name.endsWith('.response.json')) {
+      const receipt = jsonIf(child, null);
+      if (VISUAL_PROVIDER_RECEIPT_CONTRACTS.has(receipt?.identity?.contract)) {
+        rows.push({ path: child, relativePath: childRelative.replace(/\\/g, '/') });
+      }
+    }
+  }
+  return rows.sort((left, right) => left.relativePath.localeCompare(right.relativePath));
+}
+
+/**
+ * A visual provider receipt is expensive work even when an older worker did
+ * not have a budget policy in its environment.  Bootstrap once from the
+ * project-owned response receipts, then every later source/composition call
+ * reserves in the same durable ledger before it reaches the provider.
+ */
+export async function ensureCanonicalVisualProviderBudget({ projectId, projectDir, sourceSha256, env = process.env } = {}) {
+  if (!projectId || !projectDir || !/^[a-f0-9]{64}$/i.test(String(sourceSha256 || ''))) {
+    throw new Error('Canonical visual provider budget requires project ID, project directory and source SHA.');
+  }
+  const productionDir = path.join(projectDir, 'production');
+  const ledgerPath = path.join(productionDir, 'visual-provider-budget.json');
+  const existing = jsonIf(ledgerPath, null);
+  if (existing) {
+    if (existing.contract !== VISUAL_PROVIDER_BUDGET_CONTRACT || existing.projectId !== projectId
+      || existing.sourceSha256 !== sourceSha256 || !Array.isArray(existing.calls)) {
+      throw new Error('CANONICAL_VISUAL_PROVIDER_BUDGET_INVALID');
+    }
+    return { path: ledgerPath, ledger: existing, initialized: false };
+  }
+  const sourceAllowance = boundedPositiveInteger(env.MOBIUS_VISUAL_SOURCE_INITIAL_ALLOWANCE, 16);
+  const compositionAllowance = boundedPositiveInteger(env.MOBIUS_VISUAL_COMPOSITION_INITIAL_ALLOWANCE, 16);
+  const historical = findProviderReceipts(productionDir).map((receipt, index) => ({
+    group: 'historical',
+    ordinal: index + 1,
+    identity: {
+      contract: 'mobius-visual-provider-receipt-v1',
+      receiptSha256: sha256File(receipt.path),
+      receiptPath: receipt.relativePath,
+    },
+    reconciledAt: new Date().toISOString(),
+  }));
+  const ledger = {
+    contract: VISUAL_PROVIDER_BUDGET_CONTRACT,
+    projectId,
+    sourceSha256,
+    createdAt: new Date().toISOString(),
+    historicalReceiptCount: historical.length,
+    maxPerGroup: Math.max(sourceAllowance, compositionAllowance),
+    maxTotal: historical.length + sourceAllowance + compositionAllowance,
+    groupCaps: { historical: historical.length, source: sourceAllowance, composition: compositionAllowance },
+    calls: historical,
+    recoveryEpoch: null,
+  };
+  await saveJson(ledgerPath, ledger);
+  return { path: ledgerPath, ledger, initialized: true };
+}
+
+export function canonicalVisualProviderEnvironment({ root, budget, group, env = process.env } = {}) {
+  if (!budget?.path || !['source', 'composition'].includes(group)) {
+    throw new Error('Canonical visual provider environment requires a project budget and known group.');
+  }
+  return {
+    ...canonicalRuntimeConfigurationEnvironment({ root, env }),
+    MOBIUS_VISUAL_BUDGET_LEDGER: budget.path,
+    MOBIUS_VISUAL_BUDGET_GROUP: group,
+    MOBIUS_VISUAL_REQUIRE_BUDGET_LEDGER: 'true',
+    MOBIUS_VISUAL_COMPOSITION_BUDGET_GROUP: 'composition',
+  };
+}
+
+function visualProviderBudgetSummary(budget) {
+  const ledger = jsonIf(budget?.path, budget?.ledger || {});
+  const calls = Array.isArray(ledger.calls) ? ledger.calls : [];
+  const byGroup = Object.fromEntries([...new Set(calls.map((call) => call?.group).filter(Boolean))]
+    .sort().map((group) => [group, calls.filter((call) => call.group === group).length]));
+  return {
+    contract: ledger.contract || VISUAL_PROVIDER_BUDGET_CONTRACT,
+    path: budget?.path || null,
+    projectId: ledger.projectId || null,
+    sourceSha256: ledger.sourceSha256 || null,
+    historicalReceiptCount: Number(ledger.historicalReceiptCount || 0),
+    calls: calls.length,
+    callsByGroup: byGroup,
+    maxTotal: Number(ledger.maxTotal || 0),
+    groupCaps: ledger.groupCaps || {},
+    recoveryEpoch: ledger.recoveryEpoch || null,
+  };
 }
 
 function archiveContractArtifacts(productionDir, paths, reason) {
@@ -1124,8 +1235,40 @@ async function runZeroState(options = {}) {
   if (await stopIfRequested(options, checkpoint, 'gameplay-actions', checkpointPath, { projectId, actions: gameplayModel.actions.length })) return { status: 'stopped', stage: 'gameplay-actions' };
 
   const visualScriptPath = path.join(productionDir, 'zero-state-visual-review-script.json');
+  // Visual calls are a project-owned production cost.  The runtime
+  // configuration intentionally exposes only provider credentials, so carry
+  // the durable budget policy explicitly into both source and composition
+  // subprocesses instead of relying on a parent shell environment.
+  const visualProviderBudget = await ensureCanonicalVisualProviderBudget({
+    projectId,
+    projectDir,
+    sourceSha256: identity.sha256,
+    env: process.env,
+  });
+  const visualSourceEnv = canonicalVisualProviderEnvironment({
+    root,
+    budget: visualProviderBudget,
+    group: 'source',
+    env: process.env,
+  });
+  const visualCompositionEnv = canonicalVisualProviderEnvironment({
+    root,
+    budget: visualProviderBudget,
+    group: 'composition',
+    env: process.env,
+  });
+  markStage(checkpoint, 'visual-provider-budget', hashValue({
+    contract: visualProviderBudget.ledger.contract,
+    projectId,
+    sourceSha256: identity.sha256,
+    historicalReceiptCount: visualProviderBudget.ledger.historicalReceiptCount,
+    groupCaps: visualProviderBudget.ledger.groupCaps,
+  }), [visualProviderBudget.path], {
+    initialized: visualProviderBudget.initialized,
+    summary: visualProviderBudgetSummary(visualProviderBudget),
+  });
   const referentTerms = await normalizeSourceReferentTerms({model:rulebookKnowledgeModel,
-    cachePath:path.join(productionDir,'source-referent-terminology.json'),env:canonicalRuntimeConfigurationEnvironment({root})});
+    cachePath:path.join(productionDir,'source-referent-terminology.json'),env:visualSourceEnv});
   const visualScript = {
     version: 1, game: gameName, language,
     // Preserve source-grounded terminology evidence through visual identity
@@ -1170,9 +1313,9 @@ async function runZeroState(options = {}) {
     visualScriptHash,
     hephHash,
     sourceSha256: identity.sha256,
-    matchModel: process.env.MOBIUS_VISUAL_MATCH_MODEL || aiPreflight.status.model,
+    matchModel: visualSourceEnv.MOBIUS_VISUAL_MATCH_MODEL || aiPreflight.status.model,
     providerConfiguration: aiPreflight.status.configurationFingerprint,
-    providerRecovery: visualProviderRecoveryIdentity(process.env),
+    providerRecovery: visualProviderRecoveryIdentity(visualSourceEnv),
     continuation: visualAnalysisContinuationIdentity(priorVisualAnalysis),
     authorizedCandidateManifests: earlyCandidateManifests,
   }));
@@ -1181,11 +1324,11 @@ async function runZeroState(options = {}) {
     const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
     const visualArgs = [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--hephaestus-evidence', hephEvidencePath, '--output-dir', baseVisualReviewDir, '--page-dir', pageDir, '--extraction', path.join(productionDir, 'zero-state-extraction.json'), '--source-sha256', identity.sha256, '--source-pdf', await sourceService.resolveFile(projectId), ...earlyCandidateManifestPaths.flatMap((candidatePath) => ['--authorized-candidate-manifest', candidatePath])];
     visualAutopilot = await runBoundedVisualReviewBatches({
-      env: process.env,
+      env: visualSourceEnv,
       readReport: () => jsonIf(baseSemanticPath, {}),
       runBatch: async () => {
         const result = spawnSync(process.execPath, visualArgs, {
-          cwd: root, env: { ...canonicalRuntimeConfigurationEnvironment({ root }), PYTHON: python }, stdio: 'inherit', windowsHide: true,
+          cwd: root, env: { ...visualSourceEnv, PYTHON: python }, stdio: 'inherit', windowsHide: true,
         });
         if (result.status !== 0) {
           throw Object.assign(new Error(`prepare-source-visuals exited with code ${result.status}`), {
@@ -1222,6 +1365,7 @@ async function runZeroState(options = {}) {
         endgameModelPath, endgameModelContract: endgameModel.contract,
         rulebookKnowledgePath, rulebookKnowledgeContract: rulebookKnowledgeModel.contract,
         tutorialCoveragePath, tutorialCoverageContract: tutorialCoverage.contract,
+        visualProviderBudget: visualProviderBudgetSummary(visualProviderBudget),
       },
     });
     throw baseProviderFailure;
@@ -1258,7 +1402,7 @@ async function runZeroState(options = {}) {
     if (!stageReady(checkpoint, 'authorized-source-visual-review', authorizedReviewHash, [qualityPath, semanticPath, combinedVisualManifestPath, focusedCropManifestPath])) {
       const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
       const result = spawnSync(process.execPath, [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--hephaestus-evidence', hephEvidencePath, '--output-dir', visualReviewDir, '--page-dir', pageDir, '--extraction', path.join(productionDir, 'zero-state-extraction.json'), '--source-sha256', identity.sha256, '--source-pdf', await sourceService.resolveFile(projectId), '--previous-semantic-report', baseSemanticPath, ...automaticCandidateManifestPaths.flatMap((candidatePath) => ['--authorized-candidate-manifest', candidatePath])], {
-        cwd: root, env: { ...canonicalRuntimeConfigurationEnvironment({ root }), PYTHON: python }, stdio: 'inherit', windowsHide: true,
+        cwd: root, env: { ...visualSourceEnv, PYTHON: python }, stdio: 'inherit', windowsHide: true,
       });
       if (result.status !== 0) {
         throw Object.assign(new Error(`prepare-source-visuals authorized recovery exited with code ${result.status}`), {
@@ -1344,7 +1488,7 @@ async function runZeroState(options = {}) {
   });
   if(materialized.records.some(r=>r.frames?.length && !r.validated)){
     const reviewed=await reviewPreparedSequences({state:canonicalProductionState,materialized,
-      outputDir:path.join(productionDir,'composition-reviews'),env:canonicalRuntimeConfigurationEnvironment({root})});
+      outputDir:path.join(productionDir,'composition-reviews'),env:visualCompositionEnv});
     canonicalProductionState=compileCanonicalProductionState({projectId,knowledgeModel:rulebookKnowledgeModel,
       coverageMatrix:tutorialCoverage,componentEvidence:hephEvidence,sourceAssets:reviewed.assets,authorizedCandidateManifestPaths});
     materialized=await materializeVisualPlanFrames({state:canonicalProductionState,outputDir:path.join(productionDir,'visual-plan-frames')});
@@ -1424,7 +1568,7 @@ async function runZeroState(options = {}) {
   await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], gameMetadata, gameplayModel, endgameModel, rulebookKnowledgeModel, tutorialCoverage, canonicalProductionState, production: {
     status: providerFailure ? 'provider_blocked' : unresolvedVisuals.length ? 'review_required' : 'ready_for_production',
     providerFailure: providerFailure ? {code:providerFailure.code,classification:providerFailure.classification,httpStatus:providerFailure.httpStatus,explicitRecovery:true} : null,
-    sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, hephaestusEvidencePath: hephEvidencePath, hephaestusEvidenceContract: hephEvidence.contract, gameplayModelPath, gameplayModelContract: gameplayModel.contract, endgameModelPath, endgameModelContract: endgameModel.contract, rulebookKnowledgePath, rulebookKnowledgeContract: rulebookKnowledgeModel.contract, tutorialCoveragePath, tutorialCoverageContract: tutorialCoverage.contract, canonicalStatePath, visualPlansPath, physicalStatesPath, visualReviewItemsPath, productionQaPath, phoneScaleQaPath, inputHash: initialStateHash } });
+    sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, hephaestusEvidencePath: hephEvidencePath, hephaestusEvidenceContract: hephEvidence.contract, gameplayModelPath, gameplayModelContract: gameplayModel.contract, endgameModelPath, endgameModelContract: endgameModel.contract, rulebookKnowledgePath, rulebookKnowledgeContract: rulebookKnowledgeModel.contract, tutorialCoveragePath, tutorialCoverageContract: tutorialCoverage.contract, canonicalStatePath, visualPlansPath, physicalStatesPath, visualReviewItemsPath, productionQaPath, phoneScaleQaPath, visualProviderBudget: visualProviderBudgetSummary(visualProviderBudget), inputHash: initialStateHash } });
   markStage(checkpoint, 'canonical-state', initialStateHash, [storyboardPath, canonicalStatePath, visualPlansPath, physicalStatesPath, visualReviewItemsPath, productionQaPath, phoneScaleQaPath], { reused: false, visualCounts, reviewItems: canonicalProductionState.reviewItems.length });
   await saveJson(checkpointPath, checkpoint);
   // Persist all partial results first. Never turn an unavailable provider into
@@ -1469,7 +1613,7 @@ async function runZeroState(options = {}) {
     rejectedForSemantic: (semanticReport.scenes || []).filter((scene) => ['no-qualified-source-asset', 'no-semantic-match'].includes(scene.status)).length,
   };
   await saveJson(path.join(productionDir, 'production-report.json'), report);
-  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], audioAssets: audioSidecar.assets || [], gameMetadata, gameplayModel, endgameModel, rulebookKnowledgeModel, tutorialCoverage, canonicalProductionState, production: { status: 'complete', sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, hephaestusEvidencePath: hephEvidencePath, hephEvidenceContract: hephEvidence.contract, gameplayModelPath, gameplayModelContract: gameplayModel.contract, endgameModelPath, endgameModelContract: endgameModel.contract, rulebookKnowledgePath, rulebookKnowledgeContract: rulebookKnowledgeModel.contract, tutorialCoveragePath, tutorialCoverageContract: tutorialCoverage.contract, canonicalStatePath, visualPlansPath, physicalStatesPath, visualReviewItemsPath, productionQaPath, reportPath: path.join(productionDir, 'production-report.json'), report }, });
+  await persistProject({ baseUrl, apiKey, projectId, gameName, language, descriptor, manifest, components: extraction.components.components || extraction.components, scriptPackage, storyboardManifest, scenes: boundScenes, images: imagesResponse.images || [], audioAssets: audioSidecar.assets || [], gameMetadata, gameplayModel, endgameModel, rulebookKnowledgeModel, tutorialCoverage, canonicalProductionState, production: { status: 'complete', sourceVisualManifest: combinedVisualManifestPath, visualQualityReport: qualityPath, semanticVisualReport: semanticPath, hephaestusEvidencePath: hephEvidencePath, hephEvidenceContract: hephEvidence.contract, gameplayModelPath, gameplayModelContract: gameplayModel.contract, endgameModelPath, endgameModelContract: endgameModel.contract, rulebookKnowledgePath, rulebookKnowledgeContract: rulebookKnowledgeModel.contract, tutorialCoveragePath, tutorialCoverageContract: tutorialCoverage.contract, canonicalStatePath, visualPlansPath, physicalStatesPath, visualReviewItemsPath, productionQaPath, visualProviderBudget: visualProviderBudgetSummary(visualProviderBudget), reportPath: path.join(productionDir, 'production-report.json'), report }, });
   const narrationPath = path.join(productionDir, 'narration-assets.json');
   const narrationHash = hashValue({ storyboardHash, assets: audioSidecar.assets || [] });
   assertCanonicalStagePrerequisites(checkpoint, 'narration');

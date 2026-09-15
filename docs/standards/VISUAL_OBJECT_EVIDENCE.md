@@ -129,6 +129,20 @@ The normal matcher allows at most eight calls (configurable bounded maximum 32),
 
 New image requests reuse the existing 1600×1600 maximum visual-probe helper, without enlarging or altering native source files. The original pixel hash and source-detail lineage remain authoritative. Unsafe/undecodable probes remain UNKNOWN and spend no provider call; no decoder safety limit is disabled. Existing valid measurements of the original pixels remain reusable.
 
+### Canonical provider budget
+
+Normal production creates `production/visual-provider-budget.json` before the
+first source-visual or composition provider request. It is project- and
+source-SHA-bound, imports existing project-owned `*.response.json` receipts
+once by path and SHA, and keeps only receipt references rather than duplicating
+provider content. New calls reserve an explicit `source` or `composition`
+allocation before sending pixels. The worker passes this ledger deliberately
+through the canonical runtime environment because provider credentials and
+cost policy have different ownership. A production-marked visual subprocess
+without that ledger fails before it can call a provider. Replays retain the
+same ledger and receipts; a new allowance requires an explicit, recorded
+continuation rather than a new output directory or automatic retry.
+
 When local rulebook pixels have not established a component, one uncaptioned
 image from an exact-title, rulebook-disclosed **publisher gallery** may occupy a
 reserved slot in an atomic component-discovery packet. This is a bounded
