@@ -112,6 +112,17 @@ test('placement state applies the cited destination and orientation only after t
  expect(state.stages[1].items[0]).toMatchObject({ location: 'On the board.', faceState: 'FACE_DOWN' });
 });
 
+test('an explicit cited result can establish a face-down state without a separate orientation field', () => {
+ const state = derivePhysicalGameState({
+   id: 'discard-card', stateAfter: 'Place the resolved card face down in the discard pile.',
+   sourceRefs: [{ page: 9 }], confidence: .95, reviewState: 'accepted',
+   visualRequirement: { requiredObjects: ['card'], transitionRequired: true, discardPileRequired: true },
+ });
+ expect(state.stages).toHaveLength(2);
+ expect(state.stages[0].items[0].faceState).toBe('NOT_APPLICABLE');
+ expect(state.stages[1].items[0].faceState).toBe('FACE_DOWN');
+});
+
 test('an instructional diagram stays bound to exact component pixels, labels and the full physical requirement',()=>{
  const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
  const {verifiedInstructionalSequence}=require('../../src/services/physicalGameState.cjs');

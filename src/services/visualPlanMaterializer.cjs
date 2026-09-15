@@ -9,7 +9,7 @@ const { teachingSceneLayout, containedDisplayBounds, PRESENTATION_TOKENS } = req
 const crypto = require('node:crypto');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const xml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
-const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v8';
+const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v9';
 const STATE_SEQUENCE_CONTRACT = 'mobius-source-measured-state-sequence-v2';
 const SEMANTIC_SEQUENCE_CONTRACT = 'mobius-source-grounded-semantic-sequence-v2';
 const INSTRUCTIONAL_DIAGRAM_CONTRACT = 'mobius-source-grounded-instructional-diagram-v2';
@@ -37,8 +37,12 @@ function stateValueLabel(item = {}) {
   return 'En jeu';
 }
 
-function stateBadgeLines(item = {}) {
-  const values = [stateValueLabel(item)];
+function stateBadgeLines(item = {}, requirement = {}, stage = {}) {
+  const terminal = ['after', 'result', 'final'].includes(String(stage.id || stage.diagramStage || '').toLowerCase());
+  const primary = terminal && requirement.discardPileRequired ? 'Défausse'
+    : terminal && requirement.setupPlacementRequired && item.location ? 'Emplacement final'
+      : stateValueLabel(item);
+  const values = [primary];
   if (item.quantity != null) values.push(`× ${item.quantity}`);
   if (item.coveredBy?.length) values.push('Recouvert');
   if (item.covers?.length) values.push('Au-dessus');
@@ -100,7 +104,7 @@ function localizedVisualTeaching(scene = {}) {
 }
 
 function statefulTeachingLayout(referentCount = 1) {
-  const componentRegion = { x: 130, y: 410, width: 1660, height: 500 };
+  const componentRegion = { x: 130, y: 430, width: 1660, height: 460 };
   return {
     componentRegion,
     cells: gridCells(referentCount, componentRegion.width, componentRegion.height, 0)
@@ -198,37 +202,63 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
     if (sourcePixelsPerDisplayPixel < .8) return null;
     minimumSourcePixelsPerDisplayPixel = Math.min(minimumSourcePixelsPerDisplayPixel, sourcePixelsPerDisplayPixel);
     const image = await sharp(sourceFile(entry.asset)).resize(width, height, { fit: 'contain' }).png().toBuffer();
-    const left = cell.x + Math.floor((cell.width - width) / 2);
+    const requirement = scene.visualRequirement || {};
+    const terminalStage = ['after', 'result', 'final'].includes(String(stage.id || stage.diagramStage || '').toLowerCase())
+      || index === total - 1;
+    const transitionLane = selected.length === 1 && total > 1
+      && (requirement.setupPlacementRequired || requirement.requiredRelationship || item.location
+        || item.semanticInstructionOnly || item.instructionalDiagramOnly);
+    const centeredLeft = cell.x + Math.floor((cell.width - width) / 2);
+    const laneTravel = transitionLane ? Math.min(360, Math.max(120, Math.floor((cell.width - width) * .3))) : 0;
+    const stageProgress = total > 1 ? index / (total - 1) : .5;
+    const left = centeredLeft + (transitionLane ? Math.round((stageProgress * 2 - 1) * laneTravel) : 0);
     const top = cell.y + Math.floor((cell.height - height) / 2);
     const quantity = Number.isInteger(item.quantity) && item.quantity > 1 ? item.quantity : 1;
-    const visibleCopies = Math.min(quantity, 4);
+    // A discard/deck pile is a relationship, not an exact numeric claim.
+    // Two offset copies make the cited pile visible without inventing a card
+    // count. Explicit quantities continue to use their measured value.
+    const pileCopies = terminalStage && requirement.discardPileRequired
+      && (selected.length === 1 || /discard|défausse/i.test(String(item.location || ''))) ? 2 : 1;
+    const visibleCopies = Math.max(pileCopies, Math.min(quantity, 4));
     const copyOffset = visibleCopies > 1 ? Math.min(26, Math.floor((cell.width - width) / Math.max(1, visibleCopies - 1))) : 0;
     for (let copy = visibleCopies - 1; copy >= 0; copy -= 1) {
       layers.push({ input: image, left: left + copy * copyOffset, top: top - copy * Math.min(12, copyOffset),
         opacity: (item.removed || item.visibility === 'REMOVED') ? .24 : 1 });
     }
     states.push({ referent: entry.referent, assetId: entry.asset.id, label: stateValueLabel(item),
-      left, top, width: width + copyOffset * (visibleCopies - 1), height, item });
+      left, top, width: width + copyOffset * (visibleCopies - 1), height, item,
+      transitionLane, terminalStage, pileVisual: pileCopies > 1,
+      faceMask: item.faceState === 'FACE_DOWN' });
   }
   const labels = states.map((value) => {
-    const lines = stateBadgeLines(value.item);
+    const lines = stateBadgeLines(value.item, scene.visualRequirement || {}, stage);
     const labelTop = Math.max(338, value.top - (lines.length > 1 ? 102 : 66));
     const labelHeight = lines.length > 1 ? 92 : 56;
     const crossed = (value.item.removed || value.item.visibility === 'REMOVED')
       ? `<line x1="${value.left}" y1="${value.top}" x2="${value.left + value.width}" y2="${value.top + value.height}" stroke="#ec6c3b" stroke-width="10"/><line x1="${value.left + value.width}" y1="${value.top}" x2="${value.left}" y2="${value.top + value.height}" stroke="#ec6c3b" stroke-width="10"/>`
       : '';
-    return `<rect x="${value.left}" y="${labelTop}" width="${Math.max(180, value.width)}" height="${labelHeight}" rx="12" fill="#231811" fill-opacity=".94" stroke="#be9a58" stroke-width="2"/>${lines.map((line, lineIndex) => `<text x="${value.left + 16}" y="${labelTop + 40 + lineIndex * 38}" fill="#fff3d9" font-family="Arial" font-size="${Math.min(typography.componentLabelPx, 38)}" font-weight="bold">${xml(line)}</text>`).join('')}${crossed}`;
+    const faceMask = value.faceMask
+      ? `<rect x="${value.left}" y="${value.top}" width="${value.width}" height="${value.height}" rx="14" fill="#231811" fill-opacity=".88" stroke="#e1c184" stroke-width="5" stroke-dasharray="18 12"/><text x="${value.left + value.width / 2}" y="${value.top + value.height / 2}" text-anchor="middle" fill="#fff3d9" font-family="Arial" font-size="42" font-weight="bold">FACE CACHÉE</text>`
+      : '';
+    const zone = value.transitionLane
+      ? `<rect x="${value.left - 28}" y="${value.top - 28}" width="${value.width + 56}" height="${value.height + 56}" rx="22" fill="none" stroke="${value.terminalStage ? '#f4d35e' : '#7f6a52'}" stroke-width="4" stroke-dasharray="16 12"/>`
+      : '';
+    return `${zone}<rect x="${value.left}" y="${labelTop}" width="${Math.max(180, value.width)}" height="${labelHeight}" rx="12" fill="#231811" fill-opacity=".94" stroke="#be9a58" stroke-width="2"/>${lines.map((line, lineIndex) => `<text x="${value.left + 16}" y="${labelTop + 40 + lineIndex * 38}" fill="#fff3d9" font-family="Arial" font-size="${Math.min(typography.componentLabelPx, 38)}" font-weight="bold">${xml(line)}</text>`).join('')}${faceMask}${crossed}`;
   }).join('');
-  const headline = String(scene.on_screen_text || scene.title || scene.visualRequirement?.purpose || '').split(/\n/)[0].slice(0, 92);
+  const headline = String(scene.on_screen_text || scene.title || scene.visualRequirement?.purpose || '').split(/\n/)[0].slice(0, 120);
+  const headlineLines = wrapSvgText(headline, 46, 2);
+  const headlineText = headlineLines.map((line, lineIndex) => `<text x="96" y="${104 + lineIndex * 58}" fill="#fff3d9" font-family="Arial" font-size="56" font-weight="bold">${xml(line)}</text>`).join('');
+  const stageY = 116 + headlineLines.length * 58;
+  const instructionY = stageY + 60;
   const instructionalLines = wrapSvgText(stage.instructionalText, 58, 2);
-  const instructionalText = instructionalLines.map((line, lineIndex) => `<text x="96" y="${232 + lineIndex * typography.instructionalLineHeightPx}" fill="#fff3d9" font-family="Arial" font-size="${typography.instructionalPx}">${xml(line)}</text>`).join('');
+  const instructionalText = instructionalLines.map((line, lineIndex) => `<text x="96" y="${instructionY + lineIndex * typography.instructionalLineHeightPx}" fill="#fff3d9" font-family="Arial" font-size="${typography.instructionalPx}">${xml(line)}</text>`).join('');
   const presentationKind = (stage.items || []).some((item) => item.instructionalDiagramOnly)
     ? 'Illustration explicative fondée sur le livret'
     : ((stage.items || []).some((item) => item.semanticInstructionOnly) ? 'Explication fondée sur le livret' : 'État source du jeu');
   const progress = Array.from({ length: total }, (_, step) => `<rect x="${1390 + step * 92}" y="126" width="70" height="12" rx="6" fill="${step === index ? '#f4d35e' : '#6a5745'}"/>`).join('');
   const relationship = relationshipOverlay(states, scene.visualRequirement || {}, stage);
   const panelSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><rect x="42" y="38" width="1836" height="1004" rx="32" fill="#231811" fill-opacity=".86" stroke="#be9a58" stroke-width="3"/></svg>`);
-  const overlaySvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><defs><marker id="mobius-arrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M0,0 L14,7 L0,14 z" fill="#f4d35e"/></marker></defs><text x="96" y="108" fill="#fff3d9" font-family="Arial" font-size="${typography.headlinePx}" font-weight="bold">${xml(headline)}</text><text x="96" y="172" fill="#e1c184" font-family="Arial" font-size="${typography.stagePx}" font-weight="bold">${xml(stage.label || `Étape ${index + 1}`)}</text>${progress}${instructionalText}${relationship}${labels}<text x="96" y="1000" fill="#fff3d9" font-family="Arial" font-size="${typography.footerPx}">${index + 1} / ${total} · ${xml(presentationKind)} · Livret p. ${xml((scene.source_pages || []).join(', '))}</text></svg>`);
+  const overlaySvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><defs><marker id="mobius-arrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M0,0 L14,7 L0,14 z" fill="#f4d35e"/></marker></defs>${headlineText}<text x="96" y="${stageY}" fill="#e1c184" font-family="Arial" font-size="${typography.stagePx}" font-weight="bold">${xml(stage.label || `Étape ${index + 1}`)}</text>${progress}${instructionalText}${relationship}${labels}<text x="96" y="1000" fill="#fff3d9" font-family="Arial" font-size="${typography.footerPx}">${index + 1} / ${total} · ${xml(presentationKind)} · Livret p. ${xml((scene.source_pages || []).join(', '))}</text></svg>`);
   layers.splice(1, 0, { input: panelSvg, left: 0, top: 0 });
   layers.push({ input: overlaySvg, left: 0, top: 0 });
   const target = path.resolve(outputDir, `${sequenceId}-state-${index + 1}.png`);
@@ -246,7 +276,8 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
   return { id: `${sequenceId}-state-${index + 1}`, outputPath: target, phonePath, renderConfigPath: configPath,
     narration: scene.narration, stage, sourcePixelsPerDisplayPixel: minimumSourcePixelsPerDisplayPixel,
     actualDisplayBounds: { left: componentRegion.x, top: componentRegion.y, width: componentRegion.width, height: componentRegion.height },
-    typography, phoneTypographyPx: Object.fromEntries(Object.entries(typography).map(([key, value]) => [key, Number((value * 390 / 1920).toFixed(2))])),
+    typography, visualState: states.map(({ referent, assetId, left, top, width, height, transitionLane, terminalStage, pileVisual, faceMask }) => ({ referent, assetId, left, top, width, height, transitionLane, terminalStage, pileVisual, faceMask })),
+    phoneTypographyPx: Object.fromEntries(Object.entries(typography).map(([key, value]) => [key, Number((value * 390 / 1920).toFixed(2))])),
     preparedOnly: true, validated: false };
 }
 

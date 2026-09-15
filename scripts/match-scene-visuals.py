@@ -1000,6 +1000,9 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     'imageSha256': hashlib.sha256(Path(f['outputPath']).read_bytes()).hexdigest(),
                     'phoneSha256': hashlib.sha256(Path(f['phonePath']).read_bytes()).hexdigest()
                 } for f in frames]
+                scoped_packet['compositionMediaContract'] = (
+                    'mobius-ordered-composition-media-v2' if frames
+                    else 'mobius-single-composition-media-v1')
             packet_hash = digest(scoped_packet)
             pixels = Path(asset["path"]).read_bytes()
             image_hash = hashlib.sha256(pixels).hexdigest()
@@ -1083,6 +1086,14 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                             'If source evidence or pixels are insufficient, return empty trackPoints/stateStages and explain. '
                             'Standard bbox is normalized [left,top,right,bottom], confidence is 0..1, requiredObject is the exact ID.\n'+json.dumps(scoped_packet,ensure_ascii=False))
                     if role == 'COMPOSITION':
+                        # The asset path is the first sequence frame.  Older
+                        # requests sent that frame (and its phone preview) once as
+                        # a standalone composition and then a second time inside
+                        # sequenceFrames.  Besides wasting image tokens, that made
+                        # a five-state lesson appear to contain six states and
+                        # could shift the provider's frame-to-stage comparison.
+                        # Bind the cache to the corrected media presentation and
+                        # send either one still pair OR the exact ordered frames.
                         content[0]['text'] = ('Inspect this FINAL instructional composition and its phone-scale preview against the supplied requirements. '
                             'No new game facts. Evaluate every required object, full boundaries, quantity, placement and stated relations. '
                             'stateCompatible here concerns the WHOLE SCENE, including requested transitions, not only object orientation. '
@@ -1094,19 +1105,24 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                             'If semanticTeaching or instructionalDiagram is present, its labels are source-grounded explanatory text, not a claim that the source photograph itself shows a changing marker/card state. '
                             'Accept only when those labels accurately teach the supplied requirement without falsely depicting a physical change.\n'
                             + json.dumps(scoped_packet, ensure_ascii=False))
-                        phone = (asset.get('asset_metadata') or {}).get('phonePath')
-                        if phone:
-                            content.append({'type': 'image_url', 'image_url': {'url': image_data_url(Path(phone)), 'detail': 'high'}})
                         if frames:
+                            # Drop the initially appended standalone image.
+                            # Every ordered frame below already carries its
+                            # own full-size and phone-scale pixels.
+                            content = [content[0]]
                             content[0]['text'] += ('\nThe following images are the COMPLETE ordered state sequence, '
-                                'each followed by its phone preview. Judge transitions and retained/reset values across ALL frames. '
-                                'Annotations may indicate a track value without pretending to be a photographed physical marker. '
-                                'Reject if the highlighted printed value differs from the caption, or source-bound states conflict. '
-                                'Conditional examples are not claimed card-specific facts. Return bbox in the first frame.')
+                            'each followed by its phone preview. Judge transitions and retained/reset values across ALL frames. '
+                            'Annotations may indicate a track value without pretending to be a photographed physical marker. '
+                            'Reject if the highlighted printed value differs from the caption, or source-bound states conflict. '
+                            'Conditional examples are not claimed card-specific facts. Return bbox in the first frame.')
                             for frame in frames:
                                 content.append({'type':'text','text':frame['id']})
                                 for key in ('outputPath', 'phonePath'):
                                     content.append({'type':'image_url','image_url':{'url':image_data_url(Path(frame[key])), 'detail':'high'}})
+                        else:
+                            phone = (asset.get('asset_metadata') or {}).get('phonePath')
+                            if phone:
+                                content.append({'type': 'image_url', 'image_url': {'url': image_data_url(Path(phone)), 'detail': 'high'}})
                     response = client.chat.completions.create(model=MODEL, max_completion_tokens=completion_tokens, response_format=schema(role, [obj['id'] for obj in scoped_packet['requiredObjects']]),
                         messages=[{"role": "user", "content": content}])
                     # Keep the actual completion before schema validation. Never

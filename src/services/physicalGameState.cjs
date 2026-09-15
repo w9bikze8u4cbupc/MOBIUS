@@ -7,7 +7,10 @@ const AVAILABILITY_STATES = new Set(['AVAILABLE', 'UNAVAILABLE', 'CONSUMED', 'UN
 const fs=require('node:fs'), crypto=require('node:crypto');
 const { isDeepStrictEqual } = require('node:util');
 const pixelHash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-const REQUIRED_SEQUENCE_MATERIALIZER_CONTRACT='mobius-visual-plan-materializer-v8';
+const SUPPORTED_SEQUENCE_MATERIALIZER_CONTRACTS=new Set([
+ 'mobius-visual-plan-materializer-v8',
+ 'mobius-visual-plan-materializer-v9',
+]);
 const REQUIRED_SEMANTIC_SEQUENCE_CONTRACT='mobius-source-grounded-semantic-sequence-v2';
 const REQUIRED_INSTRUCTIONAL_DIAGRAM_CONTRACT='mobius-source-grounded-instructional-diagram-v2';
 
@@ -27,8 +30,8 @@ function verifiedInstructionalSequence(candidate, requirement, sceneId) {
    const row=sequence.review?.scenes?.find(s=>s.scene_id===sceneId||s.sceneId===sceneId||s.id===sceneId)?.candidates?.find(c=>c.status==='MEASURED');
    const packet=row?.evidencePacket;
    if(!row||packet.visualRole!=='COMPOSITION'||packet.responseContract!=='normalized-composition-sequence-v2'
-    ||sequence.materializerContract!==REQUIRED_SEQUENCE_MATERIALIZER_CONTRACT
-    ||packet.materializerContract!==REQUIRED_SEQUENCE_MATERIALIZER_CONTRACT
+    ||!SUPPORTED_SEQUENCE_MATERIALIZER_CONTRACTS.has(sequence.materializerContract)
+    ||packet.materializerContract!==sequence.materializerContract
     ||packet.sequenceContract!==sequence.contract)continue;
    const semanticTeaching=sequence.semanticTeaching===true;
    const instructionalDiagram=sequence.instructionalDiagram===true;
@@ -151,7 +154,18 @@ function derivePhysicalGameState(atom = {}) {
   const requirement = atom.visualRequirement || {};
   if (requirement.physicalState) return normalizePhysicalGameState(requirement.physicalState, atom);
   const refs = unique([...(atom.componentRefs || []), ...(requirement.requiredObjects || [])].map(clean));
-  const finalFaceState = faceStateFromOrientation(atom.orientation || requirement.requiredOrientation);
+  // Structured orientation is authoritative when present.  Provider-backed
+  // RuleAtoms sometimes carry the same explicit fact in stateAfter/result;
+  // recognize only literal face-up/face-down language from those cited rule
+  // fields.  This is not an inference from component type or a visual guess.
+  const finalFaceState = faceStateFromOrientation([
+    atom.orientation,
+    requirement.requiredOrientation,
+    atom.stateAfter,
+    atom.result,
+    requirement.afterState,
+    requirement.requiredState,
+  ].filter(Boolean).join(' '));
   const baseItems = refs.map((componentRef) => normalizePhysicalItem({
     id: componentRef,
     componentRef,
@@ -177,8 +191,8 @@ function derivePhysicalGameState(atom = {}) {
     ...(atom.placement || requirement.requiredRelationship ? {
       location: atom.placement || requirement.requiredRelationship,
     } : {}),
-    ...(atom.orientation || requirement.requiredOrientation ? {
-      orientation: atom.orientation || requirement.requiredOrientation,
+    ...(finalFaceState !== 'NOT_APPLICABLE' ? {
+      orientation: atom.orientation || requirement.requiredOrientation || null,
       faceState: finalFaceState,
     } : {}),
     ...(requirement.oneShotMarkerRequired ? { availability: 'CONSUMED', consumed: true, visibility: 'REMOVED', removed: true } : {}),

@@ -1144,6 +1144,12 @@ async function runZeroState(options = {}) {
     const { applyRuleVisualReferentRecovery } = require('../src/services/ruleVisualReferentRecovery.cjs');
     rulebookKnowledgeModel = applyRuleVisualReferentRecovery(rulebookKnowledgeModel, visualReferentRecovery);
   }
+  // Persist the exact enriched model consumed by the compiler.  The previous
+  // checkpoint retained only the initial 33-atom synthesis while document
+  // completeness, localized teaching and referent recovery expanded the
+  // in-memory model.  That made Cockpit/replay files disagree about the
+  // canonical rule inventory even though the compiled state was correct.
+  await saveJson(rulebookKnowledgePath, rulebookKnowledgeModel);
   const knowledgeTeachingPlan = buildKnowledgeTeachingPlan(rulebookKnowledgeModel);
   const knowledgeScenes = knowledgeTeachingPlan.scenes.map((item) => ({
     id: `knowledge-${item.atomId}`,

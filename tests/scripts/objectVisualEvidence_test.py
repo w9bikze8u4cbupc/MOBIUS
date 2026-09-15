@@ -260,6 +260,36 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertNotIn('componentEvidencePages', first['scenes'][0]['candidates'][0]['evidencePacket'])
             self.assertNotIn('componentEvidencePages', enriched['scenes'][0]['candidates'][0]['evidencePacket'])
 
+    def test_composition_sequence_sends_each_frame_exactly_once_in_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'
+            frames = [
+                {'id': 'before', 'stage': {'id': 'before'}, 'outputPath': str(pixels), 'phonePath': str(pixels)},
+                {'id': 'after', 'stage': {'id': 'after'}, 'outputPath': str(pixels), 'phonePath': str(pixels)},
+            ]
+            script = {'scenes': [{'id': 'scene', 'source_pages': [2], 'visualRequirement': {
+                'requiredObjects': ['board'], 'purpose': 'Show a transition', 'transitionRequired': True}}]}
+            qa = {'assets': [{'asset_id': 'final', 'path': str(pixels), 'asset_metadata': {
+                'source_page': 2, 'visual_kind': 'instructional-composition', 'phonePath': str(pixels),
+                'sequenceFrames': frames, 'materializerContract': 'fixture-materializer-v2',
+                'sequenceContract': 'fixture-sequence-v2'}}]}
+            calls = []
+            def create(**kwargs):
+                calls.append(kwargs)
+                row = {'requiredObject': 'board', 'present': True, 'confidence': .99, 'complete': True,
+                    'isolated': True, 'stateCompatible': True, 'bbox': [.1, .1, .9, .9],
+                    'reason': 'Ordered fixture composition', 'purposeSatisfied': True, 'phoneReadable': True}
+                return types.SimpleNamespace(usage=None, choices=[types.SimpleNamespace(
+                    message=types.SimpleNamespace(content=json.dumps({'objects': [row]})))])
+            client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            result = matcher.run(script, qa, Path(directory), 1, client)
+            content = calls[0]['messages'][0]['content']
+            self.assertEqual(len(content), 1 + 3 * len(frames))
+            self.assertEqual([item['text'] for item in content if item['type'] == 'text'][1:], ['before', 'after'])
+            self.assertEqual(sum(item['type'] == 'image_url' for item in content), 4)
+            packet = result['scenes'][0]['candidates'][0]['evidencePacket']
+            self.assertEqual(packet['compositionMediaContract'], 'mobius-ordered-composition-media-v2')
+
     def test_native_recovery_uses_same_page_real_detail_without_granting_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             a = Path(directory) / 'pixels'
