@@ -58,7 +58,7 @@ const { COMPONENT_INVENTORY_CONTRACT_VERSION, extractComponentInventory } = awai
 const { generateStoryboard } = require('../src/storyboard/generator.js');
 const { completeRulebookDocumentCoverage, buildKnowledgeTeachingPlan, buildTutorialCoverageMatrix, buildRuleReviewItems, RULE_REVIEW_QUEUE_VERSION, RULEATOM_CONTRACT_VERSION, RULEBOOK_INTELLIGENCE_PIPELINE_VERSION, runMultiPassRulebookIntelligence } = require('../src/services/rulebookKnowledge.cjs');
 const { compileCanonicalProductionState } = require('../src/services/canonicalProductionCompiler.cjs');
-const { recoverAuthorizedBggCandidates, recoverOfficialPublisherCandidates, rectifyAuthorizedCandidate, buildAuthorizedRecoveryTargets } = require('../src/services/sourceAssetResolver.cjs');
+const { recoverAuthorizedBggCandidates, recoverOfficialPublisherCandidates, rectifyAuthorizedCandidate, buildAuthorizedRecoveryTargets, OFFICIAL_PUBLISHER_SOURCE_RECOVERY_CONTRACT } = require('../src/services/sourceAssetResolver.cjs');
 const { buildPhoneScaleQaSheet } = require('../src/services/phoneScaleQa.cjs');
 const { materializeVisualPlanFrames, reviewPreparedSequences } = require('../src/services/visualPlanMaterializer.cjs');
 
@@ -455,6 +455,38 @@ export async function persistProject(options) {
  * component as a feature template; recovered pixels still enter the ordinary
  * visual matcher and source resolver as unaccepted candidates.
  */
+export function automaticAuthorizedSourceRecoveryInput({ sourceSha256, identity, targetProvenance, documentMap, publisherCandidateRecoveryContract = OFFICIAL_PUBLISHER_SOURCE_RECOVERY_CONTRACT }) {
+  return {
+    // The parent checkpoint owns discovery/orchestration; the nested contract
+    // owns how publisher product evidence is enumerated. Both are required to
+    // reuse a result safely.
+    contract: 'mobius-automatic-authorized-source-recovery-v3',
+    publisherCandidateRecoveryContract,
+    sourceSha256,
+    title: identity?.displayName || null,
+    targets: targetProvenance || {},
+    documentMap: (documentMap?.pages || []).map((page) => ({
+      page: page.humanPageNumber || page.pageNumber || page.page,
+      textHash: page.textHash || null,
+    })),
+  };
+}
+
+export function automaticAuthorizedSourceRecoveryInputHash(options) {
+  return hashValue(automaticAuthorizedSourceRecoveryInput(options));
+}
+
+function recoverySupersedes(prior, inputHash) {
+  if (!prior?.inputHash || prior.inputHash === inputHash) return null;
+  return {
+    inputHash: prior.inputHash,
+    contract: prior.contract || null,
+    status: prior.status || null,
+    originalManifest: prior.originalManifest || null,
+    publisherRecovery: prior.publisherRecovery || null,
+  };
+}
+
 async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSha256, identity, visualScript, assets, documentMap }) {
   if (String(process.env.MOBIUS_AUTHORIZED_SOURCE_RECOVERY || 'true').toLowerCase() === 'false') {
     return { status: 'DISABLED', originalManifest: null, inputHash: null };
@@ -467,10 +499,8 @@ async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSh
   const recoveryDir = path.join(projectDir, 'source', 'authorized-source-recovery');
   const targetsPath = path.join(recoveryDir, 'feature-targets.json');
   const statePath = path.join(recoveryDir, 'recovery-state.json');
-  const inputHash = hashValue({
-    contract: 'mobius-automatic-authorized-source-recovery-v2', sourceSha256,
-    title: identity.displayName, targets: targetInfo.provenance,
-    documentMap: (documentMap?.pages || []).map((page) => ({ page: page.humanPageNumber || page.pageNumber || page.page, textHash: page.textHash || null })),
+  const inputHash = automaticAuthorizedSourceRecoveryInputHash({
+    sourceSha256, identity, targetProvenance: targetInfo.provenance, documentMap,
   });
   const prior = jsonIf(statePath, {});
   if (prior.inputHash === inputHash && prior.status === 'RECOVERED' && exists(prior.originalManifest)) return { ...prior, reused: true };
@@ -506,10 +536,10 @@ async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSh
     });
     await saveJson(recovered.originalManifest, { ...recoveredManifest, candidates });
     const state = {
-      contract: 'mobius-automatic-authorized-source-recovery-v2', inputHash, sourceSha256, title: identity.displayName,
+      contract: 'mobius-automatic-authorized-source-recovery-v3', inputHash, sourceSha256, title: identity.displayName,
       status: 'RECOVERED', match, targets: targetInfo.provenance,
       originalManifest: recovered.originalManifest, featureReport: recovered.featureReport, detailReport: recovered.detailReport,
-      cacheReused: recovered.cacheReused,
+      cacheReused: recovered.cacheReused, supersedes: recoverySupersedes(prior, inputHash),
     };
     await saveJson(statePath, state);
     return state;
@@ -518,9 +548,10 @@ async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSh
     // be reached. Preserve an actionable recovery fact; never downgrade the
     // PDF to terminal failure or pretend local source pixels were sufficient.
     const state = {
-      contract: 'mobius-automatic-authorized-source-recovery-v2', inputHash, sourceSha256, title: identity.displayName,
+      contract: 'mobius-automatic-authorized-source-recovery-v3', inputHash, sourceSha256, title: identity.displayName,
       status: 'CANDIDATE_RECOVERY_UNAVAILABLE', match, targets: targetInfo.provenance, originalManifest: null,
       reason: String(error?.message || 'authorized-candidate-recovery-failed').replace(/[\r\n]+/g, ' ').slice(0, 500),
+      supersedes: recoverySupersedes(prior, inputHash),
     };
     await saveJson(statePath, state);
     return state;
@@ -537,18 +568,20 @@ async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSh
       outputDir: recoveryDir,
     });
     const state = {
-      contract: 'mobius-automatic-authorized-source-recovery-v2', inputHash, sourceSha256, title: identity.displayName,
+      contract: 'mobius-automatic-authorized-source-recovery-v3', inputHash, sourceSha256, title: identity.displayName,
       status: recovered.status, match, targets: targetInfo.provenance,
       originalManifest: recovered.status === 'RECOVERED' ? recovered.originalManifest : null,
       publisherRecovery: { contract: recovered.contract, origins: recovered.origins, inputHash: recovered.inputHash, reused: recovered.reused },
+      supersedes: recoverySupersedes(prior, inputHash),
     };
     await saveJson(statePath, state);
     return state;
   } catch (error) {
     const state = {
-      contract: 'mobius-automatic-authorized-source-recovery-v2', inputHash, sourceSha256, title: identity.displayName,
+      contract: 'mobius-automatic-authorized-source-recovery-v3', inputHash, sourceSha256, title: identity.displayName,
       status: 'OFFICIAL_PUBLISHER_RECOVERY_UNAVAILABLE', match, targets: targetInfo.provenance, originalManifest: null,
       reason: String(error?.message || 'official-publisher-candidate-recovery-failed').replace(/[\r\n]+/g, ' ').slice(0, 500),
+      supersedes: recoverySupersedes(prior, inputHash),
     };
     await saveJson(statePath, state);
     return state;

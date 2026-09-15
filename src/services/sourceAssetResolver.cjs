@@ -13,6 +13,10 @@ const { DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT } = require('./objectAwareCrop.c
 const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v3';
 const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v3';
 const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v2';
+// This version is also a dependency of the orchestration checkpoint.  Keep it
+// exported so a recovery implementation change cannot be silently hidden by a
+// still-valid outer checkpoint.
+const OFFICIAL_PUBLISHER_SOURCE_RECOVERY_CONTRACT = 'mobius-official-publisher-source-recovery-v2';
 const AUTO_ACCEPT_CONFIDENCE = 0.82;
 const AUTO_ACCEPT_MARGIN = 0.08;
 
@@ -765,7 +769,7 @@ async function downloadOfficialImage(fetchImpl, url, target) {
 async function recoverOfficialPublisherCandidates({ title, documentMap, sourceSha256, requiredComponentIds = [], outputDir, fetchImpl = fetch } = {}) {
   if (!title || !outputDir || !/^[a-f0-9]{64}$/i.test(String(sourceSha256 || ''))) throw new Error('Official publisher recovery requires title, source SHA and output directory.');
   const origins = publisherOriginsFromDocumentMap(documentMap);
-  const input = { contract: 'mobius-official-publisher-source-recovery-v2', title, sourceSha256,
+  const input = { contract: OFFICIAL_PUBLISHER_SOURCE_RECOVERY_CONTRACT, title, sourceSha256,
     origins, requiredComponentIds: [...new Set(requiredComponentIds)].sort() };
   const inputHash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
   const absoluteOutput = path.resolve(outputDir);
@@ -932,6 +936,7 @@ module.exports = {
   AUTO_ACCEPT_CONFIDENCE,
   AUTO_ACCEPT_MARGIN,
   OBJECT_VISUAL_EVIDENCE_CONTRACT,
+  OFFICIAL_PUBLISHER_SOURCE_RECOVERY_CONTRACT,
   objectEvidenceFor,
   SOURCE_ASSET_RESOLVER_CONTRACT,
   evaluateCandidate,
