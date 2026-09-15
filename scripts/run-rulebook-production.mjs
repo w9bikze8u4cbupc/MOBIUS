@@ -58,7 +58,7 @@ const { COMPONENT_INVENTORY_CONTRACT_VERSION, extractComponentInventory } = awai
 const { generateStoryboard } = require('../src/storyboard/generator.js');
 const { completeRulebookDocumentCoverage, buildKnowledgeTeachingPlan, buildTutorialCoverageMatrix, buildRuleReviewItems, RULE_REVIEW_QUEUE_VERSION, RULEATOM_CONTRACT_VERSION, RULEBOOK_INTELLIGENCE_PIPELINE_VERSION, runMultiPassRulebookIntelligence } = require('../src/services/rulebookKnowledge.cjs');
 const { compileCanonicalProductionState } = require('../src/services/canonicalProductionCompiler.cjs');
-const { recoverAuthorizedBggCandidates, rectifyAuthorizedCandidate, buildAuthorizedRecoveryTargets } = require('../src/services/sourceAssetResolver.cjs');
+const { recoverAuthorizedBggCandidates, recoverOfficialPublisherCandidates, rectifyAuthorizedCandidate, buildAuthorizedRecoveryTargets } = require('../src/services/sourceAssetResolver.cjs');
 const { buildPhoneScaleQaSheet } = require('../src/services/phoneScaleQa.cjs');
 const { materializeVisualPlanFrames, reviewPreparedSequences } = require('../src/services/visualPlanMaterializer.cjs');
 
@@ -455,7 +455,7 @@ export async function persistProject(options) {
  * component as a feature template; recovered pixels still enter the ordinary
  * visual matcher and source resolver as unaccepted candidates.
  */
-async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSha256, identity, visualScript, assets }) {
+async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSha256, identity, visualScript, assets, documentMap }) {
   if (String(process.env.MOBIUS_AUTHORIZED_SOURCE_RECOVERY || 'true').toLowerCase() === 'false') {
     return { status: 'DISABLED', originalManifest: null, inputHash: null };
   }
@@ -464,28 +464,21 @@ async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSh
   }
   const requiredComponentIds = [...new Set((visualScript.scenes || []).flatMap((scene) => scene.visualRequirement?.requiredObjects || []))];
   const targetInfo = buildAuthorizedRecoveryTargets({ assets, requiredComponentIds });
-  if (!Object.keys(targetInfo.targets).length) {
-    return { status: 'NO_SOURCE_MEASURED_COMPONENT_TEMPLATE', originalManifest: null, inputHash: null, targetInfo };
-  }
   const recoveryDir = path.join(projectDir, 'source', 'authorized-source-recovery');
   const targetsPath = path.join(recoveryDir, 'feature-targets.json');
   const statePath = path.join(recoveryDir, 'recovery-state.json');
   const inputHash = hashValue({
-    contract: 'mobius-automatic-authorized-source-recovery-v1', sourceSha256,
+    contract: 'mobius-automatic-authorized-source-recovery-v2', sourceSha256,
     title: identity.displayName, targets: targetInfo.provenance,
+    documentMap: (documentMap?.pages || []).map((page) => ({ page: page.humanPageNumber || page.pageNumber || page.page, textHash: page.textHash || null })),
   });
   const prior = jsonIf(statePath, {});
   if (prior.inputHash === inputHash && prior.status === 'RECOVERED' && exists(prior.originalManifest)) return { ...prior, reused: true };
   if (prior.inputHash === inputHash && prior.status !== 'RECOVERED') return { ...prior, reused: true };
-  const match = await resolveExactBggGame(identity.displayName);
-  if (match.status !== 'EXACT_TITLE_UNIQUE') {
-    const state = { contract: 'mobius-automatic-authorized-source-recovery-v1', inputHash, sourceSha256, title: identity.displayName,
-      status: match.status, match, targets: targetInfo.provenance, originalManifest: null };
-    await saveJson(statePath, state);
-    return state;
-  }
-  await saveJson(targetsPath, targetInfo.targets);
-  try {
+  const match = Object.keys(targetInfo.targets).length ? await resolveExactBggGame(identity.displayName)
+    : { status: 'NO_SOURCE_MEASURED_COMPONENT_TEMPLATE', objectId: null, candidates: [] };
+  if (match.status === 'EXACT_TITLE_UNIQUE') try {
+    await saveJson(targetsPath, targetInfo.targets);
     const recovered = recoverAuthorizedBggCandidates({
       root,
       objectId: match.objectId,
@@ -513,7 +506,7 @@ async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSh
     });
     await saveJson(recovered.originalManifest, { ...recoveredManifest, candidates });
     const state = {
-      contract: 'mobius-automatic-authorized-source-recovery-v1', inputHash, sourceSha256, title: identity.displayName,
+      contract: 'mobius-automatic-authorized-source-recovery-v2', inputHash, sourceSha256, title: identity.displayName,
       status: 'RECOVERED', match, targets: targetInfo.provenance,
       originalManifest: recovered.originalManifest, featureReport: recovered.featureReport, detailReport: recovered.detailReport,
       cacheReused: recovered.cacheReused,
@@ -525,9 +518,37 @@ async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSh
     // be reached. Preserve an actionable recovery fact; never downgrade the
     // PDF to terminal failure or pretend local source pixels were sufficient.
     const state = {
-      contract: 'mobius-automatic-authorized-source-recovery-v1', inputHash, sourceSha256, title: identity.displayName,
+      contract: 'mobius-automatic-authorized-source-recovery-v2', inputHash, sourceSha256, title: identity.displayName,
       status: 'CANDIDATE_RECOVERY_UNAVAILABLE', match, targets: targetInfo.provenance, originalManifest: null,
       reason: String(error?.message || 'authorized-candidate-recovery-failed').replace(/[\r\n]+/g, ' ').slice(0, 500),
+    };
+    await saveJson(statePath, state);
+    return state;
+  }
+  // A source-disclosed publisher domain is a separate canonical authority
+  // path. Unlike BGG matching it needs no local feature template, but an exact
+  // product title and ordinary pixel QA remain mandatory before any binding.
+  try {
+    const recovered = await recoverOfficialPublisherCandidates({
+      title: identity.displayName,
+      documentMap,
+      sourceSha256,
+      requiredComponentIds,
+      outputDir: recoveryDir,
+    });
+    const state = {
+      contract: 'mobius-automatic-authorized-source-recovery-v2', inputHash, sourceSha256, title: identity.displayName,
+      status: recovered.status, match, targets: targetInfo.provenance,
+      originalManifest: recovered.status === 'RECOVERED' ? recovered.originalManifest : null,
+      publisherRecovery: { contract: recovered.contract, origins: recovered.origins, inputHash: recovered.inputHash, reused: recovered.reused },
+    };
+    await saveJson(statePath, state);
+    return state;
+  } catch (error) {
+    const state = {
+      contract: 'mobius-automatic-authorized-source-recovery-v2', inputHash, sourceSha256, title: identity.displayName,
+      status: 'OFFICIAL_PUBLISHER_RECOVERY_UNAVAILABLE', match, targets: targetInfo.provenance, originalManifest: null,
+      reason: String(error?.message || 'official-publisher-candidate-recovery-failed').replace(/[\r\n]+/g, ' ').slice(0, 500),
     };
     await saveJson(statePath, state);
     return state;
@@ -1111,6 +1132,7 @@ async function runZeroState(options = {}) {
   const baseCatalog = loadSourceVisualCatalog(baseCombinedVisualManifestPath, { qualityReportPath: baseQualityPath, semanticReportPath: baseSemanticPath, hephaestusEvidencePath: hephEvidencePath });
   const automaticRecovery = await recoverAutomaticAuthorizedCandidates({
     root, projectDir, sourceSha256: identity.sha256, identity: canonicalGameIdentity, visualScript, assets: baseCatalog.assets,
+    documentMap: rulebookKnowledgeModel.documentMap,
   });
   const automaticCandidateManifestPaths = automaticRecovery.originalManifest && exists(automaticRecovery.originalManifest)
     ? [automaticRecovery.originalManifest] : [];

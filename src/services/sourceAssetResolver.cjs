@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const crypto = require('node:crypto');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const sharp = require('sharp');
 const { candidateDetailRatio, sourceAuthorityRank } = require('./sourceDetailLineage.cjs');
 const { teachingSceneLayout, containedDisplayBounds } = require('./presentationDesignSystem.cjs');
 const { verifiedInstructionalSequence } = require('./physicalGameState.cjs');
@@ -531,7 +532,11 @@ function authorizedCandidatesForVisualAnalysis(manifestPaths = []) {
     contract: 'mobius-authorized-source-visual-analysis-input-v1',
     provenance,
     assets: candidates.filter((candidate) => candidate.id && candidate.filePath && fs.existsSync(candidate.filePath)).map((candidate) => {
+      // External recovery can nominate a bounded set of referents for pixel
+      // search. These are deliberately distinct from canonical componentRefs:
+      // a product-page image is not made semantically correct by a tag.
       const componentRefs = uniqueStrings([...(candidate.componentRefs || []), ...(candidate.targets || [])]);
+      const retrievalComponentRefs = uniqueStrings([...(candidate.retrievalComponentRefs || []), ...componentRefs]);
       return {
         id: candidate.id,
         file_path: candidate.filePath,
@@ -540,7 +545,7 @@ function authorizedCandidatesForVisualAnalysis(manifestPaths = []) {
         sourceRefs: candidate.sourceRefs || [],
         semanticObjects: uniqueStrings([...(candidate.semanticObjects || []), ...componentRefs]),
         componentRefs,
-        component_bindings: componentRefs.map((componentId) => ({
+        component_bindings: retrievalComponentRefs.map((componentId) => ({
           componentId, componentName: componentId, category: candidate.category || null, confidence: null, reviewState: 'hypothesis',
         })),
         dimensions: { width: candidate.width, height: candidate.height },
@@ -597,6 +602,186 @@ function recoverAuthorizedBggCandidates({ root, objectId, targetsPath, outputDir
     detailReport,
     cacheReused,
   };
+}
+
+function externalTitleKey(value) {
+  return clean(value).toLocaleLowerCase('en-CA').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function publisherOriginsFromDocumentMap(documentMap = {}) {
+  const pages = Array.isArray(documentMap) ? documentMap : (documentMap.pages || []);
+  const rows = [];
+  for (const page of pages) {
+    const text = String(page?.normalizedText || page?.text || '');
+    const urls = text.match(/(?:https?:\/\/|www\.)[^\s<>()\]\["']+/gi) || [];
+    for (const raw of urls) {
+      try {
+        const url = new URL(raw.startsWith('www.') ? `https://${raw}` : raw);
+        if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || /^(localhost|127\.0\.0\.1|::1)$/i.test(url.hostname)) continue;
+        rows.push({ origin: url.origin, page: Number(page.humanPageNumber || page.pageNumber || page.page), sourceUrl: url.href });
+      } catch { /* Source prose can contain a non-URL token. */ }
+    }
+  }
+  return [...new Map(rows.filter(row => Number.isInteger(row.page) && row.page > 0)
+    .map(row => [`${row.origin}:${row.page}`, row])).values()];
+}
+
+function htmlDecode(value = '') {
+  return String(value).replace(/&amp;/gi, '&').replace(/&#39;|&apos;/gi, "'").replace(/&quot;/gi, '"')
+    .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>');
+}
+
+function stripHtml(value = '') {
+  return htmlDecode(String(value).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+}
+
+function samePublicOrigin(url, origin) {
+  try { return new URL(url).origin === new URL(origin).origin; } catch { return false; }
+}
+
+function productLinksFromSearch(html, origin, title) {
+  const wanted = externalTitleKey(title);
+  const links = [];
+  const anchor = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  for (let match; (match = anchor.exec(String(html)));) {
+    try {
+      const href = new URL(htmlDecode(match[1]), origin).href;
+      const signal = `${stripHtml(match[2])} ${href}`;
+      if (samePublicOrigin(href, origin) && externalTitleKey(signal).includes(wanted)) links.push(href);
+    } catch { /* Ignore malformed links. */ }
+  }
+  return [...new Set(links)].slice(0, 12);
+}
+
+function productLinksFromSearchJson(value, origin, title) {
+  const wanted = externalTitleKey(title);
+  const rows = Array.isArray(value) ? value : (value?.items || value?.results || []);
+  return [...new Set(rows.flatMap((row) => {
+    const href = row?.url || row?.link || row?.permalink || null;
+    const label = stripHtml(row?.title || row?.name || '');
+    return href && externalTitleKey(label) === wanted && samePublicOrigin(href, origin) ? [new URL(href, origin).href] : [];
+  }))].slice(0, 12);
+}
+
+function jsonLdProductNodes(value, nodes = []) {
+  if (Array.isArray(value)) value.forEach((entry) => jsonLdProductNodes(entry, nodes));
+  else if (value && typeof value === 'object') {
+    if (String(value['@type'] || '').toLowerCase().split(/[\s,]+/).includes('product')) nodes.push(value);
+    if (value['@graph']) jsonLdProductNodes(value['@graph'], nodes);
+  }
+  return nodes;
+}
+
+function productEvidenceFromHtml(html, title) {
+  const wanted = externalTitleKey(title);
+  const nodes = [];
+  const scripts = String(html).match(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || [];
+  for (const script of scripts) {
+    const content = script.replace(/^.*?>/s, '').replace(/<\/script>$/i, '');
+    try { jsonLdProductNodes(JSON.parse(content), nodes); } catch { /* Ignore unrelated malformed JSON-LD. */ }
+  }
+  const product = nodes.find((node) => externalTitleKey(node.name) === wanted) || null;
+  if (!product) return null;
+  const image = Array.isArray(product.image) ? product.image : [product.image];
+  const images = image.map((entry) => typeof entry === 'string' ? entry : entry?.url).filter(Boolean);
+  return { title: stripHtml(product.name), images: [...new Set(images)] };
+}
+
+async function fetchExternalText(fetchImpl, url, accept = 'text/html,application/json;q=0.9') {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetchImpl(url, { headers: { accept, 'user-agent': 'MOBIUS-source-resolver/1.0' }, signal: controller.signal });
+    if (!response?.ok) return null;
+    return { url: response.url || url, contentType: response.headers?.get?.('content-type') || '', text: await response.text() };
+  } catch { return null; } finally { clearTimeout(timer); }
+}
+
+async function downloadOfficialImage(fetchImpl, url, target) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetchImpl(url, { headers: { accept: 'image/avif,image/webp,image/*;q=0.8', 'user-agent': 'MOBIUS-source-resolver/1.0' }, signal: controller.signal });
+    if (!response?.ok) return null;
+    const length = Number(response.headers?.get?.('content-length') || 0);
+    if (length > 20 * 1024 * 1024) return null;
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (!bytes.length || bytes.length > 20 * 1024 * 1024) return null;
+    const metadata = await sharp(bytes, { limitInputPixels: 64e6 }).metadata();
+    if (!metadata.width || !metadata.height || metadata.width < 240 || metadata.height < 180) return null;
+    await fs.promises.writeFile(target, bytes);
+    return { width: metadata.width, height: metadata.height, sha256: crypto.createHash('sha256').update(bytes).digest('hex') };
+  } catch { return null; } finally { clearTimeout(timer); }
+}
+
+/**
+ * Recover image candidates only from an exact-title product page hosted on a
+ * domain printed in the authoritative rulebook. Product discovery produces
+ * retrieval hypotheses, not component bindings or a visual acceptance.
+ */
+async function recoverOfficialPublisherCandidates({ title, documentMap, sourceSha256, requiredComponentIds = [], outputDir, fetchImpl = fetch } = {}) {
+  if (!title || !outputDir || !/^[a-f0-9]{64}$/i.test(String(sourceSha256 || ''))) throw new Error('Official publisher recovery requires title, source SHA and output directory.');
+  const origins = publisherOriginsFromDocumentMap(documentMap);
+  const input = { contract: 'mobius-official-publisher-source-recovery-v1', title, sourceSha256,
+    origins, requiredComponentIds: [...new Set(requiredComponentIds)].sort() };
+  const inputHash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
+  const absoluteOutput = path.resolve(outputDir);
+  const manifestPath = path.join(absoluteOutput, 'official-publisher-candidate-manifest.json');
+  try {
+    const previous = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    if (previous.inputHash === inputHash) return { ...previous, originalManifest: manifestPath, reused: true };
+  } catch { /* Fresh or incompatible recovery. */ }
+  await fs.promises.mkdir(absoluteOutput, { recursive: true });
+  const productPages = [];
+  for (const originRecord of origins) {
+    const query = encodeURIComponent(title);
+    const searchUrls = [
+      new URL(`/?s=${query}&post_type=product`, originRecord.origin).href,
+      new URL(`/?s=${query}`, originRecord.origin).href,
+      new URL(`/wp-json/wp/v2/search?search=${query}&per_page=10`, originRecord.origin).href,
+    ];
+    for (const searchUrl of searchUrls) {
+      const search = await fetchExternalText(fetchImpl, searchUrl);
+      if (!search || !samePublicOrigin(search.url, originRecord.origin)) continue;
+      let links = [];
+      if (/json/i.test(search.contentType)) {
+        try { links = productLinksFromSearchJson(JSON.parse(search.text), originRecord.origin, title); } catch { links = []; }
+      } else links = productLinksFromSearch(search.text, originRecord.origin, title);
+      productPages.push(...links.map((url) => ({ url, originRecord })));
+    }
+  }
+  const candidates = [];
+  const visitedPages = new Set();
+  for (const { url, originRecord } of productPages) {
+    if (visitedPages.has(url) || candidates.length >= 12) continue;
+    visitedPages.add(url);
+    const page = await fetchExternalText(fetchImpl, url);
+    if (!page || !samePublicOrigin(page.url, originRecord.origin)) continue;
+    const product = productEvidenceFromHtml(page.text, title);
+    if (!product) continue;
+    for (const imageUrl of product.images.slice(0, 8)) {
+      let absoluteImage;
+      try { absoluteImage = new URL(imageUrl, page.url).href; } catch { continue; }
+      const id = `official-publisher-${crypto.createHash('sha256').update(absoluteImage).digest('hex').slice(0, 20)}`;
+      const extension = path.extname(new URL(absoluteImage).pathname).replace(/[^a-z0-9.]/gi, '').slice(0, 8) || '.img';
+      const localPath = path.join(absoluteOutput, 'images', `${id}${extension}`);
+      await fs.promises.mkdir(path.dirname(localPath), { recursive: true });
+      const detail = fs.existsSync(localPath)
+        ? await sharp(localPath, { limitInputPixels: 64e6 }).metadata().then(meta => ({ width: meta.width, height: meta.height, sha256: crypto.createHash('sha256').update(fs.readFileSync(localPath)).digest('hex') })).catch(() => null)
+        : await downloadOfficialImage(fetchImpl, absoluteImage, localPath);
+      if (!detail) continue;
+      candidates.push({ id, status: 'RECOVERED', localPath, filePath: localPath, sourceUrl: absoluteImage, canonicalLink: page.url,
+        width: detail.width, height: detail.height, trueDetailDimensions: { width: detail.width, height: detail.height }, sha256: detail.sha256,
+        sourceAuthority: 'OFFICIAL_PUBLISHER_HIGH_RES', retrievalComponentRefs: [...new Set(requiredComponentIds)],
+        sourceRefs: [{ page: originRecord.page, sourceUrl: originRecord.sourceUrl, source: 'rulebook-disclosed-publisher-domain' }],
+        provenance: { contract: input.contract, productTitle: product.title, productUrl: page.url, discoverySource: originRecord.sourceUrl } });
+    }
+  }
+  const result = { ...input, inputHash, authority: 'rulebook-disclosed-publisher-exact-title-product-page',
+    status: candidates.length ? 'RECOVERED' : 'NO_EXACT_PUBLISHER_PRODUCT_CANDIDATE', candidates };
+  await fs.promises.writeFile(manifestPath, JSON.stringify(result, null, 2));
+  return { ...result, originalManifest: manifestPath, reused: false };
 }
 
 /**
@@ -701,6 +886,8 @@ module.exports = {
   buildVisualReviewItem,
   rankSourceAssetCandidates,
   recoverAuthorizedBggCandidates,
+  recoverOfficialPublisherCandidates,
+  publisherOriginsFromDocumentMap,
   rectifyAuthorizedCandidate,
   resolveSourceAssets,
 };

@@ -7,10 +7,13 @@ const {
   normalizeVisualReferents,
   buildAuthorizedRecoveryTargets,
   authorizedCandidatesForVisualAnalysis,
+  recoverOfficialPublisherCandidates,
+  publisherOriginsFromDocumentMap,
 } = require('../../src/services/sourceAssetResolver.cjs');
 const { sourceAuthorityRank } = require('../../src/services/sourceDetailLineage.cjs');
 
 const existingFile = path.resolve(__dirname, '../../package.json');
+const publisherFixture = path.resolve(__dirname, '../../src/assets/branding/les-jeux-mobius-banner-canonical.png');
 const proof = require('../fixtures/objectEvidence.cjs');
 
 test('native authority separators are normalized without filename-derived authority', () => {
@@ -112,6 +115,41 @@ test('measured local templates enter authorized recovery as hypotheses and keep 
     expect(input.assets).toHaveLength(1);
     expect(input.assets[0]).toMatchObject({ id: 'authorized-bgg-1', sourceAuthority: 'OFFICIAL_BGG_ASSET', componentRefs: ['comp-1'] });
     expect(input.assets[0].component_bindings).toEqual([expect.objectContaining({ componentId: 'comp-1', reviewState: 'hypothesis' })]);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('recovers publisher candidates only from an exact title on a rulebook-disclosed domain', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-official-publisher-'));
+  const imageBytes = fs.readFileSync(publisherFixture);
+  const calls = [];
+  const response = ({ url, text, bytes, type = 'text/html' }) => ({ ok: true, url,
+    headers: { get: (name) => name === 'content-type' ? type : (name === 'content-length' && bytes ? String(bytes.length) : null) },
+    text: async () => text, arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    if (url.includes('post_type=product')) return response({ url, text: '<a href="/shop/cowboy">Cowboy Bebop: Space Serenade</a>' });
+    if (url.includes('/shop/cowboy')) return response({ url, text: '<script type="application/ld+json">{"@type":"Product","name":"Cowboy Bebop: Space Serenade","image":"https://cdn.publisher.test/cowboy.png"}</script>' });
+    if (url.includes('cdn.publisher.test')) return response({ url, bytes: imageBytes, type: 'image/png' });
+    return { ok: false, status: 404, headers: { get: () => null } };
+  };
+  try {
+    const documentMap = { pages: [{ humanPageNumber: 18, normalizedText: 'Publisher: www.publisher.test' }] };
+    expect(publisherOriginsFromDocumentMap(documentMap)).toEqual([expect.objectContaining({ origin: 'https://www.publisher.test', page: 18 })]);
+    const recovered = await recoverOfficialPublisherCandidates({ title: 'Cowboy Bebop - Space Serenade', documentMap,
+      sourceSha256: 'a'.repeat(64), requiredComponentIds: ['comp-a', 'comp-b'], outputDir: directory, fetchImpl });
+    expect(recovered.status).toBe('RECOVERED');
+    expect(recovered.candidates).toHaveLength(1);
+    expect(recovered.candidates[0]).toMatchObject({ sourceAuthority: 'OFFICIAL_PUBLISHER_HIGH_RES', retrievalComponentRefs: ['comp-a', 'comp-b'] });
+    expect(fs.existsSync(recovered.candidates[0].filePath)).toBe(true);
+    const input = authorizedCandidatesForVisualAnalysis([recovered.originalManifest]);
+    expect(input.assets[0].componentRefs).toEqual([]);
+    expect(input.assets[0].component_bindings.map((entry) => entry.componentId)).toEqual(['comp-a', 'comp-b']);
+    const replay = await recoverOfficialPublisherCandidates({ title: 'Cowboy Bebop - Space Serenade', documentMap,
+      sourceSha256: 'a'.repeat(64), requiredComponentIds: ['comp-a', 'comp-b'], outputDir: directory, fetchImpl });
+    expect(replay.reused).toBe(true);
+    expect(calls.filter((url) => url.includes('cdn.publisher.test'))).toHaveLength(1);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
