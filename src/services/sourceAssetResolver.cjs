@@ -9,9 +9,10 @@ const { candidateDetailRatio, sourceAuthorityRank } = require('./sourceDetailLin
 const { teachingSceneLayout, containedDisplayBounds } = require('./presentationDesignSystem.cjs');
 const { verifiedInstructionalSequence } = require('./physicalGameState.cjs');
 const { DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT } = require('./objectAwareCrop.cjs');
+const { componentTrust } = require('./ruleVisualReferentRecovery.cjs');
 
-const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v5';
-const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v3';
+const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v6';
+const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v4';
 const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v2';
 // This version is also a dependency of the orchestration checkpoint.  Keep it
 // exported so a recovery implementation change cannot be silently hidden by a
@@ -49,8 +50,8 @@ function normalizeCandidate(asset = {}) {
   // `dimensions` is often a display/upscaled derivative in a PDF manifest.
   // Keep the native/source dimensions separate so a 3x derivative can never
   // masquerade as more instructional detail than the original source has.
-  const width = Number(asset.nativeWidthPx || asset.trueDetailDimensions?.width || asset.original_dimensions?.width || asset.sourceDimensions?.width || asset.width || asset.dimensions?.width || 0);
-  const height = Number(asset.nativeHeightPx || asset.trueDetailDimensions?.height || asset.original_dimensions?.height || asset.sourceDimensions?.height || asset.height || asset.dimensions?.height || 0);
+  const width = Number(asset.trueDetailDimensions?.width || asset.nativeWidthPx || asset.original_dimensions?.width || asset.sourceDimensions?.width || asset.width || asset.dimensions?.width || 0);
+  const height = Number(asset.trueDetailDimensions?.height || asset.nativeHeightPx || asset.original_dimensions?.height || asset.sourceDimensions?.height || asset.height || asset.dimensions?.height || 0);
   const semanticObjects = [
     ...(asset.semanticObjects || []), ...(asset.semanticTags || []),
     asset.componentRef, asset.componentName, asset.label, asset.caption, asset.title, asset.alt, asset.category, asset.description,
@@ -98,10 +99,21 @@ function uniqueStrings(values = []) {
  * It does not decide that a weak binding is safe: low-confidence bindings are
  * preserved as candidates and surfaced to Cockpit with their provenance.
  */
-function normalizeVisualReferents({ componentEvidence = {}, sourceAssets = [] } = {}) {
+function normalizeVisualReferents({ componentEvidence = {}, sourceAssets = [], components = [] } = {}) {
+  const componentCatalog = new Map((components || []).filter((component) => component?.id)
+    .map((component) => [component.id, { ...component, trust: componentTrust(component) }]));
+  const classifyBinding = (binding) => ({
+    ...binding,
+    componentTrust: componentCatalog.get(binding.componentId)?.trust || {
+      state: 'REVIEW_ONLY_EXTRACTION_HYPOTHESIS',
+      confidence: 0,
+      reasons: ['component-catalog-record-missing'],
+    },
+  });
+  const componentBindings = (componentEvidence.componentBindings || []).map(classifyBinding);
   const evidenceAssets = new Map((componentEvidence.assets || []).filter((asset) => asset?.id).map((asset) => [asset.id, asset]));
   const bindingsByAssetId = new Map();
-  for (const binding of componentEvidence.componentBindings || []) {
+  for (const binding of componentBindings) {
     if (!binding?.assetId) continue;
     const rows = bindingsByAssetId.get(binding.assetId) || [];
     rows.push(binding);
@@ -109,7 +121,9 @@ function normalizeVisualReferents({ componentEvidence = {}, sourceAssets = [] } 
   }
   const rawById = new Map((sourceAssets || []).filter((asset) => asset?.id).map((asset) => [asset.id, asset]));
   const ids = new Set([...rawById.keys(), ...evidenceAssets.keys()]);
-  const knownComponentIds = new Set((componentEvidence.componentBindings || []).map((binding) => binding.componentId).filter(Boolean));
+  const knownComponentIds = new Set(componentBindings
+    .filter((binding) => binding.componentTrust.state !== 'REJECTED_EXTRACTION_FRAGMENT')
+    .map((binding) => binding.componentId).filter(Boolean));
   const assets = [...ids].map((id) => {
     const raw = rawById.get(id) || {};
     const evidence = evidenceAssets.get(id) || {};
@@ -181,7 +195,7 @@ function normalizeVisualReferents({ componentEvidence = {}, sourceAssets = [] } 
         && !pixelVerifiedComponentRefs.includes(binding.componentId)),
     });
   });
-  const pixelVerifiedBindings = (componentEvidence.componentBindings || []).filter((binding) => assets.some((asset) => asset.id === binding.assetId
+  const pixelVerifiedBindings = componentBindings.filter((binding) => assets.some((asset) => asset.id === binding.assetId
     && (asset.pixelVerifiedComponentRefs || []).includes(binding.componentId))).map((binding) => ({
     ...binding,
     reconciliation: 'pixel-verified-component-identity',
@@ -189,9 +203,13 @@ function normalizeVisualReferents({ componentEvidence = {}, sourceAssets = [] } 
   return {
     contract: VISUAL_REFERENT_NORMALIZATION_CONTRACT,
     assets,
-    bindings: (componentEvidence.componentBindings || []).map((binding) => ({ ...binding })),
+    bindings: componentBindings,
     pixelVerifiedBindings,
-    unresolvedBindings: (componentEvidence.componentBindings || []).filter((binding) => (binding.reviewState === 'needs_review' || binding.reviewRequired === true)
+    rejectedExtractionBindings: componentBindings.filter((binding) => binding.componentTrust.state === 'REJECTED_EXTRACTION_FRAGMENT')
+      .map((binding) => ({ ...binding, reviewState: 'rejected', reviewRequired: false,
+        rejectionReason: 'Source extraction row is not a canonical physical-component identity.' })),
+    unresolvedBindings: componentBindings.filter((binding) => binding.componentTrust.state !== 'REJECTED_EXTRACTION_FRAGMENT')
+      .filter((binding) => (binding.reviewState === 'needs_review' || binding.reviewRequired === true)
       && !pixelVerifiedBindings.some((resolved) => resolved.assetId === binding.assetId && resolved.componentId === binding.componentId)),
   };
 }

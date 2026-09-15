@@ -2,7 +2,7 @@
 
 const crypto = require('node:crypto');
 
-const RULE_VISUAL_REFERENT_RECOVERY_CONTRACT = 'mobius-rule-visual-referent-recovery-v1';
+const RULE_VISUAL_REFERENT_RECOVERY_CONTRACT = 'mobius-rule-visual-referent-recovery-v2';
 
 function clean(value) {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -32,6 +32,31 @@ function sourceEvidence(refs = []) {
     }));
 }
 
+function componentTrust(component = {}) {
+  const confidence = Number(component.confidence || 0);
+  const page = Number(component.sourcePage);
+  const quote = clean(component.sourceQuote);
+  const name = clean(component.name);
+  const looksLikeInstruction = /^(?:play|take|draw|discard|gain|spend|move|place|resolve|activate|choose|select|return|remove)\b/i.test(name)
+    || /\b(?:from (?:your|the|a) (?:hand|deck|discard)|immediately|then)\b/i.test(name);
+  const rejectedFragment = confidence <= .5 || looksLikeInstruction;
+  const grounded = page > 0 && quote && name && confidence >= .8 && !rejectedFragment;
+  return {
+    state: grounded
+      ? 'SOURCE_GROUNDED_COMPONENT'
+      : (rejectedFragment ? 'REJECTED_EXTRACTION_FRAGMENT' : 'REVIEW_ONLY_EXTRACTION_HYPOTHESIS'),
+    confidence,
+    reasons: [
+      ...(page > 0 ? [] : ['source-page-missing']),
+      ...(quote ? [] : ['source-quote-missing']),
+      ...(name ? [] : ['component-name-missing']),
+      ...(confidence >= .8 ? [] : ['inventory-confidence-below-source-grounded-threshold']),
+      ...(looksLikeInstruction ? ['instruction-or-state-fragment-not-component-identity'] : []),
+      ...(confidence <= .5 ? ['deterministic-extractor-marked-low-confidence-fragment'] : []),
+    ],
+  };
+}
+
 /**
  * This packet resolves only a missing visual referent into an existing,
  * source-grounded inventory ID. It neither invents a component nor selects an
@@ -39,26 +64,35 @@ function sourceEvidence(refs = []) {
  * are explicit and retain the authoritative excerpt that justified that fact.
  */
 function buildRuleVisualReferentRecoveryPacket(model = {}) {
-  const components = (model.components || []).filter((component) => clean(component?.id)).map((component) => ({
-    id: clean(component.id),
-    name: clean(component.name),
-    category: clean(component.category) || null,
-    sourcePage: Number.isInteger(Number(component.sourcePage)) && Number(component.sourcePage) > 0 ? Number(component.sourcePage) : null,
-    sourceQuote: clean(component.sourceQuote) || null,
-  }));
+  const components = (model.components || []).filter((component) => clean(component?.id)).map((component) => {
+    const trust = componentTrust(component);
+    return {
+      id: clean(component.id),
+      name: clean(component.name),
+      category: clean(component.category) || null,
+      sourcePage: Number.isInteger(Number(component.sourcePage)) && Number(component.sourcePage) > 0 ? Number(component.sourcePage) : null,
+      sourceQuote: clean(component.sourceQuote) || null,
+      inventoryConfidence: trust.confidence,
+      trustState: trust.state,
+      trustReasons: trust.reasons,
+    };
+  });
   const known = new Set(components.map((component) => component.id));
+  const trusted = new Set(components.filter((component) => component.trustState === 'SOURCE_GROUNDED_COMPONENT').map((component) => component.id));
   const candidates = (model.ruleAtoms || []).filter((atom) => {
     const requirement = atom?.visualRequirement || {};
     if (atom?.reviewState !== 'accepted' || !atom?.teaching?.narration) return false;
     if (requirement.actualGameAssetRequired === false) return false;
     const refs = unique([...(atom.componentRefs || []), ...(requirement.requiredObjects || [])]);
-    return !refs.length || refs.some((id) => !known.has(id));
+    return !refs.length || refs.some((id) => !known.has(id) || !trusted.has(id));
   }).map((atom) => ({
     id: clean(atom.id),
     domain: clean(atom.domain),
     title: clean(atom.title),
     purpose: clean(atom.visualRequirement?.purpose || atom.title),
     currentReferents: unique([...(atom.componentRefs || []), ...(atom.visualRequirement?.requiredObjects || [])]),
+    trustedCurrentReferents: unique([...(atom.componentRefs || []), ...(atom.visualRequirement?.requiredObjects || [])]).filter((id) => trusted.has(id)),
+    reviewOnlyCurrentReferents: unique([...(atom.componentRefs || []), ...(atom.visualRequirement?.requiredObjects || [])]).filter((id) => !trusted.has(id)),
     sourceEvidence: sourceEvidence(atom.sourceRefs),
   })).filter((atom) => atom.id && atom.sourceEvidence.length);
 
@@ -109,7 +143,9 @@ function validateRuleVisualReferentRecovery(packet = {}, result = {}) {
     throw new Error('RULE_VISUAL_REFERENT_RECOVERY_COVERAGE_INVALID');
   }
   const candidatesById = new Map((packet.candidates || []).map((candidate) => [candidate.id, candidate]));
-  const componentIds = new Set((packet.components || []).map((component) => component.id));
+  const componentIds = new Set((packet.components || [])
+    .filter((component) => component.trustState === 'SOURCE_GROUNDED_COMPONENT')
+    .map((component) => component.id));
   const seen = new Set();
   const normalized = result.recoveries.map((recovery) => {
     const atomId = clean(recovery?.ruleAtomId);
@@ -132,6 +168,9 @@ function validateRuleVisualReferentRecovery(packet = {}, result = {}) {
     if (disposition !== 'COMPONENTS_GROUNDED' && componentRefs.length) {
       throw new Error('RULE_VISUAL_REFERENT_RECOVERY_COMPONENTS_UNEXPECTED');
     }
+    if (disposition === 'SOURCE_FAITHFUL_DIAGRAM' && candidate.trustedCurrentReferents?.length) {
+      throw new Error('RULE_VISUAL_REFERENT_RECOVERY_DIAGRAM_CANNOT_SUPERSEDE_GROUNDED_COMPONENT');
+    }
     if (!clean(recovery.reason)) throw new Error('RULE_VISUAL_REFERENT_RECOVERY_REASON_MISSING');
     return {
       ruleAtomId: atomId,
@@ -145,10 +184,13 @@ function validateRuleVisualReferentRecovery(packet = {}, result = {}) {
 }
 
 function applyRuleVisualReferentRecovery(model = {}, recovery = {}) {
+  const packet = buildRuleVisualReferentRecoveryPacket(model);
   const validated = validateRuleVisualReferentRecovery(
-    buildRuleVisualReferentRecoveryPacket(model), recovery.result || recovery,
+    packet, recovery.result || recovery,
   );
   const byAtomId = new Map(validated.recoveries.map((row) => [row.ruleAtomId, row]));
+  const trustedIds = new Set(packet.components
+    .filter((component) => component.trustState === 'SOURCE_GROUNDED_COMPONENT').map((component) => component.id));
   return {
     ...model,
     visualReferentRecovery: {
@@ -162,8 +204,11 @@ function applyRuleVisualReferentRecovery(model = {}, recovery = {}) {
       const row = byAtomId.get(atom.id);
       if (!row) return atom;
       const requirement = { ...(atom.visualRequirement || {}) };
+      const current = unique([...(atom.componentRefs || []), ...(requirement.requiredObjects || [])]);
+      const retained = current.filter((id) => trustedIds.has(id));
+      const superseded = current.filter((id) => !trustedIds.has(id));
       if (row.disposition === 'COMPONENTS_GROUNDED') {
-        requirement.requiredObjects = unique([...requirement.requiredObjects || [], ...row.componentRefs]);
+        requirement.requiredObjects = unique([...retained, ...row.componentRefs]);
         requirement.actualGameAssetRequired = true;
       }
       if (row.disposition === 'SOURCE_FAITHFUL_DIAGRAM') {
@@ -175,17 +220,22 @@ function applyRuleVisualReferentRecovery(model = {}, recovery = {}) {
         requirement.preferredComposition = 'SOURCE_FAITHFUL_DIAGRAM';
         requirement.diagramKind = 'SOURCE_GROUNDED_RULE_DIAGRAM';
       }
+      if (row.disposition === 'UNRESOLVED') {
+        requirement.requiredObjects = retained;
+        requirement.unresolvedSourceReferents = superseded;
+      }
       requirement.visualReferentRecovery = {
         contract: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT,
         disposition: row.disposition,
         evidence: row.evidence,
         reason: row.reason,
+        supersededComponentRefs: superseded,
       };
       return {
         ...atom,
         componentRefs: row.disposition === 'COMPONENTS_GROUNDED'
-          ? unique([...(atom.componentRefs || []), ...row.componentRefs])
-          : atom.componentRefs || [],
+          ? unique([...retained, ...row.componentRefs])
+          : (row.disposition === 'SOURCE_FAITHFUL_DIAGRAM' ? [] : retained),
         visualRequirement: requirement,
       };
     }),
@@ -198,4 +248,5 @@ module.exports = {
   hashVisualReferentRecoveryPacket,
   validateRuleVisualReferentRecovery,
   applyRuleVisualReferentRecovery,
+  componentTrust,
 };

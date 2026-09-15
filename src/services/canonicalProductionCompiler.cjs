@@ -15,7 +15,7 @@ const { runProductionQualityGate } = require('./productionQualityGate.cjs');
 const { canonicalTeachingPresentation } = require('./visualPlanMaterializer.cjs');
 const { buildKnowledgeTeachingPlan } = require('./rulebookKnowledge.cjs');
 
-const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v6';
+const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v7';
 
 function uniqueAssets(assets = []) {
   const byId = new Map();
@@ -107,7 +107,7 @@ function compileCanonicalProductionState({
 } = {}) {
   if (!knowledgeModel?.ruleAtoms) throw new Error('Canonical production compilation requires RulebookKnowledgeModel.ruleAtoms.');
   const authorized = loadAuthorizedCandidateManifests(authorizedCandidateManifestPaths);
-  const referentNormalization = normalizeVisualReferents({ componentEvidence, sourceAssets });
+  const referentNormalization = normalizeVisualReferents({ componentEvidence, sourceAssets, components: knowledgeModel.components || [] });
   const assets = uniqueAssets([
     ...referentNormalization.assets,
     ...authorized.candidates,

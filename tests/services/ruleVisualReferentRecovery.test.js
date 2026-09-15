@@ -11,7 +11,7 @@ function model() {
     projectId: 'visual-referent-recovery-proof',
     sourcePdfSha256: 'a'.repeat(64),
     gameIdentity: { displayName: 'Generic Game' },
-    components: [{ id: 'comp-board', name: 'Board', category: 'board', sourcePage: 2, sourceQuote: 'Place the board in the centre.' }],
+    components: [{ id: 'comp-board', name: 'Board', category: 'board', confidence: 0.95, sourcePage: 2, sourceQuote: 'Place the board in the centre.' }],
     ruleAtoms: [{
       id: 'setup-board', domain: 'setup', title: 'Place the board', confidence: 0.95, reviewState: 'accepted',
       sourceRefs: [{ page: 2, quote: 'Place the board in the centre.' }],
@@ -69,4 +69,54 @@ test('source-faithful diagram avoids an unrelated asset search without making a 
   expect(state.sourceSelections[0]).toMatchObject({ status: 'NOT_REQUIRED', reviewState: 'accepted' });
   expect(state.reviewItems).toHaveLength(0);
   expect(state.visualPlans[0]).toMatchObject({ actualGameAssetRequired: false, reviewState: 'accepted' });
+});
+
+test('review-only extraction fragments are recovered instead of becoming component identities', () => {
+  const source = model();
+  source.components.push({ id: 'comp-fragment', name: 'cards from your hand', category: 'card', confidence: 0.42,
+    sourcePage: 4, sourceQuote: 'Play a card from your hand.' });
+  source.ruleAtoms[0].componentRefs = ['comp-fragment'];
+  source.ruleAtoms[0].visualRequirement.requiredObjects = ['comp-fragment'];
+  const packet = buildRuleVisualReferentRecoveryPacket(source);
+  expect(packet.components.find((component) => component.id === 'comp-fragment')).toMatchObject({
+    trustState: 'REJECTED_EXTRACTION_FRAGMENT',
+    trustReasons: expect.arrayContaining(['inventory-confidence-below-source-grounded-threshold']),
+  });
+  expect(packet.candidates[0]).toMatchObject({ reviewOnlyCurrentReferents: ['comp-fragment'] });
+  const applied = applyRuleVisualReferentRecovery(source, { result: { recoveries: [{
+    ruleAtomId: 'setup-board', disposition: 'COMPONENTS_GROUNDED', componentRefs: ['comp-board'],
+    evidence: [{ page: 2, quote: 'Place the board in the centre.' }], reason: 'Official evidence names the board.',
+  }] } });
+  expect(applied.ruleAtoms[0].componentRefs).toEqual(['comp-board']);
+  expect(applied.ruleAtoms[0].visualRequirement.requiredObjects).toEqual(['comp-board']);
+  expect(applied.ruleAtoms[0].visualRequirement.visualReferentRecovery.supersededComponentRefs).toEqual(['comp-fragment']);
+});
+
+test('unresolved review-only referent remains explicit and cannot silently enter asset search', () => {
+  const source = model();
+  source.components.push({ id: 'comp-fragment', name: 'then resolve immediately', category: 'card', confidence: 0.42,
+    sourcePage: 2, sourceQuote: 'Place the board in the centre.' });
+  source.ruleAtoms[0].componentRefs = ['comp-fragment'];
+  source.ruleAtoms[0].visualRequirement.requiredObjects = ['comp-fragment'];
+  const applied = applyRuleVisualReferentRecovery(source, { result: { recoveries: [{
+    ruleAtomId: 'setup-board', disposition: 'UNRESOLVED', componentRefs: [],
+    evidence: [{ page: 2, quote: 'Place the board in the centre.' }], reason: 'The supplied evidence cannot identify a physical component.',
+  }] } });
+  expect(applied.ruleAtoms[0].componentRefs).toEqual([]);
+  expect(applied.ruleAtoms[0].visualRequirement.requiredObjects).toEqual([]);
+  expect(applied.ruleAtoms[0].visualRequirement.unresolvedSourceReferents).toEqual(['comp-fragment']);
+  expect(applied.ruleAtoms[0].visualRequirement.actualGameAssetRequired).toBe(true);
+});
+
+test('provider cannot promote a review-only extraction fragment as a grounded component', () => {
+  const source = model();
+  source.components.push({ id: 'comp-fragment', name: 'Play a card', category: 'card', confidence: 0.42,
+    sourcePage: 2, sourceQuote: 'Place the board in the centre.' });
+  source.ruleAtoms[0].componentRefs = ['comp-fragment'];
+  source.ruleAtoms[0].visualRequirement.requiredObjects = ['comp-fragment'];
+  const packet = buildRuleVisualReferentRecoveryPacket(source);
+  expect(() => validateRuleVisualReferentRecovery(packet, { recoveries: [{
+    ruleAtomId: 'setup-board', disposition: 'COMPONENTS_GROUNDED', componentRefs: ['comp-fragment'],
+    evidence: [{ page: 2, quote: 'Place the board in the centre.' }], reason: 'Invalid promotion.',
+  }] })).toThrow('RULE_VISUAL_REFERENT_RECOVERY_COMPONENT_INVALID');
 });

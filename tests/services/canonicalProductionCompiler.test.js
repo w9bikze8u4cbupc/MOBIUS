@@ -71,7 +71,7 @@ test('surfaces HEPHAESTUS review bindings in the same actionable Cockpit queue',
       componentBindings: [{ componentId: 'game-board', componentName: 'Game board', category: 'board', assetId: 'weak-board', confidence: 0.55, reviewState: 'needs_review', reviewRequired: true, sourcePage: 2 }],
     },
   });
-  expect(result.visualReferentNormalization.contract).toBe('mobius-visual-referent-normalization-v3');
+  expect(result.visualReferentNormalization.contract).toBe('mobius-visual-referent-normalization-v4');
   expect(result.reviewItems[0]).toMatchObject({
     status: 'needs_visual_review',
     scopeType: 'VISUAL_REQUIREMENT',
@@ -79,4 +79,20 @@ test('surfaces HEPHAESTUS review bindings in the same actionable Cockpit queue',
   });
   expect(result.reviewItems[0].recommendedOperatorAction).toEqual(expect.any(String));
   expect(result.reviewItems[0].candidates[0]).toMatchObject({ assetId: 'weak-board' });
+});
+
+test('preserves rejected extraction fragments without surfacing them as physical-component reviews', () => {
+  const model = knowledge();
+  model.components = [{ id: 'fragment', name: 'Play a card immediately', category: 'card', confidence: 0.42,
+    sourcePage: 9, sourceQuote: 'Play a card immediately.' }];
+  const result = compileCanonicalProductionState({
+    projectId: 'generic-proof', knowledgeModel: model, coverageMatrix: buildTutorialCoverageMatrix(model),
+    componentEvidence: { componentBindings: [{ componentId: 'fragment', componentName: 'Play a card immediately',
+      category: 'card', assetId: null, confidence: 0, reviewState: 'needs_review', reviewRequired: true, sourcePage: 9 }] },
+  });
+  expect(result.visualReferentNormalization.rejectedExtractionBindings).toEqual([
+    expect.objectContaining({ componentId: 'fragment', reviewState: 'rejected', reviewRequired: false,
+      rejectionReason: expect.stringContaining('not a canonical physical-component') }),
+  ]);
+  expect(result.reviewItems.some((item) => item.ruleAtomId === 'component-fragment')).toBe(false);
 });

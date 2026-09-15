@@ -157,6 +157,57 @@ test('stateful materializer prepares a source-bound multi-component sequence onl
   await expect(materializeStatefulInstructionalFrames({ projectId: 'stateful-fixture', scene: unchanged, assets, outputDir })).resolves.toBeNull();
 }, 60000);
 
+test('stateful source detail is measured at the exact bounded render footprint', () => {
+  const {
+    sourceMeasuredComponentCandidate,
+    statefulComponentDisplayBounds,
+  } = require('../../src/services/visualPlanMaterializer.cjs');
+  const crypto = require('node:crypto');
+  const imageSha256 = crypto.createHash('sha256').update(fs.readFileSync(fixture)).digest('hex');
+  const asset = {
+    id: 'bounded-component', filePath: fixture,
+    width: 529, height: 302, nativeWidthPx: 529, nativeHeightPx: 302,
+    sourceAuthority: 'OFFICIAL_RULEBOOK', sourceAuthorityRank: 50,
+    sourcePdfSha256: 'a'.repeat(64), sourceRefs: [{ page: 7 }], semanticObjects: ['fuel-track'],
+    objectVisualEvidence: [{ contract: 'mobius-object-visual-evidence-v2', assetId: 'bounded-component',
+      requiredObject: 'fuel-track', imageSha256, evidencePacketHash: 'bounded-component-packet', model: 'fixture-model',
+      method: 'provider-pixel-analysis', visualRole: 'COMPONENT', present: true, complete: true, isolated: true,
+      stateCompatible: true, confidence: .99, bbox: [.01, .01, .99, .99], reason: 'Complete source component.' }],
+  };
+  const scene = { id: 'bounded-scene' };
+  expect(statefulComponentDisplayBounds(asset, { referentCount: 1, position: 0 })).toEqual({ width: 608, height: 347 });
+  const selected = sourceMeasuredComponentCandidate({ scene, referent: 'fuel-track', assets: [asset] });
+  expect(selected).toBeTruthy();
+  expect(selected.measured.trueSourcePixelsPerDisplayPixel).toBeGreaterThanOrEqual(.8);
+  expect(selected.measured.actualDisplayBounds).toEqual({ width: 608, height: 347 });
+});
+
+test('stateful materializer never turns a large derivative canvas into source detail', () => {
+  const { sourceMeasuredComponentCandidate, statefulComponentDisplayBounds } = require('../../src/services/visualPlanMaterializer.cjs');
+  const crypto = require('node:crypto');
+  const imageSha256 = crypto.createHash('sha256').update(fs.readFileSync(fixture)).digest('hex');
+  const asset = {
+    id: 'false-detail-claim', filePath: fixture,
+    width: 529, height: 302, nativeWidthPx: 529, nativeHeightPx: 302,
+    // The source lineage proves that only a smaller native region carries
+    // real detail.  Enlarging its container must not manufacture pixels.
+    trueDetailDimensions: { width: 180, height: 100 },
+    sourceAuthority: 'OFFICIAL_RULEBOOK', sourceAuthorityRank: 50,
+    sourcePdfSha256: 'a'.repeat(64), sourceRefs: [{ page: 7 }], semanticObjects: ['fuel-track'],
+    objectVisualEvidence: [{ contract: 'mobius-object-visual-evidence-v2', assetId: 'false-detail-claim',
+      requiredObject: 'fuel-track', imageSha256, evidencePacketHash: 'false-detail-packet', model: 'fixture-model',
+      method: 'provider-pixel-analysis', visualRole: 'COMPONENT', present: true, complete: true, isolated: true,
+      stateCompatible: true, confidence: .99, bbox: [.01, .01, .99, .99], reason: 'Complete but low-detail source component.' }],
+  };
+  const bounds = statefulComponentDisplayBounds(asset, { referentCount: 1, position: 0 });
+  expect(bounds.width).toBeLessThan(250);
+  expect(bounds.height).toBeLessThan(150);
+  const selected = sourceMeasuredComponentCandidate({ scene: { id: 'false-detail-scene' }, referent: 'fuel-track', assets: [asset] });
+  expect(selected).toBeTruthy();
+  expect(selected.measured.trueSourcePixelsPerDisplayPixel).toBeGreaterThanOrEqual(.8);
+  expect(selected.measured.actualDisplayBounds).toEqual(bounds);
+});
+
 test('semantic materializer labels a cited transition without claiming a physical arrangement', async () => {
   const crypto = require('node:crypto');
   const { materializeSemanticInstructionalFrames, semanticTeachingStages } = require('../../src/services/visualPlanMaterializer.cjs');

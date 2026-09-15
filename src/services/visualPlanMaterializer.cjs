@@ -49,14 +49,40 @@ function stageStateSignature(stage = {}, referents = []) {
   }));
 }
 
-function sourceMeasuredComponentCandidate({ scene, referent, assets = [] } = {}) {
+function statefulComponentDisplayBounds(asset = {}, { referentCount = 1, position = 0 } = {}) {
+  const cell = gridCells(referentCount, 1660, 420, 0)[position];
+  if (!cell) return { width: 0, height: 0 };
+  const sourceWidth = Number(asset.nativeWidthPx || asset.width || 0);
+  const sourceHeight = Number(asset.nativeHeightPx || asset.height || 0);
+  if (!(sourceWidth > 0) || !(sourceHeight > 0)) return { width: cell.width, height: cell.height };
+  const detailWidth = Number(asset.trueDetailDimensions?.width || sourceWidth);
+  const detailHeight = Number(asset.trueDetailDimensions?.height || sourceHeight);
+  // Keep at least 0.8 true source pixels per displayed pixel.  A large
+  // derivative canvas never grants permission to enlarge a small underlying
+  // raster; it is rendered smaller and left for final phone/composition QA.
+  const detailScale = Math.min(detailWidth / sourceWidth / .8, detailHeight / sourceHeight / .8);
+  const scale = Math.min(cell.width / sourceWidth, cell.height / sourceHeight, 1.15, detailScale);
+  return {
+    width: Math.max(1, Math.floor(sourceWidth * scale)),
+    height: Math.max(1, Math.floor(sourceHeight * scale)),
+  };
+}
+
+function sourceMeasuredComponentCandidate({ scene, referent, assets = [], referentCount = 1, position = 0 } = {}) {
   const { objectEvidenceFor, evaluateCandidate } = require('./sourceAssetResolver.cjs');
   const requirement = { actualGameAssetRequired: true, requiredObjects: [referent], evidenceSceneId: scene.id };
   const candidates = assets.map((asset) => {
     const component = objectEvidenceFor(asset, referent, scene.id, { allowReusableIdentity: true });
     if (!(component?.present && component.complete && component.isolated && component.stateCompatible
       && Number(component.confidence) >= .9) || !sourceFile(asset) || !fs.existsSync(sourceFile(asset))) return null;
-    const measured = evaluateCandidate(asset, requirement, { width: 900, height: 700 });
+    // Evaluate source detail against the exact bounded footprint used by
+    // renderStatefulFrame.  The former fixed 900x700 box could reject an
+    // independently measured component even though the normal renderer would
+    // display it at its native size (or at most 1.15x).  Final composition and
+    // phone-scale review remain responsible for whether that truthful source
+    // component teaches the whole scene.
+    const measured = evaluateCandidate(asset, requirement,
+      statefulComponentDisplayBounds(asset, { referentCount, position }));
     return measured.valid ? { asset, component, measured } : null;
   }).filter(Boolean);
   return candidates.sort((left, right) => right.measured.confidence - left.measured.confidence
@@ -84,7 +110,10 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
     const sourceWidth = Number(entry.asset.nativeWidthPx || metadata.width || 0);
     const sourceHeight = Number(entry.asset.nativeHeightPx || metadata.height || 0);
     if (!sourceWidth || !sourceHeight) return null;
-    const scale = Math.min(cell.width / sourceWidth, cell.height / sourceHeight, 1.15);
+    const detailWidth = Number(entry.asset.trueDetailDimensions?.width || sourceWidth);
+    const detailHeight = Number(entry.asset.trueDetailDimensions?.height || sourceHeight);
+    const detailScale = Math.min(detailWidth / sourceWidth / .8, detailHeight / sourceHeight / .8);
+    const scale = Math.min(cell.width / sourceWidth, cell.height / sourceHeight, 1.15, detailScale);
     const width = Math.max(1, Math.floor(sourceWidth * scale));
     const height = Math.max(1, Math.floor(sourceHeight * scale));
     const sourcePixelsPerDisplayPixel = Math.min(sourceWidth / width, sourceHeight / height);
@@ -140,8 +169,8 @@ async function materializeStatefulInstructionalFrames({ projectId, scene, assets
     || new Set(stages.map((stage) => stageStateSignature(stage, referents))).size < 2) return null;
   if (stages.some((stage) => !stage.sourceRefs?.length || referents.some((referent) => !(stage.items || []).some((item) => item.componentRef === referent || item.id === referent)))) return null;
   if (requirement.requiredRelationship && !(state.relationshipAssertions || []).every((entry) => entry.sourceRefs?.length)) return null;
-  const selected = referents.map((referent) => {
-    const candidate = sourceMeasuredComponentCandidate({ scene, referent, assets });
+  const selected = referents.map((referent, position) => {
+    const candidate = sourceMeasuredComponentCandidate({ scene, referent, assets, referentCount: referents.length, position });
     return candidate && { ...candidate, referent };
   });
   if (selected.some((entry) => !entry)) return null;
@@ -227,8 +256,8 @@ async function materializeSemanticInstructionalFrames({ projectId, scene, assets
   const referents = requirement.requiredObjects || [];
   const stages = semanticTeachingStages(scene);
   if (!referents.length || referents.length > 4 || !stages.length) return null;
-  const selected = referents.map((referent) => {
-    const candidate = sourceMeasuredComponentCandidate({ scene, referent, assets });
+  const selected = referents.map((referent, position) => {
+    const candidate = sourceMeasuredComponentCandidate({ scene, referent, assets, referentCount: referents.length, position });
     return candidate && { ...candidate, referent };
   });
   if (selected.some((entry) => !entry)) return null;
@@ -287,8 +316,8 @@ async function materializeSourceGroundedInstructionalDiagram({ projectId, scene,
   const referents = requirement.requiredObjects || [];
   const stages = instructionalDiagramStages(scene);
   if (!referents.length || referents.length > 4 || !stages.length) return null;
-  const selected = referents.map((referent) => {
-    const candidate = sourceMeasuredComponentCandidate({ scene, referent, assets });
+  const selected = referents.map((referent, position) => {
+    const candidate = sourceMeasuredComponentCandidate({ scene, referent, assets, referentCount: referents.length, position });
     return candidate && { ...candidate, referent };
   });
   if (selected.some((entry) => !entry)) return null;
@@ -565,7 +594,7 @@ async function materializeInstructionalStill({ state, sceneId, outputDir, allowR
       : 'Normal renderer output requires physical/composition review; production state and decisions unchanged.' };
 }
 
-const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v5';
+const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v6';
 
 function sourceFile(asset = {}) {
   return asset.displayPath || asset.renderPath || asset.filePath || asset.path || asset.sourceImage || null;
@@ -789,4 +818,4 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
  return {assets:attachSequenceReviewEvidence({assets:state.assets,records:materialized.records,reviewPaths}),reviewPaths};
 }
 
-module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, materializeTrackStateFrames, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, materializeSourceGroundedInstructionalDiagram, semanticTeachingStages, instructionalDiagramStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill, validateDeterministicIdentityStill };
+module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, statefulComponentDisplayBounds, sourceMeasuredComponentCandidate, materializeVisualPlanFrames, materializeTrackStateFrames, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, materializeSourceGroundedInstructionalDiagram, semanticTeachingStages, instructionalDiagramStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill, validateDeterministicIdentityStill };
