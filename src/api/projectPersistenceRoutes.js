@@ -606,7 +606,8 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
     // checksum before a browser can hydrate any candidate evidence.
     return (async () => {
       const descriptor = context.visualEvidenceArtifact;
-      if (descriptor.contract !== canonicalStateStorage.VISUAL_EVIDENCE_ARTIFACT_CONTRACT
+      if (![canonicalStateStorage.VISUAL_EVIDENCE_ARTIFACT_CONTRACT,
+        canonicalStateStorage.LEGACY_VISUAL_EVIDENCE_ARTIFACT_CONTRACT].includes(descriptor.contract)
         || typeof descriptor.relativePath !== 'string') {
         throw Object.assign(new Error('Visual evidence artifact descriptor is invalid.'), { code: 'VISUAL_EVIDENCE_ARTIFACT_INVALID' });
       }

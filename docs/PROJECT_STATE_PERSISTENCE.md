@@ -42,7 +42,7 @@ provider credentials are modified by the fixture's in-process authentication.
 `mobius-project-state-transport-v1` is shared by the normal production worker,
 the existing production-state route and the existing file-backed project store.
 Runtime capability `projectContextPersistence` is now
-`mobius-project-context-persistence-v3`. Required contracts, not equal Git SHAs,
+`mobius-project-context-persistence-v4`. Required contracts, not equal Git SHAs,
 gate the worker before expensive work. Use the existing canonical local runtime
 manager for alignment; do not launch a second API or change Windows tasks.
 The manager drops only the inherited `PSModulePath` for its Windows PowerShell
@@ -64,17 +64,25 @@ the route. Express retains its existing **25 MiB** limit. Expanded logical state
 is bounded at **192 MiB**. A legitimate larger state requires explicit engineering
 recovery, not truncation or a globally increased HTTP limit.
 
-### Referenced visual evidence v1
+### Referenced visual evidence v2
 
-`mobius-canonical-production-state-storage-v1` is the canonical persisted
+`mobius-canonical-production-state-storage-v3` is the canonical persisted
 projection of the compiler's intentionally rich in-memory graph. It keeps the
 logical state below a **14 MiB** pre-send budget and stores detailed visual
 candidate evidence once in the same project under
 `production/visual-evidence-artifact.json`
-(`mobius-canonical-visual-evidence-artifact-v1`, **128 MiB** measured artifact
+(`mobius-canonical-visual-evidence-artifact-v2`, **128 MiB** measured artifact
 budget). The state stores only stable asset, selection and candidate references;
 the artifact records the full asset catalogue, every score, rejection, crop
 measurement, provenance and candidate proof exactly once.
+
+Materialized teaching sequences are content-addressed in that same sidecar.
+Scenes, materialization records and source assets refer to one checksummed copy;
+VisualPlan validation stores selected asset IDs instead of embedding the rich
+catalogue rows. A reviewed sequence supersedes the former active sequence for
+the same scene on replay, while historical reports remain preserved on disk.
+This prevents an unchanged resume from growing project state without removing
+Cockpit evidence or altering any visual decision.
 
 The artifact descriptor carries a relative project-owned path, byte count and
 SHA-256 over the canonical JSON value. Cockpit's existing visual-review route

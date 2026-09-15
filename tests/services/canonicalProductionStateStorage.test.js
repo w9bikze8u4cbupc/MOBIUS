@@ -82,3 +82,40 @@ test('the compact representation is deterministic and does not duplicate sidecar
   expect(second.compact).toEqual(first.compact);
   expect(second.artifact).toEqual(first.artifact);
 });
+
+test('materialization evidence and validation assets are stored once and hydrate losslessly', () => {
+  const full = state();
+  const sequence = {
+    contract: 'sequence-v2',
+    materializerContract: 'materializer-v7',
+    sceneId: 'scene-0',
+    frames: [{ outputPath: 'C:/project/production/frame.png', evidence: 'pixels '.repeat(10_000) }],
+    review: { accepted: false, evidence: 'review '.repeat(10_000) },
+  };
+  full.assets[0].instructionalSequences = [sequence];
+  full.visualPlans[0].validation = { valid: true, selectedAssets: [full.assets[0]] };
+  full.scenes[0].preparedInstructionalDiagram = sequence;
+  full.visualPlanMaterialization = { contract: 'materializer-v7', outputDir: 'C:/project/production', records: [sequence] };
+
+  const first = storage.createCompactCanonicalProductionState(full, { projectId: 'fixture' });
+  expect(Object.keys(first.artifact.materializationEvidence)).toHaveLength(1);
+  expect(first.artifact.assetCatalog[0].instructionalSequences).toBeUndefined();
+  expect(first.artifact.assetCatalog[0].instructionalSequenceRefs).toHaveLength(1);
+  expect(first.compact.scenes[0].preparedInstructionalDiagram).toBeUndefined();
+  expect(first.compact.scenes[0].materializationEvidenceRefs.preparedInstructionalDiagram).toEqual(expect.any(String));
+  expect(first.compact.visualPlans[0].validation.selectedAssets).toBeUndefined();
+  expect(first.compact.visualPlans[0].validation.selectedAssetIds).toEqual(['asset']);
+  expect(first.compact.visualPlanMaterialization.records[0]).toEqual({ materializationEvidenceRef: expect.any(String) });
+
+  const hydrated = storage.hydrateCanonicalProductionState(first.compact, first.artifact);
+  expect(hydrated.assets[0].instructionalSequences).toEqual([sequence]);
+  expect(hydrated.visualPlans[0].validation.selectedAssets).toEqual([hydrated.assets[0]]);
+  expect(hydrated.scenes[0].preparedInstructionalDiagram).toEqual(sequence);
+  expect(hydrated.visualPlanMaterialization.records).toEqual([sequence]);
+
+  const replay = storage.createCompactCanonicalProductionState(hydrated, { projectId: 'fixture' });
+  expect(replay.compact).toEqual(first.compact);
+  expect(replay.artifact).toEqual(first.artifact);
+  expect(replay.compactBytes).toBe(first.compactBytes);
+  expect(replay.artifactBytes).toBe(first.artifactBytes);
+});

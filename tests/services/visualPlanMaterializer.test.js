@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const sharp = require('sharp');
-const { materializeVisualPlanFrames, compositionReviewEnvironment } = require('../../src/services/visualPlanMaterializer.cjs');
+const { materializeVisualPlanFrames, compositionReviewEnvironment, attachSequenceReviewEvidence } = require('../../src/services/visualPlanMaterializer.cjs');
 
 const fixture = path.resolve(__dirname, '../../src/assets/branding/les-jeux-mobius-banner-canonical.png');
 const outputDir = path.resolve(__dirname, '../../out/test-visual-plan-materializer');
@@ -26,6 +26,23 @@ test('track preparation prefers stronger measured state evidence before native a
   const largerButWeaker = candidate('larger', { asset: { id: 'larger', nativeWidthPx: 3000, nativeHeightPx: 3000 },
     track: { isolated: false, confidence: .96, stateStages: [{ position: 1 }, { position: 2 }] } });
   expect(chooseTrackCandidate([largerButWeaker, candidate('measured-sequence')]).asset.id).toBe('measured-sequence');
+});
+
+test('reviewed sequence replay supersedes the active scene evidence without catalogue growth', () => {
+  fs.mkdirSync(outputDir, { recursive: true });
+  const reviewPath = path.join(outputDir, 'sequence-review.json');
+  fs.writeFileSync(reviewPath, JSON.stringify({ scenes: [{ scene_id: 'scene-a', result: 'REVIEW' }] }));
+  const stale = { sceneId: 'scene-a', contract: 'sequence-v1', materializerContract: 'materializer-v6', frames: [{ outputPath: 'old.png' }] };
+  const unrelated = { sceneId: 'scene-b', contract: 'sequence-v1', materializerContract: 'materializer-v6', frames: [{ outputPath: 'other.png' }] };
+  const current = { sceneId: 'scene-a', contract: 'sequence-v2', materializerContract: 'materializer-v7', sourceAssets: [{ assetId: 'asset-a' }], frames: [{ outputPath: 'new.png' }] };
+  const assets = [{ id: 'asset-a', instructionalSequences: [stale, unrelated] }, { id: 'asset-b', instructionalSequences: [stale] }];
+
+  const first = attachSequenceReviewEvidence({ assets, records: [current], reviewPaths: [reviewPath] });
+  const replay = attachSequenceReviewEvidence({ assets: first, records: [current], reviewPaths: [reviewPath] });
+  expect(first[0].instructionalSequences.map((item) => item.sceneId)).toEqual(['scene-b', 'scene-a']);
+  expect(first[0].instructionalSequences.find((item) => item.sceneId === 'scene-a')).toMatchObject({ contract: 'sequence-v2' });
+  expect(first[1].instructionalSequences).toEqual([]);
+  expect(replay).toEqual(first);
 });
 
 test('mono-image still uses the real storyboard renderer and does not certify unmeasured composition', async () => {

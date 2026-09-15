@@ -821,7 +821,24 @@ function attachSequenceReviewEvidence({ assets, records, reviewPaths=[] }) {
    const review=reviewPaths.map(p=>JSON.parse(fs.readFileSync(p))).find(r=>r.scenes?.some(s=>s.scene_id===record.sceneId));
    return review?{...record,review}:null;
  }).filter(Boolean);
- return assets.map(asset=>({...asset,instructionalSequences:[...(asset.instructionalSequences||[]),...reviewed.filter(r=>(r.sourceAssets||[{assetId:r.assetId}]).some(source=>source.assetId===asset.id))]}));
+ // A reviewed sequence is the current active evidence for its scene. Replays
+ // must replace that scene's former materialization instead of appending an
+ // unbounded history to every source asset. Historical reports remain on disk;
+ // the canonical active graph keeps one content-identical sequence per asset.
+ const replacedSceneIds=new Set(reviewed.map(record=>record.sceneId).filter(Boolean));
+ return assets.map(asset=>{
+   const existing=(asset.instructionalSequences||[]).filter(sequence=>!replacedSceneIds.has(sequence?.sceneId));
+   const incoming=reviewed.filter(record=>(record.sourceAssets||[{assetId:record.assetId}])
+     .some(source=>source.assetId===asset.id));
+   const seen=new Set();
+   const instructionalSequences=[...existing,...incoming].filter(sequence=>{
+     const identity=sha(JSON.stringify(sequence));
+     if(seen.has(identity))return false;
+     seen.add(identity);
+     return true;
+   });
+   return {...asset,instructionalSequences};
+ });
 }
 
 // A production may resume an already-prepared state composition while the

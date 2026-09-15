@@ -19,6 +19,12 @@ describe('canonical runtime compatibility', () => {
     expect(evaluateRuntimeCompatibility(stale, requirements).compatible).toBe(false);
     expect(stale.contracts.hephaestusMaterialization).toBe(requirements.requiredContracts.hephaestusMaterialization);
   });
+
+  test('a v3 persistence API is rejected before a worker emits v4 materialization references', () => {
+    const stale = buildApiRuntimeCapabilities({ env: { MOBIUS_BUILD_SHA: '3'.repeat(40) } });
+    stale.contracts.projectContextPersistence = 'mobius-project-context-persistence-v3';
+    expect(evaluateRuntimeCompatibility(stale, requirements).compatible).toBe(false);
+  });
   test('same SHA and compatible contracts pass', () => {
     const capabilities = buildApiRuntimeCapabilities({ cwd: process.cwd(), env: { MOBIUS_BUILD_SHA: '1'.repeat(40) } });
     expect(evaluateRuntimeCompatibility(capabilities, requirements)).toMatchObject({ compatible: true, sameBuild: true });
