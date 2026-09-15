@@ -165,6 +165,10 @@ test('terminal parser failures are quarantined and not retried forever', () => {
     code: 'SOURCE_VISUAL_PREPARATION_FAILED', classification: 'retryable_engineering',
   });
   assert.deepEqual(classifyInboxError(visualPreparation), { class: 'retryable', retryable: true });
+  const exhaustedVisualReasoning = Object.assign(new Error('VISUAL_RESPONSE_REASONING_BUDGET_EXHAUSTED'), {
+    code: 'VISUAL_RESPONSE_REASONING_BUDGET_EXHAUSTED', classification: 'retryable_engineering', explicitRecovery: true,
+  });
+  assert.deepEqual(classifyInboxError(exhaustedVisualReasoning), { class: 'recovery-required', retryable: true, explicitRecovery: true });
   const runtimeError = new Error('MOBIUS API runtime does not satisfy worker contracts');
   runtimeError.code = 'RUNTIME_CONTRACT_MISMATCH';
   runtimeError.classification = 'retryable_runtime';

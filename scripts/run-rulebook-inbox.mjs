@@ -107,7 +107,7 @@ async function listPdfs(directory, result = []) {
 
 export function classifyInboxError(error) {
   const message = String(error?.message || error || '').toLowerCase();
-  if (error?.explicitRecovery && String(error?.code || '').startsWith('VISUAL_PROVIDER_')) {
+  if (error?.explicitRecovery && String(error?.code || '').startsWith('VISUAL_')) {
     return { class: 'recovery-required', retryable: true, explicitRecovery: true };
   }
   if (error?.classification === 'recovery_required' || String(error?.code || '').startsWith('PROJECT_STATE_')

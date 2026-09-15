@@ -102,6 +102,37 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(row['validationIssue'], 'exact requested referents required')
             self.assertEqual(json.loads(Path(row['responseReceipt']).read_text())['content'], '{"objects":[]}')
 
+    def test_reasoning_budget_exhaustion_is_explicit_and_never_retried_automatically(self):
+        """A reasoning model can spend its output allowance before emitting JSON.
+
+        This must be a durable, recoverable provider boundary rather than the
+        misleading JSONDecodeError that previously obscured the real response.
+        The receipt is kept for provenance, but replay must make no second
+        provider call until an explicitly versioned recovery changes identity.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'
+            script = {'scenes': [{'id': 'scene', 'source_pages': [2], 'visualRequirement': {'requiredObjects': ['board']}}]}
+            qa = {'assets': [{'asset_id': 'board', 'path': str(pixels), 'asset_metadata': {'source_page': 2}}]}
+            calls = []
+            def create(**kwargs):
+                calls.append(kwargs)
+                return types.SimpleNamespace(usage=None, choices=[types.SimpleNamespace(
+                    message=types.SimpleNamespace(content=''), finish_reason='length')])
+            client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            first = matcher.run(script, qa, Path(directory), 1, client)
+            replay = matcher.run(script, qa, Path(directory), 1, client)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(first['summary']['providerBlocker'], 'VISUAL_RESPONSE_REASONING_BUDGET_EXHAUSTED')
+            self.assertEqual(replay['summary']['providerCalls'], 0)
+            self.assertEqual(calls[0]['max_completion_tokens'], 4800)
+            row = first['scenes'][0]['candidates'][0]
+            self.assertEqual(row['providerFailure']['code'], 'VISUAL_RESPONSE_REASONING_BUDGET_EXHAUSTED')
+            receipt = json.loads(Path(row['responseReceipt']).read_text())
+            self.assertEqual(receipt['content'], '')
+            self.assertEqual(receipt['finishReason'], 'length')
+            self.assertEqual(receipt['identity']['executionContract'], matcher.RESPONSE_BUDGET_CONTRACT)
+
     def test_composition_reviews_final_pixels_and_phone_without_revalidating_component(self):
         with tempfile.TemporaryDirectory() as directory:
             pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'

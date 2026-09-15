@@ -21,6 +21,17 @@ const {
 export function visualProviderFailure(report) {
   const blocker = report?.summary?.providerBlocker;
   if (!blocker) return null;
+  const responseBudget = /\bVISUAL_RESPONSE_REASONING_BUDGET_EXHAUSTED\b/.exec(String(blocker));
+  const emptyResponse = /\bVISUAL_PROVIDER_EMPTY_CONTENT\b/.exec(String(blocker));
+  if (responseBudget || emptyResponse) {
+    const code = responseBudget?.[0] || emptyResponse?.[0];
+    const error = new Error(code);
+    error.code = code;
+    error.classification = 'retryable_engineering';
+    error.explicitRecovery = true;
+    error.httpStatus = null;
+    return error;
+  }
   const http = /HTTP (\d{3})\b/.exec(String(blocker));
   const status = http ? Number(http[1]) : null;
   const error = new Error(status ? `VISUAL_PROVIDER_UNAVAILABLE: HTTP ${status}` : 'VISUAL_PROVIDER_RESPONSE_INVALID');

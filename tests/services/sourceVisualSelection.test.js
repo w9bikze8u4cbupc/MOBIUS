@@ -13,6 +13,8 @@ test('visual provider outage is explicit recovery, not a fabricated Cockpit deci
   expect(error).toMatchObject({ code: 'VISUAL_PROVIDER_UNAVAILABLE', httpStatus: 520, classification: 'provider_unavailable', explicitRecovery: true });
   expect(error.message).toBe('VISUAL_PROVIDER_UNAVAILABLE: HTTP 520');
   expect(visualProviderFailure({ summary: { providerBlocker: 'ValueError; HTTP unavailable' } })).toMatchObject({ code: 'VISUAL_PROVIDER_RESPONSE_INVALID', classification: 'retryable_engineering' });
+  expect(visualProviderFailure({ summary: { providerBlocker: 'VISUAL_RESPONSE_REASONING_BUDGET_EXHAUSTED' } }))
+    .toMatchObject({ code: 'VISUAL_RESPONSE_REASONING_BUDGET_EXHAUSTED', classification: 'retryable_engineering', explicitRecovery: true, httpStatus: null });
   const ledgerRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-visual-recovery-'));
   const ledger = path.join(ledgerRoot, 'visual-ledger.json');
   fs.writeFileSync(ledger, JSON.stringify({ recoveryEpoch: 'provider-recovered-v1' }));

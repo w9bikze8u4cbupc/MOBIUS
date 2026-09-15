@@ -17,15 +17,39 @@ SEARCH_CONTRACT = "mobius-referent-localization-v1"
 # substage no longer leaks a KeyError into a faux provider-unavailable result.
 # The version is part of the execution cache identity so that a prior local
 # bookkeeping failure is not replayed as if pixels had been inspected.
-SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v8-authorized-external-priority'
+SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v9-response-budget'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v3'
+RESPONSE_BUDGET_CONTRACT = 'mobius-visual-response-budget-v1'
 MODEL = os.getenv("MOBIUS_VISUAL_MATCH_MODEL") or os.getenv("OPENAI_MODEL")
 _probe_spec = importlib.util.spec_from_file_location('mobius_visual_probe', Path(__file__).with_name('qualify-source-visuals.py'))
 _probe_module = importlib.util.module_from_spec(_probe_spec)
 _probe_spec.loader.exec_module(_probe_module)
 # Reuse the existing bounded image representation; native pixels/hash stay authoritative.
 image_data_url = _probe_module.image_data_url
+
+
+class VisualProviderResponseError(ValueError):
+    def __init__(self, code, message, *, finish_reason=None):
+        super().__init__(message)
+        self.code = code
+        self.finish_reason = finish_reason
+
+
+def response_completion_tokens(role):
+    """Bound the model's reasoning plus structured JSON budget for one image.
+
+    A short JSON verdict can still require hidden reasoning tokens. The prior
+    1,800-token default produced a `length` completion with no visible JSON on
+    the configured reasoning model. Use the already-established track budget
+    for every role, while retaining an explicit, finite operator override.
+    """
+    raw = os.getenv('MOBIUS_VISUAL_MATCH_MAX_COMPLETION_TOKENS', '4800')
+    try:
+        requested = int(raw)
+    except (TypeError, ValueError):
+        requested = 4800
+    return max(2000, min(8000, requested))
 
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
@@ -803,7 +827,9 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
             packet_hash = digest(scoped_packet)
             pixels = Path(asset["path"]).read_bytes()
             image_hash = hashlib.sha256(pixels).hexdigest()
-            identity = {"contract": CONTRACT, "model": MODEL, "packet": packet_hash, "image": image_hash}
+            completion_tokens = response_completion_tokens(role)
+            identity = {"contract": CONTRACT, "executionContract": RESPONSE_BUDGET_CONTRACT,
+                "maxCompletionTokens": completion_tokens, "model": MODEL, "packet": packet_hash, "image": image_hash}
             cache = cache_dir / (digest(identity) + ".json")
             read_cache = next((p for p in [cache] + [root / cache.name for root in imported_roots] if p.is_file()), cache)
             result = {"asset_id": asset["asset_id"], "path": asset["path"], "status": "UNKNOWN",
@@ -905,18 +931,23 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                                 content.append({'type':'text','text':frame['id']})
                                 for key in ('outputPath', 'phonePath'):
                                     content.append({'type':'image_url','image_url':{'url':image_data_url(Path(frame[key])), 'detail':'high'}})
-                    response = client.chat.completions.create(model=MODEL, max_completion_tokens=4800 if role == 'TRACK' else 1800, response_format=schema(role, [obj['id'] for obj in scoped_packet['requiredObjects']]),
+                    response = client.chat.completions.create(model=MODEL, max_completion_tokens=completion_tokens, response_format=schema(role, [obj['id'] for obj in scoped_packet['requiredObjects']]),
                         messages=[{"role": "user", "content": content}])
                     # Keep the actual completion before schema validation. Never
                     # persist a client, headers, credentials or raw API exceptions.
                     receipt = cache.with_suffix('.response.json')
                     receipt_tmp = receipt.with_suffix('.tmp')
-                    receipt_tmp.write_text(json.dumps({'identity': identity, 'content': response.choices[0].message.content,
-                        'finishReason': getattr(response.choices[0], 'finish_reason', None),
+                    response_content = response.choices[0].message.content
+                    finish_reason = getattr(response.choices[0], 'finish_reason', None)
+                    receipt_tmp.write_text(json.dumps({'identity': identity, 'content': response_content,
+                        'finishReason': finish_reason,
                         'usage': response.usage.model_dump() if response.usage else None}, ensure_ascii=False), encoding='utf-8')
                     receipt_tmp.replace(receipt)
                     result['responseReceipt'] = str(receipt)
-                    objects = validate_rows(json.loads(response.choices[0].message.content)["objects"], scoped_packet)
+                    if not isinstance(response_content, str) or not response_content.strip():
+                        code = 'VISUAL_RESPONSE_REASONING_BUDGET_EXHAUSTED' if finish_reason == 'length' else 'VISUAL_PROVIDER_EMPTY_CONTENT'
+                        raise VisualProviderResponseError(code, 'Provider returned no structured visual verdict.', finish_reason=finish_reason)
+                    objects = validate_rows(json.loads(response_content)["objects"], scoped_packet)
                 if role == 'COMPOSITION' and any(type(r.get(k)) is not bool for r in objects for k in ('purposeSatisfied', 'phoneReadable')):
                     raise ValueError('Incomplete composition verdict')
                 if role == 'TRACK':
@@ -991,7 +1022,11 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                                             'layout_text': (asset.get('asset_metadata') or {}).get('layout_text') or '',
                                             'heading': (asset.get('asset_metadata') or {}).get('heading') or ''}})
             except Exception as exc:
-                result["reason"] = f"{type(exc).__name__}; HTTP {getattr(exc, 'status_code', 'unavailable')}"
+                response_code = getattr(exc, 'code', None)
+                result["reason"] = response_code or f"{type(exc).__name__}; HTTP {getattr(exc, 'status_code', 'unavailable')}"
+                if response_code:
+                    result['providerFailure'] = {'code': response_code, 'finishReason': getattr(exc, 'finish_reason', None),
+                        'responseReceipt': result.get('responseReceipt')}
                 safe_issues = {'exact requested referents required', 'invalid confidence', 'incomplete verdict', 'invalid bounds', 'Incomplete composition verdict'}
                 if str(exc) in safe_issues:
                     result['validationIssue'] = str(exc)

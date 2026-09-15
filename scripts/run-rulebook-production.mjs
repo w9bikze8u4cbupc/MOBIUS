@@ -1200,6 +1200,33 @@ async function runZeroState(options = {}) {
     visualAutopilot,
   });
 
+  // A source-measurement failure is an explicit recovery boundary. Persist the
+  // existing source-grounded work and diagnostic paths for Cockpit, then stop
+  // before materializing frames or invoking a second composition provider
+  // stage. A composition cannot repair an unmeasured source referent.
+  const baseProviderFailure = visualProviderFailure(jsonIf(baseSemanticPath));
+  if (baseProviderFailure) {
+    const imagesResponse = await apiJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/images`, { apiKey });
+    await persistProject({
+      baseUrl, apiKey, projectId, gameName, language, descriptor, manifest,
+      components: extraction.components.components || extraction.components,
+      scriptPackage, storyboardManifest, scenes: storyboardManifest.scenes,
+      images: imagesResponse.images || [], gameMetadata, gameplayModel, endgameModel,
+      rulebookKnowledgeModel, tutorialCoverage,
+      production: {
+        status: 'provider_blocked', stage: 'visual-review-base',
+        providerFailure: { code: baseProviderFailure.code, classification: baseProviderFailure.classification, httpStatus: baseProviderFailure.httpStatus, explicitRecovery: true },
+        sourceVisualManifest: baseCombinedVisualManifestPath, visualQualityReport: baseQualityPath, semanticVisualReport: baseSemanticPath,
+        hephaestusEvidencePath: hephEvidencePath, hephaestusEvidenceContract: hephEvidence.contract,
+        gameplayModelPath, gameplayModelContract: gameplayModel.contract,
+        endgameModelPath, endgameModelContract: endgameModel.contract,
+        rulebookKnowledgePath, rulebookKnowledgeContract: rulebookKnowledgeModel.contract,
+        tutorialCoveragePath, tutorialCoverageContract: tutorialCoverage.contract,
+      },
+    });
+    throw baseProviderFailure;
+  }
+
   const baseCatalog = loadSourceVisualCatalog(baseCombinedVisualManifestPath, { qualityReportPath: baseQualityPath, semanticReportPath: baseSemanticPath, hephaestusEvidencePath: hephEvidencePath });
   const automaticRecovery = earlyCandidateManifestPaths.length ? earlyAutomaticRecovery
     : await recoverAutomaticAuthorizedCandidates({
