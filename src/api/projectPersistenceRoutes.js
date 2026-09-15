@@ -1,8 +1,15 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { setProjectState } from './renderJobConfig.js';
-import { projectSourceService } from '../services/projectSourceService.js';
+import transport from '../services/projectStateTransport.cjs';
+import canonicalStateStorage from '../services/canonicalProductionStateStorage.cjs';
+import {
+  normalizeDurableProjectSource,
+  projectSourceService,
+  sameDurableProjectSource,
+} from '../services/projectSourceService.js';
 
 const ingestionRequire = createRequire(path.join(process.cwd(), 'src', 'api', 'projectPersistenceRoutes.js'));
 const { validateIngestionManifest } = ingestionRequire('../validators/ingestionValidator');
@@ -45,24 +52,8 @@ export function normalizeRecoveryProjectId(value) {
 
 export function validateDurableProjectSource(sourcePdf, projectId) {
   if (sourcePdf === undefined || sourcePdf === null) return { valid: true, sourcePdf: null };
-  const source = sourcePdf && typeof sourcePdf === 'object' && !Array.isArray(sourcePdf) ? sourcePdf : null;
-  if (!source || source.documentId !== projectId || !/^source-[a-f0-9]{32}$/.test(source.sourceId || '')
-    || !/^document-[a-f0-9]{32}$/.test(source.documentFingerprint || '') || !/^[a-f0-9]{64}$/.test(source.sha256 || '')
-    || typeof source.filename !== 'string' || !source.filename || source.filename.length > 200 || /[\\/\r\n\u0000-\u001f]/.test(source.filename)
-    || !Number.isInteger(source.bytes) || source.bytes < 1 || !Number.isInteger(source.pageCount) || source.pageCount < 1
-    || source.provenance !== 'direct_project_upload') {
-    return { valid: false, sourcePdf: null };
-  }
-  return { valid: true, sourcePdf: {
-    sourceId: source.sourceId, documentId: source.documentId, documentFingerprint: source.documentFingerprint,
-    filename: source.filename, sha256: source.sha256, bytes: source.bytes, pageCount: source.pageCount,
-    provenance: source.provenance, status: source.status === 'available' ? 'available' : 'pending_contextual_render',
-  } };
-}
-
-function sameDurableProjectSource(left, right) {
-  return ['sourceId', 'documentId', 'documentFingerprint', 'filename', 'sha256', 'bytes', 'pageCount', 'provenance']
-    .every((field) => left?.[field] === right?.[field]);
+  const source = normalizeDurableProjectSource(sourcePdf, projectId);
+  return source ? { valid: true, sourcePdf: source } : { valid: false, sourcePdf: null };
 }
 
 async function resolvePersistedProjectSource(sourcePdf, projectId, projectSource) {
@@ -522,11 +513,24 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
     const projectId = normalizeRecoveryProjectId(req.params.projectId);
     if (!projectId) return res.status(400).json({ code: 'PROJECT_ID_INVALID', error: 'Project ID is invalid.' });
 
-    const body = req.body || {};
+    let body;
+    try {
+      body = req.body?.contract === transport.CONTRACT ? transport.unpackProjectState(req.body) : (req.body || {});
+      if (req.body?.contract && req.body.contract !== transport.CONTRACT) throw Object.assign(new Error('Unsupported production state contract.'), { statusCode: 400, code: 'PROJECT_STATE_INVALID' });
+      if (!req.body?.contract) transport.assertBudget(body);
+      transport.validateVisualEvidenceReferences(body);
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw Object.assign(new Error('Production state must be an object.'), { statusCode: 400 });
+      if (req.body?.contract && (!body.projectContext?.projectId || !body.projectContext?.sourcePdf)) throw Object.assign(new Error('Compact production state requires canonical project and source identities.'), { statusCode: 400 });
+    } catch (error) {
+      return res.status(error.statusCode || 400).json({ code: error.code || 'PROJECT_STATE_INVALID', error: error.message, classification: 'recovery_required' });
+    }
     const context = body.projectContext && typeof body.projectContext === 'object' && !Array.isArray(body.projectContext)
       ? body.projectContext : {};
     if (context.projectId && context.projectId !== projectId) {
       return res.status(400).json({ code: 'PROJECT_ID_MISMATCH', error: 'Project context does not match the route project ID.' });
+    }
+    if (context.sourceSha256 && context.sourcePdf?.sha256 !== context.sourceSha256) {
+      return res.status(409).json({ code: 'SOURCE_PDF_INVALID', error: 'Source SHA does not match the canonical descriptor.' });
     }
     if (context.sourcePdf) {
       const source = await resolvePersistedProjectSource(context.sourcePdf, projectId, projectSource);
@@ -574,10 +578,106 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
       return db.run(
         `INSERT INTO projects (name, metadata, components, images, script, audio, scenes) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         values,
-        function insertComplete(error) { finish(error, this.lastID, true); },
+        function insertComplete(error) { finish(error, this?.lastID, true); },
       );
     });
   });
+
+  // Read-only projections of the SAME persisted Cockpit queue. No second store.
+  // Thumbnail requests share a bounded in-memory projection of immutable row metadata.
+  // A save/review decision changes that string and invalidates the projection immediately.
+  // File ownership and source validation still run on every image request.
+  const visualProjectionCache = new Map();
+  const visualProjection = (row) => {
+    const cached = visualProjectionCache.get(row.id);
+    if (cached?.metadata === row.metadata) return cached.context;
+    const stored = parseRecoveryMetadata(row.metadata)?.projectContext;
+    const context = stored ? { projectId: stored.projectId, visualEvidence:stored.visualEvidence,
+      visualReviewItems: stored.visualReviewItems || stored.canonicalProductionState?.reviewItems || [],
+      visualEvidenceArtifact: stored.visualEvidenceArtifact || null } : null;
+    if (!context?.visualEvidenceArtifact) {
+      visualProjectionCache.delete(row.id);
+      visualProjectionCache.set(row.id, { metadata: row.metadata, context });
+      while (visualProjectionCache.size > 4) visualProjectionCache.delete(visualProjectionCache.keys().next().value);
+      return context;
+    }
+    // The sidecar is the same canonical project state, not a second Cockpit
+    // queue. Resolve it only beneath the project root and verify its bytes and
+    // checksum before a browser can hydrate any candidate evidence.
+    return (async () => {
+      const descriptor = context.visualEvidenceArtifact;
+      if (![canonicalStateStorage.VISUAL_EVIDENCE_ARTIFACT_CONTRACT,
+        canonicalStateStorage.LEGACY_VISUAL_EVIDENCE_ARTIFACT_CONTRACT].includes(descriptor.contract)
+        || typeof descriptor.relativePath !== 'string') {
+        throw Object.assign(new Error('Visual evidence artifact descriptor is invalid.'), { code: 'VISUAL_EVIDENCE_ARTIFACT_INVALID' });
+      }
+      const sourceFile = await projectSource.resolveFile(context.projectId);
+      const projectRoot = path.dirname(path.dirname(fs.realpathSync(sourceFile)));
+      const requested = path.resolve(projectRoot, descriptor.relativePath);
+      const realArtifact = fs.realpathSync(requested);
+      const relative = path.relative(projectRoot, realArtifact);
+      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        throw Object.assign(new Error('Visual evidence artifact is outside the project root.'), { code: 'VISUAL_EVIDENCE_ARTIFACT_INVALID' });
+      }
+      const artifact = JSON.parse(fs.readFileSync(realArtifact, 'utf8'));
+      canonicalStateStorage.validateArtifact(artifact, descriptor);
+      if (artifact.projectId !== context.projectId) {
+        throw Object.assign(new Error('Visual evidence artifact project identity does not match.'), { code: 'VISUAL_EVIDENCE_ARTIFACT_INVALID' });
+      }
+      context.visualEvidenceArtifactData = artifact;
+      visualProjectionCache.delete(row.id);
+      visualProjectionCache.set(row.id, { metadata: row.metadata, context });
+      while (visualProjectionCache.size > 4) visualProjectionCache.delete(visualProjectionCache.keys().next().value);
+      return context;
+    })();
+  };
+  const readVisualContext = (req, res, next) => {
+    const projectId = normalizeRecoveryProjectId(req.params.projectId);
+    if (!projectId) return res.status(400).json({ code: 'PROJECT_ID_INVALID' });
+    return db.all('SELECT * FROM projects', [], (error, rows = []) => {
+      if (error) return res.status(500).json({ code: 'PROJECT_LOOKUP_FAILED' });
+      return (async () => {
+        for (const row of rows.slice().sort((a, b) => Number(b.id) - Number(a.id))) {
+          let context;
+          try { context = await visualProjection(row); }
+          catch (artifactError) {
+            if (parseRecoveryMetadata(row.metadata)?.projectContext?.projectId === projectId) {
+              return res.status(409).json({ code: artifactError.code || 'VISUAL_EVIDENCE_ARTIFACT_UNAVAILABLE', classification: 'recovery_required' });
+            }
+            continue;
+          }
+          if (context?.projectId === projectId) return next(context, projectId);
+        }
+        return res.status(404).json({ code: 'PROJECT_NOT_FOUND' });
+      })();
+    });
+  };
+  app.get('/api/projects/:projectId/visual-reviews', (req, res) => readVisualContext(req, res, (context, projectId) => {
+    const items = context.visualReviewItems || context.canonicalProductionState?.reviewItems || [];
+    return res.json({ projectId, items: items.map((item) => {
+      const internal = canonicalStateStorage.hydrateVisualReviewItem(item, context.visualEvidenceArtifactData);
+      return transport.hydrateVisualReviewItem(internal, context.visualEvidence);
+    }).map((item) => ({ ...item, candidates: (item.candidates || []).map((candidate) => ({
+      ...candidate, thumbnailPath: undefined,
+      thumbnailUrl: `/api/projects/${encodeURIComponent(projectId)}/visual-reviews/assets/${encodeURIComponent(candidate.assetId)}/file`,
+    })) })) });
+  }));
+  app.get('/api/projects/:projectId/visual-reviews/assets/:assetId/file', (req, res) => readVisualContext(req, res, async (context, projectId) => {
+    try {
+      const items = context.visualReviewItems || context.canonicalProductionState?.reviewItems || [];
+      const candidate = items.flatMap((item) => canonicalStateStorage.hydrateVisualReviewItem(item, context.visualEvidenceArtifactData).candidates || [])
+        .find((row) => row.assetId === req.params.assetId);
+      if (!candidate?.thumbnailPath) return res.status(404).json({ code: 'REVIEW_IMAGE_MISSING' });
+      const sourceFile = await projectSource.resolveFile(projectId);
+      const root = fs.realpathSync(path.dirname(path.dirname(sourceFile)));
+      const file = fs.realpathSync(candidate.thumbnailPath);
+      const relative = path.relative(root, file);
+      if (relative.startsWith('..') || path.isAbsolute(relative)) return res.status(403).json({ code: 'REVIEW_IMAGE_OUTSIDE_PROJECT' });
+      if (!['.png', '.jpg', '.jpeg', '.webp'].includes(path.extname(file).toLowerCase())) return res.status(415).json({ code: 'REVIEW_IMAGE_TYPE_INVALID' });
+      res.set({ 'Cache-Control': 'private, no-cache', 'X-Content-Type-Options': 'nosniff' });
+      return res.sendFile(file);
+    } catch { return res.status(404).json({ code: 'REVIEW_IMAGE_UNAVAILABLE' }); }
+  }));
 
   app.get('/load-project/:id', (req, res) => {
     const apiKey = req.headers['x-api-key'];

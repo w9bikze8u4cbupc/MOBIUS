@@ -7,6 +7,9 @@ const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const SOURCE_ID_PATTERN = /^source-[a-f0-9]{32}$/;
 const DOCUMENT_FINGERPRINT_PATTERN = /^document-[a-f0-9]{32}$/;
 export const PROJECT_SOURCE_VERSION = 1;
+export const DURABLE_PROJECT_SOURCE_FIELDS = Object.freeze([
+  'sourceId', 'documentId', 'documentFingerprint', 'filename', 'sha256', 'bytes', 'pageCount', 'provenance',
+]);
 
 export const PROJECT_SOURCE_STATUS = Object.freeze({
   AVAILABLE: 'available',
@@ -73,15 +76,42 @@ function descriptorFor({ projectId, filename, bytes, pageCount }) {
   };
 }
 
+export function normalizeDurableProjectSource(value, projectId) {
+  const canonicalProjectId = typeof projectId === 'string' ? projectId.trim() : '';
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  const forbiddenPathFields = ['path', 'filePath', 'sourcePath', 'storagePath', 'absolutePath', 'relativePath'];
+  if (!source || !PROJECT_ID_PATTERN.test(canonicalProjectId)
+    || (Object.hasOwn(source, 'version') && source.version !== PROJECT_SOURCE_VERSION)
+    || (Object.hasOwn(source, 'projectId') && source.projectId !== canonicalProjectId)
+    || source.documentId !== canonicalProjectId || !SOURCE_ID_PATTERN.test(source.sourceId || '')
+    || !DOCUMENT_FINGERPRINT_PATTERN.test(source.documentFingerprint || '')
+    || typeof source.filename !== 'string' || !source.filename || source.filename.length > 200
+    || /[\r\n\u0000-\u001f]/.test(source.filename) || /[\\/]/.test(source.filename)
+    || !SHA256_PATTERN.test(source.sha256 || '') || !Number.isInteger(source.bytes) || source.bytes < 1
+    || !Number.isInteger(source.pageCount) || source.pageCount < 1
+    || source.provenance !== 'direct_project_upload'
+    || forbiddenPathFields.some((field) => Object.hasOwn(source, field))) return null;
+  return {
+    sourceId: source.sourceId,
+    documentId: source.documentId,
+    documentFingerprint: source.documentFingerprint,
+    filename: source.filename,
+    sha256: source.sha256,
+    bytes: source.bytes,
+    pageCount: source.pageCount,
+    provenance: source.provenance,
+    status: source.status === PROJECT_SOURCE_STATUS.AVAILABLE
+      ? PROJECT_SOURCE_STATUS.AVAILABLE : PROJECT_SOURCE_STATUS.PENDING_CONTEXTUAL_RENDER,
+  };
+}
+
+export function sameDurableProjectSource(left, right) {
+  return DURABLE_PROJECT_SOURCE_FIELDS.every((field) => left?.[field] === right?.[field]);
+}
+
 function isSafeDescriptor(value, projectId) {
   return Boolean(value && value.version === PROJECT_SOURCE_VERSION && value.projectId === projectId
-    && SOURCE_ID_PATTERN.test(value.sourceId || '') && value.documentId === projectId
-    && DOCUMENT_FINGERPRINT_PATTERN.test(value.documentFingerprint || '')
-    && typeof value.filename === 'string' && value.filename.length > 0 && value.filename.length <= 200
-    && !/[\r\n\u0000-\u001f]/.test(value.filename) && !/[\\/]/.test(value.filename)
-    && SHA256_PATTERN.test(value.sha256 || '') && Number.isInteger(value.bytes) && value.bytes > 0
-    && Number.isInteger(value.pageCount) && value.pageCount > 0
-    && value.provenance === 'direct_project_upload');
+    && normalizeDurableProjectSource(value, projectId));
 }
 
 export function browserSafeProjectSource(value, { status = PROJECT_SOURCE_STATUS.PENDING_CONTEXTUAL_RENDER } = {}) {

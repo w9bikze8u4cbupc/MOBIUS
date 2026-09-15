@@ -1,0 +1,128 @@
+{
+  "version": "mobius-sonic-signature-r8",
+  "contract": {
+    "id": "mobius-cafe-game-night-v4",
+    "version": "6",
+    "durationSec": 3.6,
+    "transitionBedSec": 3,
+    "sampleRate": 48000,
+    "channels": 2,
+    "layers": [
+      {
+        "id": "room-murmur",
+        "kind": "recorded-cafe-room-murmur",
+        "source": "cafe-ambience-freesound-25813.mp3",
+        "gainDb": 0,
+        "selectedExcerptSec": [
+          20,
+          23.6
+        ],
+        "intelligibleSpeech": false,
+        "continuityRequired": true
+      },
+      {
+        "id": "cafe-cup-saucer",
+        "kind": "recorded-coffee-cup-cue",
+        "gainDb": -10.5,
+        "intelligibleSpeech": false
+      },
+      {
+        "id": "dice-roll-landing",
+        "kind": "recorded-dice-roll-and-landing-cue",
+        "gainDb": -8.5,
+        "intelligibleSpeech": false
+      }
+    ],
+    "transition": {
+      "fadeInSec": 0.08,
+      "fadeOutSec": 0.18,
+      "carryoverSec": 3,
+      "narrationDuckDb": -6,
+      "roomBedContinuousAcrossSignature": true
+    }
+  },
+  "path": "C:\\mobius-games-tutorial-generator-quality-fix\\src\\assets\\branding\\sonic\\mobius-cafe-sonic-signature-r8.wav",
+  "sha256": "8f786c56de3ef307cabe098badb64c29cea705bc8ffe1af3a913d871e5fdbdf5",
+  "durationSec": 3.6,
+  "sampleRate": 48000,
+  "channels": 2,
+  "audioRole": "café-ludique sonic signature",
+  "spokenNarration": "NONE",
+  "ttsGenerated": false,
+  "sources": [
+    {
+      "id": "room-murmur",
+      "filename": "cafe-ambience-freesound-25813.mp3",
+      "gainDb": 0,
+      "selectedExcerptSec": [
+        20,
+        23.6
+      ],
+      "timing": "0.0s–3.6s from source 20.0s–23.6s",
+      "transform": "trim active social-café excerpt, lowpass 10000Hz, highpass 80Hz, continuous bed, 0.18s terminal fade only",
+      "path": "C:\\mobius-games-tutorial-generator-quality-fix\\src\\assets\\branding\\sonic\\cafe-ambience-freesound-25813.mp3",
+      "sha256": "1a7e49835e059ba1724af46cb07e39e7d4edbc5495e063fc38ecce0e108ef24f",
+      "selected": true,
+      "sourceFamily": "Freesound community reference asset",
+      "sourceUrl": null,
+      "licenseStatus": "Reference asset retained locally; external publication clearance remains a human review item."
+    },
+    {
+      "id": "water-fountain",
+      "filename": "water-fountain-orangefreesounds-202108.mp3",
+      "gainDb": null,
+      "timing": "audited, excluded from v5 mix",
+      "transform": "not mixed: Director rejected waterfall-dominant identity",
+      "path": "C:\\mobius-games-tutorial-generator-quality-fix\\src\\assets\\branding\\sonic\\water-fountain-orangefreesounds-202108.mp3",
+      "sha256": "ec7f05980db85feee7e372e185cbca65bd565d9ab8f726e99a649746276c3dab",
+      "selected": false,
+      "sourceFamily": "Orange Free Sounds",
+      "sourceUrl": "https://orangefreesounds.com/wp-content/uploads/2021/08/Outdoor-water-fountain-ambience.mp3",
+      "licenseStatus": "Downloaded real recording; commercial publication clearance remains a human review item."
+    },
+    {
+      "id": "cafe-cup-saucer",
+      "filename": "cup-pour-local-reference-491088.mp3",
+      "gainDb": -10.5,
+      "timing": "~0.72s–1.47s",
+      "transform": "trim 0.75s, delayed 720ms, integrated below continuous room bed",
+      "path": "C:\\mobius-games-tutorial-generator-quality-fix\\src\\assets\\branding\\sonic\\cup-pour-local-reference-491088.mp3",
+      "sha256": "bfc749c2ac0f5b58ef07f1fa8d3fd8166b77980fd80bbdefd7c94a917a45fadc",
+      "selected": true,
+      "sourceFamily": "Director local reference pack",
+      "sourceUrl": null,
+      "licenseStatus": "Reference asset retained locally; external publication clearance remains a human review item."
+    },
+    {
+      "id": "dice-roll-landing",
+      "filename": "dice-roll-freesound-102631.mp3",
+      "gainDb": -8.5,
+      "timing": "~1.70s–3.05s",
+      "transform": "trim 1.35s, delayed 1700ms, integrated below continuous room bed",
+      "path": "C:\\mobius-games-tutorial-generator-quality-fix\\src\\assets\\branding\\sonic\\dice-roll-freesound-102631.mp3",
+      "sha256": "0a55c866859ca7b4c5d948aa98f328ff65bd9a439cfef4679975aae6a3bbfee3",
+      "selected": true,
+      "sourceFamily": "Freesound community reference asset",
+      "sourceUrl": null,
+      "licenseStatus": "Reference asset retained locally; external publication clearance remains a human review item."
+    }
+  ],
+  "mix": {
+    "order": "continuous social café room foundation → integrated coffee/cup cue at 0.72s → integrated dice roll/landing at 1.70s → 0.18s terminal fade; water excluded",
+    "identityContour": [
+      "café-room murmur remains present across the complete signature",
+      "water/fountain audited and excluded",
+      "coffee/cup cue remains identifiable without becoming an isolated plop",
+      "dice cue punctuates the room without replacing it"
+    ],
+    "continuity": {
+      "roomBedStartSec": 0,
+      "roomBedEndSec": 3.6,
+      "longestBedGapMsAllowed": 80,
+      "cueDominanceForbidden": true
+    },
+    "recordedAssetsOnly": true,
+    "syntheticAudio": false,
+    "intelligibleDialogue": false
+  }
+}

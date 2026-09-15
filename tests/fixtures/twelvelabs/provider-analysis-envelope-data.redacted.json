@@ -1,0 +1,9 @@
+{
+  "id": "analysis-id-redacted",
+  "data": "{\"schema_version\":\"mobius-twelvelabs-editorial-qa-v1.1\",\"provider\":\"twelvelabs\",\"model_name\":\"pegasus1.5\",\"verdict\":\"PASS\",\"overall_score_10\":8,\"category_scores\":{\"intro_and_sonic_identity\":8,\"voice_consistency\":8,\"fr_ca_pronunciation\":8,\"script_progression\":8,\"text_containment_and_legibility\":8,\"space_optimization\":8,\"visual_narration_correspondence\":8,\"section_transitions\":8,\"brand_consistency\":8},\"findings\":[],\"pronunciation_checks\":[],\"scene_boundary_checks\":[],\"strengths_to_preserve\":[],\"human_review_required\":false,\"human_review_reason\":\"\"}",
+  "finish_reason": "stop",
+  "usage": {
+    "input_tokens": 1,
+    "output_tokens": 1
+  }
+}

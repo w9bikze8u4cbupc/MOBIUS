@@ -6,6 +6,115 @@ let loadSourceVisualCatalog;
 let selectSourceVisual;
 let inferVisualTypes;
 
+test('visual provider outage is explicit recovery, not a fabricated Cockpit decision', async () => {
+  const { visualProviderFailure, visualProviderRecoveryIdentity } = await import('../../src/services/sourceVisualSelection.js');
+  expect(visualProviderFailure({ summary: { providerBlocker: null } })).toBeNull();
+  const error = visualProviderFailure({ summary: { providerBlocker: 'InternalServerError; HTTP 520; private diagnostic omitted' } });
+  expect(error).toMatchObject({ code: 'VISUAL_PROVIDER_UNAVAILABLE', httpStatus: 520, classification: 'provider_unavailable', explicitRecovery: true });
+  expect(error.message).toBe('VISUAL_PROVIDER_UNAVAILABLE: HTTP 520');
+  expect(visualProviderFailure({ summary: { providerBlocker: 'ValueError; HTTP unavailable' } })).toMatchObject({ code: 'VISUAL_PROVIDER_RESPONSE_INVALID', classification: 'retryable_engineering' });
+  expect(visualProviderFailure({ summary: { providerBlocker: 'VISUAL_RESPONSE_REASONING_BUDGET_EXHAUSTED' } }))
+    .toMatchObject({ code: 'VISUAL_RESPONSE_REASONING_BUDGET_EXHAUSTED', classification: 'retryable_engineering', explicitRecovery: true, httpStatus: null });
+  const ledgerRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-visual-recovery-'));
+  const ledger = path.join(ledgerRoot, 'visual-ledger.json');
+  fs.writeFileSync(ledger, JSON.stringify({ recoveryEpoch: 'provider-recovered-v1' }));
+  expect(visualProviderRecoveryIdentity({ MOBIUS_VISUAL_BUDGET_LEDGER: ledger })).toBe('mobius-visual-provider-recovery-v1:provider-recovered-v1');
+  fs.writeFileSync(ledger, '{not-json');
+  expect(visualProviderRecoveryIdentity({ MOBIUS_VISUAL_BUDGET_LEDGER: ledger })).toBeNull();
+  fs.rmSync(ledgerRoot, { recursive: true, force: true });
+});
+
+test('source-grounded physical referents receive atomic reuse-ranked discovery scenes without creating bindings', async () => {
+  const { buildComponentDiscoveryScenes } = await import('../../src/services/sourceVisualSelection.js');
+  const scenes = [{ id: 'lesson-a', visualRequirement: { actualGameAssetRequired: true, requiredObjects: ['board', 'token', 'currency'] } }];
+  const componentTerms = {
+    board: { status: 'GROUNDED', category: 'board', evidence: [{ page: 3, quote: '1 player board' }] },
+    token: { status: 'GROUNDED', category: 'token', evidence: [{ page: 3, quote: '20 tokens' }] },
+    currency: { status: 'GROUNDED', category: 'currency', evidence: [{ page: 3, quote: 'virtual currency' }] },
+  };
+  const discovery = buildComponentDiscoveryScenes({ scenes, componentTerms });
+  expect(discovery).toHaveLength(2);
+  expect(discovery.map((scene) => scene.visualRequirement.requiredObjects)).toEqual([['board'], ['token']]);
+  expect(discovery).toEqual(expect.arrayContaining([expect.objectContaining({ source_pages: [3], visualRequirement: expect.objectContaining({
+    actualGameAssetRequired: true, purpose: 'component-identity-discovery', componentDiscovery: true,
+  }) })]));
+  expect(discovery.every((scene) => !Object.hasOwn(scene.visualRequirement, 'selectedAssetIds'))).toBe(true);
+});
+
+test('component discovery searches a bounded illustrated setup spread without laundering it into identity evidence', async () => {
+  const { buildComponentDiscoveryScenes, COMPONENT_DISCOVERY_CONTRACT } = await import('../../src/services/sourceVisualSelection.js');
+  const scenes = [
+    { id: 'setup', source_pages: [8], section: 'Setup the board', visualRequirement: {
+      actualGameAssetRequired: true, requiredObjects: ['board'], setupPlacementRequired: true,
+    } },
+    { id: 'later-rule', source_pages: [15], visualRequirement: {
+      actualGameAssetRequired: true, requiredObjects: ['board'], transitionRequired: true,
+    } },
+    { id: 'document-limit', source_pages: [20], visualRequirement: { actualGameAssetRequired: false, requiredObjects: [] } },
+  ];
+  const [discovery] = buildComponentDiscoveryScenes({ scenes, componentTerms: {
+    board: { status: 'GROUNDED', category: 'board', evidence: [{ page: 3, quote: '1 board' }] },
+  } });
+  expect(COMPONENT_DISCOVERY_CONTRACT).toBe('mobius-source-component-discovery-v2');
+  expect(discovery.source_pages).toEqual([3]);
+  expect(discovery.sourceRefs).toEqual([{ page: 3, quote: '1 board' }]);
+  expect(discovery.visualSearchPages).toEqual([8, 9, 15]);
+  expect(discovery.visualSearchPages).not.toContain(3);
+});
+
+test('replays a same-project derived crop as UNKNOWN candidate without inheriting acceptance', async () => {
+  const { replayGeneratedVisualCandidates } = await import('../../src/services/sourceVisualSelection.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-derived-replay-'));
+  try {
+    const crop = path.join(root, 'crop.png');
+    fs.writeFileSync(crop, 'pixels');
+    const rows = replayGeneratedVisualCandidates({
+      images: [{ id: 'base' }], sourceSha256: 'source-sha', projectRoot: root,
+      semanticReport: { generatedAssets: [{
+        id: 'crop', file_path: crop, source_page: 9, sourcePdfSha256: 'source-sha',
+        cropCompleteness: 'complete', cropPurity: 'clean', is_component: true,
+        objectVisualEvidence: [{ status: 'AUTO_ACCEPTED' }],
+        provenance: { sourcePdfSha256: 'source-sha', sourcePage: 9, measuredObjectId: 'board' },
+      }] },
+    });
+    expect(rows.map((row) => row.id)).toEqual(['base', 'crop']);
+    expect(rows[1]).toMatchObject({ localizedReferent: 'board', cropCompleteness: 'unknown', cropPurity: 'unknown', is_component: null, requiresPixelVerification: true });
+    expect(rows[1]).not.toHaveProperty('objectVisualEvidence');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('does not replay a derived crop across source or project ownership', async () => {
+  const { replayGeneratedVisualCandidates } = await import('../../src/services/sourceVisualSelection.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-derived-owner-'));
+  const other = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-derived-other-'));
+  try {
+    const outside = path.join(other, 'crop.png');
+    fs.writeFileSync(outside, 'pixels');
+    const rows = replayGeneratedVisualCandidates({
+      images: [{ id: 'base' }], sourceSha256: 'expected', projectRoot: root,
+      semanticReport: { generatedAssets: [
+        { id: 'wrong-root', file_path: outside, source_page: 2, sourcePdfSha256: 'expected' },
+        { id: 'wrong-sha', file_path: outside, source_page: 2, sourcePdfSha256: 'other' },
+      ] },
+    });
+    expect(rows).toEqual([{ id: 'base' }]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(other, { recursive: true, force: true });
+  }
+});
+
+test('native source authority requires real matching PDF/extraction provenance, not a label', async () => {
+  const { nativeManifestProvenance } = await import('../../src/services/hephaestusEvidence.js');
+  const file = path.resolve(__dirname, '../../package.json');
+  const manifest = { success: true, stats: { native_images: 1 } };
+  const native = { native: true, sourcePdfSha256: 'verified', page_index: 3, original_dimensions: { width: 763, height: 645 } };
+  expect(nativeManifestProvenance(manifest, native, file, 'verified')).toMatchObject({ sourcePage: 4, nativeImage: true, extractionMethod: 'pymupdf-native-raster' });
+  expect(nativeManifestProvenance(manifest, native, file, 'wrong')).toBeNull();
+  expect(nativeManifestProvenance(manifest, { ...native, native: false, label: 'native PDF board' }, file, 'verified')).toBeNull();
+  expect(nativeManifestProvenance({}, native, file, 'verified')).toBeNull();
+});
+
 beforeAll(async () => {
   const mod = await import('../../src/services/sourceVisualSelection.js');
   loadSourceVisualCatalog = mod.loadSourceVisualCatalog;
@@ -63,6 +172,23 @@ describe('sourceVisualSelection', () => {
     expect(selection.kind).toBe('component');
     expect(selection.path).toContain('page4-card.png');
     expect(selection.confidence).toBeGreaterThanOrEqual(0.42);
+  });
+
+  test('rehydrates a relocated HEPHAESTUS asset path and component aliases from canonical evidence', () => {
+    const native = path.join(root, 'native-card.png');
+    fs.writeFileSync(native, 'native');
+    const manifestAsset = { id: 'native-card', file_path: 'images/all/stale-relative.png', page_index: 2, classification: 'card', is_component: true, confidence: 0.9, dimensions: { width: 800, height: 1200 } };
+    fs.writeFileSync(manifestPath, JSON.stringify({ images: [manifestAsset] }));
+    const evidencePath = path.join(root, 'component-evidence.json');
+    fs.writeFileSync(evidencePath, JSON.stringify({
+      assets: [{ id: 'native-card', sourceImage: native, pageNumber: 3, componentName: 'Native card', category: 'card', reviewState: 'accepted' }],
+      componentBindings: [{ componentId: 'component-target', componentName: 'Target card', category: 'card', assetId: 'native-card', confidence: 0.6, reviewState: 'needs_review' }],
+    }));
+    const catalog = loadSourceVisualCatalog(manifestPath, { hephaestusEvidencePath: evidencePath });
+    expect(catalog.assets[0].renderPath).toBe(native);
+    expect(catalog.assets[0].semanticObjects).not.toContain('component-target');
+    expect(catalog.assets[0].bindingHypotheses[0].componentName).toBe('Target card');
+    expect(catalog.assets[0].source_page).toBe(3);
   });
 
   test('prefers a usable component on the cited rulebook page over a stronger generic asset', () => {
@@ -173,6 +299,30 @@ describe('sourceVisualSelection', () => {
     expect(selection).toMatchObject({ kind: 'focused-page-region', assetId: 'page-2-region', sourcePage: 2 });
   });
 
+  test('fills missing extracted-asset PDF provenance from the scene source identity', () => {
+    const component = path.join(root, 'component-token.png');
+    fs.writeFileSync(component, 'component');
+    const selection = selectSourceVisual({
+      id: 'scene-components',
+      title: 'Composants',
+      source_pages: [5],
+      source_pdf_sha256: 'scene-pdf-sha',
+      visual_intent: 'components',
+    }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      assets: [{
+        id: 'component-token', source_page: 5, renderPath: component, type: 'token',
+        contentHash: 'asset-sha', provenance: { sourcePage: 5 },
+        curation: { lowInformation: false, score: 0.95 },
+        visualQuality: { primary_explanatory: true, quality_score: 91 },
+      }],
+    }, '/fallback/page-5.png');
+
+    expect(selection.provenance).toMatchObject({
+      sourcePdfSha256: 'scene-pdf-sha', sourcePage: 5, assetHash: 'asset-sha',
+    });
+  });
+
   test('keeps a truthful fallback when a high-quality candidate has no semantic match', () => {
     const unrelated = path.join(root, 'unrelated.png');
     fs.writeFileSync(unrelated, 'unrelated');
@@ -207,9 +357,112 @@ describe('sourceVisualSelection', () => {
       }],
     }, '/fallback/page-3.png');
 
-    expect(selection.kind).toBe('focused-page-crop');
-    expect(selection.reason).toContain('layout-grounded-semantic-recovery');
-    expect(selection.semanticMatch.status).toBe('no-semantic-match');
+    expect(selection.kind).toBe('rulebook-page-fallback');
+    expect(selection.assetId).toBeNull();
+  });
+
+  test('uses a cited, quality-approved typed component during a semantic-provider outage', () => {
+    const token = path.join(root, 'token.png');
+    fs.writeFileSync(token, 'token');
+    const selection = selectSourceVisual({
+      id: 'actions', source_pages: [5], section: 'Actions',
+      narration: 'Convertissez vos ressources en tuiles.', language: 'fr-CA',
+    }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      semanticReportPath: '/reviewed/scene-match.json',
+      semanticBySceneId: new Map([['actions', {
+        status: 'no-semantic-match', selected_asset_id: null, relevance_score: 25,
+        reason: 'provider unavailable: credit_balance_exhausted',
+      }]]),
+      assets: [{
+        id: 'cited-token', source_page: 5, page_index: 4, type: 'token',
+        is_component: true, renderPath: token,
+        curation: { lowInformation: false, score: 0.9 },
+        visualQuality: { primary_explanatory: true, quality_score: 82 },
+      }],
+    }, '/fallback/page-5.png');
+
+    expect(selection.kind).toBe('rulebook-page-fallback');
+    expect(selection.assetId).toBeNull();
+  });
+
+  test('does not trust a matched semantic result whose reason records provider failure', () => {
+    const typed = path.join(root, 'provider-recovery-token.png');
+    const contents = path.join(root, 'provider-recovery-contents.png');
+    fs.writeFileSync(typed, 'token');
+    fs.writeFileSync(contents, 'contents');
+    const selection = selectSourceVisual({
+      id: 'components', source_pages: [5], section: 'Composants',
+      narration: 'Le jeu comprend des tuiles et des marqueurs.', language: 'fr-CA',
+    }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      semanticReportPath: '/reviewed/scene-match.json',
+      semanticBySceneId: new Map([['components', {
+        status: 'matched', selected_asset_id: 'contents-crop', relevance_score: 92,
+        reason: 'local-semantic-fallback after vision failure: credit_balance_exhausted',
+      }]]),
+      assets: [
+        { id: 'contents-crop', source_page: 5, visual_kind: 'focused-page-crop', is_component: true,
+          renderPath: contents, curation: { lowInformation: false, score: 0.99 },
+          visualQuality: { primary_explanatory: true, quality_score: 95, asset_metadata: { layout_labels: ['CONTENTS', 'Background', 'Game Overview'] } } },
+        { id: 'recovery-token', source_page: 5, type: 'token', is_component: true, renderPath: typed,
+          curation: { lowInformation: false, score: 0.82 }, visualQuality: { primary_explanatory: true, quality_score: 82 } },
+      ],
+    }, '/fallback/page-5.png');
+
+    expect(selection.assetId).toBeNull();
+  });
+
+  test('does not use a cover or oversized illustration for a component inventory when bounded items exist', () => {
+    const cover = path.join(root, 'component-cover.png');
+    const tile = path.join(root, 'component-tile.png');
+    fs.writeFileSync(cover, 'cover');
+    fs.writeFileSync(tile, 'tile');
+    const selection = selectSourceVisual({
+      id: 'inventory', source_pages: [1, 5], section: 'Composants',
+      narration: 'Le jeu comprend des tuiles et des marqueurs.', language: 'fr-CA',
+    }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      assets: [
+        { id: 'cover', source_page: 1, type: 'board', is_component: true, renderPath: cover,
+          dimensions: { width: 1560, height: 1689 }, curation: { lowInformation: false, score: 0.99 },
+          visualQuality: { primary_explanatory: true, quality_score: 90 } },
+        { id: 'tile', source_page: 5, type: 'tile', is_component: true, renderPath: tile,
+          dimensions: { width: 324, height: 348 }, curation: { lowInformation: false, score: 0.82 },
+          visualQuality: { primary_explanatory: true, quality_score: 74 } },
+      ],
+    }, '/fallback/page-1.png');
+
+    expect(selection.assetId).toBe('tile');
+  });
+
+  test('preserves a provider-generated focused setup recovery when the provider is unavailable', () => {
+    const focused = path.join(root, 'setup-focused.png');
+    const illustration = path.join(root, 'setup-illustration.png');
+    fs.writeFileSync(focused, 'focused');
+    fs.writeFileSync(illustration, 'illustration');
+    const selection = selectSourceVisual({
+      id: 'setup', source_pages: [5], section: 'Mise en place',
+      narration: 'Placez le plateau au centre et les marqueurs sur les pistes.', language: 'fr-CA',
+    }, {
+      qualityReportPath: '/reviewed/asset-quality.json',
+      semanticReportPath: '/reviewed/scene-match.json',
+      semanticBySceneId: new Map([['setup', {
+        status: 'matched', selected_asset_id: 'focused-setup', relevance_score: 92,
+        reason: 'local-semantic-fallback after vision failure: credit_balance_exhausted',
+      }]]),
+      assets: [
+        { id: 'focused-setup', source_page: 5, visual_kind: 'focused-page-crop', is_component: true,
+          renderPath: focused, curation: { lowInformation: false, score: 0.82 },
+          visualQuality: { primary_explanatory: true, quality_score: 91 } },
+        { id: 'oversized-token', source_page: 5, type: 'token', is_component: true,
+          renderPath: illustration, dimensions: { width: 1560, height: 1689 },
+          curation: { lowInformation: false, score: 0.99 },
+          visualQuality: { primary_explanatory: true, quality_score: 91 } },
+      ],
+    }, '/fallback/page-5.png');
+
+    expect(selection.assetId).toBeNull();
   });
 
   test('records machine-readable fallback alternatives when no local recovery is justified', () => {

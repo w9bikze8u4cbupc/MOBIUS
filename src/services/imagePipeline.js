@@ -135,9 +135,9 @@ function parseBggId(raw) {
 
 async function searchBggByName(gameName) {
   try {
-    const searchResponse = await axios.get(
+    const searchResponse = await bggHttpClient.get(
       `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(gameName)}&type=boardgame&exact=1`,
-      { timeout: 10000 }
+      BGG_REQUEST_OPTIONS
     );
     const searchParsed = xmlParser.parse(searchResponse.data || '');
     const items = searchParsed?.items?.item;
@@ -148,9 +148,9 @@ async function searchBggByName(gameName) {
     }
     
     // Try non-exact search if exact fails
-    const fuzzyResponse = await axios.get(
+    const fuzzyResponse = await bggHttpClient.get(
       `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(gameName)}&type=boardgame`,
-      { timeout: 10000 }
+      BGG_REQUEST_OPTIONS
     );
     const fuzzyParsed = xmlParser.parse(fuzzyResponse.data || '');
     const fuzzyItems = fuzzyParsed?.items?.item;
@@ -168,6 +168,69 @@ async function searchBggByName(gameName) {
   }
 }
 
+function normalizeBggTitle(value) {
+  return String(value || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function asBggItems(payload) {
+  const items = payload?.items?.item || [];
+  return Array.isArray(items) ? items : [items];
+}
+
+function bggItemNames(item = {}) {
+  const names = Array.isArray(item.name) ? item.name : [item.name];
+  return names.map((name) => typeof name === 'string' ? name : name?.value || name?.$?.value)
+    .filter(Boolean);
+}
+
+/**
+ * Resolves a BGG object only when the source-derived title has exactly one
+ * exact title match. It identifies a gallery to inspect; feature matching and
+ * normal pixel QA still establish physical component identity later.
+ */
+async function resolveExactBggGame(title) {
+  const expected = normalizeBggTitle(title);
+  if (!expected) return { status: 'NO_SOURCE_TITLE', objectId: null, candidates: [] };
+  try {
+    const response = await bggHttpClient.get(
+      `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(title)}&type=boardgame&exact=1`,
+      BGG_REQUEST_OPTIONS
+    );
+    const parsed = xmlParser.parse(response.data || '');
+    const candidates = asBggItems(parsed).map((item) => ({
+      objectId: item?.id ? String(item.id) : null,
+      names: bggItemNames(item),
+      yearPublished: item?.yearpublished?.value || item?.yearpublished || null,
+    })).filter((item) => item.objectId);
+    const exact = candidates.filter((item) => item.names.some((name) => normalizeBggTitle(name) === expected));
+    const unique = [...new Map(exact.map((item) => [item.objectId, item])).values()];
+    if (unique.length !== 1) return {
+      status: unique.length ? 'AMBIGUOUS_EXACT_TITLE' : 'NO_EXACT_TITLE_MATCH', objectId: null, candidates: unique,
+    };
+    return {
+      status: 'EXACT_TITLE_UNIQUE', objectId: unique[0].objectId,
+      title: unique[0].names.find((name) => normalizeBggTitle(name) === expected) || title,
+      candidates: unique,
+      provenance: { source: 'bgg-xmlapi2-search-exact', queriedTitle: title },
+    };
+  } catch (error) {
+    const status = Number(error?.response?.status || error?.status || 0);
+    return { status: status === 401 || status === 403 ? 'BGG_ACCESS_UNAVAILABLE' : 'BGG_LOOKUP_UNAVAILABLE', objectId: null, candidates: [] };
+  }
+}
+
+let bggHttpClient = axios;
+const BGG_REQUEST_OPTIONS = Object.freeze({
+  timeout: 10000,
+  headers: { 'User-Agent': 'MOBIUS-source-resolver/1.0 (+https://github.com/w9bikze8u4cbupc/MOBIUS)' },
+});
+
+function setBggHttpClientForTests(client) {
+  bggHttpClient = client || axios;
+}
+
 async function fetchBggImages(projectId, bggIdOrUrl) {
   let bggId = parseBggId(bggIdOrUrl);
   
@@ -183,7 +246,7 @@ async function fetchBggImages(projectId, bggIdOrUrl) {
   }
 
   console.log('Fetching BGG images for ID:', bggId);
-  const response = await axios.get(`https://boardgamegeek.com/xmlapi2/thing?id=${bggId}&stats=1`);
+  const response = await bggHttpClient.get(`https://boardgamegeek.com/xmlapi2/thing?id=${bggId}&stats=1`, BGG_REQUEST_OPTIONS);
   const parsed = xmlParser.parse(response.data || '');
   const item = parsed?.items?.item || {};
   const candidates = [];
@@ -532,10 +595,11 @@ export {
   prepareImagesForRenderer,
   SUPPORTED_IMAGE_EXTENSIONS,
   fetchBggImages,
+  resolveExactBggGame,
+  setBggHttpClientForTests,
   extractRulebookImages,
   ingestManualImage,
   runImageEnhancement,
   searchWebForComponentImages,
   matchComponentsToImages,
 };
-

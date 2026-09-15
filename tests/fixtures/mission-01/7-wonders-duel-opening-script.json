@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "game": "7 Wonders Duel",
+  "sourceTitle": "7 Wonders Duel",
+  "sourceLanguage": "en",
+  "identity": {
+    "version": "game-identity-v1",
+    "sourceTitle": "7 Wonders Duel",
+    "officialEditionTitle": "7 Wonders Duel",
+    "displayName": "7 Wonders Duel",
+    "spokenName": "Seven Wonders Duel",
+    "locale": "fr-CA",
+    "sourceLanguage": "en",
+    "bggId": "173346",
+    "pronunciationOverride": "Seven Wonders Duel",
+    "pronunciationRepresentation": "Seven Wonders duèl",
+    "boxArtPath": "src/assets/games/7-wonders-duel-box-art-bgg-front.webp",
+    "pronunciationStatus": "operator-confirmed",
+    "preserveOriginalTitle": true,
+    "operatorConfirmed": true,
+    "provenance": { "source": "operator-confirmed-project-metadata", "confidence": "confirmed", "authoritative": true }
+  },
+  "metadata": {
+    "bggId": "173346",
+    "playerCount": "2",
+    "gameLength": "30 minutes",
+    "minimumAge": "10",
+    "weight": "2.23",
+    "designers": ["Antoine Bauza", "Bruno Cathala"],
+    "publisher": "Repos Production",
+    "yearPublished": "2015",
+    "mechanics": ["Drafting", "Card Drafting", "Resource Management"],
+    "metadataProvenance": { "practical": "bgg", "bgg": true, "boxArt": "local Director reference of BGG front-cover asset" }
+  },
+  "scenes": [
+    {
+      "id": "metadata-card",
+      "section": "À propos du jeu",
+      "narration": "Bienvenue sur la chaîne Les Jeux Mobius. Aujourd’hui, nous allons découvrir ensemble Seven Wonders Duel. C’est un jeu pour deux joueurs, d’une durée d’environ trente minutes. Il a été conçu par Antoine Bauza et Bruno Cathala et publié par Repos Production.",
+      "on_screen_text": "Joueurs : 2\nDurée : 30 minutes\nÂge minimum : 10+\nComplexité : 2,23 / 5",
+      "source_pages": [1],
+      "metadata_card": true
+    },
+    {
+      "id": "scene-section-01-1",
+      "section": "Présentation",
+      "narration": "Dans 7 Wonders Duel, deux civilisations développent leur cité pendant trois âges, en choisissant leurs cartes pour prendre l’avantage et viser l’une des trois victoires.",
+      "on_screen_text": "Deux civilisations développent leur cité à travers trois âges",
+      "source_pages": [1]
+    },
+    {
+      "id": "scene-section-02-2",
+      "section": "Objectif du jeu",
+      "narration": "Pour gagner, provoquez une suprématie militaire, obtenez une suprématie scientifique, ou remportez la victoire civile grâce aux points de victoire à la fin de l’âge III.",
+      "on_screen_text": "• Suprématie militaire\n• Suprématie scientifique\n• Victoire civile (points de victoire à la fin de l’âge III)",
+      "preserve_line_breaks": true,
+      "source_pages": [1, 2]
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "contract": "mobius-generator-productization-v1",
+  "CODEX_REQUIRED_FOR_NORMAL_PRODUCTION": false,
+  "normalProductionEntrypoint": "npm run tutorial:from-pdf -- --pdf <authoritative-rulebook.pdf>",
+  "normalQaEntrypoint": "npm run qa:production -- --project-id <canonical-project-id>",
+  "sourceResolution": {
+    "resolver": "src/services/sourceAssetResolver.cjs",
+    "hierarchy": [
+      "OFFICIAL_PUBLISHER_HIGH_RES",
+      "AUTHORIZED_EXACT_EDITION_HIGH_RES",
+      "OFFICIAL_BGG_ASSET",
+      "NATIVE_EMBEDDED",
+      "HIGH_DPI_PAGE_CROP",
+      "SOURCE_PAGE_FALLBACK"
+    ],
+    "automaticAcceptanceRequires": [
+      "source authority",
+      "true detail at intended display size",
+      "semantic identity",
+      "complete crop",
+      "clean crop",
+      "high confidence and ranking margin"
+    ],
+    "uncertainDisposition": "COCKPIT_REVIEW",
+    "authorizedRectification": {
+      "owner": "canonical project source recovery configuration",
+      "methods": ["SIFT_RANSAC_AUTHORIZED_RECTIFICATION", "PROJECT_GEOMETRY_AUTHORIZED_RECTIFICATION"],
+      "autoAccept": false,
+      "physicalReviewRequired": true
+    }
+  },
+  "compiler": "src/services/canonicalProductionCompiler.cjs",
+  "physicalState": "src/services/physicalGameState.cjs",
+  "visualPlan": "src/services/visualPlan.cjs",
+  "qa": "src/services/productionQualityGate.cjs",
+  "phoneScaleQa": "src/services/phoneScaleQa.cjs",
+  "narrationDefaultTeachingProfile": "AMELIE_TEACHING_WARM_R10",
+  "brandAudioContract": "mobius-cafe-game-night-v4",
+  "legacyIterationScaffolds": {
+    "patterns": ["scripts/build-7wd-r*-project-data.mjs", "scripts/qa-publishability-r*.mjs"],
+    "status": "ARCHIVED_IN_PLACE_FOR_BENCHMARK_REGRESSION_ONLY",
+    "normalProductionDependency": false
+  }
+}

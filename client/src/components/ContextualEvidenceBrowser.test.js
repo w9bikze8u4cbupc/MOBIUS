@@ -26,7 +26,7 @@ test('shows only contextual-capable intents and selects a verified canonical rul
   expect(await screen.findByText('page 1')).toBeInTheDocument();
   expect(screen.getByText(/profile pdf-to-img-review-144dpi-png-v1/)).toBeInTheDocument();
   expect(screen.getByText(`hash ${pageSha256.slice(0, 12)}`)).toBeInTheDocument();
-  expect(screen.getByAltText('Full rulebook page 1')).toHaveAttribute('src', 'http://localhost:5001/api/projects/project%201/contextual-assets/page-1/file?variant=full');
+  expect(screen.getByAltText('Full rulebook page 1')).toHaveAttribute('src', '/api/projects/project%201/contextual-assets/page-1/file?variant=full');
   fireEvent.click(screen.getByRole('button', { name: 'Select page' }));
   expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'page-1', kind: 'contextual_page' }), expect.objectContaining({
     role: 'rulebook_reference', pageId: 'page-1', documentSha256, pageRasterSha256, renderProfile: inventory.renderProfile.id,

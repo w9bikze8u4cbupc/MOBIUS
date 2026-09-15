@@ -1,10 +1,12 @@
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
+import path from 'node:path';
 
-dotenv.config();
+const ENV_FILE_PATH = path.resolve(process.env.MOBIUS_CONFIG_PATH || path.join(process.cwd(), '.env'));
+dotenv.config({ path: ENV_FILE_PATH });
 
-const ENV_FILE_PATH = 'C:\\mobius-games-tutorial-generator\\.env';
 let client;
+let clientConfiguration;
 let accessCheckCache = null;
 
 function getValue(env, name) {
@@ -42,6 +44,10 @@ const GENERATION_OPERATION_DEFAULTS = Object.freeze({
     max_completion_tokens: 4096,
     temperature: 0.3,
   }),
+  rulebook_domain_synthesis: Object.freeze({
+    max_completion_tokens: 3200,
+    temperature: 0.1,
+  }),
 });
 
 // Model-owned generation capabilities keep provider-specific controls out of route callers.
@@ -60,6 +66,9 @@ const MODEL_GENERATION_PROFILES = Object.freeze({
       }),
       summary_translation: Object.freeze({
         max_completion_tokens: 6400,
+      }),
+      rulebook_domain_synthesis: Object.freeze({
+        max_completion_tokens: 4800,
       }),
     }),
   }),
@@ -127,8 +136,8 @@ function getUnavailableModelMessage(model) {
   return `AI script generation is unavailable: OPENAI_MODEL "${model}" is not accessible to this API key. Set an accessible model in ${ENV_FILE_PATH}, restart the server, then try again.`;
 }
 
-export function getAiClient({ requireModel = true } = {}) {
-  const config = getAiConfig();
+export function getAiClient({ requireModel = true, env = process.env } = {}) {
+  const config = getAiConfig(env);
   if (!config.apiKey || (requireModel && !config.model)) {
     const error = new Error(getSetupMessage(config));
     error.code = 'AI_NOT_CONFIGURED';
@@ -136,11 +145,13 @@ export function getAiClient({ requireModel = true } = {}) {
     throw error;
   }
 
-  if (!client) {
+  if (!client || (clientConfiguration && (clientConfiguration.apiKey !== config.apiKey || clientConfiguration.baseURL !== config.baseURL))) {
     client = new OpenAI({
       baseURL: config.baseURL,
       apiKey: config.apiKey,
+      maxRetries: 0, // Canonical executor owns bounded retries; do not multiply them in the SDK.
     });
+    clientConfiguration = { apiKey: config.apiKey, baseURL: config.baseURL };
   }
   return client;
 }
@@ -221,10 +232,12 @@ export async function requireAiReady({ checkAccess = true } = {}) {
 
 export function setAiClientForTests(testClient) {
   client = testClient;
+  clientConfiguration = null;
   accessCheckCache = null;
 }
 
 export function resetAiConfigForTests() {
   client = null;
+  clientConfiguration = null;
   accessCheckCache = null;
 }

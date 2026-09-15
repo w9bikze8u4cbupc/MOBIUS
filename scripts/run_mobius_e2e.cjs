@@ -13,6 +13,7 @@ const { execFileSync, spawnSync } = require('child_process');
 const { pathToFileURL } = require('url');
 const { runIngestionPipeline } = require('../src/ingestion/pipeline');
 const { generateStoryboardFromIngestion } = require('../src/storyboard/storyboard_from_ingestion');
+const FFPROBE_BIN = process.env.MOBIUS_FFPROBE_PATH || require('ffprobe-static').path || 'ffprobe';
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const STORYBOARD_RENDERER = path.join(PROJECT_ROOT, 'scripts', 'render-storyboard-ffmpeg.mjs');
@@ -167,7 +168,7 @@ async function renderRealPreview({ game, lang, outputDir, renderConfig }) {
 
   let probe;
   try {
-    probe = JSON.parse(execFileSync('ffprobe', [
+    probe = JSON.parse(execFileSync(FFPROBE_BIN, [
       '-hide_banner', '-loglevel', 'error', '-print_format', 'json',
       '-show_format', '-show_streams', outputPath,
     ], {

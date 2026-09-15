@@ -1,0 +1,98 @@
+const path = require('node:path');
+const { normalizeRuleAtom, buildRulebookKnowledgeModel, buildTutorialCoverageMatrix } = require('../../src/services/rulebookKnowledge.cjs');
+const { compileCanonicalProductionState } = require('../../src/services/canonicalProductionCompiler.cjs');
+
+const existingFile = path.resolve(__dirname, '../../package.json');
+const proof = require('../fixtures/objectEvidence.cjs');
+
+test('compiler preserves the normal source/domain teaching order instead of provider batch order', () => {
+  const model = knowledge();
+  const setup = model.ruleAtoms[0];
+  const objective = { ...setup, id: 'objective-before-setup', coverageDomains: ['objective'],
+    teaching: { ...setup.teaching, sequence: 99 } };
+  model.ruleAtoms = [setup, objective];
+  const expected = require('../../src/services/rulebookKnowledge.cjs').buildKnowledgeTeachingPlan(model).scenes.map(s => s.atomId);
+  const result = compileCanonicalProductionState({projectId:model.projectId,knowledgeModel:model,
+    coverageMatrix:buildTutorialCoverageMatrix(model),sourceAssets:[]});
+  expect(result.scenes.map(s => s.atomId)).toEqual(expected);
+  expect(model.ruleAtoms.map(a => a.id)).toEqual(['setup-board','objective-before-setup']);
+});
+
+function knowledge() {
+  return buildRulebookKnowledgeModel({ projectSeed: {
+    projectId: 'generic-proof', gameIdentity: { displayName: 'Generic Game' }, sourcePdfSha256: 'a'.repeat(64),
+    coverageApplicability: { complete_setup: true },
+    ruleAtoms: [{
+      id: 'setup-board', domain: 'setup', coverageDomains: ['complete_setup'], title: 'Place the board',
+      placement: 'center of table', componentRefs: ['game-board'], procedureSteps: ['Place the board.'],
+      stateChange: 'board moves to table', stateAfter: 'board is centered', sourceRefs: [{ page: 2 }],
+      confidence: 0.95, reviewState: 'accepted',
+      teaching: { majorSection: 'Mise en place', heading: 'Le plateau', narration: 'Placez le plateau au centre.', displayLines: ['Plateau au centre'] },
+    }],
+  } });
+}
+
+test('normal compiler derives source selection, physical state, VisualPlan and Cockpit state', () => {
+  const model = knowledge();
+  const coverage = buildTutorialCoverageMatrix(model, { includedAtomIds: ['setup-board'], storyboardAtomIds: ['setup-board'], visualizedAtomIds: ['setup-board'], narratedAtomIds: ['setup-board'] });
+  const result = compileCanonicalProductionState({
+    projectId: 'generic-proof', knowledgeModel: model, coverageMatrix: coverage,
+    sourceAssets: [{
+      id: 'board-master', filePath: existingFile, width: 2400, height: 1600,
+      sourceAuthority: 'OFFICIAL_PUBLISHER_HIGH_RES', semanticObjects: ['game-board'],
+      cropCompleteness: 'complete', cropPurity: 'clean', reviewState: 'accepted', sourceRefs: [{ page: 2 }],
+      objectVisualEvidence: [proof('board-master', existingFile, 'game-board', { sceneId: 'knowledge-setup-board', evidenceRequirement: model.ruleAtoms[0].visualRequirement })],
+    }], displayBounds: { width: 900, height: 600 },
+  });
+  expect(result.CODEX_REQUIRED_FOR_NORMAL_PRODUCTION).toBe(false);
+  expect(result.status).toBe('READY');
+  expect(result.scenes[0]).toMatchObject({ visualReviewState: 'resolved', visualPlan: { coverageStatus: 'resolved' } });
+  expect(result.visualPlans[0].compositionType).toBe('REAL_SETUP_PLACEMENT');
+  expect(result.physicalStates[0].stages.length).toBe(2);
+  expect(result.reviewItems).toHaveLength(0);
+});
+
+test('uncertain visual source becomes a Cockpit item instead of a weak fallback', () => {
+  const model = knowledge();
+  const coverage = buildTutorialCoverageMatrix(model, { includedAtomIds: ['setup-board'], storyboardAtomIds: ['setup-board'] });
+  const result = compileCanonicalProductionState({ projectId: 'generic-proof', knowledgeModel: model, coverageMatrix: coverage, sourceAssets: [] });
+  expect(result.status).toBe('REVIEW_REQUIRED');
+  expect(result.reviewItems[0]).toMatchObject({ status: 'needs_visual_review', ruleAtomId: 'setup-board' });
+  expect(result.scenes[0].renderVisual).toBeUndefined();
+});
+
+test('surfaces HEPHAESTUS review bindings in the same actionable Cockpit queue', () => {
+  const model = knowledge();
+  const coverage = buildTutorialCoverageMatrix(model, { includedAtomIds: ['setup-board'], storyboardAtomIds: ['setup-board'] });
+  const result = compileCanonicalProductionState({
+    projectId: 'generic-proof', knowledgeModel: model, coverageMatrix: coverage,
+    componentEvidence: {
+      assets: [{ id: 'weak-board', sourceImage: existingFile, pageNumber: 2, componentName: 'Native board', category: 'board', reviewState: 'accepted' }],
+      componentBindings: [{ componentId: 'game-board', componentName: 'Game board', category: 'board', assetId: 'weak-board', confidence: 0.55, reviewState: 'needs_review', reviewRequired: true, sourcePage: 2 }],
+    },
+  });
+  expect(result.visualReferentNormalization.contract).toBe('mobius-visual-referent-normalization-v5');
+  expect(result.reviewItems[0]).toMatchObject({
+    status: 'needs_visual_review',
+    scopeType: 'VISUAL_REQUIREMENT',
+    ruleAtomId: 'setup-board',
+  });
+  expect(result.reviewItems[0].recommendedOperatorAction).toEqual(expect.any(String));
+  expect(result.reviewItems[0].candidates[0]).toMatchObject({ assetId: 'weak-board' });
+});
+
+test('preserves rejected extraction fragments without surfacing them as physical-component reviews', () => {
+  const model = knowledge();
+  model.components = [{ id: 'fragment', name: 'Play a card immediately', category: 'card', confidence: 0.42,
+    sourcePage: 9, sourceQuote: 'Play a card immediately.' }];
+  const result = compileCanonicalProductionState({
+    projectId: 'generic-proof', knowledgeModel: model, coverageMatrix: buildTutorialCoverageMatrix(model),
+    componentEvidence: { componentBindings: [{ componentId: 'fragment', componentName: 'Play a card immediately',
+      category: 'card', assetId: null, confidence: 0, reviewState: 'needs_review', reviewRequired: true, sourcePage: 9 }] },
+  });
+  expect(result.visualReferentNormalization.rejectedExtractionBindings).toEqual([
+    expect.objectContaining({ componentId: 'fragment', reviewState: 'rejected', reviewRequired: false,
+      rejectionReason: expect.stringContaining('not a canonical physical-component') }),
+  ]);
+  expect(result.reviewItems.some((item) => item.ruleAtomId === 'component-fragment')).toBe(false);
+});

@@ -36,4 +36,22 @@ describe('storyboard narration readiness guard', () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('narrationText requires a readable audio.file');
   });
+
+  test('allows an intentional silent brand signature without a narration asset', () => {
+    const configPath = path.join(tempDir, 'silent-brand.json');
+    fs.writeFileSync(configPath, JSON.stringify({
+      projectId: 'silent-brand',
+      video: { resolution: { width: 1280, height: 720 }, fps: 30 },
+      scenes: [{
+        id: 'brand-intro', durationSec: 3.6, narrationText: '',
+        audio: { speechRequired: false, audioRole: 'café-ludique sonic signature' },
+        background: { color: '#101820' }, overlays: [],
+      }],
+    }));
+    const result = spawnSync('node', [RENDERER, '--config', configPath, '--dry-run'], {
+      cwd: path.resolve(__dirname, '../..'), encoding: 'utf8',
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Config is valid');
+  });
 });

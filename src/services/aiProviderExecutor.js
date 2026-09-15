@@ -70,7 +70,7 @@ function configuredProviders(env = process.env) {
   const providers = [];
   if (openai.apiKey && openai.model) providers.push({
     name: 'openai', model: openai.model, configured: true, baseURL: openai.baseURL,
-    adapter: async ({ messages, options }) => getAiClient().chat.completions.create({ model: openai.model, messages, ...(options || {}) }),
+    adapter: async ({ messages, options }) => getAiClient({ env }).chat.completions.create({ model: openai.model, messages, ...(options || {}) }),
   });
 
   const anthropicModel = configuredModel(env, ['ANTHROPIC_MODEL', 'CLAUDE_MODEL']);
@@ -152,12 +152,13 @@ function validationCategory(error) {
   return 'schema_invalid';
 }
 
-export function createAiProviderRun({ env = process.env, providerOrder, providers: overrides = {}, maxRetries = DEFAULT_RETRIES, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+export function createAiProviderRun({ env = process.env, providerOrder, allowedProviders, providers: overrides = {}, maxRetries = DEFAULT_RETRIES, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   const configured = listConfiguredProviders(env).map((provider) => ({ ...provider, ...(overrides[provider.name] || {}) }));
   const overrideOnly = Object.entries(overrides)
     .filter(([name]) => !configured.some((provider) => provider.name === name))
     .map(([name, provider]) => ({ name, model: provider.model || 'test-model', configured: provider.configured !== false, ...provider }));
-  const available = [...configured, ...overrideOnly].filter((provider) => provider.configured !== false);
+  const available = [...configured, ...overrideOnly].filter((provider) => provider.configured !== false
+    && (!allowedProviders || allowedProviders.includes(provider.name)));
   const order = (Array.isArray(providerOrder) ? providerOrder : String(providerOrder || env?.MOBIUS_AI_PROVIDER_ORDER || '').split(','))
     .map((name) => String(name).trim().toLowerCase()).filter(Boolean);
   const ordered = [...(order.length ? order : DEFAULT_PROVIDER_ORDER), ...available.map((provider) => provider.name)]
@@ -209,6 +210,16 @@ export function createAiProviderRun({ env = process.env, providerOrder, provider
           };
           return { response, value, model: provider.model, provenance, attempts: [...attempts] };
         } catch (error) {
+          const providerCode = String(error?.code || error?.error?.code || error?.response?.data?.error?.code || '').toLowerCase();
+          const providerMessage = String(error?.message || error?.error?.message || error?.response?.data?.error?.message || '');
+          if (['unsupported_value', 'unsupported_parameter', 'unsupported-parameter'].includes(providerCode)
+              || /unsupported[-_ ]?(?:value|parameter)|does not support/i.test(providerMessage)) {
+            // Request-shape incompatibility is deterministic. Preserve the
+            // provider payload so the API can map it to its stable public
+            // compatibility error instead of retrying or misclassifying it as
+            // provider availability.
+            throw error;
+          }
           lastFailure = error;
           const category = classifyProviderError(error, provider.name);
           attempts.push({ provider: provider.name, model: provider.model, attempt, category, status: statusOf(error) || null });

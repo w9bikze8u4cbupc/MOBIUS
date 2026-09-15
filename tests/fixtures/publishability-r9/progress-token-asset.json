@@ -1,0 +1,17 @@
+{
+  "id": "r9-progress-tokens-five-isolated",
+  "representedComponent": "progress-tokens",
+  "representedQuantity": 5,
+  "cropPurity": "clean",
+  "cropCompleteness": "complete",
+  "backgroundContaminationAudit": {
+    "status": "PASS",
+    "transparentPixelRatio": 0.631442,
+    "opaqueBorderPixelRatio": 0,
+    "violations": []
+  },
+  "fixtureProvenance": {
+    "source": "R9 component-library manifest",
+    "purpose": "Repository-owned regression evidence independent of ignored production outputs"
+  }
+}

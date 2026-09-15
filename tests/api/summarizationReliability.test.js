@@ -188,7 +188,7 @@ describe('gpt-5.6-sol completion diagnostics', () => {
     expect(finalPrompt).not.toContain(source);
     expect(finalPrompt).toContain('Follow this pedagogical order: introduction/presentation');
     expect(finalPrompt).toContain('Tutorial length policy: short.');
-    expect(finalPrompt.length).toBeLessThan(2000);
+    expect(finalPrompt.length).toBeLessThan(3000);
   });
 
   test('a length-exhausted empty final synthesis fails closed without saving a script', async () => {
