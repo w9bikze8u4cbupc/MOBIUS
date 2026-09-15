@@ -17,7 +17,7 @@ SEARCH_CONTRACT = "mobius-referent-localization-v1"
 # substage no longer leaks a KeyError into a faux provider-unavailable result.
 # The version is part of the execution cache identity so that a prior local
 # bookkeeping failure is not replayed as if pixels had been inspected.
-SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v11-stateful-component-discovery'
+SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v12-atomic-component-discovery'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v3'
 RESPONSE_BUDGET_CONTRACT = 'mobius-visual-response-budget-v1'
@@ -189,11 +189,12 @@ def analysis_priority(scene, object_frequency):
     # scene and cannot bind an asset by itself. It only establishes reusable
     # pixel identities before many narrative scenes repeat the same component
     # lookup under a bounded provider budget.
-    # Discovery is reusable work, but is never itself a teaching result. A
-    # bounded inventory pass must not spend all available pixel evidence ahead
-    # of a source-grounded stateful scene such as a track transition.
+    # Discovery is reusable work, but is never itself a teaching result. It
+    # runs after source-grounded track state but ahead of ordinary narrative
+    # scenes so one exact component verdict can unlock all of its dependants.
     if req.get('componentDiscovery'):
-        return (3, -len(required), 0, str(scene.get('id') or ''))
+        reuse_rank = -max((object_frequency.get(ident, 0) for ident in required), default=0)
+        return (1, reuse_rank, -len(required), str(scene.get('id') or ''))
     if req.get('trackStateRequired'):
         # A track still needs component identity first, but should receive the
         # next bounded provider slot rather than wait behind an inventory.
@@ -211,7 +212,7 @@ def analysis_priority(scene, object_frequency):
     # candidates because it can establish an entire measured sequence.
     object_rank = 0 if len(required) == 1 else 1
     reuse_rank = -max((object_frequency.get(ident, 0) for ident in required), default=0)
-    return (1, object_rank, reuse_rank, state_rank, str(scene.get('id') or ''))
+    return (2, object_rank, reuse_rank, state_rank, str(scene.get('id') or ''))
 
 def external_authorized_term_matches(scene, terms, assets):
     """Count only source-owned external captions that directly overlap a referent.

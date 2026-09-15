@@ -411,7 +411,7 @@ class ObjectEvidenceTests(unittest.TestCase):
             {'id': 'track', 'visualRequirement': {'requiredObjects': ['board'], 'trackStateRequired': True, 'transitionRequired': True}},
             {'id': 'discovery', 'visualRequirement': {'requiredObjects': ['a', 'b', 'c', 'd'], 'componentDiscovery': True}},
         ]
-        self.assertEqual([scene['id'] for scene in matcher.prioritize_scenes(scenes)], ['track', 'ordinary', 'summary', 'discovery'])
+        self.assertEqual([scene['id'] for scene in matcher.prioritize_scenes(scenes)], ['track', 'discovery', 'ordinary', 'summary'])
         self.assertEqual([scene['id'] for scene in scenes], ['summary', 'ordinary', 'track', 'discovery'])
 
     def test_track_geometry_is_scheduled_from_outer_scene_not_identity_packet(self):
@@ -575,14 +575,15 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(packets[0], packets[1])
             self.assertEqual(packets[0]['sourcePages'], [4])
 
-    def test_component_discovery_yields_to_a_stateful_teaching_scene(self):
+    def test_component_discovery_yields_to_track_state_but_precedes_ordinary_transition(self):
         scenes = [
             {'id': 'lesson', 'visualRequirement': {'requiredObjects': ['card'], 'transitionRequired': True}},
             {'id': 'discovery', 'visualRequirement': {'requiredObjects': ['card', 'token'], 'componentDiscovery': True,
                 'purpose': 'component-identity-discovery'}},
+            {'id': 'track', 'visualRequirement': {'requiredObjects': ['board'], 'trackStateRequired': True}},
         ]
         ordered = matcher.prioritize_scenes(scenes, {}, [])
-        self.assertEqual([scene['id'] for scene in ordered], ['lesson', 'discovery'])
+        self.assertEqual([scene['id'] for scene in ordered], ['track', 'discovery', 'lesson'])
 
     def test_context_enriched_contract_reuses_only_prior_localization_not_component_verdict(self):
         with tempfile.TemporaryDirectory() as directory:

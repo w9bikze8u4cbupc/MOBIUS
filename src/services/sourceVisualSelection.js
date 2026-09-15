@@ -75,13 +75,19 @@ function componentDiscoveryEvidence(term = {}) {
 /**
  * Create source-identity discovery work from the same source-grounded
  * component terminology used by normal visual plans. It does not add an
- * asset, a binding, or a teaching scene: it merely lets one bounded
- * localization pass discover several real components on their official
- * inventory/setup page before unrelated rule scenes compete for the budget.
+ * asset, a binding, or a teaching scene. Each packet is intentionally atomic:
+ * a broad inventory page can name many components without showing any of
+ * them, so a provider verdict for one referent must never be treated as a
+ * verdict for its neighbours. Atomic evidence also lets a successful identity
+ * measurement unlock every later scene using that component.
  */
 export function buildComponentDiscoveryScenes({ scenes = [], componentTerms = {} } = {}) {
   const required = new Set((scenes || []).flatMap((scene) => scene?.visualRequirement?.requiredObjects || []));
-  const groups = new Map();
+  const usage = new Map();
+  for (const scene of scenes || []) {
+    for (const id of scene?.visualRequirement?.requiredObjects || []) usage.set(id, (usage.get(id) || 0) + 1);
+  }
+  const discoveries = [];
   for (const id of [...required].sort()) {
     const term = componentTerms?.[id];
     if (!term || typeof term !== 'object' || term.status !== 'GROUNDED') continue;
@@ -92,26 +98,25 @@ export function buildComponentDiscoveryScenes({ scenes = [], componentTerms = {}
     // component evidence is the stable discovery page; other citations stay
     // with the teaching scene and never become identity proof by themselves.
     const page = evidence.map((row) => row.page).sort((left, right) => left - right)[0];
-    const group = groups.get(page) || [];
-    group.push({ id, evidence: evidence.filter((row) => row.page === page) });
-    groups.set(page, group);
-  }
-  return [...groups.entries()].sort(([left], [right]) => left - right).map(([page, members]) => {
-    const ids = members.map((member) => member.id).sort();
-    const suffix = crypto.createHash('sha256').update(JSON.stringify([page, ids])).digest('hex').slice(0, 12);
-    return {
+    const sourceRefs = evidence.filter((row) => row.page === page);
+    const suffix = crypto.createHash('sha256').update(JSON.stringify([page, id])).digest('hex').slice(0, 12);
+    discoveries.push({
       id: `source-component-discovery-p${page}-${suffix}`,
       source_pages: [page],
-      sourceRefs: members.flatMap((member) => member.evidence),
+      sourceRefs,
       visualRequirement: {
         actualGameAssetRequired: true,
-        requiredObjects: ids,
+        requiredObjects: [id],
         purpose: 'component-identity-discovery',
         componentDiscovery: true,
       },
       discoveryContract: COMPONENT_DISCOVERY_CONTRACT,
-    };
-  });
+      discoveryReferent: id,
+      discoveryReuseCount: usage.get(id) || 0,
+    });
+  }
+  return discoveries.sort((left, right) => (right.discoveryReuseCount - left.discoveryReuseCount)
+    || (left.source_pages[0] - right.source_pages[0]) || left.discoveryReferent.localeCompare(right.discoveryReferent));
 }
 
 export function locateInterleavedSourceQuote(text,quote){

@@ -88,9 +88,10 @@ No extraction is required when source pages and HEPHAESTUS already exist. Differ
 
 ### High-detail localization and component discovery
 
-Stateful teaching requirements (a track, a transition, or retained state) take
-priority over reusable inventory discovery under a bounded visual-provider
-budget.  Rule-derived state words may rank an already relevant official page
+Stateful track requirements take priority over reusable inventory discovery
+under a bounded visual-provider budget. Each discovery packet covers exactly
+one referent, ranked by reuse; a broad inventory page naming several objects
+is never pixel proof of any neighbouring object. Rule-derived state words may rank an already relevant official page
 for localization, but never prove a component, crop, or state.  Once a
 complete localized component passes the identity gate, its scene may schedule
 a separate track-geometry measurement using the full source-bound state

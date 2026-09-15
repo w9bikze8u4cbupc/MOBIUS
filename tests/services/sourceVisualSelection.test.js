@@ -24,7 +24,7 @@ test('visual provider outage is explicit recovery, not a fabricated Cockpit deci
   fs.rmSync(ledgerRoot, { recursive: true, force: true });
 });
 
-test('source-grounded physical referents receive a shared component-discovery scene without creating a binding', async () => {
+test('source-grounded physical referents receive atomic reuse-ranked discovery scenes without creating bindings', async () => {
   const { buildComponentDiscoveryScenes } = await import('../../src/services/sourceVisualSelection.js');
   const scenes = [{ id: 'lesson-a', visualRequirement: { actualGameAssetRequired: true, requiredObjects: ['board', 'token', 'currency'] } }];
   const componentTerms = {
@@ -33,11 +33,12 @@ test('source-grounded physical referents receive a shared component-discovery sc
     currency: { status: 'GROUNDED', category: 'currency', evidence: [{ page: 3, quote: 'virtual currency' }] },
   };
   const discovery = buildComponentDiscoveryScenes({ scenes, componentTerms });
-  expect(discovery).toHaveLength(1);
-  expect(discovery[0]).toMatchObject({ source_pages: [3], visualRequirement: {
-    actualGameAssetRequired: true, requiredObjects: ['board', 'token'], purpose: 'component-identity-discovery', componentDiscovery: true,
-  } });
-  expect(discovery[0].visualRequirement).not.toHaveProperty('selectedAssetIds');
+  expect(discovery).toHaveLength(2);
+  expect(discovery.map((scene) => scene.visualRequirement.requiredObjects)).toEqual([['board'], ['token']]);
+  expect(discovery).toEqual(expect.arrayContaining([expect.objectContaining({ source_pages: [3], visualRequirement: expect.objectContaining({
+    actualGameAssetRequired: true, purpose: 'component-identity-discovery', componentDiscovery: true,
+  }) })]));
+  expect(discovery.every((scene) => !Object.hasOwn(scene.visualRequirement, 'selectedAssetIds'))).toBe(true);
 });
 
 test('native source authority requires real matching PDF/extraction provenance, not a label', async () => {
