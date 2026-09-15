@@ -149,7 +149,7 @@ test('stateful materializer prepares a source-bound multi-component sequence onl
     ] },
   };
   const result = await materializeStatefulInstructionalFrames({ projectId: 'stateful-fixture', scene, assets, outputDir });
-  expect(result).toMatchObject({ contract: 'mobius-source-measured-state-sequence-v1', sceneId: 'stateful', preparedOnly: true });
+  expect(result).toMatchObject({ contract: 'mobius-source-measured-state-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v7', sceneId: 'stateful', preparedOnly: true });
   expect(result.sourceAssets).toHaveLength(2);
   expect(result.frames).toHaveLength(2);
   expect(await sharp(result.frames[0].outputPath).metadata()).toMatchObject({ width: 1920, height: 1080 });
@@ -221,12 +221,54 @@ test('semantic materializer labels a cited transition without claiming a physica
   const assets = [{ id: 'card-asset', filePath: fixture, displayPath: fixture, width: 1600, height: 900, nativeWidthPx: 1600, nativeHeightPx: 900,
     sourceAuthority: 'OFFICIAL_RULEBOOK', sourceAuthorityRank: 50, sourcePdfSha256: 'a'.repeat(64), sourceRefs: [{ page: 4 }], semanticObjects: ['card'], objectVisualEvidence: [component] }];
   const result = await materializeSemanticInstructionalFrames({ projectId: 'semantic-fixture', scene, assets, outputDir });
-  expect(result).toMatchObject({ contract: 'mobius-source-grounded-semantic-sequence-v1', semanticTeaching: true, sceneId: 'semantic', preparedOnly: true });
+  expect(result).toMatchObject({ contract: 'mobius-source-grounded-semantic-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v7', semanticTeaching: true, sceneId: 'semantic', preparedOnly: true });
   expect(result.sourceTeaching.map(stage => stage.instructionalText)).toEqual(['La carte est disponible en français.', 'Résolvez son effet en français.', 'Poursuivez votre tour en français.']);
   expect(result.frames).toHaveLength(3);
   expect(await sharp(result.frames[0].outputPath).metadata()).toMatchObject({ width: 1920, height: 1080 });
   expect(semanticTeachingStages({ ...scene, visualRequirement: { ...scene.visualRequirement, setupPlacementRequired: true } })).toEqual([]);
 }, 60000);
+
+test('canonical direct localized teaching survives the compiler/materializer boundary', () => {
+  const { localizedVisualTeaching, semanticTeachingStages } = require('../../src/services/visualPlanMaterializer.cjs');
+  const scene = {
+    id: 'direct-localization',
+    localizedTeaching: {
+      beforeState: 'Avant en français.',
+      actionState: 'Action en français.',
+      afterState: 'Après en français.',
+    },
+    sourceRefs: [{ page: 8, excerptHash: 'official-source' }],
+    visualRequirement: {
+      actualGameAssetRequired: true,
+      requiredObjects: ['card'],
+      transitionRequired: true,
+      beforeState: 'Before in English.',
+      actionState: 'Action in English.',
+      afterState: 'After in English.',
+    },
+  };
+  expect(localizedVisualTeaching(scene)).toEqual({
+    beforeState: 'Avant en français.',
+    actionState: 'Action en français.',
+    afterState: 'Après en français.',
+  });
+  expect(semanticTeachingStages(scene).map((stage) => stage.instructionalText)).toEqual([
+    'Avant en français.', 'Action en français.', 'Après en français.',
+  ]);
+});
+
+test('stateful teaching layout preserves canonical mobile type floors and source detail', () => {
+  const { statefulTeachingLayout, statefulComponentDisplayBounds } = require('../../src/services/visualPlanMaterializer.cjs');
+  const layout = statefulTeachingLayout(2);
+  const phoneScale = 390 / 1920;
+  expect(layout.typography.instructionalPx * phoneScale).toBeGreaterThanOrEqual(10);
+  expect(layout.typography.headlinePx * phoneScale).toBeGreaterThanOrEqual(12);
+  expect(layout.typography.componentLabelPx).toBeGreaterThanOrEqual(42);
+  expect(layout.componentRegion.height).toBeGreaterThanOrEqual(500);
+  const lowDetail = { nativeWidthPx: 1000, nativeHeightPx: 800, trueDetailDimensions: { width: 120, height: 96 } };
+  const bounds = statefulComponentDisplayBounds(lowDetail, { referentCount: 2, position: 0 });
+  expect(Math.min(120 / bounds.width, 96 / bounds.height)).toBeGreaterThanOrEqual(.8);
+});
 
 test('instructional diagram prepares concrete teaching from independently measured source components', async () => {
   const crypto = require('node:crypto');
@@ -244,7 +286,7 @@ test('instructional diagram prepares concrete teaching from independently measur
     nativeWidthPx: 1600, nativeHeightPx: 900, sourceAuthority: 'OFFICIAL_RULEBOOK', sourceAuthorityRank: 50, sourcePdfSha256: 'a'.repeat(64),
     sourceRefs: [{ page: 5 }], semanticObjects: [id], objectVisualEvidence: [component(id, `${id}-asset`)] }));
   const result = await materializeSourceGroundedInstructionalDiagram({ projectId: 'diagram-fixture', scene, assets, outputDir });
-  expect(result).toMatchObject({ contract: 'mobius-source-grounded-instructional-diagram-v1', instructionalDiagram: true, sceneId: 'diagram', preparedOnly: true });
+  expect(result).toMatchObject({ contract: 'mobius-source-grounded-instructional-diagram-v2', materializerContract: 'mobius-visual-plan-materializer-v7', instructionalDiagram: true, sceneId: 'diagram', preparedOnly: true });
   expect(result.sourceAssets).toHaveLength(2);
   expect(result.frames).toHaveLength(3);
   expect(await sharp(result.frames[0].outputPath).metadata()).toMatchObject({ width: 1920, height: 1080 });

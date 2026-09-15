@@ -6,6 +6,9 @@ const VISIBILITY_STATES = new Set(['VISIBLE', 'HIDDEN', 'REMOVED', 'UNKNOWN']);
 const AVAILABILITY_STATES = new Set(['AVAILABLE', 'UNAVAILABLE', 'CONSUMED', 'UNKNOWN']);
 const fs=require('node:fs'), crypto=require('node:crypto');
 const pixelHash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+const REQUIRED_SEQUENCE_MATERIALIZER_CONTRACT='mobius-visual-plan-materializer-v7';
+const REQUIRED_SEMANTIC_SEQUENCE_CONTRACT='mobius-source-grounded-semantic-sequence-v2';
+const REQUIRED_INSTRUCTIONAL_DIAGRAM_CONTRACT='mobius-source-grounded-instructional-diagram-v2';
 
 /** A composition verdict belongs to exact source, ordered frames, phones and
  * requirements. A changed caption/pixel/state never inherits acceptance. */
@@ -22,12 +25,15 @@ function verifiedInstructionalSequence(candidate, requirement, sceneId) {
    if(sequence.sceneId!==sceneId || !sourceAsset || sequence.frames?.length<2)continue;
    const row=sequence.review?.scenes?.find(s=>s.scene_id===sceneId||s.sceneId===sceneId||s.id===sceneId)?.candidates?.find(c=>c.status==='MEASURED');
    const packet=row?.evidencePacket;
-   if(!row||packet.visualRole!=='COMPOSITION'||packet.responseContract!=='normalized-composition-sequence-v2')continue;
+   if(!row||packet.visualRole!=='COMPOSITION'||packet.responseContract!=='normalized-composition-sequence-v2'
+    ||sequence.materializerContract!==REQUIRED_SEQUENCE_MATERIALIZER_CONTRACT
+    ||packet.materializerContract!==REQUIRED_SEQUENCE_MATERIALIZER_CONTRACT
+    ||packet.sequenceContract!==sequence.contract)continue;
    const semanticTeaching=sequence.semanticTeaching===true;
    const instructionalDiagram=sequence.instructionalDiagram===true;
    if(semanticTeaching){
-    if(sequence.contract!=='mobius-source-grounded-semantic-sequence-v1'
-      ||packet.semanticTeaching?.contract!=='mobius-source-grounded-semantic-sequence-v1'
+    if(sequence.contract!==REQUIRED_SEMANTIC_SEQUENCE_CONTRACT
+      ||packet.semanticTeaching?.contract!==REQUIRED_SEMANTIC_SEQUENCE_CONTRACT
       ||JSON.stringify(packet.semanticTeaching.sourceTeaching)!==JSON.stringify(sequence.sourceTeaching||[])
       ||sequence.frames.some(frame=>!String(frame.stage?.instructionalText||'').trim()))continue;
    } else if(instructionalDiagram){
@@ -36,8 +42,8 @@ function verifiedInstructionalSequence(candidate, requirement, sceneId) {
     // claim that the source photo itself captured the whole game state. Its
     // final-composition review is nevertheless bound to every frame, label,
     // requirement and source asset just like a measured state sequence.
-    if(sequence.contract!=='mobius-source-grounded-instructional-diagram-v1'
-      ||packet.instructionalDiagram?.contract!=='mobius-source-grounded-instructional-diagram-v1'
+    if(sequence.contract!==REQUIRED_INSTRUCTIONAL_DIAGRAM_CONTRACT
+      ||packet.instructionalDiagram?.contract!==REQUIRED_INSTRUCTIONAL_DIAGRAM_CONTRACT
       ||JSON.stringify(packet.instructionalDiagram.sourceTeaching)!==JSON.stringify(sequence.sourceTeaching||[])
       ||sequence.frames.some(frame=>!String(frame.stage?.instructionalText||'').trim()))continue;
    } else if(packet.semanticTeaching||packet.instructionalDiagram) continue;

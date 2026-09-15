@@ -9,6 +9,11 @@ const { teachingSceneLayout, containedDisplayBounds, PRESENTATION_TOKENS } = req
 const crypto = require('node:crypto');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const xml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v7';
+const STATE_SEQUENCE_CONTRACT = 'mobius-source-measured-state-sequence-v2';
+const SEMANTIC_SEQUENCE_CONTRACT = 'mobius-source-grounded-semantic-sequence-v2';
+const INSTRUCTIONAL_DIAGRAM_CONTRACT = 'mobius-source-grounded-instructional-diagram-v2';
+const TRACK_SEQUENCE_CONTRACT = 'mobius-source-measured-track-sequence-v2';
 
 function stateValueLabel(item = {}) {
   if (item.instructionalDiagramOnly) return 'Référent source';
@@ -39,6 +44,39 @@ function wrapSvgText(value, max = 58, maximumLines = 3) {
   return lines;
 }
 
+// The canonical compiler stores the localized visual teaching object directly.
+// Older persisted projects wrapped the same object under `visualTeaching`.
+// Accept both shapes at this boundary so a replay never falls back to the
+// English provider requirement merely because its transport shape changed.
+function localizedVisualTeaching(scene = {}) {
+  const teaching = scene.localizedTeaching || {};
+  const candidate = teaching.visualTeaching && typeof teaching.visualTeaching === 'object'
+    ? teaching.visualTeaching
+    : teaching;
+  return {
+    beforeState: String(candidate.beforeState || '').trim(),
+    actionState: String(candidate.actionState || '').trim(),
+    afterState: String(candidate.afterState || '').trim(),
+  };
+}
+
+function statefulTeachingLayout(referentCount = 1) {
+  const componentRegion = { x: 130, y: 410, width: 1660, height: 500 };
+  return {
+    componentRegion,
+    cells: gridCells(referentCount, componentRegion.width, componentRegion.height, 0)
+      .map((cell) => ({ ...cell, x: cell.x + componentRegion.x, y: cell.y + componentRegion.y })),
+    typography: {
+      headlinePx: 64,
+      stagePx: 48,
+      instructionalPx: 52,
+      instructionalLineHeightPx: 60,
+      componentLabelPx: 42,
+      footerPx: 40,
+    },
+  };
+}
+
 function stageStateSignature(stage = {}, referents = []) {
   return JSON.stringify(referents.map((referent) => {
     const item = (stage.items || []).find((entry) => entry.componentRef === referent || entry.id === referent) || {};
@@ -50,7 +88,7 @@ function stageStateSignature(stage = {}, referents = []) {
 }
 
 function statefulComponentDisplayBounds(asset = {}, { referentCount = 1, position = 0 } = {}) {
-  const cell = gridCells(referentCount, 1660, 420, 0)[position];
+  const cell = statefulTeachingLayout(referentCount).cells[position];
   if (!cell) return { width: 0, height: 0 };
   const sourceWidth = Number(asset.nativeWidthPx || asset.width || 0);
   const sourceHeight = Number(asset.nativeHeightPx || asset.height || 0);
@@ -95,7 +133,8 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
   // Reserve a truthful source-grounded explanation band above the physical
   // components. It never draws a new game token/card; it only labels the
   // exact state or rule fact already cited by the RuleAtom.
-  const cells = gridCells(selected.length, 1660, 420, 0).map((cell) => ({ ...cell, x: cell.x + 130, y: cell.y + 440 }));
+  const teachingLayout = statefulTeachingLayout(selected.length);
+  const { cells, componentRegion, typography } = teachingLayout;
   const primary = sourceFile(selected[0].asset);
   const backdrop = await sharp(primary).resize(frameWidth, frameHeight, { fit: 'cover' }).blur(40)
     .modulate({ brightness: .19, saturation: .5 }).png().toBuffer();
@@ -126,14 +165,14 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
     states.push({ referent: entry.referent, assetId: entry.asset.id, label: stateValueLabel(item),
       left, top, width, height, item });
   }
-  const labels = states.map((value) => `<rect x="${value.left}" y="${Math.max(382, value.top - 58)}" width="${value.width}" height="44" rx="12" fill="#231811" fill-opacity=".9"/><text x="${value.left + 16}" y="${Math.max(413, value.top - 27)}" fill="#fff3d9" font-family="Arial" font-size="28" font-weight="bold">${xml(value.label)}</text>`).join('');
-  const headline = String(scene.on_screen_text || scene.title || scene.visualRequirement?.purpose || '').split(/\n/)[0].slice(0, 150);
-  const instructionalLines = wrapSvgText(stage.instructionalText, 72, 3);
-  const instructionalText = instructionalLines.map((line, lineIndex) => `<text x="96" y="${238 + lineIndex * 38}" fill="#fff3d9" font-family="Arial" font-size="30">${xml(line)}</text>`).join('');
+  const labels = states.map((value) => `<rect x="${value.left}" y="${Math.max(350, value.top - 62)}" width="${value.width}" height="52" rx="12" fill="#231811" fill-opacity=".9"/><text x="${value.left + 16}" y="${Math.max(389, value.top - 23)}" fill="#fff3d9" font-family="Arial" font-size="${typography.componentLabelPx}" font-weight="bold">${xml(value.label)}</text>`).join('');
+  const headline = String(scene.on_screen_text || scene.title || scene.visualRequirement?.purpose || '').split(/\n/)[0].slice(0, 92);
+  const instructionalLines = wrapSvgText(stage.instructionalText, 58, 2);
+  const instructionalText = instructionalLines.map((line, lineIndex) => `<text x="96" y="${232 + lineIndex * typography.instructionalLineHeightPx}" fill="#fff3d9" font-family="Arial" font-size="${typography.instructionalPx}">${xml(line)}</text>`).join('');
   const presentationKind = (stage.items || []).some((item) => item.instructionalDiagramOnly)
     ? 'Illustration explicative fondée sur le livret'
     : ((stage.items || []).some((item) => item.semanticInstructionOnly) ? 'Explication fondée sur le livret' : 'État source du jeu');
-  const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><rect x="42" y="38" width="1836" height="1004" rx="32" fill="#231811" fill-opacity=".86" stroke="#be9a58" stroke-width="3"/><text x="96" y="112" fill="#fff3d9" font-family="Arial" font-size="46" font-weight="bold">${xml(headline)}</text><text x="96" y="184" fill="#e1c184" font-family="Arial" font-size="38">${xml(stage.label || `Étape ${index + 1}`)}</text>${instructionalText}${labels}<text x="96" y="1000" fill="#fff3d9" font-family="Arial" font-size="34">${index + 1} / ${total} · ${xml(presentationKind)} · Livret p. ${xml((scene.source_pages || []).join(', '))}</text></svg>`);
+  const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><rect x="42" y="38" width="1836" height="1004" rx="32" fill="#231811" fill-opacity=".86" stroke="#be9a58" stroke-width="3"/><text x="96" y="108" fill="#fff3d9" font-family="Arial" font-size="${typography.headlinePx}" font-weight="bold">${xml(headline)}</text><text x="96" y="172" fill="#e1c184" font-family="Arial" font-size="${typography.stagePx}">${xml(stage.label || `Étape ${index + 1}`)}</text>${instructionalText}${labels}<text x="96" y="1000" fill="#fff3d9" font-family="Arial" font-size="${typography.footerPx}">${index + 1} / ${total} · ${xml(presentationKind)} · Livret p. ${xml((scene.source_pages || []).join(', '))}</text></svg>`);
   layers.splice(1, 0, { input: svg, left: 0, top: 0 });
   const target = path.resolve(outputDir, `${sequenceId}-state-${index + 1}.png`);
   const materialized = target.replace(/\.png$/, '.materialized.png');
@@ -149,7 +188,9 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
   await sharp(target).resize(390, 219).png().toFile(phonePath);
   return { id: `${sequenceId}-state-${index + 1}`, outputPath: target, phonePath, renderConfigPath: configPath,
     narration: scene.narration, stage, sourcePixelsPerDisplayPixel: minimumSourcePixelsPerDisplayPixel,
-    actualDisplayBounds: { left: 130, top: 440, width: 1660, height: 420 }, preparedOnly: true, validated: false };
+    actualDisplayBounds: { left: componentRegion.x, top: componentRegion.y, width: componentRegion.width, height: componentRegion.height },
+    typography, phoneTypographyPx: Object.fromEntries(Object.entries(typography).map(([key, value]) => [key, Number((value * 390 / 1920).toFixed(2))])),
+    preparedOnly: true, validated: false };
 }
 
 /**
@@ -182,7 +223,7 @@ async function materializeStatefulInstructionalFrames({ projectId, scene, assets
     if (!frame) return null;
     frames.push(frame);
   }
-  return { contract: 'mobius-source-measured-state-sequence-v1', sceneId: scene.id, ruleAtomId: scene.atomId,
+  return { contract: STATE_SEQUENCE_CONTRACT, materializerContract: VISUAL_PLAN_MATERIALIZER_CONTRACT, sceneId: scene.id, ruleAtomId: scene.atomId,
     assetId: selected[0].asset.id, sourceAssets: selected.map((entry) => ({ assetId: entry.asset.id,
       sourceImageSha256: sha(fs.readFileSync(sourceFile(entry.asset))), sourcePdfSha256: entry.asset.sourcePdfSha256,
       componentEvidence: entry.component })), frames, sourceComponentEvidence: selected.map((entry) => entry.component),
@@ -191,7 +232,7 @@ async function materializeStatefulInstructionalFrames({ projectId, scene, assets
 
 function semanticTeachingStages(scene = {}) {
   const requirement = scene.visualRequirement || {};
-  const localized = scene.localizedTeaching?.visualTeaching || {};
+  const localized = localizedVisualTeaching(scene);
   const sourceRefs = (scene.sourceRefs || []).filter((ref) => Number.isInteger(Number(ref?.page)) && Number(ref.page) > 0);
   // A semantic sequence teaches a cited change *about* a real component.  It
   // is not a substitute for a measured arrangement, orientation, quantity or
@@ -219,7 +260,7 @@ function semanticTeachingStages(scene = {}) {
 
 function instructionalDiagramStages(scene = {}) {
   const requirement = scene.visualRequirement || {};
-  const localized = scene.localizedTeaching?.visualTeaching || {};
+  const localized = localizedVisualTeaching(scene);
   const sourceRefs = (scene.sourceRefs || []).filter((ref) => Number.isInteger(Number(ref?.page)) && Number(ref.page) > 0);
   // This is intentionally narrower than a generic text card. It exists when
   // an accepted rule has a concrete visual requirement but no source photo of
@@ -284,7 +325,8 @@ async function materializeSemanticInstructionalFrames({ projectId, scene, assets
     frames.push(frame);
   }
   return {
-    contract: 'mobius-source-grounded-semantic-sequence-v1',
+    contract: SEMANTIC_SEQUENCE_CONTRACT,
+    materializerContract: VISUAL_PLAN_MATERIALIZER_CONTRACT,
     sceneId: scene.id,
     ruleAtomId: scene.atomId,
     assetId: selected[0].asset.id,
@@ -344,7 +386,8 @@ async function materializeSourceGroundedInstructionalDiagram({ projectId, scene,
     frames.push(frame);
   }
   return {
-    contract: 'mobius-source-grounded-instructional-diagram-v1',
+    contract: INSTRUCTIONAL_DIAGRAM_CONTRACT,
+    materializerContract: VISUAL_PLAN_MATERIALIZER_CONTRACT,
     sceneId: scene.id,
     ruleAtomId: scene.atomId,
     assetId: selected[0].asset.id,
@@ -446,7 +489,7 @@ async function materializeTrackStateFrames({ projectId, scene, assets, outputDir
       actualDisplayBounds:{left,top,...size},sourcePixelsPerDisplayPixel:ratio,
       measuredMarkerCenter:{x,y},preparedOnly:true,validated:false});
   }
-  return {contract:'mobius-source-measured-track-sequence-v1',sceneId:scene.id,ruleAtomId:scene.atomId,assetId:asset.id,
+  return {contract:TRACK_SEQUENCE_CONTRACT,materializerContract:VISUAL_PLAN_MATERIALIZER_CONTRACT,sceneId:scene.id,ruleAtomId:scene.atomId,assetId:asset.id,
     frames,trackEvidence:track,sourceComponentEvidence:selectedCandidate.component,preparedOnly:true,validated:false};
 }
 
@@ -593,8 +636,6 @@ async function materializeInstructionalStill({ state, sceneId, outputDir, allowR
       ? 'Static single-object identity composition passed deterministic source, layout, detail, and phone-scale validation.'
       : 'Normal renderer output requires physical/composition review; production state and decisions unchanged.' };
 }
-
-const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v6';
 
 function sourceFile(asset = {}) {
   return asset.displayPath || asset.renderPath || asset.filePath || asset.path || asset.sourceImage || null;
@@ -803,6 +844,8 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
   const inputPath=path.join(folder,'input.json');
   fs.writeFileSync(inputPath,JSON.stringify({scene,frames:sequence.frames,outputPath:sequence.frames[0].outputPath,
     phonePath:sequence.frames[0].phonePath,
+    materializerContract:sequence.materializerContract,
+    sequenceContract:sequence.contract,
     semanticTeaching:sequence.semanticTeaching===true,
     instructionalDiagram:sequence.instructionalDiagram===true,
     sourceTeaching:sequence.sourceTeaching||null,
@@ -818,4 +861,4 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
  return {assets:attachSequenceReviewEvidence({assets:state.assets,records:materialized.records,reviewPaths}),reviewPaths};
 }
 
-module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, statefulComponentDisplayBounds, sourceMeasuredComponentCandidate, materializeVisualPlanFrames, materializeTrackStateFrames, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, materializeSourceGroundedInstructionalDiagram, semanticTeachingStages, instructionalDiagramStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill, validateDeterministicIdentityStill };
+module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, STATE_SEQUENCE_CONTRACT, SEMANTIC_SEQUENCE_CONTRACT, INSTRUCTIONAL_DIAGRAM_CONTRACT, TRACK_SEQUENCE_CONTRACT, cellsFor, localizedVisualTeaching, statefulTeachingLayout, statefulComponentDisplayBounds, sourceMeasuredComponentCandidate, materializeVisualPlanFrames, materializeTrackStateFrames, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, materializeSourceGroundedInstructionalDiagram, semanticTeachingStages, instructionalDiagramStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill, validateDeterministicIdentityStill };

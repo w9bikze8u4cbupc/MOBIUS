@@ -118,10 +118,10 @@ test('a verified semantic composition may reuse exact component identity only af
   const frames = teaching.map((stage, index) => ({ id: `frame-${index + 1}`, stage, outputPath: existingFile, phonePath: existingFile,
     sourcePixelsPerDisplayPixel: 1, actualDisplayBounds: { width: 900, height: 700 } }));
   const component = proof('card-asset', existingFile, 'card', { contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT', bbox: [.1, .1, .9, .9] });
-  const sequence = { contract: 'mobius-source-grounded-semantic-sequence-v1', semanticTeaching: true, sceneId: 'scene', assetId: 'card-asset', sourceTeaching: teaching,
+  const sequence = { contract: 'mobius-source-grounded-semantic-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v7', semanticTeaching: true, sceneId: 'scene', assetId: 'card-asset', sourceTeaching: teaching,
     sourceAssets: [{ assetId: 'card-asset', sourceImageSha256: hash }], frames,
-    review: { scenes: [{ scene_id: 'scene', candidates: [{ status: 'MEASURED', evidencePacket: { visualRole: 'COMPOSITION', responseContract: 'normalized-composition-sequence-v2',
-      requirement: { ...requirement, evidenceSceneId: undefined }, semanticTeaching: { contract: 'mobius-source-grounded-semantic-sequence-v1', sourceTeaching: JSON.parse(JSON.stringify(teaching)) },
+    review: { scenes: [{ scene_id: 'scene', candidates: [{ status: 'MEASURED', evidencePacket: { visualRole: 'COMPOSITION', responseContract: 'normalized-composition-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v7', sequenceContract: 'mobius-source-grounded-semantic-sequence-v2',
+      requirement: { ...requirement, evidenceSceneId: undefined }, semanticTeaching: { contract: 'mobius-source-grounded-semantic-sequence-v2', sourceTeaching: JSON.parse(JSON.stringify(teaching)) },
       sequenceFrames: frames.map(frame => ({ id: frame.id, stage: frame.stage, imageSha256: hash, phoneSha256: hash })) },
       objects: [{ requiredObject: 'card', visualRole: 'COMPOSITION', method: 'provider-pixel-analysis', confidence: .98, present: true, complete: true, isolated: true, stateCompatible: true, purposeSatisfied: true, phoneReadable: true }] }] }] } };
   const candidate = asset('card-asset', { semanticObjects: ['card'], objectVisualEvidence: [component], instructionalSequences: [sequence] });
@@ -140,10 +140,10 @@ test('a final instructional diagram selects every source asset through one exact
   const frames = teaching.map((stage, index) => ({ id: `frame-${index + 1}`, stage, outputPath: existingFile, phonePath: existingFile,
     sourcePixelsPerDisplayPixel: 1, actualDisplayBounds: { width: 900, height: 700 } }));
   const sourceProof = (assetId, requiredObject) => proof(assetId, existingFile, requiredObject, { contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT', bbox: [.1, .1, .9, .9] });
-  const sequence = { contract: 'mobius-source-grounded-instructional-diagram-v1', instructionalDiagram: true, sceneId: 'scene', assetId: 'board-asset', sourceTeaching: teaching,
+  const sequence = { contract: 'mobius-source-grounded-instructional-diagram-v2', materializerContract: 'mobius-visual-plan-materializer-v7', instructionalDiagram: true, sceneId: 'scene', assetId: 'board-asset', sourceTeaching: teaching,
     sourceAssets: [{ assetId: 'board-asset', sourceImageSha256: hash }, { assetId: 'token-asset', sourceImageSha256: hash }], frames,
-    review: { scenes: [{ scene_id: 'scene', candidates: [{ status: 'MEASURED', evidencePacket: { visualRole: 'COMPOSITION', responseContract: 'normalized-composition-sequence-v2',
-      requirement: { ...requirement, evidenceSceneId: undefined }, instructionalDiagram: { contract: 'mobius-source-grounded-instructional-diagram-v1', sourceTeaching: JSON.parse(JSON.stringify(teaching)) },
+    review: { scenes: [{ scene_id: 'scene', candidates: [{ status: 'MEASURED', evidencePacket: { visualRole: 'COMPOSITION', responseContract: 'normalized-composition-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v7', sequenceContract: 'mobius-source-grounded-instructional-diagram-v2',
+      requirement: { ...requirement, evidenceSceneId: undefined }, instructionalDiagram: { contract: 'mobius-source-grounded-instructional-diagram-v2', sourceTeaching: JSON.parse(JSON.stringify(teaching)) },
       sequenceFrames: frames.map(frame => ({ id: frame.id, stage: frame.stage, imageSha256: hash, phoneSha256: hash })) }, objects: [
         { requiredObject: 'board', visualRole: 'COMPOSITION', method: 'provider-pixel-analysis', confidence: .98, present: true, complete: true, isolated: true, stateCompatible: true, purposeSatisfied: true, phoneReadable: true },
         { requiredObject: 'token', visualRole: 'COMPOSITION', method: 'provider-pixel-analysis', confidence: .98, present: true, complete: true, isolated: true, stateCompatible: true, purposeSatisfied: true, phoneReadable: true },

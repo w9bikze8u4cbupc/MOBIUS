@@ -520,6 +520,23 @@ def should_measure_track_geometry(packet, scoped_packet, role, objects):
             and isinstance(obj.get('confidence'), (int, float)) and obj['confidence'] >= .9
             for obj in objects or []))
 
+def should_refine_measured_object_crop(role, measured, crop_depth=0):
+    """Decide whether measured bounds warrant one source-faithful child crop.
+
+    LOCALIZATION locates a complete object in a page. COMPONENT may likewise
+    prove completeness inside clutter while refusing isolation. Neither result
+    accepts the child: the derived pixels must receive their own COMPONENT
+    verdict. The single-depth bound prevents crop-of-crop loops.
+    """
+    return (role in ('LOCALIZATION', 'COMPONENT')
+        and measured.get('present') is True
+        and measured.get('complete') is True
+        and isinstance(measured.get('confidence'), (int, float))
+        and measured['confidence'] >= .9
+        and isinstance(measured.get('bbox'), list)
+        and len(measured['bbox']) == 4
+        and (role == 'LOCALIZATION' or (measured.get('isolated') is not True and crop_depth < 1)))
+
 
 def native_localization_alternatives(asset, assets):
     """A located but occluded page object may have an unobscured native source.
@@ -878,6 +895,8 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                 scoped_packet.pop('componentEvidencePages', None)
                 scoped_packet['requiredObjects'] = [{'id':o['id'],'term':o['id']} for o in packet['requiredObjects']]
                 scoped_packet['responseContract'] = COMPOSITION_RESPONSE_CONTRACT
+                scoped_packet['materializerContract'] = (asset.get('asset_metadata') or {}).get('materializerContract')
+                scoped_packet['sequenceContract'] = (asset.get('asset_metadata') or {}).get('sequenceContract')
                 semantic_teaching = (asset.get('asset_metadata') or {}).get('semanticTeaching') is True
                 instructional_diagram = (asset.get('asset_metadata') or {}).get('instructionalDiagram') is True
                 if semantic_teaching:
@@ -887,7 +906,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     # so the final verdict cannot be replayed for a different
                     # explanation.
                     scoped_packet['semanticTeaching'] = {
-                        'contract': 'mobius-source-grounded-semantic-sequence-v1',
+                        'contract': scoped_packet.get('sequenceContract'),
                         'sourceTeaching': (asset.get('asset_metadata') or {}).get('sourceTeaching') or []
                     }
                 if instructional_diagram:
@@ -895,7 +914,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     # source-grounded explanatory labels. It must never be
                     # mistaken for a source photograph of the complete state.
                     scoped_packet['instructionalDiagram'] = {
-                        'contract': 'mobius-source-grounded-instructional-diagram-v1',
+                        'contract': scoped_packet.get('sequenceContract'),
                         'sourceTeaching': (asset.get('asset_metadata') or {}).get('sourceTeaching') or []
                     }
                 phone = (asset.get('asset_metadata') or {}).get('phonePath')
@@ -1060,14 +1079,24 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                         for candidate in reversed(alternatives):
                             if (candidate['asset_id'], (candidate.get('asset_metadata') or {}).get('visual_kind')) not in visited:
                                 queue.insert(queue.index(asset) + 1, candidate)
+                # A COMPONENT pass can establish that the requested object is
+                # complete inside a larger image while correctly refusing
+                # `isolated`.  That is localization evidence, not an accepted
+                # component. Reframe its measured bounds once and submit the
+                # child pixels to a fresh COMPONENT verdict.  Never inherit the
+                # parent verdict, and never recurse indefinitely through crops.
+                if role in ('LOCALIZATION', 'COMPONENT'):
+                    metadata = asset.get('asset_metadata') or {}
+                    crop_depth = int(metadata.get('measuredCropDepth') or 0)
                     for obj in objects:
-                        if not obj['present'] or obj['confidence'] < .9 or not obj['complete']:
+                        if not should_refine_measured_object_crop(role, obj, crop_depth):
                             continue
                         crop_input = {'sourcePath': asset['path'], 'sourceId': asset['asset_id'],
                             'sourceSha256': image_hash, 'sourcePage': (asset.get('asset_metadata') or {}).get('source_page'),
                             'sourcePdfSha256': (asset.get('asset_metadata') or {}).get('source_pdf_sha256'),
                             'sourcePdfPath': (asset.get('asset_metadata') or {}).get('source_pdf_path'),
-                            'objectId': obj['requiredObject'], 'bbox': obj['bbox'], 'outputDir': str(cache_dir.parent / 'localized-crops')}
+                            'objectId': obj['requiredObject'], 'bbox': obj['bbox'], 'outputDir': str(cache_dir.parent / 'localized-crops'),
+                            'recoveryMode': 'parent-pixels' if role == 'COMPONENT' else 'page-region'}
                         js = "let s='';process.stdin.on('data',x=>s+=x);process.stdin.on('end',async()=>{try{console.log(JSON.stringify(await require('./src/services/objectAwareCrop.cjs').materializeMeasuredObjectCrop(JSON.parse(s))))}catch(e){console.error(e.message);process.exitCode=1}})"
                         child = subprocess.run(['node', '-e', js], input=json.dumps(crop_input), capture_output=True, text=True, encoding='utf-8', timeout=60)
                         if child.returncode:
@@ -1080,13 +1109,16 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                             queue.insert(queue.index(asset) + 1, {'asset_id': crop['id'], 'path': crop['file_path'],
                                 'asset_metadata': {'source_page': crop['source_page'], 'dimensions': crop['dimensions'],
                                     'localizedReferent':obj['requiredObject'],
+                                    'measuredCropDepth': crop_depth + 1,
+                                    'sourceAuthority': crop.get('sourceAuthority'),
+                                    'source_pdf_sha256': crop.get('sourcePdfSha256'),
                                     # Preserve the exact source-page context which
                                     # located this derivative. A crop's pixels can
                                     # show a named member of a card family without
                                     # printing the family term itself.
                                     'layout_text': (asset.get('asset_metadata') or {}).get('layout_text') or '',
                                     'heading': (asset.get('asset_metadata') or {}).get('heading') or ''}})
-                        if crop_input.get('sourcePdfPath'):
+                        if role == 'LOCALIZATION' and crop_input.get('sourcePdfPath'):
                             # Native tiles can restore the unobscured source
                             # object behind a page's vector callouts. They remain
                             # an unverified search candidate, never an acceptance.

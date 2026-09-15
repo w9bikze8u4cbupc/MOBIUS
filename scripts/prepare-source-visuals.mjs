@@ -84,6 +84,8 @@ async function main() {
     await writeFile(quality, JSON.stringify({ assets: [{ asset_id: input.scene.id, path: input.outputPath,
       asset_metadata: { visual_kind: 'instructional-composition', source_page: input.scene.source_pages?.[0], phonePath: input.phonePath,
         sequenceFrames: input.frames || [],
+        materializerContract: input.materializerContract || null,
+        sequenceContract: input.sequenceContract || null,
         semanticTeaching: input.semanticTeaching === true,
         instructionalDiagram: input.instructionalDiagram === true,
         sourceTeaching: input.sourceTeaching || null,

@@ -461,6 +461,16 @@ class ObjectEvidenceTests(unittest.TestCase):
         self.assertFalse(matcher.should_measure_track_geometry(packet, scoped, 'LOCALIZATION', measured))
         self.assertFalse(matcher.should_measure_track_geometry(packet, scoped, 'COMPONENT', [{**measured[0], 'complete': False}]))
 
+    def test_complete_cluttered_component_gets_one_fresh_crop_verdict(self):
+        measured = {'present': True, 'complete': True, 'isolated': False,
+            'confidence': .96, 'bbox': [.1, .2, .8, .9]}
+        self.assertTrue(matcher.should_refine_measured_object_crop('LOCALIZATION', measured, 0))
+        self.assertTrue(matcher.should_refine_measured_object_crop('COMPONENT', measured, 0))
+        self.assertFalse(matcher.should_refine_measured_object_crop('COMPONENT', measured, 1))
+        self.assertFalse(matcher.should_refine_measured_object_crop('COMPONENT', {**measured, 'isolated': True}, 0))
+        self.assertFalse(matcher.should_refine_measured_object_crop('COMPONENT', {**measured, 'complete': False}, 0))
+        self.assertFalse(matcher.should_refine_measured_object_crop('COMPOSITION', measured, 0))
+
     def test_identity_coverage_prioritizes_reused_single_referent_before_an_unrelated_transition(self):
         scenes = [
             {'id': 'transition', 'visualRequirement': {'requiredObjects': ['rare'], 'transitionRequired': True}},

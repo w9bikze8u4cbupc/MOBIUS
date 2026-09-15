@@ -222,6 +222,24 @@ Both real isolated runs received `AuthenticationError / HTTP 401` on their first
 
 The vision prompt keeps bounding boxes normalized to the actual probe; source coordinates are remapped deterministically and require verification. Spatial localization remains a model limitation, not a geometry guarantee ([OpenAI image-input documentation](https://developers.openai.com/api/docs/guides/images-vision)).
 
+### Canonical composition replay, 2026-09-15
+
+The v7 materializer accepts both the current direct `localizedTeaching` object
+and the historical nested shape, so canonical French labels cannot silently
+fall back to the provider's English visual requirement. Stateful teaching type
+now respects the 1080p presentation floors and records its effective 390px
+phone typography. A composition verdict is bound to this materializer contract:
+older frame hashes remain historical evidence but cannot approve changed text,
+layout or pixels. This invalidates composition only; compatible HEPHAESTUS and
+component-identity evidence remains reusable.
+
+A complete object measured inside a cluttered COMPONENT image may now trigger
+one source-faithful bounded crop and a fresh child COMPONENT verdict. The child
+does not inherit acceptance, and crop depth is bounded to prevent loops. A
+cache-only Cowboy proof rematerialized 28 reviewable sequences from existing
+component evidence with zero provider calls; these are prepared evidence, not
+accepted scenes or a publishable tutorial.
+
 ### Explicit authentication recovery and resumed evidence — still PARTIAL
 
 The existing Python matcher accepts an explicit `--reopen-provider-blocker LEDGER ACCESS_CHECK PRIOR_FAILURE RECOVERY_ID` operation. It requires a newer successful `models.retrieve` receipt for the unchanged configured model, records the prior failure and receipt, retains every call and cap, and changes only the run-cache recovery epoch. A receipt cannot reopen a later failure a second time. Measurement identities/caches are unchanged. Recovery is an operator action, never an automatic retry; a new provider error still blocks both groups. Resuming the existing proof snapshots its previous reports before writing current execution reports.
