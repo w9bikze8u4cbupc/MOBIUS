@@ -17,7 +17,7 @@ SEARCH_CONTRACT = "mobius-referent-localization-v1"
 # substage no longer leaks a KeyError into a faux provider-unavailable result.
 # The version is part of the execution cache identity so that a prior local
 # bookkeeping failure is not replayed as if pixels had been inspected.
-SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v4-budget-group-contract'
+SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v5-authority-aware-candidate-search'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v3'
 MODEL = os.getenv("MOBIUS_VISUAL_MATCH_MODEL") or os.getenv("OPENAI_MODEL")
@@ -281,26 +281,54 @@ def candidates_for(packet, assets):
     tokens = set(re.findall(r'[a-z]{3,}', ' '.join(terms).lower())) - {'the', 'and'}
     requested_ids = {row.get('id') for row in packet.get('requiredObjects') or [] if isinstance(row, dict) and row.get('id')}
     component_evidence_pages = {page for page in packet.get('componentEvidencePages') or [] if isinstance(page, int) and page > 0}
+
+    def bindings(metadata):
+        rows = [row for row in metadata.get('component_bindings') or []
+            if isinstance(row, dict) and row.get('componentId')]
+        confirmed = {row['componentId'] for row in rows
+            if str(row.get('reviewState') or '').lower() in {'accepted', 'auto_accepted'}
+            and isinstance(row.get('confidence'), (int, float)) and row['confidence'] >= .9}
+        # `hypothesis` is deliberately weaker than a confirmed binding. It may
+        # broaden candidate discovery but can neither prove identity nor outrank
+        # direct source terminology by itself.
+        hypotheses = {row['componentId'] for row in rows} - confirmed
+        return confirmed, hypotheses
+
+    def authority_rank(asset, metadata):
+        authority = str(metadata.get('sourceAuthority') or asset.get('sourceAuthority') or '').upper()
+        if 'OFFICIAL_PUBLISHER' in authority or 'AUTHORIZED_EXACT_EDITION' in authority:
+            return 8
+        if 'OFFICIAL_BGG' in authority:
+            return 6
+        return 0
+
     rows = []
     seen = set()
     for a in assets:
         if not a.get('path') or not Path(a['path']).is_file() or a.get('category') == 'blank_or_unusable':
             continue
         m = a.get('asset_metadata') or {}
-        binding_ids = {row.get('componentId') for row in m.get('component_bindings') or []
-            if isinstance(row, dict) and row.get('componentId')}
-        bound_referent = bool(requested_ids & binding_ids)
+        confirmed_bindings, hypothesis_bindings = bindings(m)
+        bound_referent = bool(requested_ids & confirmed_bindings)
+        hypothesis_referent = bool(requested_ids & hypothesis_bindings)
         # Native images linked only to a page remain deliberately deferred
         # until localization.  An explicit *hypothesis* binding is useful
         # enough to inspect, but only as one candidate among others.
-        if m.get('retrieval_context') and not m.get('visual_kind') and not bound_referent:
+        if m.get('retrieval_context') and not m.get('visual_kind') and not (bound_referent or hypothesis_referent):
             # Text linked native images are expanded only after pixel localization;
             # an entire page's logos/backgrounds must not consume the first budget.
             continue
         text = ' '.join(str(v or '') for v in [m.get('layout_text'), m.get('heading'),
-            m.get('category'), a.get('label'), *list(m.get('semanticObjects') or [])]).lower()
+            m.get('category'), m.get('label'), a.get('label'), *list(m.get('semanticObjects') or [])]).lower()
         overlap = sum(t.rstrip('s') in text for t in tokens)
-        linked = bound_referent or m.get('source_page') in packet['sourcePages'] or overlap == len(tokens) and bool(tokens)
+        # A recovered external candidate can carry every required component as
+        # a retrieval *scope*. That is not a per-component association. Without
+        # a real term match it must not spend the first bounded calls merely
+        # because its source is authoritative; source authority ranks matching
+        # hypotheses, it does not manufacture semantic relevance.
+        external_unscoped = authority_rank(a, m) > 0 and m.get('source_page') is None
+        hypothesis_link = hypothesis_referent and not external_unscoped
+        linked = bound_referent or hypothesis_link or m.get('source_page') in packet['sourcePages'] or bool(overlap and tokens)
         if not linked:
             continue
         pixel_hash = hashlib.sha256(Path(a['path']).read_bytes()).hexdigest()
@@ -311,15 +339,19 @@ def candidates_for(packet, assets):
     def key(a):
         m = a.get("asset_metadata") or {}
         d = m.get("original_dimensions") or m.get("dimensions") or {}
-        bindings = {row.get('componentId') for row in m.get('component_bindings') or []
-            if isinstance(row, dict) and row.get('componentId')}
-        bound_referent = bool(requested_ids & bindings)
+        confirmed_bindings, hypothesis_bindings = bindings(m)
+        bound_referent = bool(requested_ids & confirmed_bindings)
+        hypothesis_referent = bool(requested_ids & hypothesis_bindings)
         text = ' '.join(str(v or '') for v in [m.get('layout_text'), m.get('heading'),
-            m.get('category'), a.get('label'), *list(m.get('semanticObjects') or [])]).lower()
+            m.get('category'), m.get('label'), a.get('label'), *list(m.get('semanticObjects') or [])]).lower()
         heading = str(m.get('heading') or '').lower()
         score = sum(8 for t in tokens if t.rstrip('s') in heading)
         score += sum(min(5, text.count(t.rstrip('s'))) for t in tokens)
         score += 6 if bound_referent else 0
+        score += 2 if hypothesis_referent else 0
+        # Stronger source authority breaks only otherwise comparable retrieval
+        # hypotheses. It cannot accept a component without a pixel verdict.
+        score += authority_rank(a, m)
         # An inventory/source-term page is an explicit referent hypothesis,
         # not merely a coincidental keyword on a later rules page.  Prioritize
         # it for bounded inspection while leaving final identity to pixels.
@@ -328,11 +360,15 @@ def candidates_for(packet, assets):
         score += 2 if m.get('source_page') in packet['sourcePages'] else 0
         score -= 20 if re.search(r'background|logo|decorative', str(m.get('classification') or '')) else 0
         return (-score, -min(1000000, int(d.get('width') or 0) * int(d.get('height') or 0)), a['asset_id'])
-    # Keep page diversity rather than spending every call on one page's columns.
+    # Keep source diversity rather than spending every call on one page's
+    # columns. External candidates have no PDF page; group them by asset so a
+    # gallery cannot collapse to its first arbitrary image.
     result, pages = [], set()
     for a in sorted(rows, key=key):
         m = a.get('asset_metadata') or {}
-        group = (m.get('source_page'), m.get('visual_kind') == 'source-page-localization')
+        authority = str(m.get('sourceAuthority') or a.get('sourceAuthority') or '')
+        group = ((m.get('source_page'), m.get('visual_kind') == 'source-page-localization')
+            if m.get('source_page') is not None else ('external', authority, a['asset_id']))
         if group in pages:
             continue
         result.append(a)

@@ -28,11 +28,13 @@ def test_component_binding_metadata_reaches_object_matcher_as_hypothesis_only():
         "referentAliases": ["card"],
         "label": "Native card",
         "category": "card",
+        "sourceAuthority": "OFFICIAL_PUBLISHER_HIGH_RES",
     })
 
     assert metadata["component_bindings"][0]["componentId"] == "comp-card"
     assert metadata["semanticObjects"] == ["Criminal card"]
     assert metadata["referentAliases"] == ["card"]
+    assert metadata["sourceAuthority"] == "OFFICIAL_PUBLISHER_HIGH_RES"
     # The local screening object only transports a hypothesis.  It does not
     # synthesize an object-pixel verdict or an accepted visual asset.
     assert "objectVisualEvidence" not in metadata

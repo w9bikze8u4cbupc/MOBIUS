@@ -278,6 +278,34 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(result[-1]['asset_id'], 'background')
             self.assertTrue(all('objects' not in row for row in result))
 
+    def test_authorized_candidates_preserve_diversity_and_rank_by_authority_after_term_evidence(self):
+        """A retrieval hypothesis widens search but cannot collapse a gallery or prove identity."""
+        with tempfile.TemporaryDirectory() as directory:
+            local, first, second, unrelated = [Path(directory) / name for name in ['local', 'first', 'second', 'unrelated']]
+            local.write_bytes(b'local-pixels')
+            first.write_bytes(b'first-official-pixels')
+            second.write_bytes(b'second-official-pixels')
+            unrelated.write_bytes(b'unrelated-official-pixels')
+            packet = {'requiredObjects': [{'id': 'captain-card', 'term': {'name': 'Captain card'}}], 'sourcePages': [4]}
+            hypothesis = [{'componentId': 'captain-card', 'confidence': None, 'reviewState': 'hypothesis'}]
+            assets = [
+                {'asset_id': 'local-page', 'path': str(local), 'asset_metadata': {
+                    'source_page': 4, 'heading': 'Components', 'dimensions': {'width': 2000, 'height': 1400}}},
+                {'asset_id': 'official-captain-a', 'path': str(first), 'sourceAuthority': 'OFFICIAL_PUBLISHER_HIGH_RES',
+                    'asset_metadata': {'label': 'Captain card A', 'sourceAuthority': 'OFFICIAL_PUBLISHER_HIGH_RES',
+                        'component_bindings': hypothesis, 'dimensions': {'width': 800, 'height': 1200}}},
+                {'asset_id': 'official-captain-b', 'path': str(second), 'sourceAuthority': 'OFFICIAL_PUBLISHER_HIGH_RES',
+                    'asset_metadata': {'label': 'Captain card B', 'sourceAuthority': 'OFFICIAL_PUBLISHER_HIGH_RES',
+                        'component_bindings': hypothesis, 'dimensions': {'width': 800, 'height': 1200}}},
+                {'asset_id': 'official-unrelated', 'path': str(unrelated), 'sourceAuthority': 'OFFICIAL_PUBLISHER_HIGH_RES',
+                    'asset_metadata': {'label': 'Rival portrait', 'sourceAuthority': 'OFFICIAL_PUBLISHER_HIGH_RES',
+                        'component_bindings': hypothesis, 'dimensions': {'width': 800, 'height': 1200}}},
+            ]
+            result = matcher.candidates_for(packet, assets)
+            self.assertEqual([row['asset_id'] for row in result][:2], ['official-captain-a', 'official-captain-b'])
+            self.assertEqual(len(result), 3)
+            self.assertTrue(all('objects' not in row for row in result))
+
     def test_prioritized_analysis_spends_bounded_budget_on_track_before_multi_component_summary(self):
         scenes = [
             {'id': 'summary', 'visualRequirement': {'requiredObjects': ['a', 'b', 'c']}},
