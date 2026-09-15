@@ -66,7 +66,7 @@ const VOICE_ID = process.env.ELEVENLABS_VOICE_ID_AMELIE || 'UJCi4DDncuo0VJDSIegj
 const VOICE_NAME = 'Amélie';
 const MODEL_ID = 'eleven_multilingual_v2';
 const { DEFAULT_NARRATION_PRESET, getEditorialContract } = editorialStandard;
-const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v13-authorized-candidate-recovery';
+const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v14-bounded-autopilot-batches';
 const DEFAULT_BASE_URL = process.env.MOBIUS_BASE_URL || 'http://127.0.0.1:5001';
 
 function argsToObject(argv = process.argv.slice(2)) {
@@ -104,6 +104,46 @@ function visualAnalysisContinuationIdentity(report = {}) {
   // its bounded work. A complete report remains replayable without invoking
   // the visual provider again.
   return deferred ? hashValue(report) : null;
+}
+
+function visualAutopilotBatchLimit(env = process.env) {
+  const requested = Number(env.MOBIUS_VISUAL_AUTOPILOT_MAX_BATCHES || 2);
+  // Each matcher invocation has its own provider-call ceiling and the shared
+  // ledger remains the hard mission budget. Two batches let Autopilot finish
+  // a useful recovery slice before creating a Cockpit review, while a hard
+  // cap prevents an unbounded source search in a single Inbox lease.
+  return Number.isFinite(requested) ? Math.max(1, Math.min(4, Math.floor(requested))) : 2;
+}
+
+async function runBoundedVisualReviewBatches({ runBatch, readReport, env = process.env } = {}) {
+  if (typeof runBatch !== 'function' || typeof readReport !== 'function') {
+    throw new Error('Bounded visual review requires a batch runner and semantic-report reader.');
+  }
+  const batches = [];
+  const limit = visualAutopilotBatchLimit(env);
+  for (let index = 0; index < limit; index += 1) {
+    await runBatch(index);
+    const report = readReport() || {};
+    const summary = report.summary || {};
+    const calls = Math.max(0, Number(summary.providerCalls || 0));
+    const continuationRequired = Boolean(visualAnalysisContinuationIdentity(report));
+    batches.push({
+      batch: index + 1,
+      providerCalls: calls,
+      cacheHits: Math.max(0, Number(summary.cacheHits || 0)),
+      continuationRequired,
+    });
+    // A zero-call deferred report means the shared durable budget (or an
+    // unavailable local provider) has already stopped this run. Repeating the
+    // identical batch cannot make progress and would be a hidden retry.
+    if (!continuationRequired || calls === 0) break;
+  }
+  return {
+    contract: 'mobius-bounded-visual-autopilot-batches-v1',
+    configuredBatchLimit: limit,
+    batches,
+    continuationRequired: Boolean(visualAnalysisContinuationIdentity(readReport() || {})),
+  };
 }
 function exists(filePath) { return Boolean(filePath && fs.existsSync(filePath)); }
 async function saveJson(filePath, value, { pretty = true } = {}) {
@@ -1049,14 +1089,24 @@ async function runZeroState(options = {}) {
     providerRecovery: visualProviderRecoveryIdentity(process.env),
     continuation: visualAnalysisContinuationIdentity(priorVisualAnalysis),
   });
+  let visualAutopilot = null;
   if (!stageReady(checkpoint, 'visual-review-base', baseVisualReviewHash, [baseQualityPath, baseSemanticPath, baseCombinedVisualManifestPath, baseFocusedCropManifestPath])) {
     const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
-    const result = spawnSync(process.execPath, [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--hephaestus-evidence', hephEvidencePath, '--output-dir', baseVisualReviewDir, '--page-dir', pageDir, '--extraction', path.join(productionDir, 'zero-state-extraction.json'), '--source-sha256', identity.sha256, '--source-pdf', await sourceService.resolveFile(projectId)], {
-      cwd: root, env: { ...canonicalRuntimeConfigurationEnvironment({ root }), PYTHON: python }, stdio: 'inherit', windowsHide: true,
+    const visualArgs = [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--hephaestus-evidence', hephEvidencePath, '--output-dir', baseVisualReviewDir, '--page-dir', pageDir, '--extraction', path.join(productionDir, 'zero-state-extraction.json'), '--source-sha256', identity.sha256, '--source-pdf', await sourceService.resolveFile(projectId)];
+    visualAutopilot = await runBoundedVisualReviewBatches({
+      env: process.env,
+      readReport: () => jsonIf(baseSemanticPath, {}),
+      runBatch: async () => {
+        const result = spawnSync(process.execPath, visualArgs, {
+          cwd: root, env: { ...canonicalRuntimeConfigurationEnvironment({ root }), PYTHON: python }, stdio: 'inherit', windowsHide: true,
+        });
+        if (result.status !== 0) throw new Error(`prepare-source-visuals exited with code ${result.status}`);
+      },
     });
-    if (result.status !== 0) throw new Error(`prepare-source-visuals exited with code ${result.status}`);
   }
-  markStage(checkpoint, 'visual-review-base', baseVisualReviewHash, [baseQualityPath, baseSemanticPath, baseCombinedVisualManifestPath, baseFocusedCropManifestPath]);
+  markStage(checkpoint, 'visual-review-base', baseVisualReviewHash, [baseQualityPath, baseSemanticPath, baseCombinedVisualManifestPath, baseFocusedCropManifestPath], {
+    visualAutopilot,
+  });
 
   const baseCatalog = loadSourceVisualCatalog(baseCombinedVisualManifestPath, { qualityReportPath: baseQualityPath, semanticReportPath: baseSemanticPath, hephaestusEvidencePath: hephEvidencePath });
   const automaticRecovery = await recoverAutomaticAuthorizedCandidates({
@@ -1344,8 +1394,10 @@ export {
   gameNameFromRulebookText,
   pagesForSources,
   runZeroState,
+  runBoundedVisualReviewBatches,
   sceneForProduction,
   stageReady,
   synchronizeProjectSourceWithApi,
   teachingSourcePages,
+  visualAutopilotBatchLimit,
 };
