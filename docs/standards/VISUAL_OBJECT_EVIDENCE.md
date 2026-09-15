@@ -153,6 +153,10 @@ actual component illustration appears later in the official PDF. Search pages
 remain separately named in the evidence packet: they can schedule inspection
 and high-detail raster reuse, but cannot become a component citation, binding,
 completeness claim or scene-state verdict without measurement of the pixels.
+Derived source crops produced by one bounded batch are reintroduced into the
+next canonical catalogue only when their project root and PDF SHA still match.
+They return as UNKNOWN pixel candidates with their parent provenance intact;
+localization labels and prior crop hints cannot inherit component acceptance.
 
 ## Hypothesis versus measurement versus acceptance
 

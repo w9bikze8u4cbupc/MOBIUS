@@ -72,6 +72,40 @@ function componentDiscoveryEvidence(term = {}) {
     .map((row) => ({ page: Number(row.page), quote: String(row.quote).trim() }));
 }
 
+/**
+ * Reconnect source-faithful crops produced by a prior bounded matcher batch to
+ * the next canonical candidate catalogue. A crop is replayable only inside the
+ * same project root and for the same PDF SHA. It re-enters as an UNKNOWN search
+ * candidate: prior localization never becomes component or scene acceptance.
+ */
+export function replayGeneratedVisualCandidates({ images = [], semanticReport = {}, sourceSha256, projectRoot } = {}) {
+  const root = projectRoot ? path.resolve(projectRoot) : null;
+  const insideRoot = (filePath) => !root || path.resolve(filePath).startsWith(`${root}${path.sep}`);
+  const merged = new Map((images || []).filter((row) => row?.id).map((row) => [row.id, row]));
+  for (const row of semanticReport?.generatedAssets || []) {
+    const filePath = String(row?.file_path || row?.path || '').trim();
+    const provenance = row?.provenance || {};
+    const candidateSourceSha = row?.sourcePdfSha256 || provenance.sourcePdfSha256;
+    if (!row?.id || !filePath || !fs.existsSync(filePath) || !insideRoot(filePath)
+      || !sourceSha256 || candidateSourceSha !== sourceSha256
+      || !Number.isInteger(Number(row?.source_page || provenance.sourcePage))
+      || Number(row?.source_page || provenance.sourcePage) <= 0) continue;
+    const replay = {
+      ...row,
+      file_path: filePath,
+      localizedReferent: row.localizedReferent || provenance.measuredObjectId || null,
+      cropCompleteness: 'unknown',
+      cropPurity: 'unknown',
+      is_component: null,
+      requiresPixelVerification: true,
+    };
+    delete replay.objectVisualEvidence;
+    delete replay.selectedAssetIds;
+    merged.set(row.id, replay);
+  }
+  return [...merged.values()];
+}
+
 const VISUAL_SEARCH_REQUIREMENT_WEIGHTS = Object.freeze({
   setupPlacementRequired: 100,
   layeredStateRequired: 70,

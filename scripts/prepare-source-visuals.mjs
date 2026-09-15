@@ -15,7 +15,7 @@ import { generateFocusedPageCrops, materializeHighDetailSourcePages, sourceLocal
 import { getAiConfig } from '../src/config/aiConfig.js';
 import evidenceBoundCropService from '../src/services/evidenceBoundVisualCrop.cjs';
 import sourceAssetResolver from '../src/services/sourceAssetResolver.cjs';
-import { buildComponentDiscoveryScenes } from '../src/services/sourceVisualSelection.js';
+import { buildComponentDiscoveryScenes, replayGeneratedVisualCandidates } from '../src/services/sourceVisualSelection.js';
 
 const { appendEvidenceBoundCrops } = evidenceBoundCropService;
 const { authorizedCandidatesForVisualAnalysis } = sourceAssetResolver;
@@ -135,6 +135,7 @@ async function main() {
 
   const qualityPath = resolve(outputDir, 'source-visual-quality.json');
   const semanticPath = resolve(outputDir, 'source-visual-semantic-matches.json');
+  const previousSemanticReport = arg('previous-semantic-report') || semanticPath;
   const scriptDir = dirname(fileURLToPath(import.meta.url));
   const qualityScript = resolve(scriptDir, 'qualify-source-visuals.py');
   const semanticScript = resolve(scriptDir, 'match-scene-visuals.py');
@@ -223,10 +224,18 @@ async function main() {
         })), ...(asset.component_bindings || [])],
       };
     });
+    const priorSemantic = existsSync(resolve(previousSemanticReport))
+      ? JSON.parse(readFileSync(resolve(previousSemanticReport), 'utf8')) : {};
+    const replayedImages = replayGeneratedVisualCandidates({
+      images: [...images, ...(cropManifest.assets || []), ...localizationPages],
+      semanticReport: priorSemantic,
+      sourceSha256,
+      projectRoot: outputDir,
+    });
     visualManifestPath = resolve(outputDir, 'source-visual-manifest.json');
     await writeFile(visualManifestPath, `${JSON.stringify({
       ...manifest,
-      images: [...images, ...(cropManifest.assets || []), ...localizationPages],
+      images: replayedImages,
       focusedCropManifest: cropManifestPath,
       highDetailSourcePages: highDetail ? { contract: highDetail.contract, sourceSha256: highDetail.sourceSha256, dpi: highDetail.dpi,
         pages: highDetail.pages.map((row) => ({ page: row.page, sha256: row.sha256, width: row.width, height: row.height })) } : null,
@@ -252,7 +261,6 @@ async function main() {
   }), 'utf8');
   console.log('[prepare-source-visuals] Matching approved components to tutorial scenes…');
   const ai = getAiConfig();
-  const previousSemanticReport = arg('previous-semantic-report') || semanticPath;
   await run(python, [semanticScript, scopedScript, qualityPath, semanticPath], {
     ...process.env,
     OPENAI_MODEL: ai.model || '',

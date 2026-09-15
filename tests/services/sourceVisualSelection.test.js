@@ -62,6 +62,48 @@ test('component discovery searches a bounded illustrated setup spread without la
   expect(discovery.visualSearchPages).not.toContain(3);
 });
 
+test('replays a same-project derived crop as UNKNOWN candidate without inheriting acceptance', async () => {
+  const { replayGeneratedVisualCandidates } = await import('../../src/services/sourceVisualSelection.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-derived-replay-'));
+  try {
+    const crop = path.join(root, 'crop.png');
+    fs.writeFileSync(crop, 'pixels');
+    const rows = replayGeneratedVisualCandidates({
+      images: [{ id: 'base' }], sourceSha256: 'source-sha', projectRoot: root,
+      semanticReport: { generatedAssets: [{
+        id: 'crop', file_path: crop, source_page: 9, sourcePdfSha256: 'source-sha',
+        cropCompleteness: 'complete', cropPurity: 'clean', is_component: true,
+        objectVisualEvidence: [{ status: 'AUTO_ACCEPTED' }],
+        provenance: { sourcePdfSha256: 'source-sha', sourcePage: 9, measuredObjectId: 'board' },
+      }] },
+    });
+    expect(rows.map((row) => row.id)).toEqual(['base', 'crop']);
+    expect(rows[1]).toMatchObject({ localizedReferent: 'board', cropCompleteness: 'unknown', cropPurity: 'unknown', is_component: null, requiresPixelVerification: true });
+    expect(rows[1]).not.toHaveProperty('objectVisualEvidence');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('does not replay a derived crop across source or project ownership', async () => {
+  const { replayGeneratedVisualCandidates } = await import('../../src/services/sourceVisualSelection.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-derived-owner-'));
+  const other = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-derived-other-'));
+  try {
+    const outside = path.join(other, 'crop.png');
+    fs.writeFileSync(outside, 'pixels');
+    const rows = replayGeneratedVisualCandidates({
+      images: [{ id: 'base' }], sourceSha256: 'expected', projectRoot: root,
+      semanticReport: { generatedAssets: [
+        { id: 'wrong-root', file_path: outside, source_page: 2, sourcePdfSha256: 'expected' },
+        { id: 'wrong-sha', file_path: outside, source_page: 2, sourcePdfSha256: 'other' },
+      ] },
+    });
+    expect(rows).toEqual([{ id: 'base' }]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(other, { recursive: true, force: true });
+  }
+});
+
 test('native source authority requires real matching PDF/extraction provenance, not a label', async () => {
   const { nativeManifestProvenance } = await import('../../src/services/hephaestusEvidence.js');
   const file = path.resolve(__dirname, '../../package.json');

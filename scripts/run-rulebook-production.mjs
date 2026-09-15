@@ -69,7 +69,7 @@ const { DEFAULT_NARRATION_PRESET, getEditorialContract } = editorialStandard;
 // Includes deterministic evidence-bound crop derivation. Bump this whenever a
 // measured candidate can gain new persisted acceptance/rejection provenance so
 // replay cannot silently reuse a manifest produced under an older contract.
-const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v25-evidence-directed-component-search';
+const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v26-derived-candidate-replay';
 const DEFAULT_BASE_URL = process.env.MOBIUS_BASE_URL || 'http://127.0.0.1:5001';
 const VISUAL_PROVIDER_BUDGET_CONTRACT = 'mobius-project-visual-provider-budget-v1';
 const VISUAL_PROVIDER_RECEIPT_CONTRACTS = new Set([
