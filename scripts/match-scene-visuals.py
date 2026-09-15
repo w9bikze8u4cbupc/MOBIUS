@@ -17,7 +17,7 @@ SEARCH_CONTRACT = "mobius-referent-localization-v1"
 # substage no longer leaks a KeyError into a faux provider-unavailable result.
 # The version is part of the execution cache identity so that a prior local
 # bookkeeping failure is not replayed as if pixels had been inspected.
-SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v12-atomic-component-discovery'
+SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v13-authorized-gallery-discovery'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v3'
 RESPONSE_BUDGET_CONTRACT = 'mobius-visual-response-budget-v1'
@@ -397,6 +397,13 @@ def candidates_for(packet, assets):
         return 0
 
     rows = []
+    # An exact-title publisher gallery may have no useful source-owned caption
+    # (a common CMS pattern).  It is still a legitimate *bounded discovery*
+    # source when a local component search has not established an identity.
+    # Keep it separate from ordinary retrieval: an opaque gallery filename or
+    # its broad component scope never becomes an association, and only one
+    # such image may consume a component-discovery packet.
+    gallery_fallbacks = []
     seen = set()
     for a in assets:
         if not a.get('path') or not Path(a['path']).is_file() or a.get('category') == 'blank_or_unusable':
@@ -424,12 +431,22 @@ def candidates_for(packet, assets):
         hypothesis_link = hypothesis_referent and not external_unscoped
         linked = bound_referent or hypothesis_link or m.get('source_page') in packet['sourcePages'] or bool(overlap and tokens)
         if not linked:
-            continue
+            provenance = m.get('provenance') or {}
+            recovery_kind = str(provenance.get('retrievalKind') or '')
+            gallery_fallback = (requirement.get('componentDiscovery') is True
+                and external_unscoped
+                and recovery_kind == 'publisher-product-page-gallery'
+                and not re.search(r'background|logo|decorative', str(m.get('classification') or '')))
+            if not gallery_fallback:
+                continue
         pixel_hash = hashlib.sha256(Path(a['path']).read_bytes()).hexdigest()
         if pixel_hash in seen:
             continue
         seen.add(pixel_hash)
-        rows.append(a)
+        if linked:
+            rows.append(a)
+        else:
+            gallery_fallbacks.append(a)
     def key(a):
         m = a.get("asset_metadata") or {}
         d = m.get("original_dimensions") or m.get("dimensions") or {}
@@ -472,6 +489,19 @@ def candidates_for(packet, assets):
             continue
         result.append(a)
         pages.add(group)
+    # Reserve one slot for an exact-title gallery only in atomic component
+    # discovery.  This is a recovery search after local evidence, not a
+    # semantic shortcut: provider pixels must still establish the component,
+    # crop and state gates before the canonical resolver can bind anything.
+    if requirement.get('componentDiscovery') and gallery_fallbacks:
+        external = sorted(gallery_fallbacks, key=lambda a: (
+            -int((a.get('asset_metadata') or {}).get('original_dimensions', {}).get('width') or (a.get('asset_metadata') or {}).get('dimensions', {}).get('width') or 0)
+            * int((a.get('asset_metadata') or {}).get('original_dimensions', {}).get('height') or (a.get('asset_metadata') or {}).get('dimensions', {}).get('height') or 0),
+            a['asset_id']))
+        for candidate in external:
+            if candidate['asset_id'] not in {row['asset_id'] for row in result}:
+                result = result[:5] + [candidate]
+                break
     return result[:6]
 
 

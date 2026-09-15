@@ -129,6 +129,14 @@ The normal matcher allows at most eight calls (configurable bounded maximum 32),
 
 New image requests reuse the existing 1600×1600 maximum visual-probe helper, without enlarging or altering native source files. The original pixel hash and source-detail lineage remain authoritative. Unsafe/undecodable probes remain UNKNOWN and spend no provider call; no decoder safety limit is disabled. Existing valid measurements of the original pixels remain reusable.
 
+When local rulebook pixels have not established a component, one uncaptioned
+image from an exact-title, rulebook-disclosed **publisher gallery** may occupy a
+reserved slot in an atomic component-discovery packet. This is a bounded
+recovery hypothesis only: product JSON-LD, box art, opaque filenames and broad
+retrieval component scopes cannot create an identity claim. The provider must
+still measure the requested object on those exact pixels and every ordinary
+detail, silhouette, source-authority and physical-state gate remains in force.
+
 The normal rulebook worker uses the existing runtime manager's configuration-path resolver for its visual subprocess. Declared canonical provider settings take precedence over stale worktree dotenv defaults in that subprocess; the configuration files and generator model selection are not edited. Its visual checkpoint records the already preflighted provider/model identity, not historical hard-coded model fallbacks. Proofs must not require Codex to supply a configuration path that normal production omits.
 
 ## Persistence and Cockpit

@@ -404,6 +404,44 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(len(result), 3)
             self.assertTrue(all('objects' not in row for row in result))
 
+    def test_uncaptioned_exact_publisher_gallery_is_one_bounded_component_discovery_fallback(self):
+        """Opaque publisher gallery metadata may schedule inspection, never identity."""
+        with tempfile.TemporaryDirectory() as directory:
+            local, gallery = Path(directory) / 'local', Path(directory) / 'gallery'
+            local.write_bytes(b'local-pixels')
+            gallery.write_bytes(b'publisher-gallery-pixels')
+            packet = {
+                'requiredObjects': [{'id': 'board', 'term': {'name': 'Player board'}}],
+                'sourcePages': [4],
+                'requirement': {'componentDiscovery': True},
+            }
+            result = matcher.candidates_for(packet, [
+                {'asset_id': 'local', 'path': str(local), 'asset_metadata': {
+                    'source_page': 4, 'heading': 'Components', 'dimensions': {'width': 900, 'height': 600}}},
+                {'asset_id': 'gallery', 'path': str(gallery), 'asset_metadata': {
+                    'sourceAuthority': 'OFFICIAL_PUBLISHER_HIGH_RES', 'source_page': None,
+                    'label': 'opaque-gallery-image', 'component_bindings': [{'componentId': 'board', 'reviewState': 'hypothesis'}],
+                    'dimensions': {'width': 1600, 'height': 1000},
+                    'provenance': {'retrievalKind': 'publisher-product-page-gallery'}}},
+            ])
+            self.assertEqual([row['asset_id'] for row in result], ['local', 'gallery'])
+            self.assertTrue(all('objects' not in row for row in result))
+
+    def test_uncaptioned_gallery_is_not_used_for_normal_scene_or_product_jsonld(self):
+        with tempfile.TemporaryDirectory() as directory:
+            image = Path(directory) / 'gallery'
+            image.write_bytes(b'publisher-gallery-pixels')
+            base = {'asset_id': 'gallery', 'path': str(image), 'asset_metadata': {
+                'sourceAuthority': 'OFFICIAL_PUBLISHER_HIGH_RES', 'source_page': None,
+                'dimensions': {'width': 1600, 'height': 1000},
+                'provenance': {'retrievalKind': 'publisher-product-page-gallery'}}}
+            normal = {'requiredObjects': [{'id': 'board', 'term': {'name': 'Player board'}}], 'sourcePages': [4], 'requirement': {}}
+            jsonld = {'requiredObjects': [{'id': 'board', 'term': {'name': 'Player board'}}], 'sourcePages': [4],
+                'requirement': {'componentDiscovery': True}}
+            self.assertEqual(matcher.candidates_for(normal, [base]), [])
+            base['asset_metadata']['provenance']['retrievalKind'] = 'product-jsonld'
+            self.assertEqual(matcher.candidates_for(jsonld, [base]), [])
+
     def test_prioritized_analysis_spends_bounded_budget_on_track_before_multi_component_summary(self):
         scenes = [
             {'id': 'summary', 'visualRequirement': {'requiredObjects': ['a', 'b', 'c']}},
