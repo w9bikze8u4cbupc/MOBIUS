@@ -24,6 +24,8 @@ function stateValueLabel(item = {}) {
   if (item.faceState === 'FACE_UP') return 'Face visible';
   if (item.trackPosition != null) return `Position ${item.trackPosition}`;
   if (item.quantity != null) return `Quantité ${item.quantity}`;
+  if (item.location) return `Emplacement : ${String(item.location).replace(/\s+/g, ' ').trim()}`.slice(0, 48);
+  if (item.orientation) return String(item.orientation).replace(/\s+/g, ' ').trim().slice(0, 48);
   return 'En jeu';
 }
 

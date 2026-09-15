@@ -128,12 +128,23 @@ function inferVisualRequirement(atom = {}) {
   const cardFamily = /(?:famille|couleur|tableau personnel|ville|cité|cite|cartes? (?:brunes?|grises?|jaunes?|rouges?|bleues?|vertes?|violettes?))/i.test(text);
   const comparison = /(?:compar|différenc|differenc|versus|contre|même symbole|meme symbole)/i.test(text);
   const focus = /(?:coût|cout|symbole|icône|icone|points? de victoire|effet|production)/i.test(text);
+  // RuleAtom state fields describe both semantic progression ("the game
+  // ends", "gain points") and literal table state.  Treating every
+  // stateChange as a physical relationship made the visual pipeline demand a
+  // photographed before/after arrangement for almost every rule.  Physical
+  // obligations must come from actual placement/orientation/material cues;
+  // semantic transitions remain teachable sequences, but are not promoted to
+  // unsupported board-state claims.
+  const physicalStateRequired = components.length > 0 && Boolean(
+    atom.placement || atom.orientation || setup || layered || track || oneShot || discard
+    || /(?:sur la case|sur le plateau|dans la pile|dans le paquet|à gauche|a gauche|à droite|a droite|au centre|face cachée|face cachee|face visible|retiré|retire|hors jeu|marqueur|curseur)/i.test(text)
+  );
   return {
     purpose: clean(atom.title || atom.choice || atom.result),
     requiredObjects: components,
-    requiredState: clean(atom.stateAfter || atom.stateChange) || null,
+    requiredState: physicalStateRequired ? (clean(atom.stateAfter || atom.stateChange) || null) : null,
     requiredOrientation: clean(atom.orientation) || null,
-    requiredRelationship: clean(atom.placement || atom.stateChange) || null,
+    requiredRelationship: clean(atom.placement) || null,
     beforeState: clean(atom.stateBefore) || null,
     actionState: clean(atom.stateChange || atom.choice) || null,
     afterState: clean(atom.stateAfter || atom.result) || null,
@@ -152,6 +163,37 @@ function inferVisualRequirement(atom = {}) {
     representativeExamplesRequired: cardFamily || comparison || scoring,
     actualGameAssetRequired: components.length > 0 || ['components', 'setup', 'action', 'triggered_effect', 'scoring', 'victory', 'end_condition'].includes(domain),
   };
+}
+
+/** Recompute fields derived from canonical RuleAtom semantics while retaining
+ * source-recovery evidence and explicitly specialized visual metadata.  This
+ * lets a visual-contract upgrade invalidate only visual planning/materializing
+ * state; cached source-grounded RuleAtoms and HEPHAESTUS pixels remain valid. */
+function productionVisualRequirementForAtom(atom = {}) {
+  const inferred = inferVisualRequirement(atom);
+  const prior = atom.visualRequirement || {};
+  return normalizeVisualRequirement({
+    ...prior,
+    requiredState: inferred.requiredState,
+    requiredOrientation: inferred.requiredOrientation,
+    requiredRelationship: inferred.requiredRelationship,
+    beforeState: inferred.beforeState,
+    actionState: inferred.actionState,
+    afterState: inferred.afterState,
+    transitionRequired: inferred.transitionRequired,
+    setupPlacementRequired: inferred.setupPlacementRequired,
+    layeredStateRequired: inferred.layeredStateRequired,
+    faceStateRequired: inferred.faceStateRequired,
+    cardFamilyRequired: inferred.cardFamilyRequired,
+    trackStateRequired: inferred.trackStateRequired,
+    oneShotMarkerRequired: inferred.oneShotMarkerRequired,
+    progressiveScoringRequired: inferred.progressiveScoringRequired,
+    comparisonGroupRequired: inferred.comparisonGroupRequired,
+    semanticFocusRequired: inferred.semanticFocusRequired,
+    discardPileRequired: inferred.discardPileRequired,
+    deckIdentityRequired: inferred.deckIdentityRequired,
+    representativeExamplesRequired: inferred.representativeExamplesRequired,
+  }, atom);
 }
 
 function normalizeVisualRequirement(requirement = {}, atom = {}) {
@@ -1039,9 +1081,9 @@ function buildKnowledgeTeachingPlan(model) {
   const atoms = model.ruleAtoms.filter((atom) => atom.reviewState === 'accepted' && atom.teaching?.narration)
     .sort((a, b) => rank(a)-rank(b)||page(a)-page(b)||a.teaching.sequence-b.teaching.sequence||a.id.localeCompare(b.id));
   return {
-    contract: 'mobius-knowledge-teaching-plan-v1',
+    contract: 'mobius-knowledge-teaching-plan-v2',
     projectId: model.projectId,
-    scenes: atoms.map((atom) => ({ atomId: atom.id, majorSection: atom.teaching.majorSection, heading: atom.teaching.heading, narration: atom.teaching.narration, displayLines: atom.teaching.displayLines, profile: atom.teaching.profile, pauseCue: atom.teaching.pauseCue, visualRequirement: atom.visualRequirement, sourceRefs: atom.sourceRefs })),
+    scenes: atoms.map((atom) => ({ atomId: atom.id, majorSection: atom.teaching.majorSection, heading: atom.teaching.heading, narration: atom.teaching.narration, displayLines: atom.teaching.displayLines, profile: atom.teaching.profile, pauseCue: atom.teaching.pauseCue, visualRequirement: productionVisualRequirementForAtom(atom), sourceRefs: atom.sourceRefs })),
   };
 }
 
@@ -1153,6 +1195,7 @@ module.exports = {
   normalizeRuleAtom,
   normalizeVisualRequirement,
   inferVisualRequirement,
+  productionVisualRequirementForAtom,
   runMultiPassRulebookIntelligence,
   validateRuleAtom,
 };

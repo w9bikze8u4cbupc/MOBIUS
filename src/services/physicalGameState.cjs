@@ -5,6 +5,7 @@ const FACE_STATES = new Set(['FACE_UP', 'FACE_DOWN', 'NOT_APPLICABLE', 'UNKNOWN'
 const VISIBILITY_STATES = new Set(['VISIBLE', 'HIDDEN', 'REMOVED', 'UNKNOWN']);
 const AVAILABILITY_STATES = new Set(['AVAILABLE', 'UNAVAILABLE', 'CONSUMED', 'UNKNOWN']);
 const fs=require('node:fs'), crypto=require('node:crypto');
+const { isDeepStrictEqual } = require('node:util');
 const pixelHash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const REQUIRED_SEQUENCE_MATERIALIZER_CONTRACT='mobius-visual-plan-materializer-v7';
 const REQUIRED_SEMANTIC_SEQUENCE_CONTRACT='mobius-source-grounded-semantic-sequence-v2';
@@ -47,8 +48,8 @@ function verifiedInstructionalSequence(candidate, requirement, sceneId) {
       ||JSON.stringify(packet.instructionalDiagram.sourceTeaching)!==JSON.stringify(sequence.sourceTeaching||[])
       ||sequence.frames.some(frame=>!String(frame.stage?.instructionalText||'').trim()))continue;
    } else if(packet.semanticTeaching||packet.instructionalDiagram) continue;
-   const compared={...requirement};delete compared.evidenceSceneId;
-   if(JSON.stringify(packet.requirement)!==JSON.stringify(compared))continue;
+   const compared=canonicalCompositionRequirement(requirement);
+   if(!isDeepStrictEqual(canonicalCompositionRequirement(packet.requirement),compared))continue;
    if(sourceAsset.sourceImageSha256!==pixelHash(candidate.filePath))continue;
    if(sequence.frames.length!==packet.sequenceFrames?.length)continue;
    if(sequence.frames.some((f,i)=>f.id!==packet.sequenceFrames[i].id
@@ -56,10 +57,22 @@ function verifiedInstructionalSequence(candidate, requirement, sceneId) {
      || pixelHash(f.outputPath)!==packet.sequenceFrames[i].imageSha256
      || pixelHash(f.phonePath)!==packet.sequenceFrames[i].phoneSha256
      || f.sourcePixelsPerDisplayPixel<.8))continue;
-   const objects=row.objects||[];
-   if(objects.length!==(requirement.requiredObjects||[]).length||objects.some(o=>!requirement.requiredObjects.includes(o.requiredObject)
-     ||o.visualRole!=='COMPOSITION'||o.method!=='provider-pixel-analysis'||o.confidence<.9
-     ||!o.present||!o.complete||!o.isolated||!o.stateCompatible||!o.purposeSatisfied||!o.phoneReadable))continue;
+    const objects=row.objects||[];
+    // Semantic teaching is explicitly allowed only when the requirement has
+    // no concrete physical-state claim (see semanticTeachingStages). Its
+    // source component still needs exact identity/integrity proof, and the
+    // final composition must teach the cited purpose at phone scale, but the
+    // unchanged source photograph is not expected to depict an abstract state
+    // such as "the game ends" or "renown is gained". Physical sequences and
+    // instructional diagrams continue to require stateCompatible=true.
+    const compositionRequiresPhysicalState = Boolean(compared.setupPlacementRequired || compared.layeredStateRequired
+      || compared.trackStateRequired || compared.oneShotMarkerRequired || compared.faceStateRequired
+      || compared.requiredOrientation || compared.requiredQuantities?.length || compared.requiredState
+      || compared.requiredRelationship || compared.physicalState || compared.physicalStateRequirement);
+    if(objects.length!==(requirement.requiredObjects||[]).length||objects.some(o=>!requirement.requiredObjects.includes(o.requiredObject)
+      ||o.visualRole!=='COMPOSITION'||o.method!=='provider-pixel-analysis'||o.confidence<.9
+      ||!o.present||!o.complete||!o.isolated||(compositionRequiresPhysicalState&&!o.stateCompatible)
+      ||!o.purposeSatisfied||!o.phoneReadable))continue;
    return sequence;
   }catch { /* An unavailable reference is unverified, never accepted. */ }
  }
@@ -68,6 +81,24 @@ function verifiedInstructionalSequence(candidate, requirement, sceneId) {
 
 const clean = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
 const unique = (values = []) => [...new Set(values.filter(Boolean))];
+
+function canonicalCompositionRequirement(value = {}) {
+  const requirement = { ...value };
+  delete requirement.evidenceSceneId;
+  const explicitPhysical = Boolean(requirement.setupPlacementRequired || requirement.layeredStateRequired
+    || requirement.trackStateRequired || requirement.oneShotMarkerRequired || requirement.faceStateRequired
+    || requirement.requiredOrientation || requirement.requiredQuantities?.length
+    || requirement.physicalState || requirement.physicalStateRequirement);
+  if (!explicitPhysical) {
+    // The former visual inference mirrored semantic fields into physical
+    // aliases. Ignore only exact duplicates, so a cached stronger review can
+    // replay without hiding a distinct physical relationship or state.
+    if (requirement.requiredState
+      && [requirement.afterState, requirement.actionState].includes(requirement.requiredState)) delete requirement.requiredState;
+    if (requirement.requiredRelationship && requirement.requiredRelationship === requirement.actionState) delete requirement.requiredRelationship;
+  }
+  return requirement;
+}
 
 function normalizePhysicalItem(item = {}) {
   const faceState = String(item.faceState || 'UNKNOWN').toUpperCase();
@@ -104,16 +135,27 @@ function normalizeStateStage(stage = {}, fallbackId = 'state') {
   };
 }
 
+function faceStateFromOrientation(value) {
+  const text = clean(value).toLocaleLowerCase('fr-CA');
+  if (/face down|face cach[eé]e/.test(text)) return 'FACE_DOWN';
+  if (/face up|face visible/.test(text)) return 'FACE_UP';
+  return 'NOT_APPLICABLE';
+}
+
 function derivePhysicalGameState(atom = {}) {
   const requirement = atom.visualRequirement || {};
   if (requirement.physicalState) return normalizePhysicalGameState(requirement.physicalState, atom);
   const refs = unique([...(atom.componentRefs || []), ...(requirement.requiredObjects || [])].map(clean));
+  const finalFaceState = faceStateFromOrientation(atom.orientation || requirement.requiredOrientation);
   const baseItems = refs.map((componentRef) => normalizePhysicalItem({
     id: componentRef,
     componentRef,
-    location: atom.placement || null,
-    orientation: atom.orientation || requirement.requiredOrientation || null,
-    faceState: requirement.faceStateRequired ? 'UNKNOWN' : 'NOT_APPLICABLE',
+    // A placement rule establishes the destination, not that the component is
+    // already there before the action.  Keep the pre-action item neutral and
+    // apply the exact cited destination/orientation only to the final state.
+    location: null,
+    orientation: null,
+    faceState: 'NOT_APPLICABLE',
     visibility: 'VISIBLE',
     quantity: requirement.requiredQuantities?.find((entry) => entry.componentRef === componentRef)?.quantity,
     sourceRefs: atom.sourceRefs || [],
@@ -127,6 +169,13 @@ function derivePhysicalGameState(atom = {}) {
   const before = normalizeStateStage({ id: 'before', label: 'Avant', items: baseItems, sourceRefs: atom.sourceRefs || [] }, 'before');
   const afterItems = baseItems.map((item) => ({
     ...item,
+    ...(atom.placement || requirement.requiredRelationship ? {
+      location: atom.placement || requirement.requiredRelationship,
+    } : {}),
+    ...(atom.orientation || requirement.requiredOrientation ? {
+      orientation: atom.orientation || requirement.requiredOrientation,
+      faceState: finalFaceState,
+    } : {}),
     ...(requirement.oneShotMarkerRequired ? { availability: 'CONSUMED', consumed: true, visibility: 'REMOVED', removed: true } : {}),
   }));
   const after = normalizeStateStage({ id: 'after', label: 'Après', items: afterItems, sourceRefs: atom.sourceRefs || [] }, 'after');

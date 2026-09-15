@@ -13,9 +13,9 @@ const {
 } = require('./sourceAssetResolver.cjs');
 const { runProductionQualityGate } = require('./productionQualityGate.cjs');
 const { canonicalTeachingPresentation } = require('./visualPlanMaterializer.cjs');
-const { buildKnowledgeTeachingPlan } = require('./rulebookKnowledge.cjs');
+const { buildKnowledgeTeachingPlan, productionVisualRequirementForAtom } = require('./rulebookKnowledge.cjs');
 
-const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v7';
+const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v8';
 
 function uniqueAssets(assets = []) {
   const byId = new Map();
@@ -113,7 +113,10 @@ function compileCanonicalProductionState({
     ...authorized.candidates,
   ]);
   const teachingOrder = new Map(buildKnowledgeTeachingPlan(knowledgeModel).scenes.map((scene, index) => [scene.atomId, index]));
-  const atoms = [...knowledgeModel.ruleAtoms].sort((a, b) =>
+  const atoms = knowledgeModel.ruleAtoms.map((atom) => ({
+    ...atom,
+    visualRequirement: productionVisualRequirementForAtom(atom),
+  })).sort((a, b) =>
     (teachingOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (teachingOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER));
   let physicalStates = atoms.map(derivePhysicalGameState);
   const sourceSelections = atoms.map((atom, index) => resolveAtomSources(atom, assets, displayBounds || {

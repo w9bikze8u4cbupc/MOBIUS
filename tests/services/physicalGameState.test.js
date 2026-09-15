@@ -80,12 +80,27 @@ test('a semantic teaching sequence is accepted only with its exact source-ground
    sourceAssets:[{assetId:'card-asset',sourceImageSha256:hash(source)}],frames,
    review:{scenes:[{scene_id:'scene',candidates:[{status:'MEASURED',evidencePacket:{visualRole:'COMPOSITION',responseContract:'normalized-composition-sequence-v2',materializerContract:'mobius-visual-plan-materializer-v7',sequenceContract:'mobius-source-grounded-semantic-sequence-v2',requirement,
      semanticTeaching:{contract:'mobius-source-grounded-semantic-sequence-v2',sourceTeaching:JSON.parse(JSON.stringify(teaching))},sequenceFrames:frames.map(f=>({id:f.id,stage:f.stage,imageSha256:hash(frame),phoneSha256:hash(frame)}))},
-     objects:[{requiredObject:'card',visualRole:'COMPOSITION',method:'provider-pixel-analysis',confidence:.98,present:true,complete:true,isolated:true,stateCompatible:true,purposeSatisfied:true,phoneReadable:true}]}]}]}};
+     objects:[{requiredObject:'card',visualRole:'COMPOSITION',method:'provider-pixel-analysis',confidence:.98,present:true,complete:true,isolated:true,stateCompatible:false,purposeSatisfied:true,phoneReadable:true}]}]}]}};
  const candidate={id:'card-asset',filePath:source,instructionalSequences:[sequence]};
+ expect(verifiedInstructionalSequence(candidate,requirement,'scene')).toBe(sequence);
+ sequence.review.scenes[0].candidates[0].evidencePacket.requirement.requiredState='Continue play';
+ sequence.review.scenes[0].candidates[0].evidencePacket.requirement.requiredRelationship='Resolve the effect';
  expect(verifiedInstructionalSequence(candidate,requirement,'scene')).toBe(sequence);
  sequence.review.scenes[0].candidates[0].evidencePacket.semanticTeaching.sourceTeaching[1].instructionalText='Unsourced replacement';
  expect(verifiedInstructionalSequence(candidate,requirement,'scene')).toBeNull();
   fs.rmSync(folder,{recursive:true,force:true});
+});
+
+test('placement state applies the cited destination and orientation only after the action', () => {
+ const state = derivePhysicalGameState({
+   id: 'setup-deck', placement: 'On the board.', orientation: 'Face down.', sourceRefs: [{ page: 5 }],
+   confidence: .95, reviewState: 'accepted',
+   visualRequirement: { requiredObjects: ['deck'], transitionRequired: true, setupPlacementRequired: true,
+     requiredRelationship: 'On the board.', requiredOrientation: 'Face down.' },
+ });
+ expect(state.stages).toHaveLength(2);
+ expect(state.stages[0].items[0]).toMatchObject({ location: null, faceState: 'NOT_APPLICABLE' });
+ expect(state.stages[1].items[0]).toMatchObject({ location: 'On the board.', faceState: 'FACE_DOWN' });
 });
 
 test('an instructional diagram stays bound to exact component pixels, labels and the full physical requirement',()=>{
@@ -107,6 +122,9 @@ test('an instructional diagram stays bound to exact component pixels, labels and
      ]}]}]}};
  expect(verifiedInstructionalSequence({id:'board',filePath:board,instructionalSequences:[sequence]},requirement,'scene')).toBe(sequence);
  expect(verifiedInstructionalSequence({id:'token',filePath:token,instructionalSequences:[sequence]},requirement,'scene')).toBe(sequence);
+ sequence.review.scenes[0].candidates[0].objects[0].stateCompatible=false;
+ expect(verifiedInstructionalSequence({id:'board',filePath:board,instructionalSequences:[sequence]},requirement,'scene')).toBeNull();
+ sequence.review.scenes[0].candidates[0].objects[0].stateCompatible=true;
  sequence.review.scenes[0].candidates[0].evidencePacket.instructionalDiagram.sourceTeaching[1].instructionalText='Unsourced';
  expect(verifiedInstructionalSequence({id:'board',filePath:board,instructionalSequences:[sequence]},requirement,'scene')).toBeNull();
  fs.rmSync(folder,{recursive:true,force:true});

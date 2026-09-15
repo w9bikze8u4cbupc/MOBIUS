@@ -9,7 +9,7 @@ export const PROJECT_SOURCE_DESCRIPTOR_CONTRACT = 'mobius-project-source-v1';
 // v1.1 adds the API-backed, evidence-packet rule synthesis endpoint. A worker
 // must not consider a legacy API compatible merely because the older stage
 // names still match.
-export const CANONICAL_PRODUCTION_STAGE_CONTRACT = 'mobius-canonical-production-stages-v1.3';
+export const CANONICAL_PRODUCTION_STAGE_CONTRACT = 'mobius-canonical-production-stages-v1.4';
 // v4 requires content-addressed materialization evidence in the project-owned
 // visual sidecar. A v3 API cannot hydrate those scene/asset references, so it
 // is not safe to begin a production run against it.

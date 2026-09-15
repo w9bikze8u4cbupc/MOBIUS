@@ -8,9 +8,24 @@ const {
   validateRuleAtom,
   buildRuleReviewItems,
   reviewItemContractIssues,
+  productionVisualRequirementForAtom,
 } = require('../../src/services/rulebookKnowledge.cjs');
 
 describe('canonical rulebook intelligence', () => {
+  test('production visual requirements distinguish semantic progression from physical table state', () => {
+    const semantic = productionVisualRequirementForAtom({
+      id: 'gain-points', domain: 'scoring', title: 'Gain points', componentRefs: ['card'],
+      stateChange: 'The player gains points.', stateAfter: 'The score increases.',
+    });
+    expect(semantic).toMatchObject({ transitionRequired: true, requiredState: null, requiredRelationship: null });
+
+    const placement = productionVisualRequirementForAtom({
+      id: 'place-token', domain: 'setup', title: 'Place the token', componentRefs: ['board', 'token'],
+      placement: 'On space 1 of the board.', stateChange: 'Place the token.', stateAfter: 'The token is on space 1.',
+    });
+    expect(placement).toMatchObject({ transitionRequired: true, setupPlacementRequired: true,
+      requiredState: 'The token is on space 1.', requiredRelationship: 'On space 1 of the board.' });
+  });
   test('the reviewed benchmark seed produces complete source-grounded atoms', () => {
     const seed = JSON.parse(fs.readFileSync(path.resolve('config/projects/7-wonders-duel/rulebook-knowledge.v1.json'), 'utf8'));
     const model = buildRulebookKnowledgeModel({ projectSeed: seed });

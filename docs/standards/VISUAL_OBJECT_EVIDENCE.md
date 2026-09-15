@@ -110,6 +110,8 @@ The proof reports and prior attempts are retained in the same evidence tree.
 
 `sourcePageVisuals` synchronizes already stored API page pixels by canonical project/PDF identity. It verifies every page before recording readiness. `prepare-source-visuals` combines source candidates and source-grounded terms; `qualify-source-visuals` performs conservative candidate screening; `match-scene-visuals` produces bounded object-specific pixel measurements; `sourceVisualSelection` carries those measurements into `sourceAssetResolver` and `canonicalProductionCompiler`. The existing project persistence and Cockpit queue own the result.
 
+RuleAtom state prose is not automatically a physical-state assertion. The production teaching-plan v2 recomputes visual obligations from canonical RuleAtom semantics: placement, orientation, face, track, quantity and other material cues remain scene-specific physical requirements, while abstract progression (for example gaining points or ending the game) uses a source-grounded semantic sequence. A semantic composition still requires exact component identity, complete source pixels, purpose correspondence and phone readability; it does not falsely require the unchanged source photograph to depict an abstract state. Cached reviews replay only when exact pixels, labels and the canonicalized requirement remain identical.
+
 An already-authorized exact-edition publisher/BGG candidate has no fabricated
 rulebook page. It is screened in a separate bounded external-source class, with
 its source-owned caption, authority and retrieval provenance retained as search
