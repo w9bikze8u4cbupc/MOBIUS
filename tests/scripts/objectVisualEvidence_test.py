@@ -47,6 +47,34 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(matcher.run(script,qa,Path(directory),1,client)['summary']['providerCalls'],0)
             self.assertIsNone(first['scenes'][0]['selected_asset_id'])
 
+    def test_localized_component_schedules_scene_scoped_track_measurement(self):
+        """Identity and track geometry use distinct packets and provider roles."""
+        with tempfile.TemporaryDirectory() as directory:
+            pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'
+            script = {'scenes': [{'id': 'track', 'source_pages': [2], 'visualRequirement': {
+                'requiredObjects': ['board'], 'trackStateRequired': True,
+                'beforeState': 'Start at 1 Fuel.', 'afterState': 'Fuel is saved next turn.'}}]}
+            qa = {'assets': [{'asset_id': 'localized-board', 'path': str(pixels), 'asset_metadata': {
+                'source_page': 2, 'localizedReferent': 'board', 'layout_text': 'Fuel board'}}]}
+            calls = []
+            component = {'requiredObject': 'board', 'present': True, 'confidence': .99, 'complete': True,
+                'isolated': True, 'stateCompatible': True, 'bbox': [.1, .1, .9, .9], 'reason': 'complete board'}
+            track = {**component, 'trackLabelFrench': 'Carburant', 'trackPoints': [{'value': 1, 'x': .2, 'y': .8}],
+                'stateStages': [{'label': 'Début', 'caption': '1', 'narration': 'Un.', 'position': 1,
+                    'isExample': False, 'sourcePages': [2]}]}
+            def create(**kwargs):
+                calls.append(kwargs)
+                prompt = kwargs['messages'][0]['content'][0]['text']
+                row = track if 'Map the VISIBLE numbered track' in prompt else component
+                return types.SimpleNamespace(usage=None, choices=[types.SimpleNamespace(
+                    message=types.SimpleNamespace(content=json.dumps({'objects': [row]})))])
+            client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            result = matcher.run(script, qa, Path(directory), 2, client)
+            rows = result['scenes'][0]['candidates']
+            self.assertEqual([row['objects'][0]['visualRole'] for row in rows], ['COMPONENT', 'TRACK'])
+            self.assertEqual(result['summary']['providerCalls'], 2)
+            self.assertEqual(len(calls), 2)
+
     @patch.object(matcher, 'MODEL', 'fixture-model')
     def test_bounded_continuation_preserves_history_and_does_not_reopen_auth(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -324,6 +352,30 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(result[-1]['asset_id'], 'background')
             self.assertTrue(all('objects' not in row for row in result))
 
+    def test_stateful_source_terms_rank_retrieval_but_do_not_prove_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            inventory, state_page = Path(directory) / 'inventory', Path(directory) / 'state'
+            inventory.write_bytes(b'inventory')
+            state_page.write_bytes(b'state-page')
+            scene = {'id': 'track', 'source_pages': [7], 'visualRequirement': {
+                'requiredObjects': ['board'], 'trackStateRequired': True,
+                'beforeState': 'Each player begins with 1 Fuel.',
+                'actionState': 'The Fuel marker moves whenever Fuel is gained or used.',
+                'afterState': 'Stored Fuel is saved from one turn to the next.',
+            }}
+            packet = matcher.packet_for(scene, {'board': {
+                'canonicalTerm': 'Character board', 'evidence': [{'page': 3, 'quote': '4 Character boards'}]}})
+            assets = [
+                {'asset_id': 'inventory', 'path': str(inventory), 'asset_metadata': {
+                    'source_page': 3, 'visual_kind': 'source-page-localization', 'layout_text': '4 Character boards and 7 Fuel cubes'}},
+                {'asset_id': 'state-page', 'path': str(state_page), 'asset_metadata': {
+                    'source_page': 17, 'visual_kind': 'source-page-localization',
+                    'layout_text': 'Character abilities spend Fuel. Fuel marker and stored Fuel are kept from one turn to the next.'}},
+            ]
+            result = matcher.candidates_for(packet, assets)
+            self.assertEqual([row['asset_id'] for row in result], ['state-page', 'inventory'])
+            self.assertFalse(any('objects' in row for row in result))
+
     def test_authorized_candidates_preserve_diversity_and_rank_by_authority_after_term_evidence(self):
         """A retrieval hypothesis widens search but cannot collapse a gallery or prove identity."""
         with tempfile.TemporaryDirectory() as directory:
@@ -356,10 +408,20 @@ class ObjectEvidenceTests(unittest.TestCase):
         scenes = [
             {'id': 'summary', 'visualRequirement': {'requiredObjects': ['a', 'b', 'c']}},
             {'id': 'ordinary', 'visualRequirement': {'requiredObjects': ['card']}},
-            {'id': 'track', 'visualRequirement': {'requiredObjects': ['board'], 'trackStateRequired': True, 'transitionRequired': True}}
+            {'id': 'track', 'visualRequirement': {'requiredObjects': ['board'], 'trackStateRequired': True, 'transitionRequired': True}},
+            {'id': 'discovery', 'visualRequirement': {'requiredObjects': ['a', 'b', 'c', 'd'], 'componentDiscovery': True}},
         ]
-        self.assertEqual([scene['id'] for scene in matcher.prioritize_scenes(scenes)], ['track', 'ordinary', 'summary'])
-        self.assertEqual([scene['id'] for scene in scenes], ['summary', 'ordinary', 'track'])
+        self.assertEqual([scene['id'] for scene in matcher.prioritize_scenes(scenes)], ['track', 'ordinary', 'summary', 'discovery'])
+        self.assertEqual([scene['id'] for scene in scenes], ['summary', 'ordinary', 'track', 'discovery'])
+
+    def test_track_geometry_is_scheduled_from_outer_scene_not_identity_packet(self):
+        packet = {'requirement': {'trackStateRequired': True}}
+        scoped = {'requiredObjects': [{'id': 'board'}], 'requirement': {'identityOnly': True}}
+        measured = [{'requiredObject': 'board', 'present': True, 'complete': True,
+            'isolated': True, 'confidence': .95}]
+        self.assertTrue(matcher.should_measure_track_geometry(packet, scoped, 'COMPONENT', measured))
+        self.assertFalse(matcher.should_measure_track_geometry(packet, scoped, 'LOCALIZATION', measured))
+        self.assertFalse(matcher.should_measure_track_geometry(packet, scoped, 'COMPONENT', [{**measured[0], 'complete': False}]))
 
     def test_identity_coverage_prioritizes_reused_single_referent_before_an_unrelated_transition(self):
         scenes = [
@@ -388,6 +450,19 @@ class ObjectEvidenceTests(unittest.TestCase):
         ordered = matcher.prioritize_scenes(scenes, terms, assets)
 
         self.assertEqual([scene['id'] for scene in ordered], ['named-card', 'ordinary-board'])
+
+    def test_external_caption_never_displaces_stateful_teaching_priority(self):
+        scenes = [
+            {'id': 'track', 'visualRequirement': {'requiredObjects': ['board'], 'trackStateRequired': True}},
+            {'id': 'discovery', 'visualRequirement': {'requiredObjects': ['card'], 'componentDiscovery': True}},
+        ]
+        terms = {'board': {'canonicalTerm': 'Game board'}, 'card': {'canonicalTerm': 'Captain card'}}
+        assets = [{
+            'asset_id': 'official-captain', 'path': str(ROOT / 'tests/fixtures/images/test-bg-100x100.png'),
+            'asset_metadata': {'sourceAuthority': 'OFFICIAL_PUBLISHER_HIGH_RES', 'source_page': None,
+                'label': 'Captain card'},
+        }]
+        self.assertEqual([scene['id'] for scene in matcher.prioritize_scenes(scenes, terms, assets)], ['track', 'discovery'])
 
     def test_explicit_bounded_continuation_reuses_complete_scene_and_measures_next_candidate(self):
         """A later Inbox re-open advances deferred work without repeating pixels.
@@ -500,14 +575,14 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(packets[0], packets[1])
             self.assertEqual(packets[0]['sourcePages'], [4])
 
-    def test_component_discovery_runs_before_repeated_teaching_scenes(self):
+    def test_component_discovery_yields_to_a_stateful_teaching_scene(self):
         scenes = [
             {'id': 'lesson', 'visualRequirement': {'requiredObjects': ['card'], 'transitionRequired': True}},
             {'id': 'discovery', 'visualRequirement': {'requiredObjects': ['card', 'token'], 'componentDiscovery': True,
                 'purpose': 'component-identity-discovery'}},
         ]
         ordered = matcher.prioritize_scenes(scenes, {}, [])
-        self.assertEqual([scene['id'] for scene in ordered], ['discovery', 'lesson'])
+        self.assertEqual([scene['id'] for scene in ordered], ['lesson', 'discovery'])
 
     def test_context_enriched_contract_reuses_only_prior_localization_not_component_verdict(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -17,7 +17,7 @@ SEARCH_CONTRACT = "mobius-referent-localization-v1"
 # substage no longer leaks a KeyError into a faux provider-unavailable result.
 # The version is part of the execution cache identity so that a prior local
 # bookkeeping failure is not replayed as if pixels had been inspected.
-SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v10-hdpi-component-discovery'
+SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v11-stateful-component-discovery'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v3'
 RESPONSE_BUDGET_CONTRACT = 'mobius-visual-response-budget-v1'
@@ -189,10 +189,15 @@ def analysis_priority(scene, object_frequency):
     # scene and cannot bind an asset by itself. It only establishes reusable
     # pixel identities before many narrative scenes repeat the same component
     # lookup under a bounded provider budget.
+    # Discovery is reusable work, but is never itself a teaching result. A
+    # bounded inventory pass must not spend all available pixel evidence ahead
+    # of a source-grounded stateful scene such as a track transition.
     if req.get('componentDiscovery'):
-        return (-1, -len(required), 0, str(scene.get('id') or ''))
+        return (3, -len(required), 0, str(scene.get('id') or ''))
     if req.get('trackStateRequired'):
-        state_rank = 0
+        # A track still needs component identity first, but should receive the
+        # next bounded provider slot rather than wait behind an inventory.
+        return (0, 0, 0, str(scene.get('id') or ''))
     elif req.get('transitionRequired'):
         state_rank = 1
     else:
@@ -206,7 +211,7 @@ def analysis_priority(scene, object_frequency):
     # candidates because it can establish an entire measured sequence.
     object_rank = 0 if len(required) == 1 else 1
     reuse_rank = -max((object_frequency.get(ident, 0) for ident in required), default=0)
-    return (object_rank, reuse_rank, state_rank, str(scene.get('id') or ''))
+    return (1, object_rank, reuse_rank, state_rank, str(scene.get('id') or ''))
 
 def external_authorized_term_matches(scene, terms, assets):
     """Count only source-owned external captions that directly overlap a referent.
@@ -251,7 +256,11 @@ def prioritize_scenes(scenes, terms=None, assets=None):
         for ident in ((scene.get('visualRequirement') or {}).get('requiredObjects') or []):
             frequencies[ident] = frequencies.get(ident, 0) + 1
     terms = terms or {}
-    return sorted(scenes, key=lambda scene: (-external_authorized_term_matches(scene, terms, assets), *analysis_priority(scene, frequencies)))
+    # A caption match is useful only among scenes with comparable teaching
+    # urgency.  It must not let a non-teaching discovery packet displace a
+    # stateful lesson merely because a broad gallery caption overlaps a term.
+    return sorted(scenes, key=lambda scene: (*analysis_priority(scene, frequencies),
+        -external_authorized_term_matches(scene, terms, assets)))
 
 def measured_object(row, role=None):
     return (row.get('present') is True and row.get('complete') is True
@@ -348,6 +357,23 @@ def candidates_for(packet, assets):
     tokens = set(re.findall(r'[a-z]{3,}', ' '.join(terms).lower())) - {'the', 'and'}
     requested_ids = {row.get('id') for row in packet.get('requiredObjects') or [] if isinstance(row, dict) and row.get('id')}
     component_evidence_pages = {page for page in packet.get('componentEvidencePages') or [] if isinstance(page, int) and page > 0}
+    requirement = packet.get('requirement') or {}
+    # Stateful source text supplies retrieval vocabulary only. It may rank a
+    # page likely to contain a track above an inventory mention, but cannot
+    # prove that the requested component or state is visible.
+    state_tokens = set()
+    if requirement.get('trackStateRequired') or requirement.get('transitionRequired'):
+        source_state = ' '.join(str(requirement.get(key) or '') for key in ('beforeState', 'actionState', 'afterState'))
+        state_tokens = set(re.findall(r'[a-z]{3,}', source_state.lower())) - {
+            # Player/turn/action verbs are normally distributed throughout a
+            # rulebook and therefore make poor page-localization terms. Keep
+            # the source-specific state nouns (for example a named track or
+            # marker) without introducing any game-specific vocabulary.
+            'the', 'and', 'with', 'from', 'this', 'that', 'each', 'player', 'players',
+            'begin', 'begins', 'beginning', 'move', 'moves', 'whenever', 'gain', 'gained',
+            'use', 'used', 'save', 'saved', 'store', 'stored', 'turn', 'turns', 'next',
+            'after', 'before', 'when', 'then', 'will', 'their', 'they', 'any',
+        }
 
     def bindings(metadata):
         rows = [row for row in metadata.get('component_bindings') or []
@@ -423,6 +449,11 @@ def candidates_for(packet, assets):
         # not merely a coincidental keyword on a later rules page.  Prioritize
         # it for bounded inspection while leaving final identity to pixels.
         score += 12 if m.get('source_page') in component_evidence_pages else 0
+        # A distinct state-term overlap is intentionally stronger than an
+        # inventory-page hint. It is evidence-directed retrieval for a
+        # stateful teaching requirement, never an acceptance signal.
+        state_overlap = sum(min(8, text.count(term)) for term in state_tokens)
+        score += min(48, state_overlap * 6)
         score += 5 if m.get('visual_kind') == 'source-page-localization' else 0
         score += 2 if m.get('source_page') in packet['sourcePages'] else 0
         score -= 20 if re.search(r'background|logo|decorative', str(m.get('classification') or '')) else 0
@@ -441,6 +472,22 @@ def candidates_for(packet, assets):
         result.append(a)
         pages.add(group)
     return result[:6]
+
+
+def should_measure_track_geometry(packet, scoped_packet, role, objects):
+    """Schedule scene-scoped track measurement after a localized component.
+
+    Component identity packets intentionally omit scene state. The outer
+    teaching packet therefore determines whether a following TRACK pass is
+    needed. This preserves the contract boundary: component pixels prove
+    identity; the following full packet proves geometry and state stages.
+    """
+    return (role == 'COMPONENT'
+        and len(scoped_packet.get('requiredObjects') or []) == 1
+        and bool((packet.get('requirement') or {}).get('trackStateRequired'))
+        and all(obj.get('present') and obj.get('complete') and obj.get('isolated')
+            and isinstance(obj.get('confidence'), (int, float)) and obj['confidence'] >= .9
+            for obj in objects or []))
 
 
 def native_localization_alternatives(asset, assets):
@@ -974,8 +1021,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                 result.update(status="MEASURED", objects=[{**r, "contract": CONTRACT, "assetId": asset["asset_id"],
                     "imageSha256": image_hash, "evidencePacketHash": packet_hash, "model": MODEL,
                     "method": "provider-pixel-analysis", "visualRole": role, "evidenceRequirement": packet['requirement']} for r in objects])
-                if role == 'COMPONENT' and len(packet['requiredObjects']) == 1 and packet['requirement'].get('trackStateRequired') and all(
-                    o['present'] and o['complete'] and o['isolated'] and o['confidence'] >= .9 for o in objects):
+                if should_measure_track_geometry(packet, scoped_packet, role, objects):
                     queue.insert(queue.index(asset)+1,{**asset,'asset_metadata':{**(asset.get('asset_metadata') or {}),'visual_kind':'track-geometry'}})
                 if role == 'LOCALIZATION':
                     if any(o['present'] and o['confidence'] >= .9 for o in objects):

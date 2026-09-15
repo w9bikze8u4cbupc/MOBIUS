@@ -88,6 +88,14 @@ No extraction is required when source pages and HEPHAESTUS already exist. Differ
 
 ### High-detail localization and component discovery
 
+Stateful teaching requirements (a track, a transition, or retained state) take
+priority over reusable inventory discovery under a bounded visual-provider
+budget.  Rule-derived state words may rank an already relevant official page
+for localization, but never prove a component, crop, or state.  Once a
+complete localized component passes the identity gate, its scene may schedule
+a separate track-geometry measurement using the full source-bound state
+packet; component identity alone never validates the state sequence.
+
 When the synchronized API page is too small to support reliable localization,
 the normal source-visual preparation path may rasterize only the cited official
 PDF pages at 300 dpi. The cache is keyed by canonical PDF path, SHA, page and
