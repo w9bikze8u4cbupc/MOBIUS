@@ -8,6 +8,7 @@ const {
   buildAuthorizedRecoveryTargets,
   authorizedCandidatesForVisualAnalysis,
   recoverOfficialPublisherCandidates,
+  productEvidenceFromHtml,
   publisherOriginsFromDocumentMap,
 } = require('../../src/services/sourceAssetResolver.cjs');
 const { sourceAuthorityRank } = require('../../src/services/sourceDetailLineage.cjs');
@@ -123,6 +124,7 @@ test('measured local templates enter authorized recovery as hypotheses and keep 
 test('recovers publisher candidates only from an exact title on a rulebook-disclosed domain', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-official-publisher-'));
   const imageBytes = fs.readFileSync(publisherFixture);
+  const galleryBytes = await require('sharp')(imageBytes).resize({ width: 640 }).png().toBuffer();
   const calls = [];
   const response = ({ url, text, bytes, type = 'text/html' }) => ({ ok: true, url,
     headers: { get: (name) => name === 'content-type' ? type : (name === 'content-length' && bytes ? String(bytes.length) : null) },
@@ -130,26 +132,41 @@ test('recovers publisher candidates only from an exact title on a rulebook-discl
   const fetchImpl = async (url) => {
     calls.push(url);
     if (url.includes('post_type=product')) return response({ url, text: '<a href="/shop/cowboy">Cowboy Bebop: Space Serenade</a>' });
-    if (url.includes('/shop/cowboy')) return response({ url, text: '<script type="application/ld+json">{"@type":"Product","name":"Cowboy Bebop: Space Serenade","image":"https://cdn.publisher.test/cowboy.png"}</script>' });
+    if (url.includes('/shop/cowboy')) return response({ url, text: [
+      '<script type="application/ld+json">{"@type":"Product","name":"Cowboy Bebop: Space Serenade","image":"https://cdn.publisher.test/cowboy.png"}</script>',
+      '<a class="product-lightbox" data-fancybox="game-gallery" data-caption="Character miniature" href="https://cdn.publisher.test/character.jpg">Character</a>',
+      '<a class="product-lightbox" data-fancybox="game-gallery" href="https://cdn.publisher.test/character.jpg">Duplicate</a>',
+      '<a class="site-link" href="https://cdn.publisher.test/unrelated.jpg">Unrelated page image</a>',
+    ].join('') });
+    if (url.includes('cdn.publisher.test/character')) return response({ url, bytes: galleryBytes, type: 'image/png' });
     if (url.includes('cdn.publisher.test')) return response({ url, bytes: imageBytes, type: 'image/png' });
     return { ok: false, status: 404, headers: { get: () => null } };
   };
   try {
+    expect(productEvidenceFromHtml('<script type="application/ld+json">{"@type":"Product","name":"Cowboy Bebop: Space Serenade","image":"https://cdn.publisher.test/cowboy.png"}</script><a class="product-lightbox" data-fancybox="game-gallery" data-caption="Character miniature" href="https://cdn.publisher.test/character.jpg">Character</a>', 'Cowboy Bebop - Space Serenade').images)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ caption: 'Character miniature', sourceKind: 'publisher-product-page-gallery' })]));
+    const manifestPath = path.join(directory, 'official-publisher-candidate-manifest.json');
+    fs.writeFileSync(manifestPath, JSON.stringify({ inputHash: 'legacy-recovery-contract', candidates: [{ id: 'historical' }] }));
     const documentMap = { pages: [{ humanPageNumber: 18, normalizedText: 'Publisher: www.publisher.test' }] };
     expect(publisherOriginsFromDocumentMap(documentMap)).toEqual([expect.objectContaining({ origin: 'https://www.publisher.test', page: 18 })]);
     const recovered = await recoverOfficialPublisherCandidates({ title: 'Cowboy Bebop - Space Serenade', documentMap,
       sourceSha256: 'a'.repeat(64), requiredComponentIds: ['comp-a', 'comp-b'], outputDir: directory, fetchImpl });
     expect(recovered.status).toBe('RECOVERED');
-    expect(recovered.candidates).toHaveLength(1);
-    expect(recovered.candidates[0]).toMatchObject({ sourceAuthority: 'OFFICIAL_PUBLISHER_HIGH_RES', retrievalComponentRefs: ['comp-a', 'comp-b'] });
+    expect(recovered.contract).toBe('mobius-official-publisher-source-recovery-v2');
+    expect(recovered.candidates).toHaveLength(2);
+    expect(recovered.candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourceAuthority: 'OFFICIAL_PUBLISHER_HIGH_RES', retrievalComponentRefs: ['comp-a', 'comp-b'], provenance: expect.objectContaining({ retrievalKind: 'publisher-product-page-gallery' }) }),
+      expect.objectContaining({ provenance: expect.objectContaining({ retrievalKind: 'product-jsonld' }) }),
+    ]));
     expect(fs.existsSync(recovered.candidates[0].filePath)).toBe(true);
+    expect(fs.existsSync(path.join(directory, 'history', 'official-publisher-candidate-manifest.legacy-recovery-contract.json'))).toBe(true);
     const input = authorizedCandidatesForVisualAnalysis([recovered.originalManifest]);
     expect(input.assets[0].componentRefs).toEqual([]);
     expect(input.assets[0].component_bindings.map((entry) => entry.componentId)).toEqual(['comp-a', 'comp-b']);
     const replay = await recoverOfficialPublisherCandidates({ title: 'Cowboy Bebop - Space Serenade', documentMap,
       sourceSha256: 'a'.repeat(64), requiredComponentIds: ['comp-a', 'comp-b'], outputDir: directory, fetchImpl });
     expect(replay.reused).toBe(true);
-    expect(calls.filter((url) => url.includes('cdn.publisher.test'))).toHaveLength(1);
+    expect(calls.filter((url) => url.includes('cdn.publisher.test'))).toHaveLength(2);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

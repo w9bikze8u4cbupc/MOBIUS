@@ -673,6 +673,45 @@ function jsonLdProductNodes(value, nodes = []) {
   return nodes;
 }
 
+function htmlAttribute(tag = '', name = '') {
+  const wanted = String(name).toLowerCase();
+  const attributes = /\b([a-z][a-z0-9:_-]*)\s*=\s*(["'])([\s\S]*?)\2/gi;
+  for (let match; (match = attributes.exec(String(tag)));) {
+    if (match[1].toLowerCase() === wanted) return htmlDecode(match[3]);
+  }
+  return '';
+}
+
+function isImageUrl(value = '') {
+  try {
+    const parsed = new URL(value, 'https://mobius.invalid');
+    return /^https?:$/i.test(parsed.protocol) && /(?:\.(?:avif|gif|jpe?g|png|webp)(?:$|[?#])|\/image\/)/i.test(`${parsed.pathname}${parsed.search}`);
+  } catch { return false; }
+}
+
+// A publisher page may use a CMS gallery rather than placing every product
+// image in JSON-LD.  We only admit explicitly marked gallery/lightbox links
+// from a page whose Product JSON-LD has already matched the exact title.
+// The gallery caption remains a retrieval hint, never a component binding.
+function publisherGalleryImages(html = '') {
+  const images = [];
+  const anchors = /<a\b[^>]*>/gi;
+  for (let match; (match = anchors.exec(String(html)));) {
+    const tag = match[0];
+    const href = htmlAttribute(tag, 'href');
+    const className = htmlAttribute(tag, 'class');
+    const fancybox = htmlAttribute(tag, 'data-fancybox');
+    const gallery = /(?:gallery|lightbox|product-gallery)/i.test(`${className} ${fancybox}`);
+    if (!gallery || !isImageUrl(href)) continue;
+    images.push({
+      url: href,
+      caption: clean(htmlAttribute(tag, 'data-caption') || htmlAttribute(tag, 'title') || htmlAttribute(tag, 'aria-label')) || null,
+      sourceKind: 'publisher-product-page-gallery',
+    });
+  }
+  return [...new Map(images.map((image) => [image.url, image])).values()];
+}
+
 function productEvidenceFromHtml(html, title) {
   const wanted = externalTitleKey(title);
   const nodes = [];
@@ -684,8 +723,11 @@ function productEvidenceFromHtml(html, title) {
   const product = nodes.find((node) => externalTitleKey(node.name) === wanted) || null;
   if (!product) return null;
   const image = Array.isArray(product.image) ? product.image : [product.image];
-  const images = image.map((entry) => typeof entry === 'string' ? entry : entry?.url).filter(Boolean);
-  return { title: stripHtml(product.name), images: [...new Set(images)] };
+  const jsonLdImages = image.map((entry) => typeof entry === 'string' ? entry : entry?.url).filter(Boolean)
+    .map((url) => ({ url, caption: null, sourceKind: 'product-jsonld' }));
+  const images = [...new Map([...jsonLdImages, ...publisherGalleryImages(html)]
+    .map((entry) => [entry.url, entry])).values()];
+  return { title: stripHtml(product.name), images };
 }
 
 async function fetchExternalText(fetchImpl, url, accept = 'text/html,application/json;q=0.9') {
@@ -723,16 +765,24 @@ async function downloadOfficialImage(fetchImpl, url, target) {
 async function recoverOfficialPublisherCandidates({ title, documentMap, sourceSha256, requiredComponentIds = [], outputDir, fetchImpl = fetch } = {}) {
   if (!title || !outputDir || !/^[a-f0-9]{64}$/i.test(String(sourceSha256 || ''))) throw new Error('Official publisher recovery requires title, source SHA and output directory.');
   const origins = publisherOriginsFromDocumentMap(documentMap);
-  const input = { contract: 'mobius-official-publisher-source-recovery-v1', title, sourceSha256,
+  const input = { contract: 'mobius-official-publisher-source-recovery-v2', title, sourceSha256,
     origins, requiredComponentIds: [...new Set(requiredComponentIds)].sort() };
   const inputHash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
   const absoluteOutput = path.resolve(outputDir);
   const manifestPath = path.join(absoluteOutput, 'official-publisher-candidate-manifest.json');
+  await fs.promises.mkdir(absoluteOutput, { recursive: true });
   try {
     const previous = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     if (previous.inputHash === inputHash) return { ...previous, originalManifest: manifestPath, reused: true };
+    // A source-recovery contract upgrade is evidence, not a reason to discard
+    // the prior candidate decision.  Archive it before writing the new
+    // canonical manifest so Cockpit/history can still audit the old run.
+    if (previous?.inputHash) {
+      const archivePath = path.join(absoluteOutput, 'history', `official-publisher-candidate-manifest.${previous.inputHash}.json`);
+      await fs.promises.mkdir(path.dirname(archivePath), { recursive: true });
+      if (!fs.existsSync(archivePath)) await fs.promises.writeFile(archivePath, JSON.stringify(previous, null, 2));
+    }
   } catch { /* Fresh or incompatible recovery. */ }
-  await fs.promises.mkdir(absoluteOutput, { recursive: true });
   const productPages = [];
   for (const originRecord of origins) {
     const query = encodeURIComponent(title);
@@ -753,6 +803,8 @@ async function recoverOfficialPublisherCandidates({ title, documentMap, sourceSh
   }
   const candidates = [];
   const visitedPages = new Set();
+  const visitedImageUrls = new Set();
+  const visitedImageHashes = new Set();
   for (const { url, originRecord } of productPages) {
     if (visitedPages.has(url) || candidates.length >= 12) continue;
     visitedPages.add(url);
@@ -760,9 +812,11 @@ async function recoverOfficialPublisherCandidates({ title, documentMap, sourceSh
     if (!page || !samePublicOrigin(page.url, originRecord.origin)) continue;
     const product = productEvidenceFromHtml(page.text, title);
     if (!product) continue;
-    for (const imageUrl of product.images.slice(0, 8)) {
+    for (const image of product.images.slice(0, 12)) {
       let absoluteImage;
-      try { absoluteImage = new URL(imageUrl, page.url).href; } catch { continue; }
+      try { absoluteImage = new URL(image.url, page.url).href; } catch { continue; }
+      if (visitedImageUrls.has(absoluteImage)) continue;
+      visitedImageUrls.add(absoluteImage);
       const id = `official-publisher-${crypto.createHash('sha256').update(absoluteImage).digest('hex').slice(0, 20)}`;
       const extension = path.extname(new URL(absoluteImage).pathname).replace(/[^a-z0-9.]/gi, '').slice(0, 8) || '.img';
       const localPath = path.join(absoluteOutput, 'images', `${id}${extension}`);
@@ -771,11 +825,15 @@ async function recoverOfficialPublisherCandidates({ title, documentMap, sourceSh
         ? await sharp(localPath, { limitInputPixels: 64e6 }).metadata().then(meta => ({ width: meta.width, height: meta.height, sha256: crypto.createHash('sha256').update(fs.readFileSync(localPath)).digest('hex') })).catch(() => null)
         : await downloadOfficialImage(fetchImpl, absoluteImage, localPath);
       if (!detail) continue;
+      if (visitedImageHashes.has(detail.sha256)) continue;
+      visitedImageHashes.add(detail.sha256);
       candidates.push({ id, status: 'RECOVERED', localPath, filePath: localPath, sourceUrl: absoluteImage, canonicalLink: page.url,
         width: detail.width, height: detail.height, trueDetailDimensions: { width: detail.width, height: detail.height }, sha256: detail.sha256,
         sourceAuthority: 'OFFICIAL_PUBLISHER_HIGH_RES', retrievalComponentRefs: [...new Set(requiredComponentIds)],
         sourceRefs: [{ page: originRecord.page, sourceUrl: originRecord.sourceUrl, source: 'rulebook-disclosed-publisher-domain' }],
-        provenance: { contract: input.contract, productTitle: product.title, productUrl: page.url, discoverySource: originRecord.sourceUrl } });
+        caption: image.caption,
+        provenance: { contract: input.contract, productTitle: product.title, productUrl: page.url, discoverySource: originRecord.sourceUrl,
+          retrievalKind: image.sourceKind } });
     }
   }
   const result = { ...input, inputHash, authority: 'rulebook-disclosed-publisher-exact-title-product-page',
@@ -887,6 +945,7 @@ module.exports = {
   rankSourceAssetCandidates,
   recoverAuthorizedBggCandidates,
   recoverOfficialPublisherCandidates,
+  productEvidenceFromHtml,
   publisherOriginsFromDocumentMap,
   rectifyAuthorizedCandidate,
   resolveSourceAssets,
