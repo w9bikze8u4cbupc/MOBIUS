@@ -59,14 +59,29 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(first, matcher.authorize_continuation(ledger, mandate))
             resumed = json.loads(ledger.read_text())
             self.assertEqual(resumed['calls'], original['calls'])
-            self.assertEqual(resumed['maxTotal'], 4)
-            self.assertEqual(resumed['groupCaps'], {'a': 3, 'b': 1})
+            self.assertEqual(resumed['maxTotal'], 18)
+            self.assertEqual(resumed['groupCaps'], {'a': 10, 'b': 8})
             self.assertEqual(first['priorBlocker'], original['providerBlocker'])
             with patch.dict(matcher.os.environ, {'MOBIUS_VISUAL_BUDGET_LEDGER': str(ledger), 'MOBIUS_VISUAL_BUDGET_GROUP': 'b'}):
-                self.assertFalse(matcher.reserve_call({'test': True}))
+                self.assertTrue(matcher.reserve_call({'test': True}))
             original['providerBlocker'] = 'AuthenticationError; HTTP 401'
             ledger.write_text(json.dumps(original))
             with self.assertRaises(ValueError): matcher.authorize_continuation(ledger, mandate)
+
+    @patch.object(matcher, 'MODEL', 'fixture-model')
+    def test_later_continuation_preserves_unspent_prior_group_caps(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger, mandate = Path(directory) / 'budget.json', Path(directory) / 'mandate.json'
+            ledger.write_text(json.dumps({'maxTotal': 40, 'maxPerGroup': 8,
+                'groupCaps': {'source': 24, 'composition': 32},
+                'calls': [{'group': 'source'}]}))
+            mandate.write_text(json.dumps({'id': 'default-resume', 'model': matcher.MODEL,
+                'authorization': 'operator fixture', 'reason': 'resume deferred source measurements',
+                'additionalCallsByGroup': {'default': 8}}))
+            matcher.authorize_continuation(ledger, mandate)
+            resumed = json.loads(ledger.read_text())
+            self.assertEqual(resumed['maxTotal'], 48)
+            self.assertEqual(resumed['groupCaps'], {'source': 24, 'composition': 32, 'default': 16})
 
     def test_invalid_provider_verdict_preserves_response_and_suspends_without_retry(self):
         with tempfile.TemporaryDirectory() as directory:

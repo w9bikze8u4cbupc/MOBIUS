@@ -543,6 +543,14 @@ def authorize_continuation(filename, request_path):
         if re.search(r'401|403|429|Authentication|quota|credit', blocker, re.I):
             raise ValueError('Access/account failure requires verified access recovery, not extra budget')
         spent = {g: sum(r['group'] == g for r in data['calls']) for g in set(allocations) | {r['group'] for r in data['calls']}}
+        # A continuation extends a durable mission; it must never replace an
+        # earlier unused group allocation. Legacy ledgers without explicit
+        # per-group caps retain their normal maxPerGroup allowance.
+        prior_group_caps = dict(data.get('groupCaps') or {})
+        base_group_caps = {
+            group: int(prior_group_caps.get(group, data['maxPerGroup']))
+            for group in set(spent) | set(prior_group_caps) | set(allocations)
+        }
         record = {'id': ident, 'recordedAt': datetime.now(timezone.utc).isoformat(),
             'requestHash': request_hash, 'requestPath': str(request_file), 'model': MODEL,
             'authorization': request['authorization'], 'reason': request['reason'],
@@ -550,8 +558,8 @@ def authorize_continuation(filename, request_path):
             'priorMaxPerGroup': data['maxPerGroup'], 'callsPreserved': len(data['calls']),
             'additionalCallsByGroup': allocations}
         history.append(record)
-        data['maxTotal'] = len(data['calls']) + sum(allocations.values())
-        data['groupCaps'] = {g: n + allocations.get(g, 0) for g, n in spent.items()}
+        data['maxTotal'] = int(data['maxTotal']) + sum(allocations.values())
+        data['groupCaps'] = {g: n + allocations.get(g, 0) for g, n in base_group_caps.items()}
         data['providerBlocker'] = None
         data['recoveryEpoch'] = ident
         tmp = ledger.with_suffix('.tmp')
