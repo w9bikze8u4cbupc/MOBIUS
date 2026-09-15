@@ -56,7 +56,8 @@ const ACTUAL_PIXEL_CLASSIFICATIONS = new Set([
 ]);
 
 function isPhysicalRuleAtom(atom = {}) {
-  if (atom.actualGameAssetRequired === false) return false;
+  if (atom.actualGameAssetRequired === false || atom.visualRequirement?.actualGameAssetRequired === false) return false;
+  if (atom.actualGameAssetRequired === true || atom.visualRequirement?.actualGameAssetRequired === true) return true;
   return PHYSICAL_DOMAINS.has(atom.domain)
     || (atom.componentRefs || []).length > 0
     || (atom.visualRequirement?.requiredObjects || []).length > 0;
@@ -299,7 +300,10 @@ function validateVisualPlan(plan, assets = []) {
   if (plan.alignment.horizontal !== 'CENTER') violations.push('static-visual-not-horizontally-centered');
   if (plan.alignment.vertical !== 'CENTER') violations.push('static-visual-not-vertically-centered');
   if (plan.alignment.fit !== 'CONTAIN') violations.push('static-visual-not-contained');
-  if (plan.minimumRepresentativeAssets > 0 && selected.length < plan.minimumRepresentativeAssets) {
+  // Representative source imagery is a physical/example density gate.  A
+  // source-cited abstract rule that explicitly needs no game pixels may use
+  // the canonical text-teaching presentation without inventing assets.
+  if (plan.actualGameAssetRequired && plan.minimumRepresentativeAssets > 0 && selected.length < plan.minimumRepresentativeAssets) {
     violations.push('representative-asset-density-below-minimum');
   }
   if (plan.mobileMinimumAssetWidthPx > 0 && selected.some((asset) => Number(asset.minimumRenderedWidthPx || plan.mobileMinimumAssetWidthPx) < plan.mobileMinimumAssetWidthPx)) {

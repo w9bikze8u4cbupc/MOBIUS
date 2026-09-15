@@ -67,6 +67,15 @@ test('derived state stages preserve their RuleAtom citations', () => {
  ]);
 });
 
+test('an omitted physical quantity remains unknown instead of becoming a false zero', () => {
+ const state = derivePhysicalGameState({
+   id: 'unquantified-card', sourceRefs: [{ page: 8 }], confidence: .95, reviewState: 'accepted',
+   visualRequirement: { requiredObjects: ['deck'], transitionRequired: true,
+     beforeState: 'The deck is separate', afterState: 'The deck is ready' },
+ });
+ expect(state.stages.map(stage => stage.items[0].quantity)).toEqual([null, null]);
+});
+
 test('a semantic teaching sequence is accepted only with its exact source-grounded labels',()=>{
  const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
  const {verifiedInstructionalSequence}=require('../../src/services/physicalGameState.cjs');

@@ -43,6 +43,17 @@ describe('canonical VisualPlan', () => {
     expect(validateVisualPlan(plan, [abstract]).violations).toEqual(expect.arrayContaining(['actual-game-asset-required', 'abstract-proxy-as-component']));
   });
 
+  test('a cited nonphysical rule does not require decorative representative assets', () => {
+    const abstractRule = {
+      id: 'winner', domain: 'scoring', reviewState: 'accepted', confidence: .96,
+      visualRequirement: { actualGameAssetRequired: false, requiredObjects: [], representativeExamplesRequired: true },
+    };
+    const plan = normalizeVisualPlan({ ruleAtomId: abstractRule.id, reviewState: 'accepted',
+      minimumRepresentativeAssets: 2 }, abstractRule);
+    expect(plan.minimumRepresentativeAssets).toBe(2);
+    expect(validateVisualPlan(plan, [])).toMatchObject({ valid: true, violations: [] });
+  });
+
   test('real source-grounded assets satisfy centered contain defaults', () => {
     const [plan] = compileVisualPlans({
       atoms: [atom],

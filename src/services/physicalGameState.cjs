@@ -113,7 +113,12 @@ function normalizePhysicalItem(item = {}) {
     faceState: FACE_STATES.has(faceState) ? faceState : 'UNKNOWN',
     visibility: VISIBILITY_STATES.has(visibility) ? visibility : 'UNKNOWN',
     owner: clean(item.owner) || null,
-    quantity: Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : null,
+    // `Number(null)` and `Number('')` are both zero.  Treating an omitted
+    // quantity as a measured zero creates a false physical state and causes
+    // the renderer to label a visibly present component “Quantité 0”.
+    quantity: item.quantity === null || item.quantity === undefined || item.quantity === ''
+      ? null
+      : (Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : null),
     trackPosition: item.trackPosition ?? null,
     coveredBy: unique((item.coveredBy || []).map(clean)),
     covers: unique((item.covers || []).map(clean)),
