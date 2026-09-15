@@ -152,7 +152,7 @@ test('recovers publisher candidates only from an exact title on a rulebook-discl
     const recovered = await recoverOfficialPublisherCandidates({ title: 'Cowboy Bebop - Space Serenade', documentMap,
       sourceSha256: 'a'.repeat(64), requiredComponentIds: ['comp-a', 'comp-b'], outputDir: directory, fetchImpl });
     expect(recovered.status).toBe('RECOVERED');
-    expect(recovered.contract).toBe('mobius-official-publisher-source-recovery-v2');
+    expect(recovered.contract).toBe('mobius-official-publisher-source-recovery-v3');
     expect(recovered.candidates).toHaveLength(2);
     expect(recovered.candidates).toEqual(expect.arrayContaining([
       expect.objectContaining({ sourceAuthority: 'OFFICIAL_PUBLISHER_HIGH_RES', retrievalComponentRefs: ['comp-a', 'comp-b'], provenance: expect.objectContaining({ retrievalKind: 'publisher-product-page-gallery' }) }),
@@ -161,7 +161,11 @@ test('recovers publisher candidates only from an exact title on a rulebook-discl
     expect(fs.existsSync(recovered.candidates[0].filePath)).toBe(true);
     expect(fs.existsSync(path.join(directory, 'history', 'official-publisher-candidate-manifest.legacy-recovery-contract.json'))).toBe(true);
     const input = authorizedCandidatesForVisualAnalysis([recovered.originalManifest]);
+    const gallery = recovered.candidates.find((candidate) => candidate.provenance?.retrievalKind === 'publisher-product-page-gallery');
+    const galleryInput = input.assets.find((candidate) => candidate.id === gallery.id);
     expect(input.assets[0].componentRefs).toEqual([]);
+    expect(gallery.caption).toBe('Character miniature');
+    expect(galleryInput).toMatchObject({ label: gallery.caption, provenance: expect.objectContaining({ retrievalKind: 'publisher-product-page-gallery' }) });
     expect(input.assets[0].component_bindings.map((entry) => entry.componentId)).toEqual(['comp-a', 'comp-b']);
     const replay = await recoverOfficialPublisherCandidates({ title: 'Cowboy Bebop - Space Serenade', documentMap,
       sourceSha256: 'a'.repeat(64), requiredComponentIds: ['comp-a', 'comp-b'], outputDir: directory, fetchImpl });

@@ -77,6 +77,13 @@ The proof reports and prior attempts are retained in the same evidence tree.
 
 `sourcePageVisuals` synchronizes already stored API page pixels by canonical project/PDF identity. It verifies every page before recording readiness. `prepare-source-visuals` combines source candidates and source-grounded terms; `qualify-source-visuals` performs conservative candidate screening; `match-scene-visuals` produces bounded object-specific pixel measurements; `sourceVisualSelection` carries those measurements into `sourceAssetResolver` and `canonicalProductionCompiler`. The existing project persistence and Cockpit queue own the result.
 
+An already-authorized exact-edition publisher/BGG candidate has no fabricated
+rulebook page. It is screened in a separate bounded external-source class, with
+its source-owned caption, authority and retrieval provenance retained as search
+hints. Duplicate gallery markup cannot erase a more descriptive caption. These
+hints may prioritize a pixel inspection, but never constitute object identity,
+crop completeness or acceptance.
+
 No extraction is required when source pages and HEPHAESTUS already exist. Different worker/API data roots must not produce an empty focused-crop manifest after a false ready checkpoint. Page synchronization is read-only at the API and validates source SHA/page count, scoped URLs, image decoding and local checksums.
 
 ## Hypothesis versus measurement versus acceptance

@@ -16,7 +16,7 @@ const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v2';
 // This version is also a dependency of the orchestration checkpoint.  Keep it
 // exported so a recovery implementation change cannot be silently hidden by a
 // still-valid outer checkpoint.
-const OFFICIAL_PUBLISHER_SOURCE_RECOVERY_CONTRACT = 'mobius-official-publisher-source-recovery-v2';
+const OFFICIAL_PUBLISHER_SOURCE_RECOVERY_CONTRACT = 'mobius-official-publisher-source-recovery-v3';
 const AUTO_ACCEPT_CONFIDENCE = 0.82;
 const AUTO_ACCEPT_MARGIN = 0.08;
 
@@ -53,7 +53,7 @@ function normalizeCandidate(asset = {}) {
   const height = Number(asset.nativeHeightPx || asset.trueDetailDimensions?.height || asset.original_dimensions?.height || asset.sourceDimensions?.height || asset.height || asset.dimensions?.height || 0);
   const semanticObjects = [
     ...(asset.semanticObjects || []), ...(asset.semanticTags || []),
-    asset.componentRef, asset.componentName, asset.label, asset.category, asset.description,
+    asset.componentRef, asset.componentName, asset.label, asset.caption, asset.title, asset.alt, asset.category, asset.description,
   ].filter(Boolean);
   return {
     ...asset,
@@ -480,7 +480,12 @@ function loadAuthorizedCandidateManifests(manifestPaths = []) {
       candidates.push(normalizeCandidate({
         ...row,
         sourceAuthority: row.sourceAuthority || (/bgg/i.test(payload.authority || '') ? 'OFFICIAL_BGG_ASSET' : payload.authority),
-        provenance: { manifestPath: absolute, authority: payload.authority || null, sourceUrl: row.sourceUrl || row.canonicalLink || null },
+        // Preserve the source-specific recovery provenance (for example a
+        // publisher gallery caption/kind) while adding the manifest that made
+        // it available to this production run.  A candidate must remain
+        // traceable through the same project/Cockpit evidence path.
+        provenance: { ...(row.provenance || {}), manifestPath: absolute, authority: payload.authority || null,
+          sourceUrl: row.sourceUrl || row.canonicalLink || null },
       }));
     }
     provenance.push({ path: absolute, contract: payload.contract || payload.schemaVersion || null, authority: payload.authority || null });
@@ -556,7 +561,7 @@ function authorizedCandidatesForVisualAnalysis(manifestPaths = []) {
         original_dimensions: { width: candidate.nativeWidthPx || candidate.width, height: candidate.nativeHeightPx || candidate.height },
         trueDetailDimensions: candidate.trueDetailDimensions || { width: candidate.width, height: candidate.height },
         category: candidate.category || 'authorized-exact-game-gallery-candidate',
-        label: candidate.caption || candidate.id,
+        label: candidate.caption || candidate.label || candidate.id,
         provenance: candidate.provenance || {},
       };
     }),
@@ -698,7 +703,7 @@ function isImageUrl(value = '') {
 // from a page whose Product JSON-LD has already matched the exact title.
 // The gallery caption remains a retrieval hint, never a component binding.
 function publisherGalleryImages(html = '') {
-  const images = [];
+  const images = new Map();
   const anchors = /<a\b[^>]*>/gi;
   for (let match; (match = anchors.exec(String(html)));) {
     const tag = match[0];
@@ -707,13 +712,20 @@ function publisherGalleryImages(html = '') {
     const fancybox = htmlAttribute(tag, 'data-fancybox');
     const gallery = /(?:gallery|lightbox|product-gallery)/i.test(`${className} ${fancybox}`);
     if (!gallery || !isImageUrl(href)) continue;
-    images.push({
+    const image = {
       url: href,
       caption: clean(htmlAttribute(tag, 'data-caption') || htmlAttribute(tag, 'title') || htmlAttribute(tag, 'aria-label')) || null,
       sourceKind: 'publisher-product-page-gallery',
-    });
+    };
+    // Gallery templates often repeat the same lightbox URL in a thumbnail
+    // whose markup has no caption. Retain the most descriptive source-owned
+    // retrieval hint instead of letting that duplicate erase it. The caption
+    // remains only a candidate-search term; pixel evidence still decides
+    // component identity and acceptance.
+    const previous = images.get(image.url);
+    if (!previous || (!previous.caption && image.caption)) images.set(image.url, image);
   }
-  return [...new Map(images.map((image) => [image.url, image])).values()];
+  return [...images.values()];
 }
 
 function productEvidenceFromHtml(html, title) {

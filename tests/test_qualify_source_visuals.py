@@ -1,4 +1,7 @@
 import importlib.util
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 from PIL import Image
@@ -58,3 +61,25 @@ def test_real_detail_is_not_rejected_by_low_information_guard():
     })
 
     assert verdict["category"] == "uncertain"
+
+
+def test_authorized_external_candidate_reaches_local_screening_without_a_fake_page(tmp_path):
+    image = tmp_path / "character.png"
+    Image.new("RGB", (640, 960), (80, 90, 100)).save(image)
+    script = tmp_path / "script.json"
+    manifest = tmp_path / "manifest.json"
+    output = tmp_path / "quality.json"
+    script.write_text(json.dumps({"scenes": [{"source_pages": [3], "visualRequirement": {"requiredObjects": ["character"]}}]}), encoding="utf-8")
+    manifest.write_text(json.dumps({"images": [{
+        "id": "official-character", "file_path": str(image), "width": 640, "height": 960,
+        "sourceAuthority": "OFFICIAL_PUBLISHER_HIGH_RES", "label": "Character miniature",
+        "component_bindings": [{"componentId": "character", "reviewState": "hypothesis"}],
+    }]}), encoding="utf-8")
+
+    subprocess.run([sys.executable, str(MODULE_PATH), str(script), str(manifest), str(output)], check=True, capture_output=True, text=True)
+    rows = json.loads(output.read_text(encoding="utf-8"))["assets"]
+
+    assert len(rows) == 1
+    assert rows[0]["page_index"] is None
+    assert rows[0]["asset_metadata"]["label"] == "Character miniature"
+    assert rows[0]["asset_metadata"]["sourceAuthority"] == "OFFICIAL_PUBLISHER_HIGH_RES"

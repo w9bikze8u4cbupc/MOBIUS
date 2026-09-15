@@ -22,6 +22,12 @@ MODEL = os.getenv("MOBIUS_VISUAL_QA_MODEL") or os.getenv("OPENAI_MODEL") or "gpt
 MAX_PER_PAGE = 18
 MAX_PER_TYPE = 6
 MAX_BOUND_HYPOTHESES_PER_PAGE = 6
+# Exact-edition publisher/BGG candidates have no rulebook page index. They
+# arrive only through the canonical, already-bounded authorized manifest; keep
+# them eligible for local screening so the object matcher can inspect pixels.
+# They remain hypotheses: neither authority nor an external caption accepts a
+# component before the later object-scoped evidence gate.
+MAX_EXTERNAL_AUTHORIZED_CANDIDATES = 12
 
 SCHEMA = {
     "type": "json_schema",
@@ -147,6 +153,12 @@ def eligible_hypothesis(asset: dict) -> bool:
     return asset.get("is_component") is not False
 
 
+def authorized_external_candidate(asset: dict) -> bool:
+    authority = str(asset.get("sourceAuthority") or asset.get("source_authority") or "").upper()
+    return (asset.get("source_page") is None and asset.get("page_index") is None
+            and ("OFFICIAL_PUBLISHER" in authority or "AUTHORIZED_EXACT_EDITION" in authority or "OFFICIAL_BGG" in authority))
+
+
 def image_data_url(image_path: Path) -> str:
     # HEPHAESTUS intentionally preserves source pixels and may produce very
     # large native rasters. Vision QA needs the visual evidence, not a 241 MB
@@ -199,8 +211,15 @@ def main() -> None:
                                for referent in (scene.get("visualRequirement") or {}).get("requiredObjects", [])
                                if isinstance(referent, str) and referent}
     by_page: dict[int, list[dict]] = {}
+    external_authorized: list[dict] = []
     for asset in manifest.get("images", []):
         if not eligible_hypothesis(asset):
+            continue
+        if authorized_external_candidate(asset):
+            resolved = asset_path(asset, manifest_path)
+            width, height = dimensions(asset)
+            if resolved and width >= 96 and height >= 96 and width * height >= 20000:
+                external_authorized.append(asset)
             continue
         page = int(asset.get("page_index", -1))
         # HEPHAESTUS page_index is zero-based; storyboard source_pages are
@@ -234,6 +253,12 @@ def main() -> None:
         context = [a for a in selected if a.get('visual_kind') == 'source-page-localization']
         for asset in sorted(ordinary, key=priority, reverse=True)[:MAX_PER_PAGE] + context:
             candidates.append({"asset_id": asset.get("id"), "page_index": page, "path": str(asset_path(asset, manifest_path)), "asset_metadata": asset_metadata(asset)})
+
+    # These are a separate bounded source class rather than a fake page -1.
+    # This preserves gallery diversity and lets the downstream semantic matcher
+    # rank only candidates whose caption/terms match the requested referent.
+    for asset in sorted(external_authorized, key=priority, reverse=True)[:MAX_EXTERNAL_AUTHORIZED_CANDIDATES]:
+        candidates.append({"asset_id": asset.get("id"), "page_index": None, "path": str(asset_path(asset, manifest_path)), "asset_metadata": asset_metadata(asset)})
 
     # Object identity/quality are assessed together by the bounded matcher.
     client = None
