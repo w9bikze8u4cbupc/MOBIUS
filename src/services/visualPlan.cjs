@@ -166,8 +166,13 @@ function deriveCompositionType(atom = {}) {
 function assetMatchesReferent(asset = {}, referent = '') {
   if(asset.qualification?.requiredObjects?.includes(referent)
     && asset.qualification.evidence==='canonical-source-resolver-all-hard-gates-passed'){
-    const proof=require('./sourceAssetResolver.cjs').objectEvidenceFor(asset,referent,asset.qualification.sceneId);
+    const proof=require('./sourceAssetResolver.cjs').objectEvidenceFor(asset,referent,asset.qualification.sceneId,{allowReusableIdentity:true});
     if(proof?.present&&proof.complete&&proof.confidence>=.9)return true;
+  }
+  if(asset.qualification?.requiredObjects?.includes(referent)
+    && asset.qualification.evidence==='final-source-grounded-instructional-sequence-passed'){
+    const proof=require('./sourceAssetResolver.cjs').objectEvidenceFor(asset,referent,asset.qualification.sceneId,{allowReusableIdentity:true});
+    if(proof?.present&&proof.complete&&proof.isolated&&proof.stateCompatible&&proof.confidence>=.9)return true;
   }
   const normalize = (value) => String(value || '').toLocaleLowerCase('fr-CA').normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
@@ -420,14 +425,24 @@ function compileVisualPlans({ atoms = [], projectPlans = [], assets = [], source
   const selectionByAtom = new Map(sourceSelections.map((selection) => [selection.ruleAtomId, selection]));
   const stateByAtom = new Map(physicalStates.map((state) => [state.ruleAtomId, state]));
   return atoms.map((atom) => {
+    const sourceSelection = selectionByAtom.get(atom.id);
+    // A shared physical asset may serve several independently reviewed scenes.
+    // Keep the catalogue as immutable source evidence and overlay this scene's
+    // accepted qualification for validation. Otherwise the last scene to use
+    // an asset overwrites the qualification observed by every earlier plan.
+    const selectedById = new Map((sourceSelection?.selectedAssets || []).map((asset) => [asset.id, asset]));
+    const validationAssets = assets.map((asset) => selectedById.get(asset.id) || asset);
+    for (const asset of selectedById.values()) {
+      if (!assets.some((entry) => entry.id === asset.id)) validationAssets.push(asset);
+    }
     const projectPlan = planByAtom.get(atom.id);
     const plan = projectPlan
       ? normalizeVisualPlan(projectPlan, atom)
-      : compileAutomaticVisualPlan({ atom, sourceSelection: selectionByAtom.get(atom.id), physicalState: stateByAtom.get(atom.id) });
-    const validation = validateVisualPlan(plan, assets);
+      : compileAutomaticVisualPlan({ atom, sourceSelection, physicalState: stateByAtom.get(atom.id) });
+    const validation = validateVisualPlan(plan, validationAssets);
     const stateValidation = validatePhysicalGameState(stateByAtom.get(atom.id) || plan.gameState || derivePhysicalGameState(atom));
     const canonical = { ...plan, validation: { ...validation, physicalState: stateValidation } };
-    return { ...canonical, cockpit: toCockpitVisualPlan(canonical, atom, selectionByAtom.get(atom.id)) };
+    return { ...canonical, cockpit: toCockpitVisualPlan(canonical, atom, sourceSelection) };
   });
 }
 

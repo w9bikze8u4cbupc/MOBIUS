@@ -149,4 +149,40 @@ describe('canonical VisualPlan', () => {
     }, familyAtom);
     expect(validateVisualPlan(plan, [realAsset]).violations).toContain('physical-referent-absent:guildes');
   });
+
+  test('scene-specific final composition qualification survives reuse of one shared component asset', () => {
+    const shared = {
+      ...realAsset,
+      id: 'shared-card',
+      category: 'card',
+      semanticObjects: [],
+      cardSilhouetteState: 'COMPLETE',
+      objectVisualEvidence: [{
+        contract: 'mobius-object-visual-evidence-v2', assetId: 'shared-card', requiredObject: 'criminal-card',
+        visualRole: 'COMPONENT', method: 'provider-pixel-analysis', sceneId: 'component-discovery',
+        present: true, complete: true, isolated: true, stateCompatible: true, confidence: .97,
+        bbox: [.05, .05, .95, .95], imageSha256: 'pixels', evidencePacketHash: 'packet', model: 'fixture-model',
+      }],
+      // This is deliberately another scene's catalogue qualification. It must
+      // not overwrite the current source selection's stronger scene evidence.
+      qualification: { sceneId: 'later-scene', requiredObjects: ['criminal-card'], evidence: 'final-source-grounded-instructional-sequence-passed' },
+    };
+    const current = {
+      ...shared,
+      qualification: { sceneId: 'knowledge-current', requiredObjects: ['criminal-card'], evidence: 'final-source-grounded-instructional-sequence-passed' },
+    };
+    const currentAtom = {
+      id: 'current', domain: 'action', reviewState: 'accepted', confidence: .96,
+      visualRequirement: { actualGameAssetRequired: true, requiredObjects: ['criminal-card'] },
+    };
+    const [plan] = compileVisualPlans({
+      atoms: [currentAtom],
+      assets: [shared],
+      sourceSelections: [{ ruleAtomId: 'current', status: 'AUTO_ACCEPTED', confidence: .97, selectedAssets: [current] }],
+    });
+    expect(plan.validation.violations).not.toContain('physical-referent-absent:criminal-card');
+    expect(plan.validation.violations).not.toContain('complete-card-silhouette:shared-card');
+    expect(plan.validation.valid).toBe(true);
+    expect(plan.cockpit.reviewState).toBe('resolved');
+  });
 });

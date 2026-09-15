@@ -625,6 +625,11 @@ function resolveInstructionalSequenceSources({ atom, requirement = atom?.visualR
     ...asset,
     cropCompleteness: 'complete',
     cropPurity: 'clean',
+    // Every source component used by this exact final composition has already
+    // passed complete + isolated COMPONENT pixel evidence above. Preserve that
+    // measured silhouette fact for the VisualPlan validator instead of asking
+    // a weaker metadata heuristic to veto the stronger final-pixel proof.
+    cardSilhouetteState: 'COMPLETE',
     reviewState: 'accepted',
     qualification: {
       contract: SOURCE_ASSET_RESOLVER_CONTRACT,
