@@ -13,6 +13,7 @@ const CANONICAL_STATE_STORAGE_CONTRACT = 'mobius-canonical-production-state-stor
 const LEGACY_CANONICAL_STATE_STORAGE_CONTRACT = 'mobius-canonical-production-state-storage-v1';
 const VISUAL_EVIDENCE_ARTIFACT_CONTRACT = 'mobius-canonical-visual-evidence-artifact-v1';
 const VISUAL_PLAN_COCKPIT_DERIVATION_CONTRACT = 'mobius-visual-plan-cockpit-derivation-v1';
+const SELECTION_RANKING_REFERENCE_CONTRACT = 'mobius-source-selection-ranking-reference-v1';
 const CANONICAL_STATE_BUDGET_BYTES = 14 * 1024 * 1024;
 const VISUAL_EVIDENCE_ARTIFACT_BUDGET_BYTES = 128 * 1024 * 1024;
 
@@ -60,18 +61,49 @@ function assetSummary(asset) {
   };
 }
 
-function selectionEvidence(selection) {
-  const { selectedAssets = [], suggestedAssets = [], reviewItem, rankedEntries, ...rest } = selection || {};
+function rankingReference(entry, candidateEvidence, assetIds) {
+  if (!entry || typeof entry !== 'object' || !entry.candidate || typeof entry.candidate !== 'object') return entry;
+  const { candidate, ...ranking } = entry;
+  const id = assetId(candidate);
+  if (!id) return entry;
+  if (!assetIds.has(id)) {
+    const evidenceKey = digest(candidate);
+    candidateEvidence[evidenceKey] ||= candidate;
+    ranking.candidateEvidenceRef = evidenceKey;
+  }
+  return { ...ranking, candidateAssetId: id };
+}
+
+function selectionEvidence(selection, candidateEvidence, assetIds) {
+  const { selectedAssets = [], suggestedAssets = [], reviewItem, rankedEntries, ranked = [], ...rest } = selection || {};
   const referentSelections = (rest.referentSelections || []).map((referent) => {
     const { selectedAssets: selected = [], suggestedAssets: suggested = [], ...entry } = referent || {};
     return { ...entry, selectedAssetIds: selected.map(assetId).filter(Boolean), suggestedAssetIds: suggested.map(assetId).filter(Boolean) };
   });
   return {
     ...rest,
+    rankingReferenceContract: SELECTION_RANKING_REFERENCE_CONTRACT,
+    ranked: ranked.map((entry) => rankingReference(entry, candidateEvidence, assetIds)),
     selectedAssetIds: selectedAssets.map(assetId).filter(Boolean),
     suggestedAssetIds: suggestedAssets.map(assetId).filter(Boolean),
     referentSelections,
   };
+}
+
+function hydrateSelectionEvidence(evidence, artifact, assetsById) {
+  if (evidence?.rankingReferenceContract !== SELECTION_RANKING_REFERENCE_CONTRACT) return evidence;
+  const ranked = (evidence.ranked || []).map((reference) => {
+    if (!reference?.candidateAssetId) return reference;
+    const candidate = assetsById.get(reference.candidateAssetId)
+      || artifact.candidateEvidence?.[reference.candidateEvidenceRef];
+    if (!candidate || (reference.candidateEvidenceRef && digest(candidate) !== reference.candidateEvidenceRef)) {
+      throw failure('Visual source-selection ranking evidence is missing or corrupt.');
+    }
+    const { candidateAssetId, candidateEvidenceRef, ...ranking } = reference;
+    return { ...ranking, candidate };
+  });
+  const { rankingReferenceContract, ...rest } = evidence;
+  return { ...rest, ranked };
 }
 
 function selectionReference(selection, evidenceKey) {
@@ -197,9 +229,10 @@ function createCompactCanonicalProductionState(state, {
     throw failure('Visual evidence artifact path is invalid.');
   }
   const candidateEvidence = Object.create(null);
+  const assetIds = new Set((state.assets || []).map(assetId).filter(Boolean));
   const selectionEvidenceById = Object.create(null);
   const compactSelections = (state.sourceSelections || []).map((selection) => {
-    const evidence = selectionEvidence(selection);
+    const evidence = selectionEvidence(selection, candidateEvidence, assetIds);
     const key = digest(evidence);
     selectionEvidenceById[key] ||= evidence;
     return selectionReference(selection, key);
@@ -269,10 +302,11 @@ function hydrateCanonicalProductionState(state, artifact) {
   const selections = (state.sourceSelections || []).map((reference) => {
     const evidence = artifact.selectionEvidence[reference.visualEvidenceSelectionRef];
     if (!evidence || digest(evidence) !== reference.visualEvidenceSelectionRef) throw failure('Visual selection evidence is missing or corrupt.');
+    const hydratedEvidence = hydrateSelectionEvidence(evidence, artifact, byId);
     return {
-      ...evidence,
-      selectedAssets: (evidence.selectedAssetIds || []).map((id) => byId.get(id)).filter(Boolean),
-      suggestedAssets: (evidence.suggestedAssetIds || []).map((id) => byId.get(id)).filter(Boolean),
+      ...hydratedEvidence,
+      selectedAssets: (hydratedEvidence.selectedAssetIds || []).map((id) => byId.get(id)).filter(Boolean),
+      suggestedAssets: (hydratedEvidence.suggestedAssetIds || []).map((id) => byId.get(id)).filter(Boolean),
     };
   });
   const reviewItems = (state.reviewItems || []).map((item) => hydrateVisualReviewItem(item, artifact));
@@ -292,6 +326,7 @@ module.exports = {
   LEGACY_CANONICAL_STATE_STORAGE_CONTRACT,
   VISUAL_EVIDENCE_ARTIFACT_CONTRACT,
   VISUAL_PLAN_COCKPIT_DERIVATION_CONTRACT,
+  SELECTION_RANKING_REFERENCE_CONTRACT,
   CANONICAL_STATE_BUDGET_BYTES,
   VISUAL_EVIDENCE_ARTIFACT_BUDGET_BYTES,
   bytes,
