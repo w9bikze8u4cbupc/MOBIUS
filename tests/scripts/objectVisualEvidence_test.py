@@ -324,6 +324,25 @@ class ObjectEvidenceTests(unittest.TestCase):
         ]
         self.assertEqual([scene['id'] for scene in matcher.prioritize_scenes(scenes)][:3], ['shared-a', 'shared-b', 'transition'])
 
+    def test_authorized_external_caption_prioritizes_only_matching_referent_for_pixel_inspection(self):
+        scenes = [
+            {'id': 'ordinary-board', 'visualRequirement': {'requiredObjects': ['board']}},
+            {'id': 'named-card', 'visualRequirement': {'requiredObjects': ['antagonist-card']}},
+        ]
+        terms = {
+            'board': {'canonicalTerm': 'Game board'},
+            'antagonist-card': {'canonicalTerm': 'Antagonist card'},
+        }
+        assets = [{
+            'asset_id': 'official-antagonist-figure', 'path': str(ROOT / 'tests/fixtures/images/test-bg-100x100.png'),
+            'asset_metadata': {'sourceAuthority': 'OFFICIAL_PUBLISHER_HIGH_RES', 'source_page': None,
+                'label': 'antagonist figure', 'component_bindings': [{'componentId': 'board', 'reviewState': 'hypothesis'}]},
+        }]
+
+        ordered = matcher.prioritize_scenes(scenes, terms, assets)
+
+        self.assertEqual([scene['id'] for scene in ordered], ['named-card', 'ordinary-board'])
+
     def test_explicit_bounded_continuation_reuses_complete_scene_and_measures_next_candidate(self):
         """A later Inbox re-open advances deferred work without repeating pixels.
 

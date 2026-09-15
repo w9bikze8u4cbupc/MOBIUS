@@ -17,7 +17,7 @@ SEARCH_CONTRACT = "mobius-referent-localization-v1"
 # substage no longer leaks a KeyError into a faux provider-unavailable result.
 # The version is part of the execution cache identity so that a prior local
 # bookkeeping failure is not replayed as if pixels had been inspected.
-SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v7-authorized-external-caption-preservation'
+SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v8-authorized-external-priority'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v3'
 MODEL = os.getenv("MOBIUS_VISUAL_MATCH_MODEL") or os.getenv("OPENAI_MODEL")
@@ -178,13 +178,50 @@ def analysis_priority(scene, object_frequency):
     reuse_rank = -max((object_frequency.get(ident, 0) for ident in required), default=0)
     return (object_rank, reuse_rank, state_rank, str(scene.get('id') or ''))
 
-def prioritize_scenes(scenes):
-    """Return analysis order without mutating the authored scene sequence."""
+def external_authorized_term_matches(scene, terms, assets):
+    """Count only source-owned external captions that directly overlap a referent.
+
+    An exact-edition gallery has no rulebook page and its broad retrieval
+    component scope is deliberately not an identity binding. Its caption or
+    source-owned metadata can nevertheless make one *inspection* materially
+    more informative than another under a strict budget. This returns no
+    object claim; it only changes work ordering before pixel validation.
+    """
+    required = ((scene.get('visualRequirement') or {}).get('requiredObjects') or [])
+    requested_terms = []
+    for ident in required:
+        entry = terms.get(ident) or {}
+        requested_terms.append(entry if isinstance(entry, str) else (entry.get('canonicalTerm') or entry.get('name') or entry.get('term') or ident))
+    requested = set(re.findall(r'[a-z]{3,}', ' '.join(map(str, requested_terms)).lower())) - {'the', 'and'}
+    if not requested:
+        return 0
+    matches = 0
+    for asset in assets or []:
+        metadata = asset.get('asset_metadata') or {}
+        authority = str(metadata.get('sourceAuthority') or asset.get('sourceAuthority') or '').upper()
+        if not authority or metadata.get('source_page') is not None or not (
+                'OFFICIAL_PUBLISHER' in authority or 'AUTHORIZED_EXACT_EDITION' in authority or 'OFFICIAL_BGG' in authority):
+            continue
+        source_terms = [metadata.get('label'), asset.get('label'), *(metadata.get('semanticObjects') or []), *(metadata.get('referentAliases') or [])]
+        tokens = set(re.findall(r'[a-z]{3,}', ' '.join(str(value or '') for value in source_terms).lower()))
+        if requested & tokens:
+            matches += 1
+    return matches
+
+
+def prioritize_scenes(scenes, terms=None, assets=None):
+    """Return analysis order without mutating the authored scene sequence.
+
+    Direct source-owned external terminology may lift an otherwise equivalent
+    scene ahead of page-local hypotheses. It never changes the authored order,
+    source authority, component mapping, or acceptance requirements.
+    """
     frequencies = {}
     for scene in scenes:
         for ident in ((scene.get('visualRequirement') or {}).get('requiredObjects') or []):
             frequencies[ident] = frequencies.get(ident, 0) + 1
-    return sorted(scenes, key=lambda scene: analysis_priority(scene, frequencies))
+    terms = terms or {}
+    return sorted(scenes, key=lambda scene: (-external_authorized_term_matches(scene, terms, assets), *analysis_priority(scene, frequencies)))
 
 def measured_object(row, role=None):
     return (row.get('present') is True and row.get('complete') is True
@@ -672,7 +709,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
     scenes = []
     generated = list(previous.get('generatedAssets') or []) if previous else []
     previous_by_scene = {scene.get('scene_id'): scene for scene in (previous.get('scenes') or [])} if previous else {}
-    for scene in prioritize_scenes(script.get("scenes", [])):
+    for scene in prioritize_scenes(script.get("scenes", []), script.get("componentTerms") or {}, qa.get("assets", [])):
         if os.getenv('MOBIUS_VISUAL_SCENE_ID') and scene.get('id') != os.environ['MOBIUS_VISUAL_SCENE_ID']:
             continue
         prior = previous_by_scene.get(scene.get('id'))
