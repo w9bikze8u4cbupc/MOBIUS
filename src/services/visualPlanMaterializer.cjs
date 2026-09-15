@@ -9,7 +9,7 @@ const { teachingSceneLayout, containedDisplayBounds, PRESENTATION_TOKENS } = req
 const crypto = require('node:crypto');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const xml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
-const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v7';
+const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v8';
 const STATE_SEQUENCE_CONTRACT = 'mobius-source-measured-state-sequence-v2';
 const SEMANTIC_SEQUENCE_CONTRACT = 'mobius-source-grounded-semantic-sequence-v2';
 const INSTRUCTIONAL_DIAGRAM_CONTRACT = 'mobius-source-grounded-instructional-diagram-v2';
@@ -17,7 +17,10 @@ const TRACK_SEQUENCE_CONTRACT = 'mobius-source-measured-track-sequence-v2';
 const TEXT_TEACHING_STILL_CONTRACT = 'mobius-source-grounded-text-teaching-still-v1';
 
 function stateValueLabel(item = {}) {
-  if (item.instructionalDiagramOnly) return 'Référent source';
+  if (item.diagramStage === 'before') return 'État initial';
+  if (item.diagramStage === 'action') return 'Action en cours';
+  if (item.diagramStage === 'after') return 'État obtenu';
+  if (item.instructionalDiagramOnly) return 'Composant source';
   if (item.removed || item.visibility === 'REMOVED') return 'Retiré';
   if (item.consumed || item.availability === 'CONSUMED') return 'Utilisé';
   if (item.availability === 'UNAVAILABLE') return 'Indisponible';
@@ -25,9 +28,42 @@ function stateValueLabel(item = {}) {
   if (item.faceState === 'FACE_UP') return 'Face visible';
   if (item.trackPosition != null) return `Position ${item.trackPosition}`;
   if (item.quantity != null) return `Quantité ${item.quantity}`;
-  if (item.location) return `Emplacement : ${String(item.location).replace(/\s+/g, ' ').trim()}`.slice(0, 48);
-  if (item.orientation) return String(item.orientation).replace(/\s+/g, ' ').trim().slice(0, 48);
+  // Locations and orientations originate in the authoritative rulebook and
+  // may not be French. The localized instructional sentence above the image
+  // carries their exact meaning; this compact physical-state badge must not
+  // leak source-language prose or clip it into a misleading fragment.
+  if (item.location) return 'Placement indiqué';
+  if (item.orientation) return 'Orientation indiquée';
   return 'En jeu';
+}
+
+function stateBadgeLines(item = {}) {
+  const values = [stateValueLabel(item)];
+  if (item.quantity != null) values.push(`× ${item.quantity}`);
+  if (item.coveredBy?.length) values.push('Recouvert');
+  if (item.covers?.length) values.push('Au-dessus');
+  return values.flatMap((value) => wrapSvgText(value, 24, 2)).slice(0, 2);
+}
+
+function instructionalRelationshipKind(requirement = {}) {
+  const relationship = String(requirement.requiredRelationship || requirement.requiredState || '').toLocaleLowerCase('fr-CA');
+  if (!relationship) return 'NONE';
+  if (/\b(?:not|without|outside|off|absent|ne\s+.+\s+pas|sans|hors)\b/.test(relationship)) return 'SEPARATE';
+  return 'RELATED';
+}
+
+function relationshipOverlay(states = [], requirement = {}, stage = {}) {
+  if (states.length < 2 || !['action', 'after'].includes(String(stage.id || stage.diagramStage || '').toLowerCase())) return '';
+  const kind = instructionalRelationshipKind(requirement);
+  if (kind === 'NONE') return '';
+  const first = states[0], last = states[states.length - 1];
+  const x1 = first.left + first.width / 2, y1 = first.top + first.height / 2;
+  const x2 = last.left + last.width / 2, y2 = last.top + last.height / 2;
+  if (kind === 'SEPARATE') {
+    const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#ec6c3b" stroke-width="8" stroke-dasharray="18 14"/><circle cx="${cx}" cy="${cy}" r="34" fill="#231811" stroke="#ec6c3b" stroke-width="6"/><line x1="${cx - 22}" y1="${cy + 22}" x2="${cx + 22}" y2="${cy - 22}" stroke="#ec6c3b" stroke-width="7"/>`;
+  }
+  return `<path d="M ${x1} ${y1} L ${x2} ${y2}" stroke="#f4d35e" stroke-width="9" fill="none" marker-end="url(#mobius-arrow)"/><circle cx="${x1}" cy="${y1}" r="17" fill="#f4d35e"/><circle cx="${x2}" cy="${y2}" r="22" fill="none" stroke="#fff3d9" stroke-width="6"/>`;
 }
 
 function wrapSvgText(value, max = 58, maximumLines = 3) {
@@ -164,19 +200,37 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
     const image = await sharp(sourceFile(entry.asset)).resize(width, height, { fit: 'contain' }).png().toBuffer();
     const left = cell.x + Math.floor((cell.width - width) / 2);
     const top = cell.y + Math.floor((cell.height - height) / 2);
-    layers.push({ input: image, left, top, opacity: (item.removed || item.visibility === 'REMOVED') ? .28 : 1 });
+    const quantity = Number.isInteger(item.quantity) && item.quantity > 1 ? item.quantity : 1;
+    const visibleCopies = Math.min(quantity, 4);
+    const copyOffset = visibleCopies > 1 ? Math.min(26, Math.floor((cell.width - width) / Math.max(1, visibleCopies - 1))) : 0;
+    for (let copy = visibleCopies - 1; copy >= 0; copy -= 1) {
+      layers.push({ input: image, left: left + copy * copyOffset, top: top - copy * Math.min(12, copyOffset),
+        opacity: (item.removed || item.visibility === 'REMOVED') ? .24 : 1 });
+    }
     states.push({ referent: entry.referent, assetId: entry.asset.id, label: stateValueLabel(item),
-      left, top, width, height, item });
+      left, top, width: width + copyOffset * (visibleCopies - 1), height, item });
   }
-  const labels = states.map((value) => `<rect x="${value.left}" y="${Math.max(350, value.top - 62)}" width="${value.width}" height="52" rx="12" fill="#231811" fill-opacity=".9"/><text x="${value.left + 16}" y="${Math.max(389, value.top - 23)}" fill="#fff3d9" font-family="Arial" font-size="${typography.componentLabelPx}" font-weight="bold">${xml(value.label)}</text>`).join('');
+  const labels = states.map((value) => {
+    const lines = stateBadgeLines(value.item);
+    const labelTop = Math.max(338, value.top - (lines.length > 1 ? 102 : 66));
+    const labelHeight = lines.length > 1 ? 92 : 56;
+    const crossed = (value.item.removed || value.item.visibility === 'REMOVED')
+      ? `<line x1="${value.left}" y1="${value.top}" x2="${value.left + value.width}" y2="${value.top + value.height}" stroke="#ec6c3b" stroke-width="10"/><line x1="${value.left + value.width}" y1="${value.top}" x2="${value.left}" y2="${value.top + value.height}" stroke="#ec6c3b" stroke-width="10"/>`
+      : '';
+    return `<rect x="${value.left}" y="${labelTop}" width="${Math.max(180, value.width)}" height="${labelHeight}" rx="12" fill="#231811" fill-opacity=".94" stroke="#be9a58" stroke-width="2"/>${lines.map((line, lineIndex) => `<text x="${value.left + 16}" y="${labelTop + 40 + lineIndex * 38}" fill="#fff3d9" font-family="Arial" font-size="${Math.min(typography.componentLabelPx, 38)}" font-weight="bold">${xml(line)}</text>`).join('')}${crossed}`;
+  }).join('');
   const headline = String(scene.on_screen_text || scene.title || scene.visualRequirement?.purpose || '').split(/\n/)[0].slice(0, 92);
   const instructionalLines = wrapSvgText(stage.instructionalText, 58, 2);
   const instructionalText = instructionalLines.map((line, lineIndex) => `<text x="96" y="${232 + lineIndex * typography.instructionalLineHeightPx}" fill="#fff3d9" font-family="Arial" font-size="${typography.instructionalPx}">${xml(line)}</text>`).join('');
   const presentationKind = (stage.items || []).some((item) => item.instructionalDiagramOnly)
     ? 'Illustration explicative fondée sur le livret'
     : ((stage.items || []).some((item) => item.semanticInstructionOnly) ? 'Explication fondée sur le livret' : 'État source du jeu');
-  const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><rect x="42" y="38" width="1836" height="1004" rx="32" fill="#231811" fill-opacity=".86" stroke="#be9a58" stroke-width="3"/><text x="96" y="108" fill="#fff3d9" font-family="Arial" font-size="${typography.headlinePx}" font-weight="bold">${xml(headline)}</text><text x="96" y="172" fill="#e1c184" font-family="Arial" font-size="${typography.stagePx}">${xml(stage.label || `Étape ${index + 1}`)}</text>${instructionalText}${labels}<text x="96" y="1000" fill="#fff3d9" font-family="Arial" font-size="${typography.footerPx}">${index + 1} / ${total} · ${xml(presentationKind)} · Livret p. ${xml((scene.source_pages || []).join(', '))}</text></svg>`);
-  layers.splice(1, 0, { input: svg, left: 0, top: 0 });
+  const progress = Array.from({ length: total }, (_, step) => `<rect x="${1390 + step * 92}" y="126" width="70" height="12" rx="6" fill="${step === index ? '#f4d35e' : '#6a5745'}"/>`).join('');
+  const relationship = relationshipOverlay(states, scene.visualRequirement || {}, stage);
+  const panelSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><rect x="42" y="38" width="1836" height="1004" rx="32" fill="#231811" fill-opacity=".86" stroke="#be9a58" stroke-width="3"/></svg>`);
+  const overlaySvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><defs><marker id="mobius-arrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M0,0 L14,7 L0,14 z" fill="#f4d35e"/></marker></defs><text x="96" y="108" fill="#fff3d9" font-family="Arial" font-size="${typography.headlinePx}" font-weight="bold">${xml(headline)}</text><text x="96" y="172" fill="#e1c184" font-family="Arial" font-size="${typography.stagePx}" font-weight="bold">${xml(stage.label || `Étape ${index + 1}`)}</text>${progress}${instructionalText}${relationship}${labels}<text x="96" y="1000" fill="#fff3d9" font-family="Arial" font-size="${typography.footerPx}">${index + 1} / ${total} · ${xml(presentationKind)} · Livret p. ${xml((scene.source_pages || []).join(', '))}</text></svg>`);
+  layers.splice(1, 0, { input: panelSvg, left: 0, top: 0 });
+  layers.push({ input: overlaySvg, left: 0, top: 0 });
   const target = path.resolve(outputDir, `${sequenceId}-state-${index + 1}.png`);
   const materialized = target.replace(/\.png$/, '.materialized.png');
   await sharp({ create: { width: frameWidth, height: frameHeight, channels: 4, background: { r: 31, g: 21, b: 16, alpha: 1 } } }).composite(layers).png().toFile(materialized);
@@ -382,6 +436,7 @@ async function materializeSourceGroundedInstructionalDiagram({ projectId, scene,
         confidence: Number(entry.component.confidence || 0),
         reviewState: 'accepted',
         instructionalDiagramOnly: true,
+        diagramStage: baseStage.id,
       })),
     };
     const frame = await renderStatefulFrame({ projectId, scene, sequenceId, stage, index: frames.length, total: stages.length, selected, outputDir });

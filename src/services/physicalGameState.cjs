@@ -7,7 +7,7 @@ const AVAILABILITY_STATES = new Set(['AVAILABLE', 'UNAVAILABLE', 'CONSUMED', 'UN
 const fs=require('node:fs'), crypto=require('node:crypto');
 const { isDeepStrictEqual } = require('node:util');
 const pixelHash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-const REQUIRED_SEQUENCE_MATERIALIZER_CONTRACT='mobius-visual-plan-materializer-v7';
+const REQUIRED_SEQUENCE_MATERIALIZER_CONTRACT='mobius-visual-plan-materializer-v8';
 const REQUIRED_SEMANTIC_SEQUENCE_CONTRACT='mobius-source-grounded-semantic-sequence-v2';
 const REQUIRED_INSTRUCTIONAL_DIAGRAM_CONTRACT='mobius-source-grounded-instructional-diagram-v2';
 
