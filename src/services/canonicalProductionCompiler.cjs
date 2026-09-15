@@ -7,6 +7,7 @@ const {
   normalizeCandidate,
   normalizeVisualReferents,
   buildVisualReviewItem,
+  resolveInstructionalSequenceSources,
   resolveSourceAssets,
   SOURCE_ASSET_RESOLVER_CONTRACT,
 } = require('./sourceAssetResolver.cjs');
@@ -14,7 +15,7 @@ const { runProductionQualityGate } = require('./productionQualityGate.cjs');
 const { canonicalTeachingPresentation } = require('./visualPlanMaterializer.cjs');
 const { buildKnowledgeTeachingPlan } = require('./rulebookKnowledge.cjs');
 
-const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v4';
+const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v5';
 
 function uniqueAssets(assets = []) {
   const byId = new Map();
@@ -51,6 +52,11 @@ function resolveAtomSources(atom, assets, displayBounds) {
     };
   }
   if (!referents.length) return resolveSourceAssets({ atom, requirement, candidates: assets, displayBounds });
+  // A final source-grounded composition has already demonstrated all
+  // referents together. Prefer that stronger proof over asking each source
+  // image to independently depict the whole relation or transition.
+  const sequenceSelection = resolveInstructionalSequenceSources({ atom, requirement, candidates: assets, displayBounds });
+  if (sequenceSelection) return sequenceSelection;
   const perReferent = referents.map((referent) => resolveSourceAssets({
     atom,
     requirement: { ...requirement, requiredObjects: [referent], evidenceSceneId: `knowledge-${atom.id}` },

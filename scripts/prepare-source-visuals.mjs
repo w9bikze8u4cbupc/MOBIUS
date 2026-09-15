@@ -62,6 +62,7 @@ async function main() {
       asset_metadata: { visual_kind: 'instructional-composition', source_page: input.scene.source_pages?.[0], phonePath: input.phonePath,
         sequenceFrames: input.frames || [],
         semanticTeaching: input.semanticTeaching === true,
+        instructionalDiagram: input.instructionalDiagram === true,
         sourceTeaching: input.sourceTeaching || null,
         dimensions: { width: 1920, height: 1080 } } }] }));
     const ai = getAiConfig();

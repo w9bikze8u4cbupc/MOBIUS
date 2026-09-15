@@ -94,6 +94,29 @@ test('semantic materializer labels a cited transition without claiming a physica
   expect(semanticTeachingStages({ ...scene, visualRequirement: { ...scene.visualRequirement, setupPlacementRequired: true } })).toEqual([]);
 }, 60000);
 
+test('instructional diagram prepares concrete teaching from independently measured source components', async () => {
+  const crypto = require('node:crypto');
+  const { materializeSourceGroundedInstructionalDiagram, instructionalDiagramStages } = require('../../src/services/visualPlanMaterializer.cjs');
+  const hash = crypto.createHash('sha256').update(fs.readFileSync(fixture)).digest('hex');
+  const component = (requiredObject, assetId) => ({ contract: 'mobius-object-visual-evidence-v2', requiredObject, assetId, imageSha256: hash,
+    evidencePacketHash: `diagram-${requiredObject}`, model: 'fixture-model', method: 'provider-pixel-analysis', visualRole: 'COMPONENT',
+    present: true, complete: true, isolated: true, stateCompatible: true, confidence: .99, bbox: [.1, .1, .9, .9], reason: 'Complete source component.' });
+  const scene = { id: 'diagram', atomId: 'atom', title: 'Placer le jeton', narration: 'Placez le jeton.', on_screen_text: 'Jeton sur plateau',
+    source_pages: [5], sourceRefs: [{ page: 5, excerptHash: 'source-evidence' }], localizedTeaching: { visualTeaching: {
+      beforeState: 'Le plateau est prêt.', actionState: 'Placez le jeton sur le plateau.', afterState: 'Le jeton reste sur le plateau.' } },
+    visualRequirement: { actualGameAssetRequired: true, requiredObjects: ['board', 'token'], transitionRequired: true,
+      requiredRelationship: 'Place token on board', beforeState: 'Board is ready', actionState: 'Place token', afterState: 'Token is on board' } };
+  const assets = ['board', 'token'].map((id) => ({ id: `${id}-asset`, filePath: fixture, displayPath: fixture, width: 1600, height: 900,
+    nativeWidthPx: 1600, nativeHeightPx: 900, sourceAuthority: 'OFFICIAL_RULEBOOK', sourceAuthorityRank: 50, sourcePdfSha256: 'a'.repeat(64),
+    sourceRefs: [{ page: 5 }], semanticObjects: [id], objectVisualEvidence: [component(id, `${id}-asset`)] }));
+  const result = await materializeSourceGroundedInstructionalDiagram({ projectId: 'diagram-fixture', scene, assets, outputDir });
+  expect(result).toMatchObject({ contract: 'mobius-source-grounded-instructional-diagram-v1', instructionalDiagram: true, sceneId: 'diagram', preparedOnly: true });
+  expect(result.sourceAssets).toHaveLength(2);
+  expect(result.frames).toHaveLength(3);
+  expect(await sharp(result.frames[0].outputPath).metadata()).toMatchObject({ width: 1920, height: 1080 });
+  expect(instructionalDiagramStages({ ...scene, sourceRefs: [] })).toEqual([]);
+}, 60000);
+
 afterAll(() => fs.rmSync(outputDir, { recursive: true, force: true }));
 
 test('normal materializer turns a multi-asset VisualPlan into a provenance-preserving render visual', async () => {

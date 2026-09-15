@@ -24,12 +24,23 @@ function verifiedInstructionalSequence(candidate, requirement, sceneId) {
    const packet=row?.evidencePacket;
    if(!row||packet.visualRole!=='COMPOSITION'||packet.responseContract!=='normalized-composition-sequence-v2')continue;
    const semanticTeaching=sequence.semanticTeaching===true;
+   const instructionalDiagram=sequence.instructionalDiagram===true;
    if(semanticTeaching){
     if(sequence.contract!=='mobius-source-grounded-semantic-sequence-v1'
       ||packet.semanticTeaching?.contract!=='mobius-source-grounded-semantic-sequence-v1'
       ||JSON.stringify(packet.semanticTeaching.sourceTeaching)!==JSON.stringify(sequence.sourceTeaching||[])
       ||sequence.frames.some(frame=>!String(frame.stage?.instructionalText||'').trim()))continue;
-   } else if(packet.semanticTeaching) continue;
+   } else if(instructionalDiagram){
+    // A source-grounded instructional diagram deliberately combines exact
+    // measured component pixels with cited explanatory labels. It is not a
+    // claim that the source photo itself captured the whole game state. Its
+    // final-composition review is nevertheless bound to every frame, label,
+    // requirement and source asset just like a measured state sequence.
+    if(sequence.contract!=='mobius-source-grounded-instructional-diagram-v1'
+      ||packet.instructionalDiagram?.contract!=='mobius-source-grounded-instructional-diagram-v1'
+      ||JSON.stringify(packet.instructionalDiagram.sourceTeaching)!==JSON.stringify(sequence.sourceTeaching||[])
+      ||sequence.frames.some(frame=>!String(frame.stage?.instructionalText||'').trim()))continue;
+   } else if(packet.semanticTeaching||packet.instructionalDiagram) continue;
    const compared={...requirement};delete compared.evidenceSceneId;
    if(JSON.stringify(packet.requirement)!==JSON.stringify(compared))continue;
    if(sourceAsset.sourceImageSha256!==pixelHash(candidate.filePath))continue;

@@ -85,5 +85,29 @@ test('a semantic teaching sequence is accepted only with its exact source-ground
  expect(verifiedInstructionalSequence(candidate,requirement,'scene')).toBe(sequence);
  sequence.review.scenes[0].candidates[0].evidencePacket.semanticTeaching.sourceTeaching[1].instructionalText='Unsourced replacement';
  expect(verifiedInstructionalSequence(candidate,requirement,'scene')).toBeNull();
+  fs.rmSync(folder,{recursive:true,force:true});
+});
+
+test('an instructional diagram stays bound to exact component pixels, labels and the full physical requirement',()=>{
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
+ const {verifiedInstructionalSequence}=require('../../src/services/physicalGameState.cjs');
+ const folder=fs.mkdtempSync(path.join(os.tmpdir(),'mobius-instructional-diagram-'));
+ const board=path.join(folder,'board'),token=path.join(folder,'token'),frame=path.join(folder,'frame');
+ fs.writeFileSync(board,'board pixels');fs.writeFileSync(token,'token pixels');fs.writeFileSync(frame,'final diagram pixels');
+ const hash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+ const requirement={requiredObjects:['board','token'],transitionRequired:true,requiredRelationship:'Place token on board',beforeState:'Board is ready',actionState:'Place token',afterState:'Token is on board'};
+ const teaching=[['before','Avant','Le plateau est prêt.'],['action','Action','Placez le jeton sur le plateau.'],['after','Résultat','Le jeton reste sur le plateau.']].map(([id,label,instructionalText])=>({id,label,instructionalText,sourceRefs:[{page:5}]}));
+ const frames=teaching.map((stage,index)=>({id:`frame-${index+1}`,stage,outputPath:frame,phonePath:frame,sourcePixelsPerDisplayPixel:1}));
+ const sequence={contract:'mobius-source-grounded-instructional-diagram-v1',instructionalDiagram:true,sceneId:'scene',assetId:'board',sourceTeaching:teaching,
+   sourceAssets:[{assetId:'board',sourceImageSha256:hash(board)},{assetId:'token',sourceImageSha256:hash(token)}],frames,
+   review:{scenes:[{scene_id:'scene',candidates:[{status:'MEASURED',evidencePacket:{visualRole:'COMPOSITION',responseContract:'normalized-composition-sequence-v2',requirement,
+     instructionalDiagram:{contract:'mobius-source-grounded-instructional-diagram-v1',sourceTeaching:JSON.parse(JSON.stringify(teaching))},sequenceFrames:frames.map(f=>({id:f.id,stage:f.stage,imageSha256:hash(frame),phoneSha256:hash(frame)}))},objects:[
+       {requiredObject:'board',visualRole:'COMPOSITION',method:'provider-pixel-analysis',confidence:.98,present:true,complete:true,isolated:true,stateCompatible:true,purposeSatisfied:true,phoneReadable:true},
+       {requiredObject:'token',visualRole:'COMPOSITION',method:'provider-pixel-analysis',confidence:.98,present:true,complete:true,isolated:true,stateCompatible:true,purposeSatisfied:true,phoneReadable:true},
+     ]}]}]}};
+ expect(verifiedInstructionalSequence({id:'board',filePath:board,instructionalSequences:[sequence]},requirement,'scene')).toBe(sequence);
+ expect(verifiedInstructionalSequence({id:'token',filePath:token,instructionalSequences:[sequence]},requirement,'scene')).toBe(sequence);
+ sequence.review.scenes[0].candidates[0].evidencePacket.instructionalDiagram.sourceTeaching[1].instructionalText='Unsourced';
+ expect(verifiedInstructionalSequence({id:'board',filePath:board,instructionalSequences:[sequence]},requirement,'scene')).toBeNull();
  fs.rmSync(folder,{recursive:true,force:true});
 });

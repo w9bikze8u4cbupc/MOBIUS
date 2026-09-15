@@ -4,6 +4,7 @@ const os = require('node:os');
 const {
   rankSourceAssetCandidates,
   resolveSourceAssets,
+  resolveInstructionalSequenceSources,
   normalizeVisualReferents,
   buildAuthorizedRecoveryTargets,
   authorizedCandidatesForVisualAnalysis,
@@ -111,6 +112,31 @@ test('a verified semantic composition may reuse exact component identity only af
   expect(evaluateCandidate(candidate, requirement, { width: 900, height: 700 })).toMatchObject({ valid: true, hardViolations: [] });
   sequence.review.scenes[0].candidates[0].evidencePacket.semanticTeaching.sourceTeaching[0].instructionalText = 'Tampered';
   expect(evaluateCandidate(candidate, requirement, { width: 900, height: 700 }).hardViolations).toContain('object-pixel-evidence-missing:card');
+});
+
+test('a final instructional diagram selects every source asset through one exact scene proof', () => {
+  const crypto = require('node:crypto');
+  const hash = crypto.createHash('sha256').update(fs.readFileSync(existingFile)).digest('hex');
+  const requirement = { actualGameAssetRequired: true, requiredObjects: ['board', 'token'], transitionRequired: true,
+    requiredRelationship: 'Place token on board', beforeState: 'Board ready', actionState: 'Place token', afterState: 'Token placed', evidenceSceneId: 'scene' };
+  const teaching = [['before', 'Avant', 'Le plateau est prêt.'], ['action', 'Action', 'Placez le jeton sur le plateau.'], ['after', 'Résultat', 'Le jeton reste sur le plateau.']]
+    .map(([id, label, instructionalText]) => ({ id, label, instructionalText, sourceRefs: [{ page: 4 }] }));
+  const frames = teaching.map((stage, index) => ({ id: `frame-${index + 1}`, stage, outputPath: existingFile, phonePath: existingFile,
+    sourcePixelsPerDisplayPixel: 1, actualDisplayBounds: { width: 900, height: 700 } }));
+  const sourceProof = (assetId, requiredObject) => proof(assetId, existingFile, requiredObject, { contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT', bbox: [.1, .1, .9, .9] });
+  const sequence = { contract: 'mobius-source-grounded-instructional-diagram-v1', instructionalDiagram: true, sceneId: 'scene', assetId: 'board-asset', sourceTeaching: teaching,
+    sourceAssets: [{ assetId: 'board-asset', sourceImageSha256: hash }, { assetId: 'token-asset', sourceImageSha256: hash }], frames,
+    review: { scenes: [{ scene_id: 'scene', candidates: [{ status: 'MEASURED', evidencePacket: { visualRole: 'COMPOSITION', responseContract: 'normalized-composition-sequence-v2',
+      requirement: { ...requirement, evidenceSceneId: undefined }, instructionalDiagram: { contract: 'mobius-source-grounded-instructional-diagram-v1', sourceTeaching: JSON.parse(JSON.stringify(teaching)) },
+      sequenceFrames: frames.map(frame => ({ id: frame.id, stage: frame.stage, imageSha256: hash, phoneSha256: hash })) }, objects: [
+        { requiredObject: 'board', visualRole: 'COMPOSITION', method: 'provider-pixel-analysis', confidence: .98, present: true, complete: true, isolated: true, stateCompatible: true, purposeSatisfied: true, phoneReadable: true },
+        { requiredObject: 'token', visualRole: 'COMPOSITION', method: 'provider-pixel-analysis', confidence: .98, present: true, complete: true, isolated: true, stateCompatible: true, purposeSatisfied: true, phoneReadable: true },
+      ] }] }] } };
+  const board = asset('board-asset', { semanticObjects: ['board'], objectVisualEvidence: [sourceProof('board-asset', 'board')], instructionalSequences: [sequence] });
+  const token = asset('token-asset', { semanticObjects: ['token'], objectVisualEvidence: [sourceProof('token-asset', 'token')], instructionalSequences: [sequence] });
+  const result = resolveInstructionalSequenceSources({ atom: { id: 'atom' }, requirement, candidates: [board, token] });
+  expect(result).toMatchObject({ status: 'AUTO_ACCEPTED', reason: 'final-source-grounded-instructional-sequence-passed' });
+  expect(result.selectedAssets.map((candidate) => candidate.id)).toEqual(['board-asset', 'token-asset']);
 });
 
 test('exact-game authorized BGG originals outrank native PDF rasters but not publisher masters', () => {

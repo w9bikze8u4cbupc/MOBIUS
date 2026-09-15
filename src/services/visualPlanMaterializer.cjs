@@ -11,6 +11,7 @@ const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const xml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 
 function stateValueLabel(item = {}) {
+  if (item.instructionalDiagramOnly) return 'Référent source';
   if (item.removed || item.visibility === 'REMOVED') return 'Retiré';
   if (item.consumed || item.availability === 'CONSUMED') return 'Utilisé';
   if (item.availability === 'UNAVAILABLE') return 'Indisponible';
@@ -100,7 +101,10 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
   const headline = String(scene.on_screen_text || scene.title || scene.visualRequirement?.purpose || '').split(/\n/)[0].slice(0, 150);
   const instructionalLines = wrapSvgText(stage.instructionalText, 72, 3);
   const instructionalText = instructionalLines.map((line, lineIndex) => `<text x="96" y="${238 + lineIndex * 38}" fill="#fff3d9" font-family="Arial" font-size="30">${xml(line)}</text>`).join('');
-  const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><rect x="42" y="38" width="1836" height="1004" rx="32" fill="#231811" fill-opacity=".86" stroke="#be9a58" stroke-width="3"/><text x="96" y="112" fill="#fff3d9" font-family="Arial" font-size="46" font-weight="bold">${xml(headline)}</text><text x="96" y="184" fill="#e1c184" font-family="Arial" font-size="38">${xml(stage.label || `Étape ${index + 1}`)}</text>${instructionalText}${labels}<text x="96" y="1000" fill="#fff3d9" font-family="Arial" font-size="34">${index + 1} / ${total} · État source du jeu · Livret p. ${xml((scene.source_pages || []).join(', '))}</text></svg>`);
+  const presentationKind = (stage.items || []).some((item) => item.instructionalDiagramOnly)
+    ? 'Illustration explicative fondée sur le livret'
+    : ((stage.items || []).some((item) => item.semanticInstructionOnly) ? 'Explication fondée sur le livret' : 'État source du jeu');
+  const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><rect x="42" y="38" width="1836" height="1004" rx="32" fill="#231811" fill-opacity=".86" stroke="#be9a58" stroke-width="3"/><text x="96" y="112" fill="#fff3d9" font-family="Arial" font-size="46" font-weight="bold">${xml(headline)}</text><text x="96" y="184" fill="#e1c184" font-family="Arial" font-size="38">${xml(stage.label || `Étape ${index + 1}`)}</text>${instructionalText}${labels}<text x="96" y="1000" fill="#fff3d9" font-family="Arial" font-size="34">${index + 1} / ${total} · ${xml(presentationKind)} · Livret p. ${xml((scene.source_pages || []).join(', '))}</text></svg>`);
   layers.splice(1, 0, { input: svg, left: 0, top: 0 });
   const target = path.resolve(outputDir, `${sequenceId}-state-${index + 1}.png`);
   const materialized = target.replace(/\.png$/, '.materialized.png');
@@ -184,6 +188,31 @@ function semanticTeachingStages(scene = {}) {
   }));
 }
 
+function instructionalDiagramStages(scene = {}) {
+  const requirement = scene.visualRequirement || {};
+  const localized = scene.localizedTeaching?.visualTeaching || {};
+  const sourceRefs = (scene.sourceRefs || []).filter((ref) => Number.isInteger(Number(ref?.page)) && Number(ref.page) > 0);
+  // This is intentionally narrower than a generic text card. It exists when
+  // an accepted rule has a concrete visual requirement but no source photo of
+  // the whole state. The final provider review owns the question whether the
+  // exact source-component collage and cited explanation really teach it.
+  const concreteTeaching = requirement.transitionRequired || requirement.setupPlacementRequired
+    || requirement.layeredStateRequired || requirement.oneShotMarkerRequired
+    || requirement.requiredRelationship || requirement.requiredState
+    || requirement.requiredOrientation || requirement.requiredQuantities?.length
+    || requirement.faceStateRequired;
+  if (!concreteTeaching || !requirement.actualGameAssetRequired || !sourceRefs.length) return [];
+  const candidates = [
+    ['before', 'Avant', localized.beforeState || requirement.beforeState],
+    ['action', 'Action', localized.actionState || requirement.actionState],
+    ['after', 'Résultat', localized.afterState || requirement.afterState],
+  ].map(([id, label, instructionalText]) => ({ id, label, instructionalText: String(instructionalText || '').replace(/\s+/g, ' ').trim() }))
+    .filter((stage) => stage.instructionalText);
+  const distinct = new Set(candidates.map((stage) => stage.instructionalText.toLocaleLowerCase('fr-CA')));
+  if (candidates.length < 2 || distinct.size < 2) return [];
+  return candidates.map((stage) => ({ ...stage, sourceRefs }));
+}
+
 /**
  * Some rules describe a real transition but do not supply enough evidence to
  * draw a new physical arrangement.  Do not invent that arrangement.  When a
@@ -231,6 +260,66 @@ async function materializeSemanticInstructionalFrames({ projectId, scene, assets
     ruleAtomId: scene.atomId,
     assetId: selected[0].asset.id,
     semanticTeaching: true,
+    sourceTeaching: stages.map(({ id, label, instructionalText, sourceRefs }) => ({ id, label, instructionalText, sourceRefs })),
+    sourceAssets: selected.map((entry) => ({
+      assetId: entry.asset.id,
+      sourceImageSha256: sha(fs.readFileSync(sourceFile(entry.asset))),
+      sourcePdfSha256: entry.asset.sourcePdfSha256,
+      componentEvidence: entry.component,
+    })),
+    frames,
+    sourceComponentEvidence: selected.map((entry) => entry.component),
+    preparedOnly: true,
+    validated: false,
+  };
+}
+
+/**
+ * A component collage can faithfully teach a cited placement, lifecycle or
+ * relationship when every displayed component has independently measured
+ * source pixels, but the rulebook does not include a photograph of the exact
+ * resulting table state. The labels are source-grounded and the provider
+ * must approve the FINAL composition; this never promotes a component proof
+ * into proof that the original photograph showed the relationship.
+ */
+async function materializeSourceGroundedInstructionalDiagram({ projectId, scene, assets, outputDir } = {}) {
+  const requirement = scene.visualRequirement || {};
+  const referents = requirement.requiredObjects || [];
+  const stages = instructionalDiagramStages(scene);
+  if (!referents.length || referents.length > 4 || !stages.length) return null;
+  const selected = referents.map((referent) => {
+    const candidate = sourceMeasuredComponentCandidate({ scene, referent, assets });
+    return candidate && { ...candidate, referent };
+  });
+  if (selected.some((entry) => !entry)) return null;
+  const sequenceId = String(scene.id).replace(/[^a-z0-9_-]+/gi, '-');
+  await fs.promises.mkdir(outputDir, { recursive: true });
+  const frames = [];
+  for (const baseStage of stages) {
+    const stage = {
+      ...baseStage,
+      items: selected.map((entry) => ({
+        id: entry.referent,
+        componentRef: entry.referent,
+        visibility: 'VISIBLE',
+        faceState: 'NOT_APPLICABLE',
+        availability: 'UNKNOWN',
+        sourceRefs: baseStage.sourceRefs,
+        confidence: Number(entry.component.confidence || 0),
+        reviewState: 'accepted',
+        instructionalDiagramOnly: true,
+      })),
+    };
+    const frame = await renderStatefulFrame({ projectId, scene, sequenceId, stage, index: frames.length, total: stages.length, selected, outputDir });
+    if (!frame) return null;
+    frames.push(frame);
+  }
+  return {
+    contract: 'mobius-source-grounded-instructional-diagram-v1',
+    sceneId: scene.id,
+    ruleAtomId: scene.atomId,
+    assetId: selected[0].asset.id,
+    instructionalDiagram: true,
     sourceTeaching: stages.map(({ id, label, instructionalText, sourceRefs }) => ({ id, label, instructionalText, sourceRefs })),
     sourceAssets: selected.map((entry) => ({
       assetId: entry.asset.id,
@@ -383,7 +472,7 @@ async function materializeInstructionalStill({ state, sceneId, outputDir, allowR
     reason: 'Normal renderer output requires physical/composition review; production state and decisions unchanged.' };
 }
 
-const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v3';
+const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v4';
 
 function sourceFile(asset = {}) {
   return asset.displayPath || asset.renderPath || asset.filePath || asset.path || asset.sourceImage || null;
@@ -468,6 +557,12 @@ async function materializeVisualPlanFrames({ state, outputDir, width = 1400, hei
       scenes.push({...scene,preparedSemanticSequence:semanticSequence});
       continue;
     }
+    const instructionalDiagram=await materializeSourceGroundedInstructionalDiagram({projectId:state.projectId,scene,assets:state.assets,outputDir:path.join(absoluteOutput,'instructional-diagrams')});
+    if(instructionalDiagram){
+      records.push(instructionalDiagram);
+      scenes.push({...scene,preparedInstructionalDiagram:instructionalDiagram});
+      continue;
+    }
     const plan = scene.canonicalVisualPlan || {};
     const assets = (plan.actualGameAssetIds || []).map((id) => byId.get(id)).filter((asset) => {
       const file = sourceFile(asset);
@@ -544,7 +639,7 @@ function compositionReviewEnvironment(env = process.env) {
 }
 
 async function reviewPreparedSequences({state,materialized,outputDir,env=process.env}){
- const reviewPaths=[];
+  const reviewPaths=[];
  for(const sequence of materialized.records.filter(r=>r.frames?.length && !r.validated)){
   const scene=state.scenes.find(s=>s.id===sequence.sceneId);
   const folder=path.resolve(outputDir,sequence.sceneId);fs.mkdirSync(folder,{recursive:true});
@@ -552,6 +647,7 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
   fs.writeFileSync(inputPath,JSON.stringify({scene,frames:sequence.frames,outputPath:sequence.frames[0].outputPath,
     phonePath:sequence.frames[0].phonePath,
     semanticTeaching:sequence.semanticTeaching===true,
+    instructionalDiagram:sequence.instructionalDiagram===true,
     sourceTeaching:sequence.sourceTeaching||null,
     componentTerms:Object.fromEntries((state.knowledgeModel.components||[]).map(c=>[c.id,c.name]))}));
   const result=spawnSync(process.execPath,[path.resolve(__dirname,'../../scripts/prepare-source-visuals.mjs'),
@@ -565,4 +661,4 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
  return {assets:attachSequenceReviewEvidence({assets:state.assets,records:materialized.records,reviewPaths}),reviewPaths};
 }
 
-module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, materializeTrackStateFrames, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, semanticTeachingStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill };
+module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, materializeTrackStateFrames, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, materializeSourceGroundedInstructionalDiagram, semanticTeachingStages, instructionalDiagramStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill };

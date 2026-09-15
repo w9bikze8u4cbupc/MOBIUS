@@ -10,7 +10,7 @@ const { teachingSceneLayout, containedDisplayBounds } = require('./presentationD
 const { verifiedInstructionalSequence } = require('./physicalGameState.cjs');
 const { DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT } = require('./objectAwareCrop.cjs');
 
-const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v4';
+const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v5';
 const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v3';
 const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v2';
 // This version is also a dependency of the orchestration checkpoint.  Keep it
@@ -473,6 +473,77 @@ function resolveSourceAssets({ atom, requirement = atom?.visualRequirement || {}
     reviewState: autoAccept ? 'accepted' : 'needs_review',
     reason,
     reviewItem,
+  };
+}
+
+/**
+ * A final instructional sequence is an alternate, stricter source-selection
+ * proof for a multi-referent rule. The normal single-asset resolver cannot
+ * express a verified composition whose exact source pixels are distributed
+ * across several assets: asking each source asset to prove the entire scene
+ * would incorrectly discard a composition that the provider has already
+ * checked as one whole. Reuse is allowed only when every source asset and the
+ * ordered rendered frames still match the exact requirement.
+ */
+function resolveInstructionalSequenceSources({ atom, requirement = atom?.visualRequirement || {}, candidates = [], displayBounds } = {}) {
+  const sceneId = requirement.evidenceSceneId || (atom?.id ? `knowledge-${atom.id}` : null);
+  if (!sceneId || !(requirement.requiredObjects || []).length) return null;
+  const byId = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+  const choices = new Map();
+  for (const candidate of candidates) {
+    const sequence = verifiedInstructionalSequence(candidate, requirement, sceneId);
+    if (!sequence) continue;
+    const sourceIds = [...new Set((sequence.sourceAssets || []).map((source) => source.assetId).filter(Boolean))];
+    if (!sourceIds.length) continue;
+    const selected = sourceIds.map((id) => byId.get(id)).filter(Boolean);
+    if (selected.length !== sourceIds.length) continue;
+    const measured = requirement.requiredObjects.map((referent) => ({ referent, asset: selected.find((asset) => {
+      const proof = objectEvidenceFor(asset, referent, sceneId, { allowReusableIdentity: true });
+      return proof?.present === true && proof.complete === true && proof.isolated === true
+        && proof.stateCompatible === true && Number(proof.confidence) >= 0.9;
+    }) }));
+    if (measured.some((entry) => !entry.asset)) continue;
+    const key = hashJson({ sceneId, requirement: { ...requirement, evidenceSceneId: undefined }, sourceIds,
+      frames: (sequence.frames || []).map((frame) => ({ id: frame.id, image: frame.outputPath, phone: frame.phonePath })) });
+    const confidence = Math.min(0.99, ...measured.map(({ asset, referent }) =>
+      Number(objectEvidenceFor(asset, referent, sceneId, { allowReusableIdentity: true })?.confidence || 0)));
+    choices.set(key, { sequence, selected, confidence });
+  }
+  const valid = [...choices.values()].sort((left, right) => right.confidence - left.confidence
+    || String(left.sequence.assetId || '').localeCompare(String(right.sequence.assetId || '')));
+  if (valid.length !== 1) return null;
+  const choice = valid[0];
+  const selectedAssets = choice.selected.map((asset) => ({
+    ...asset,
+    cropCompleteness: 'complete',
+    cropPurity: 'clean',
+    reviewState: 'accepted',
+    qualification: {
+      contract: SOURCE_ASSET_RESOLVER_CONTRACT,
+      sceneId,
+      requiredObjects: requirement.requiredObjects,
+      confidence: choice.confidence,
+      actualDisplayBounds: choice.sequence.frames?.[0]?.actualDisplayBounds || displayBounds || null,
+      evidence: 'final-source-grounded-instructional-sequence-passed',
+      sequenceContract: choice.sequence.contract,
+    },
+  }));
+  return {
+    contract: SOURCE_ASSET_RESOLVER_CONTRACT,
+    ruleAtomId: atom?.id || null,
+    status: 'AUTO_ACCEPTED',
+    selectedAssets,
+    suggestedAssets: selectedAssets,
+    rankedEntries: selectedAssets.map((candidate) => ({ candidate, confidence: choice.confidence, semanticScore: 1,
+      trueSourcePixelsPerDisplayPixel: Number(choice.sequence.frames?.[0]?.sourcePixelsPerDisplayPixel || 0), valid: true, hardViolations: [] })),
+    ranked: selectedAssets.map((candidate) => ({ assetId: candidate.id, authority: candidate.sourceAuthority,
+      authorityRank: candidate.sourceAuthorityRank, confidence: choice.confidence, semanticScore: 1,
+      trueSourcePixelsPerDisplayPixel: Number(choice.sequence.frames?.[0]?.sourcePixelsPerDisplayPixel || 0), valid: true, violations: [] })),
+    confidence: choice.confidence,
+    reviewState: 'accepted',
+    reason: 'final-source-grounded-instructional-sequence-passed',
+    instructionalSequence: choice.sequence,
+    reviewItem: null,
   };
 }
 
@@ -974,5 +1045,6 @@ module.exports = {
   productEvidenceFromHtml,
   publisherOriginsFromDocumentMap,
   rectifyAuthorizedCandidate,
+  resolveInstructionalSequenceSources,
   resolveSourceAssets,
 };
