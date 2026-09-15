@@ -483,6 +483,77 @@ function loadAuthorizedCandidateManifests(manifestPaths = []) {
   return { contract: 'mobius-authorized-source-candidate-manifests-v1', candidates, provenance };
 }
 
+/**
+ * Generates bounded local template targets from already measured source pixels.
+ * A template is only a feature-search input; it is deliberately not a source
+ * selection, identity approval, or quality assertion for a recovered asset.
+ */
+function buildAuthorizedRecoveryTargets({ assets = [], requiredComponentIds = [] } = {}) {
+  const required = new Set(requiredComponentIds.filter(Boolean));
+  const targets = {};
+  const provenance = {};
+  for (const asset of assets) {
+    const file = assetPath(asset);
+    if (!file || !fs.existsSync(file)) continue;
+    for (const row of asset.objectVisualEvidence || []) {
+      const componentId = row.requiredObject;
+      if (!componentId || (required.size && !required.has(componentId))) continue;
+      if (row.visualRole !== 'COMPONENT' || row.present !== true || row.complete !== true || row.isolated !== true
+        || row.stateCompatible !== true || Number(row.confidence) < 0.9) continue;
+      const previous = provenance[componentId];
+      const candidate = {
+        assetId: asset.id,
+        path: path.resolve(file),
+        imageSha256: row.imageSha256 || null,
+        confidence: Number(row.confidence),
+        sourceRefs: asset.sourceRefs || [],
+      };
+      if (!previous || candidate.confidence > previous.confidence
+        || (candidate.confidence === previous.confidence && String(candidate.assetId).localeCompare(String(previous.assetId)) < 0)) {
+        targets[componentId] = candidate.path;
+        provenance[componentId] = candidate;
+      }
+    }
+  }
+  return {
+    contract: 'mobius-authorized-source-recovery-targets-v1',
+    targets,
+    provenance,
+  };
+}
+
+/** Converts recovered candidate manifests into the same source-visual input
+ * contract used for HEPHAESTUS assets. The matcher still inspects pixels and
+ * may reject every candidate. */
+function authorizedCandidatesForVisualAnalysis(manifestPaths = []) {
+  const { candidates, provenance } = loadAuthorizedCandidateManifests(manifestPaths);
+  return {
+    contract: 'mobius-authorized-source-visual-analysis-input-v1',
+    provenance,
+    assets: candidates.filter((candidate) => candidate.id && candidate.filePath && fs.existsSync(candidate.filePath)).map((candidate) => {
+      const componentRefs = uniqueStrings([...(candidate.componentRefs || []), ...(candidate.targets || [])]);
+      return {
+        id: candidate.id,
+        file_path: candidate.filePath,
+        source_page: null,
+        sourceAuthority: candidate.sourceAuthority,
+        sourceRefs: candidate.sourceRefs || [],
+        semanticObjects: uniqueStrings([...(candidate.semanticObjects || []), ...componentRefs]),
+        componentRefs,
+        component_bindings: componentRefs.map((componentId) => ({
+          componentId, componentName: componentId, category: candidate.category || null, confidence: null, reviewState: 'hypothesis',
+        })),
+        dimensions: { width: candidate.width, height: candidate.height },
+        original_dimensions: { width: candidate.nativeWidthPx || candidate.width, height: candidate.nativeHeightPx || candidate.height },
+        trueDetailDimensions: candidate.trueDetailDimensions || { width: candidate.width, height: candidate.height },
+        category: candidate.category || 'authorized-exact-game-gallery-candidate',
+        label: candidate.caption || candidate.id,
+        provenance: candidate.provenance || {},
+      };
+    }),
+  };
+}
+
 function runChecked(command, args, options = {}) {
   const result = spawnSync(command, args, { cwd: options.cwd, env: options.env || process.env, encoding: 'utf8', windowsHide: true });
   if (result.status !== 0) throw new Error(`${path.basename(args[0] || command)} failed: ${String(result.stderr || result.stdout || '').trim()}`);
@@ -622,6 +693,8 @@ module.exports = {
   SOURCE_ASSET_RESOLVER_CONTRACT,
   evaluateCandidate,
   loadAuthorizedCandidateManifests,
+  buildAuthorizedRecoveryTargets,
+  authorizedCandidatesForVisualAnalysis,
   normalizeCandidate,
   normalizeVisualReferents,
   VISUAL_REFERENT_NORMALIZATION_CONTRACT,

@@ -464,8 +464,11 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
       source_page: sourcePage,
       nativeWidthPx: asset.original_dimensions?.width || componentEvidence?.nativeWidthPx || asset.dimensions?.width || null,
       nativeHeightPx: asset.original_dimensions?.height || componentEvidence?.nativeHeightPx || asset.dimensions?.height || null,
-      componentRefs: [],
-      referentAliases: [],
+      // Recovered authorized candidates carry only feature-search hypotheses
+      // here. The source resolver still requires provider pixel evidence for
+      // the exact component and never upgrades this metadata to a binding.
+      componentRefs: asset.componentRefs || [],
+      referentAliases: asset.referentAliases || asset.aliases || [],
       bindingHypotheses: bindings,
       // Derived crops carry a strictly validated parent-pixel verdict in the
       // manifest itself. Keep it alongside matcher evidence so the canonical
@@ -477,7 +480,7 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
       ].filter(Boolean))],
       visualQuality: qualityByAssetId.get(asset.id) || null,
       componentEvidence,
-      componentBindings: bindings,
+      componentBindings: [...bindings, ...(asset.component_bindings || [])],
       provenance: {
         ...(asset.provenance || {}), ...(componentEvidence?.provenance || {}), ...(nativeProvenance || {}),
         sourcePage,

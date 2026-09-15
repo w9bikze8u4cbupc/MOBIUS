@@ -1,8 +1,12 @@
 const path = require('node:path');
+const fs = require('node:fs');
+const os = require('node:os');
 const {
   rankSourceAssetCandidates,
   resolveSourceAssets,
   normalizeVisualReferents,
+  buildAuthorizedRecoveryTargets,
+  authorizedCandidatesForVisualAnalysis,
 } = require('../../src/services/sourceAssetResolver.cjs');
 const { sourceAuthorityRank } = require('../../src/services/sourceDetailLineage.cjs');
 
@@ -86,6 +90,31 @@ test('canonical resolver auto-accepts only an unambiguous high-confidence candid
 test('exact-game authorized BGG originals outrank native PDF rasters but not publisher masters', () => {
   expect(sourceAuthorityRank('OFFICIAL_PUBLISHER_HIGH_RES')).toBeGreaterThan(sourceAuthorityRank('OFFICIAL_BGG_ASSET'));
   expect(sourceAuthorityRank('OFFICIAL_BGG_ASSET')).toBeGreaterThan(sourceAuthorityRank('NATIVE_EMBEDDED'));
+});
+
+test('measured local templates enter authorized recovery as hypotheses and keep component provenance', () => {
+  const template = asset('source-template', {
+    objectVisualEvidence: [proof('source-template', existingFile, 'comp-1', { visualRole: 'COMPONENT' })],
+  });
+  const targets = buildAuthorizedRecoveryTargets({ assets: [template], requiredComponentIds: ['comp-1'] });
+  expect(targets.targets).toEqual({ 'comp-1': existingFile });
+  expect(targets.provenance['comp-1']).toMatchObject({ assetId: 'source-template', path: existingFile });
+
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-authorized-candidates-'));
+  const manifestPath = path.join(directory, 'candidates.json');
+  fs.writeFileSync(manifestPath, JSON.stringify({
+    authority: 'BoardGameGeek exact-game gallery original-resolution download',
+    candidates: [{ id: 'authorized-bgg-1', status: 'RECOVERED', localPath: existingFile, width: 2400, height: 1600,
+      targets: ['comp-1'], componentRefs: ['comp-1'], sourceAuthority: 'OFFICIAL_BGG_ASSET' }],
+  }));
+  try {
+    const input = authorizedCandidatesForVisualAnalysis([manifestPath]);
+    expect(input.assets).toHaveLength(1);
+    expect(input.assets[0]).toMatchObject({ id: 'authorized-bgg-1', sourceAuthority: 'OFFICIAL_BGG_ASSET', componentRefs: ['comp-1'] });
+    expect(input.assets[0].component_bindings).toEqual([expect.objectContaining({ componentId: 'comp-1', reviewState: 'hypothesis' })]);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('normalizes a source-grounded component binding into resolver semantics without auto-accepting it', () => {

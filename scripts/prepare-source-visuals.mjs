@@ -14,8 +14,10 @@ import { fileURLToPath } from 'url';
 import { generateFocusedPageCrops, sourceLocalizationPages } from '../src/services/sourcePageVisuals.js';
 import { getAiConfig } from '../src/config/aiConfig.js';
 import evidenceBoundCropService from '../src/services/evidenceBoundVisualCrop.cjs';
+import sourceAssetResolver from '../src/services/sourceAssetResolver.cjs';
 
 const { appendEvidenceBoundCrops } = evidenceBoundCropService;
+const { authorizedCandidatesForVisualAnalysis } = sourceAssetResolver;
 
 function arg(name) {
   const index = process.argv.indexOf(`--${name}`);
@@ -26,6 +28,14 @@ function required(name) {
   const value = arg(name);
   if (!value) throw new Error(`Missing required argument --${name}`);
   return resolve(value);
+}
+
+function args(name) {
+  const values = [];
+  for (let index = 0; index < process.argv.length; index += 1) {
+    if (process.argv[index] === `--${name}` && process.argv[index + 1]) values.push(resolve(process.argv[index + 1]));
+  }
+  return values;
 }
 
 function run(command, args, env = process.env) {
@@ -137,7 +147,8 @@ async function main() {
       bindings.push(binding);
       bindingsByAssetId.set(binding.assetId, bindings);
     }
-    const images = (manifest.images || []).map((asset) => {
+    const authorized = authorizedCandidatesForVisualAnalysis(args('authorized-candidate-manifest'));
+    const images = [...(manifest.images || []), ...authorized.assets].map((asset) => {
       const canonical = evidenceById.get(asset.id) || null;
       const bindings = bindingsByAssetId.get(asset.id) || [];
       const context = pageContexts.get(canonical?.pageNumber || asset.source_page);
@@ -149,17 +160,17 @@ async function main() {
         layout_text: asset.layout_text || context?.layout_text || '',
         heading: asset.heading || context?.heading || '',
         retrieval_context: context ? { sourcePage: context.source_page, sourceSha256, role: 'PAGE_SEARCH_HYPOTHESIS' } : null,
-        componentRefs: [],
+        componentRefs: asset.componentRefs || [],
         semanticObjects: [...new Set([
           ...(asset.semanticObjects || []), asset.label, asset.category, canonical?.componentName, canonical?.category,
         ].filter(Boolean))],
-        component_bindings: bindings.map((binding) => ({
+        component_bindings: [...bindings.map((binding) => ({
           componentId: binding.componentId,
           componentName: binding.componentName,
           category: binding.category,
           confidence: binding.confidence,
           reviewState: binding.reviewState,
-        })),
+        })), ...(asset.component_bindings || [])],
       };
     });
     visualManifestPath = resolve(outputDir, 'source-visual-manifest.json');
@@ -189,6 +200,7 @@ async function main() {
   }), 'utf8');
   console.log('[prepare-source-visuals] Matching approved components to tutorial scenes…');
   const ai = getAiConfig();
+  const previousSemanticReport = arg('previous-semantic-report') || semanticPath;
   await run(python, [semanticScript, scopedScript, qualityPath, semanticPath], {
     ...process.env,
     OPENAI_MODEL: ai.model || '',
@@ -196,7 +208,7 @@ async function main() {
     ...(ai.baseURL ? { OPENAI_BASE_URL: ai.baseURL } : {}),
     // Keep an immutable previous report available only to migrate exact
     // page-localization measurements when their identity context evolves.
-    MOBIUS_VISUAL_PREVIOUS_REPORT: semanticPath,
+    MOBIUS_VISUAL_PREVIOUS_REPORT: previousSemanticReport,
   });
   const semantic = JSON.parse(readFileSync(semanticPath, 'utf8'));
   if (semantic.generatedAssets?.length) {

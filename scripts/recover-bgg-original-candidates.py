@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Recover original-resolution BGG exact-game candidates selected by a feature audit.
+"""Recover original-resolution BGG exact-game candidates for normal source QA.
 
-This utility does not choose production imagery. It preserves the canonical BGG
-page, original download URL, dimensions and checksum so the normal source
-resolver can compare authorized candidates without mistaking a 1024px gallery
-derivative for the available original.
+This never selects production imagery. It preserves canonical BGG page,
+original URL, dimensions and checksum so the canonical resolver can compare
+feature-localized candidates without mistaking a gallery derivative for an
+original. Pixel/state/quality validation remains in the normal source pipeline.
 """
 
 from __future__ import annotations
@@ -79,7 +79,9 @@ def main() -> int:
             recovered.append({"imageId": image_id, "status": "DECODE_FAILED", "localPath": str(local)})
             continue
         height, width = image.shape[:2]
+        component_refs = [target for target, ids in wanted_by_target.items() if image_id in ids]
         recovered.append({
+            "id": f"authorized-bgg-{image_id}",
             "imageId": image_id,
             "status": "RECOVERED",
             "caption": item.get("caption"),
@@ -89,7 +91,11 @@ def main() -> int:
             "width": width,
             "height": height,
             "sha256": hashlib.sha256(local.read_bytes()).hexdigest(),
-            "targets": [target for target, ids in wanted_by_target.items() if image_id in ids],
+            "targets": component_refs,
+            "componentRefs": component_refs,
+            "semanticObjects": component_refs,
+            "sourceAuthority": "OFFICIAL_BGG_ASSET",
+            "trueDetailDimensions": {"width": width, "height": height},
         })
 
     output_report = {

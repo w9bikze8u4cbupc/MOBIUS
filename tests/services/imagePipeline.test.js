@@ -10,7 +10,10 @@ jest.mock(
       parse(xml) {
         const imageMatch = /<image>(.*?)<\/image>/.exec(xml || '');
         const thumbMatch = /<thumbnail>(.*?)<\/thumbnail>/.exec(xml || '');
-        return { items: { item: { image: imageMatch?.[1] || null, thumbnail: thumbMatch?.[1] || null } } };
+        const itemMatch = /<item[^>]*\bid=["']?([^\s"'>]+)/.exec(xml || '');
+        const names = [...String(xml || '').matchAll(/<name[^>]*\bvalue=["']([^"']+)["'][^>]*\/?>(?:<\/name>)?/g)]
+          .map((match) => ({ value: match[1] }));
+        return { items: { item: { id: itemMatch?.[1] || null, name: names, image: imageMatch?.[1] || null, thumbnail: thumbMatch?.[1] || null } } };
       }
     },
   }),
@@ -22,7 +25,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import axios from 'axios';
-import { createPdfPageRenderer, ContextualPdfRenderError, ensurePdfJsNodeCompatibility, fetchBggImages, ingestManualImage, normalizeImageAsset, setBggHttpClientForTests } from '../../src/services/imagePipeline.js';
+import { createPdfPageRenderer, ContextualPdfRenderError, ensurePdfJsNodeCompatibility, fetchBggImages, ingestManualImage, normalizeImageAsset, resolveExactBggGame, setBggHttpClientForTests } from '../../src/services/imagePipeline.js';
 
 describe('imagePipeline', () => {
   beforeEach(() => {
@@ -47,6 +50,15 @@ describe('imagePipeline', () => {
     expect(assets.length).toBe(2);
     expect(assets[0].source).toBe('bgg');
     expect(assets[0].originalUrl).toBe('http://image.jpg');
+  });
+
+  it('uses only a unique exact BGG title to seed authorized candidate recovery', async () => {
+    axios.get.mockResolvedValue({
+      data: '<items><item id="123"><name type="primary" value="Example Game" /></item></items>',
+    });
+    await expect(resolveExactBggGame('Example Game')).resolves.toMatchObject({
+      status: 'EXACT_TITLE_UNIQUE', objectId: '123', title: 'Example Game',
+    });
   });
 
   it('copies manual uploads into canonical project data rather than retaining a staging path', async () => {
