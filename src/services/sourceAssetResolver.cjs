@@ -10,7 +10,7 @@ const { teachingSceneLayout, containedDisplayBounds } = require('./presentationD
 const { verifiedInstructionalSequence } = require('./physicalGameState.cjs');
 const { DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT } = require('./objectAwareCrop.cjs');
 
-const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v3';
+const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v4';
 const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v3';
 const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v2';
 // This version is also a dependency of the orchestration checkpoint.  Keep it
@@ -285,7 +285,12 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
   const detail = Math.min(1, detailRatio);
   const sceneSpecificEvidence = requiresSceneSpecificEvidence(requirement);
   const proofs = (requirement.requiredObjects || []).map((id) => objectEvidenceFor(candidate, id, requirement.evidenceSceneId, {
-    allowReusableIdentity: !sceneSpecificEvidence,
+    // A final, source-bound composition verdict owns the scene-specific
+    // transition/relationship proof.  It is therefore safe to reuse an exact
+    // COMPONENT identity measurement for the source pixels used in that
+    // composition.  Without such a verdict, a stateful scene still requires
+    // its own evidence and cannot inherit a component label.
+    allowReusableIdentity: Boolean(sequence) || !sceneSpecificEvidence,
   }));
   const complete = proofs.length ? proofs.every((proof) => proof?.complete === true) : candidate.cropCompleteness === 'complete';
   const pure = proofs.length ? proofs.every((proof) => proof?.isolated === true) : candidate.cropPurity === 'clean';
@@ -314,7 +319,11 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
       if ((box[0] <= 0 || box[1] <= 0 || box[2] >= 1 || box[3] >= 1) && !nativeBoundary) hardViolations.push(`object-edge-unverified:${id}`);
     }
     if (proof.stateCompatible !== true) hardViolations.push(`object-state-unverified:${id}`);
-    if (sceneSpecificEvidence) {
+    // The final composition packet, when present, already binds the exact
+    // scene requirement to the rendered frames.  Its component identity proof
+    // may be reused for the source pixels; do not require that old identity
+    // proof to redundantly claim this scene's transition/relationship.
+    if (sceneSpecificEvidence && !sequence) {
       for (const key of ['requiredState', 'requiredOrientation', 'requiredQuantities', 'requiredRelationship', 'beforeState', 'actionState', 'afterState', 'transitionRequired', 'setupPlacementRequired', 'layeredStateRequired', 'faceStateRequired', 'trackStateRequired']) {
         const expected = requirement[key];
         if (expected == null || expected === false || (Array.isArray(expected) && !expected.length)) continue;

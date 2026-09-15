@@ -74,6 +74,26 @@ test('stateful materializer prepares a source-bound multi-component sequence onl
   await expect(materializeStatefulInstructionalFrames({ projectId: 'stateful-fixture', scene: unchanged, assets, outputDir })).resolves.toBeNull();
 }, 60000);
 
+test('semantic materializer labels a cited transition without claiming a physical arrangement', async () => {
+  const crypto = require('node:crypto');
+  const { materializeSemanticInstructionalFrames, semanticTeachingStages } = require('../../src/services/visualPlanMaterializer.cjs');
+  const hash = crypto.createHash('sha256').update(fs.readFileSync(fixture)).digest('hex');
+  const component = { contract: 'mobius-object-visual-evidence-v2', requiredObject: 'card', assetId: 'card-asset', imageSha256: hash,
+    evidencePacketHash: 'semantic-packet', model: 'fixture-model', method: 'provider-pixel-analysis', visualRole: 'COMPONENT',
+    present: true, complete: true, isolated: true, stateCompatible: true, confidence: .99, bbox: [.1, .1, .9, .9], reason: 'Complete source component.' };
+  const scene = { id: 'semantic', atomId: 'atom', title: 'Résoudre une carte', narration: 'Résolvez cette carte.', on_screen_text: 'Résoudre une carte',
+    source_pages: [4], sourceRefs: [{ page: 4, excerptHash: 'source-evidence' }], localizedTeaching: { visualTeaching: { beforeState: 'La carte est disponible en français.', actionState: 'Résolvez son effet en français.', afterState: 'Poursuivez votre tour en français.' } }, visualRequirement: { actualGameAssetRequired: true,
+      requiredObjects: ['card'], transitionRequired: true, beforeState: 'La carte est disponible.', actionState: 'Résolvez son effet.', afterState: 'Poursuivez votre tour.' } };
+  const assets = [{ id: 'card-asset', filePath: fixture, displayPath: fixture, width: 1600, height: 900, nativeWidthPx: 1600, nativeHeightPx: 900,
+    sourceAuthority: 'OFFICIAL_RULEBOOK', sourceAuthorityRank: 50, sourcePdfSha256: 'a'.repeat(64), sourceRefs: [{ page: 4 }], semanticObjects: ['card'], objectVisualEvidence: [component] }];
+  const result = await materializeSemanticInstructionalFrames({ projectId: 'semantic-fixture', scene, assets, outputDir });
+  expect(result).toMatchObject({ contract: 'mobius-source-grounded-semantic-sequence-v1', semanticTeaching: true, sceneId: 'semantic', preparedOnly: true });
+  expect(result.sourceTeaching.map(stage => stage.instructionalText)).toEqual(['La carte est disponible en français.', 'Résolvez son effet en français.', 'Poursuivez votre tour en français.']);
+  expect(result.frames).toHaveLength(3);
+  expect(await sharp(result.frames[0].outputPath).metadata()).toMatchObject({ width: 1920, height: 1080 });
+  expect(semanticTeachingStages({ ...scene, visualRequirement: { ...scene.visualRequirement, setupPlacementRequired: true } })).toEqual([]);
+}, 60000);
+
 afterAll(() => fs.rmSync(outputDir, { recursive: true, force: true }));
 
 test('normal materializer turns a multi-asset VisualPlan into a provenance-preserving render visual', async () => {

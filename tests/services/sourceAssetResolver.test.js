@@ -91,6 +91,28 @@ test('canonical resolver auto-accepts only an unambiguous high-confidence candid
   expect(ambiguous.reviewItem.status).toBe('needs_visual_review');
 });
 
+test('a verified semantic composition may reuse exact component identity only after final composition review', () => {
+  const crypto = require('node:crypto');
+  const { evaluateCandidate } = require('../../src/services/sourceAssetResolver.cjs');
+  const hash = crypto.createHash('sha256').update(fs.readFileSync(existingFile)).digest('hex');
+  const requirement = { actualGameAssetRequired: true, requiredObjects: ['card'], transitionRequired: true,
+    beforeState: 'Available', actionState: 'Resolve', afterState: 'Continue', evidenceSceneId: 'scene' };
+  const teaching = ['Available', 'Resolve', 'Continue'].map((instructionalText, index) => ({ id: ['before', 'action', 'after'][index], label: ['Avant', 'Action', 'Après'][index], instructionalText, sourceRefs: [{ page: 4 }] }));
+  const frames = teaching.map((stage, index) => ({ id: `frame-${index + 1}`, stage, outputPath: existingFile, phonePath: existingFile,
+    sourcePixelsPerDisplayPixel: 1, actualDisplayBounds: { width: 900, height: 700 } }));
+  const component = proof('card-asset', existingFile, 'card', { contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT', bbox: [.1, .1, .9, .9] });
+  const sequence = { contract: 'mobius-source-grounded-semantic-sequence-v1', semanticTeaching: true, sceneId: 'scene', assetId: 'card-asset', sourceTeaching: teaching,
+    sourceAssets: [{ assetId: 'card-asset', sourceImageSha256: hash }], frames,
+    review: { scenes: [{ scene_id: 'scene', candidates: [{ status: 'MEASURED', evidencePacket: { visualRole: 'COMPOSITION', responseContract: 'normalized-composition-sequence-v2',
+      requirement: { ...requirement, evidenceSceneId: undefined }, semanticTeaching: { contract: 'mobius-source-grounded-semantic-sequence-v1', sourceTeaching: JSON.parse(JSON.stringify(teaching)) },
+      sequenceFrames: frames.map(frame => ({ id: frame.id, stage: frame.stage, imageSha256: hash, phoneSha256: hash })) },
+      objects: [{ requiredObject: 'card', visualRole: 'COMPOSITION', method: 'provider-pixel-analysis', confidence: .98, present: true, complete: true, isolated: true, stateCompatible: true, purposeSatisfied: true, phoneReadable: true }] }] }] } };
+  const candidate = asset('card-asset', { semanticObjects: ['card'], objectVisualEvidence: [component], instructionalSequences: [sequence] });
+  expect(evaluateCandidate(candidate, requirement, { width: 900, height: 700 })).toMatchObject({ valid: true, hardViolations: [] });
+  sequence.review.scenes[0].candidates[0].evidencePacket.semanticTeaching.sourceTeaching[0].instructionalText = 'Tampered';
+  expect(evaluateCandidate(candidate, requirement, { width: 900, height: 700 }).hardViolations).toContain('object-pixel-evidence-missing:card');
+});
+
 test('exact-game authorized BGG originals outrank native PDF rasters but not publisher masters', () => {
   expect(sourceAuthorityRank('OFFICIAL_PUBLISHER_HIGH_RES')).toBeGreaterThan(sourceAuthorityRank('OFFICIAL_BGG_ASSET'));
   expect(sourceAuthorityRank('OFFICIAL_BGG_ASSET')).toBeGreaterThan(sourceAuthorityRank('NATIVE_EMBEDDED'));

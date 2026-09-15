@@ -762,6 +762,17 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                 scoped_packet.pop('componentEvidencePages', None)
                 scoped_packet['requiredObjects'] = [{'id':o['id'],'term':o['id']} for o in packet['requiredObjects']]
                 scoped_packet['responseContract'] = COMPOSITION_RESPONSE_CONTRACT
+                semantic_teaching = (asset.get('asset_metadata') or {}).get('semanticTeaching') is True
+                if semantic_teaching:
+                    # This is a source-grounded explanatory sequence, not a
+                    # claimed photograph of a changing board state.  Preserve
+                    # the exact source facts and frames in the provider packet
+                    # so the final verdict cannot be replayed for a different
+                    # explanation.
+                    scoped_packet['semanticTeaching'] = {
+                        'contract': 'mobius-source-grounded-semantic-sequence-v1',
+                        'sourceTeaching': (asset.get('asset_metadata') or {}).get('sourceTeaching') or []
+                    }
                 phone = (asset.get('asset_metadata') or {}).get('phonePath')
                 scoped_packet['phoneSha256'] = hashlib.sha256(Path(phone).read_bytes()).hexdigest() if phone else None
                 frames = (asset.get('asset_metadata') or {}).get('sequenceFrames', [])
@@ -860,7 +871,9 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                             'phoneReadable means the referent and required instructional text/symbols remain identifiable at phone scale; '
                             'do not require reading unrelated decorative/map text. Explain all missing evidence. '
                             'Return exact requested object IDs, bbox NORMALIZED [left,top,right,bottom] each in 0..1 '
-                            'relative to the FINAL full-size image, NEVER pixel coordinates. Confidence 0..1, unknown=false.\n'
+                            'relative to the FINAL full-size image, NEVER pixel coordinates. Confidence 0..1, unknown=false. '
+                            'If semanticTeaching is present, its labels are source-grounded explanatory text, not a claim that the source photograph itself shows a changing marker/card state. '
+                            'Accept only when those labels accurately teach the supplied requirement without falsely depicting a physical change.\n'
                             + json.dumps(scoped_packet, ensure_ascii=False))
                         phone = (asset.get('asset_metadata') or {}).get('phonePath')
                         if phone:

@@ -61,6 +61,8 @@ async function main() {
     await writeFile(quality, JSON.stringify({ assets: [{ asset_id: input.scene.id, path: input.outputPath,
       asset_metadata: { visual_kind: 'instructional-composition', source_page: input.scene.source_pages?.[0], phonePath: input.phonePath,
         sequenceFrames: input.frames || [],
+        semanticTeaching: input.semanticTeaching === true,
+        sourceTeaching: input.sourceTeaching || null,
         dimensions: { width: 1920, height: 1080 } } }] }));
     const ai = getAiConfig();
     await run(arg('python') || process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3'),

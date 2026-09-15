@@ -54,3 +54,36 @@ test('derives a reusable consumed one-shot marker transition', () => {
   expect(state.stages[1].items[0].removed).toBe(true);
   expect(validatePhysicalGameState(state)).toEqual({ valid: true, violations: [] });
 });
+
+test('derived state stages preserve their RuleAtom citations', () => {
+ const state=derivePhysicalGameState({
+   id:'cited-transition', sourceRefs:[{page:7,excerptHash:'source-evidence'}], confidence:.95, reviewState:'accepted',
+   visualRequirement:{requiredObjects:['token'],transitionRequired:true},
+ });
+ expect(state.stages).toHaveLength(2);
+ expect(state.stages.map(stage=>stage.sourceRefs)).toEqual([
+   [{page:7,excerptHash:'source-evidence'}],
+   [{page:7,excerptHash:'source-evidence'}],
+ ]);
+});
+
+test('a semantic teaching sequence is accepted only with its exact source-grounded labels',()=>{
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
+ const {verifiedInstructionalSequence}=require('../../src/services/physicalGameState.cjs');
+ const folder=fs.mkdtempSync(path.join(os.tmpdir(),'mobius-semantic-sequence-'));
+ const source=path.join(folder,'source'),frame=path.join(folder,'frame');fs.writeFileSync(source,'source pixels');fs.writeFileSync(frame,'final pixels');
+ const hash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+ const requirement={requiredObjects:['card'],transitionRequired:true,beforeState:'Available',actionState:'Resolve the effect',afterState:'Continue play'};
+ const teaching=['Available','Resolve the effect','Continue play'].map((instructionalText,index)=>({id:['before','action','after'][index],label:['Avant','Action','Après'][index],instructionalText,sourceRefs:[{page:4}]}));
+ const frames=teaching.map((stage,index)=>({id:`frame-${index + 1}`,stage:{...stage},outputPath:frame,phonePath:frame,sourcePixelsPerDisplayPixel:1}));
+ const sequence={contract:'mobius-source-grounded-semantic-sequence-v1',semanticTeaching:true,sceneId:'scene',assetId:'card-asset',sourceTeaching:teaching,
+   sourceAssets:[{assetId:'card-asset',sourceImageSha256:hash(source)}],frames,
+   review:{scenes:[{scene_id:'scene',candidates:[{status:'MEASURED',evidencePacket:{visualRole:'COMPOSITION',responseContract:'normalized-composition-sequence-v2',requirement,
+     semanticTeaching:{contract:'mobius-source-grounded-semantic-sequence-v1',sourceTeaching:JSON.parse(JSON.stringify(teaching))},sequenceFrames:frames.map(f=>({id:f.id,stage:f.stage,imageSha256:hash(frame),phoneSha256:hash(frame)}))},
+     objects:[{requiredObject:'card',visualRole:'COMPOSITION',method:'provider-pixel-analysis',confidence:.98,present:true,complete:true,isolated:true,stateCompatible:true,purposeSatisfied:true,phoneReadable:true}]}]}]}};
+ const candidate={id:'card-asset',filePath:source,instructionalSequences:[sequence]};
+ expect(verifiedInstructionalSequence(candidate,requirement,'scene')).toBe(sequence);
+ sequence.review.scenes[0].candidates[0].evidencePacket.semanticTeaching.sourceTeaching[1].instructionalText='Unsourced replacement';
+ expect(verifiedInstructionalSequence(candidate,requirement,'scene')).toBeNull();
+ fs.rmSync(folder,{recursive:true,force:true});
+});

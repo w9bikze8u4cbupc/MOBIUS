@@ -14,7 +14,7 @@ const { runProductionQualityGate } = require('./productionQualityGate.cjs');
 const { canonicalTeachingPresentation } = require('./visualPlanMaterializer.cjs');
 const { buildKnowledgeTeachingPlan } = require('./rulebookKnowledge.cjs');
 
-const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v3';
+const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v4';
 
 function uniqueAssets(assets = []) {
   const byId = new Map();
@@ -171,6 +171,7 @@ function compileCanonicalProductionState({
       source_pages: atom.sourceRefs.map((ref) => ref.page).filter(Boolean),
       sourceRefs: atom.sourceRefs,
       visualRequirement: atom.visualRequirement,
+      localizedTeaching: atom.teaching?.visualTeaching || null,
       physicalState: physicalStates.find((state) => state.ruleAtomId === atom.id),
       visualPlan: compiled?.cockpit,
       canonicalVisualPlan: compiled,

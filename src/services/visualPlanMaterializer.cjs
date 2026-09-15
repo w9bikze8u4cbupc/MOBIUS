@@ -21,6 +21,23 @@ function stateValueLabel(item = {}) {
   return 'En jeu';
 }
 
+function wrapSvgText(value, max = 58, maximumLines = 3) {
+  const lines = [];
+  let line = '';
+  for (const word of String(value || '').replace(/\s+/g, ' ').trim().split(' ')) {
+    if (!word) continue;
+    if (line && line.length + word.length + 1 > max) {
+      lines.push(line);
+      line = word;
+      if (lines.length >= maximumLines) break;
+    } else {
+      line += `${line ? ' ' : ''}${word}`;
+    }
+  }
+  if (line && lines.length < maximumLines) lines.push(line);
+  return lines;
+}
+
 function stageStateSignature(stage = {}, referents = []) {
   return JSON.stringify(referents.map((referent) => {
     const item = (stage.items || []).find((entry) => entry.componentRef === referent || entry.id === referent) || {};
@@ -48,7 +65,10 @@ function sourceMeasuredComponentCandidate({ scene, referent, assets = [] } = {})
 
 async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index, total, selected, outputDir } = {}) {
   const frameWidth = 1920, frameHeight = 1080;
-  const cells = gridCells(selected.length, 1660, 500, 0).map((cell) => ({ ...cell, x: cell.x + 130, y: cell.y + 330 }));
+  // Reserve a truthful source-grounded explanation band above the physical
+  // components. It never draws a new game token/card; it only labels the
+  // exact state or rule fact already cited by the RuleAtom.
+  const cells = gridCells(selected.length, 1660, 420, 0).map((cell) => ({ ...cell, x: cell.x + 130, y: cell.y + 440 }));
   const primary = sourceFile(selected[0].asset);
   const backdrop = await sharp(primary).resize(frameWidth, frameHeight, { fit: 'cover' }).blur(40)
     .modulate({ brightness: .19, saturation: .5 }).png().toBuffer();
@@ -76,9 +96,11 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
     states.push({ referent: entry.referent, assetId: entry.asset.id, label: stateValueLabel(item),
       left, top, width, height, item });
   }
-  const labels = states.map((value) => `<rect x="${value.left}" y="${Math.max(270, value.top - 58)}" width="${value.width}" height="44" rx="12" fill="#231811" fill-opacity=".9"/><text x="${value.left + 16}" y="${Math.max(301, value.top - 27)}" fill="#fff3d9" font-family="Arial" font-size="28" font-weight="bold">${xml(value.label)}</text>`).join('');
+  const labels = states.map((value) => `<rect x="${value.left}" y="${Math.max(382, value.top - 58)}" width="${value.width}" height="44" rx="12" fill="#231811" fill-opacity=".9"/><text x="${value.left + 16}" y="${Math.max(413, value.top - 27)}" fill="#fff3d9" font-family="Arial" font-size="28" font-weight="bold">${xml(value.label)}</text>`).join('');
   const headline = String(scene.on_screen_text || scene.title || scene.visualRequirement?.purpose || '').split(/\n/)[0].slice(0, 150);
-  const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><rect x="42" y="38" width="1836" height="1004" rx="32" fill="#231811" fill-opacity=".86" stroke="#be9a58" stroke-width="3"/><text x="96" y="112" fill="#fff3d9" font-family="Arial" font-size="46" font-weight="bold">${xml(headline)}</text><text x="96" y="184" fill="#e1c184" font-family="Arial" font-size="38">${xml(stage.label || `Étape ${index + 1}`)}</text>${labels}<text x="96" y="1000" fill="#fff3d9" font-family="Arial" font-size="34">${index + 1} / ${total} · État source du jeu · Livret p. ${xml((scene.source_pages || []).join(', '))}</text></svg>`);
+  const instructionalLines = wrapSvgText(stage.instructionalText, 72, 3);
+  const instructionalText = instructionalLines.map((line, lineIndex) => `<text x="96" y="${238 + lineIndex * 38}" fill="#fff3d9" font-family="Arial" font-size="30">${xml(line)}</text>`).join('');
+  const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><rect x="42" y="38" width="1836" height="1004" rx="32" fill="#231811" fill-opacity=".86" stroke="#be9a58" stroke-width="3"/><text x="96" y="112" fill="#fff3d9" font-family="Arial" font-size="46" font-weight="bold">${xml(headline)}</text><text x="96" y="184" fill="#e1c184" font-family="Arial" font-size="38">${xml(stage.label || `Étape ${index + 1}`)}</text>${instructionalText}${labels}<text x="96" y="1000" fill="#fff3d9" font-family="Arial" font-size="34">${index + 1} / ${total} · État source du jeu · Livret p. ${xml((scene.source_pages || []).join(', '))}</text></svg>`);
   layers.splice(1, 0, { input: svg, left: 0, top: 0 });
   const target = path.resolve(outputDir, `${sequenceId}-state-${index + 1}.png`);
   const materialized = target.replace(/\.png$/, '.materialized.png');
@@ -94,7 +116,7 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
   await sharp(target).resize(390, 219).png().toFile(phonePath);
   return { id: `${sequenceId}-state-${index + 1}`, outputPath: target, phonePath, renderConfigPath: configPath,
     narration: scene.narration, stage, sourcePixelsPerDisplayPixel: minimumSourcePixelsPerDisplayPixel,
-    actualDisplayBounds: { left: 130, top: 330, width: 1660, height: 500 }, preparedOnly: true, validated: false };
+    actualDisplayBounds: { left: 130, top: 440, width: 1660, height: 420 }, preparedOnly: true, validated: false };
 }
 
 /**
@@ -132,6 +154,95 @@ async function materializeStatefulInstructionalFrames({ projectId, scene, assets
       sourceImageSha256: sha(fs.readFileSync(sourceFile(entry.asset))), sourcePdfSha256: entry.asset.sourcePdfSha256,
       componentEvidence: entry.component })), frames, sourceComponentEvidence: selected.map((entry) => entry.component),
     preparedOnly: true, validated: false };
+}
+
+function semanticTeachingStages(scene = {}) {
+  const requirement = scene.visualRequirement || {};
+  const localized = scene.localizedTeaching?.visualTeaching || {};
+  const sourceRefs = (scene.sourceRefs || []).filter((ref) => Number.isInteger(Number(ref?.page)) && Number(ref.page) > 0);
+  // A semantic sequence teaches a cited change *about* a real component.  It
+  // is not a substitute for a measured arrangement, orientation, quantity or
+  // face-state.  Those requirements continue through the physical-state
+  // materializer and Cockpit when source pixels cannot prove them.
+  const concretePhysicalClaim = requirement.trackStateRequired || requirement.setupPlacementRequired
+    || requirement.layeredStateRequired || requirement.faceStateRequired || requirement.oneShotMarkerRequired
+    || requirement.requiredOrientation || requirement.requiredRelationship
+    || requirement.requiredQuantities?.length || requirement.physicalState
+    || requirement.physicalStateRequirement;
+  if (!requirement.transitionRequired || concretePhysicalClaim || !sourceRefs.length) return [];
+  const candidates = [
+    ['before', 'Avant', localized.beforeState || requirement.beforeState],
+    ['action', 'Action', localized.actionState || requirement.actionState],
+    ['after', 'Après', localized.afterState || requirement.afterState],
+  ].map(([id, label, instructionalText]) => ({ id, label, instructionalText: String(instructionalText || '').replace(/\s+/g, ' ').trim() }))
+    .filter((stage) => stage.instructionalText);
+  const distinct = new Set(candidates.map((stage) => stage.instructionalText.toLocaleLowerCase('fr-CA')));
+  if (candidates.length < 2 || distinct.size < 2) return [];
+  return candidates.map((stage) => ({
+    ...stage,
+    sourceRefs,
+  }));
+}
+
+/**
+ * Some rules describe a real transition but do not supply enough evidence to
+ * draw a new physical arrangement.  Do not invent that arrangement.  When a
+ * complete source-measured component exists, teach the source-grounded rule
+ * as a labelled semantic sequence and require a provider verdict on the final
+ * rendered frames. This is deliberately distinct from a physical-state
+ * sequence: annotations explain the cited rule; they never masquerade as
+ * photographed marker/card movement.
+ */
+async function materializeSemanticInstructionalFrames({ projectId, scene, assets, outputDir } = {}) {
+  const requirement = scene.visualRequirement || {};
+  const referents = requirement.requiredObjects || [];
+  const stages = semanticTeachingStages(scene);
+  if (!referents.length || referents.length > 4 || !stages.length) return null;
+  const selected = referents.map((referent) => {
+    const candidate = sourceMeasuredComponentCandidate({ scene, referent, assets });
+    return candidate && { ...candidate, referent };
+  });
+  if (selected.some((entry) => !entry)) return null;
+  const sequenceId = String(scene.id).replace(/[^a-z0-9_-]+/gi, '-');
+  await fs.promises.mkdir(outputDir, { recursive: true });
+  const frames = [];
+  for (const [index, baseStage] of stages.entries()) {
+    const stage = {
+      ...baseStage,
+      items: selected.map((entry) => ({
+        id: entry.referent,
+        componentRef: entry.referent,
+        visibility: 'VISIBLE',
+        faceState: 'NOT_APPLICABLE',
+        availability: 'UNKNOWN',
+        sourceRefs: baseStage.sourceRefs,
+        confidence: Number(entry.component.confidence || 0),
+        reviewState: 'accepted',
+        semanticInstructionOnly: true,
+      })),
+    };
+    const frame = await renderStatefulFrame({ projectId, scene, sequenceId, stage, index, total: stages.length, selected, outputDir });
+    if (!frame) return null;
+    frames.push(frame);
+  }
+  return {
+    contract: 'mobius-source-grounded-semantic-sequence-v1',
+    sceneId: scene.id,
+    ruleAtomId: scene.atomId,
+    assetId: selected[0].asset.id,
+    semanticTeaching: true,
+    sourceTeaching: stages.map(({ id, label, instructionalText, sourceRefs }) => ({ id, label, instructionalText, sourceRefs })),
+    sourceAssets: selected.map((entry) => ({
+      assetId: entry.asset.id,
+      sourceImageSha256: sha(fs.readFileSync(sourceFile(entry.asset))),
+      sourcePdfSha256: entry.asset.sourcePdfSha256,
+      componentEvidence: entry.component,
+    })),
+    frames,
+    sourceComponentEvidence: selected.map((entry) => entry.component),
+    preparedOnly: true,
+    validated: false,
+  };
 }
 
 function trackCandidateQuality({ asset, component, track }) {
@@ -272,7 +383,7 @@ async function materializeInstructionalStill({ state, sceneId, outputDir, allowR
     reason: 'Normal renderer output requires physical/composition review; production state and decisions unchanged.' };
 }
 
-const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v2';
+const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v3';
 
 function sourceFile(asset = {}) {
   return asset.displayPath || asset.renderPath || asset.filePath || asset.path || asset.sourceImage || null;
@@ -349,6 +460,12 @@ async function materializeVisualPlanFrames({ state, outputDir, width = 1400, hei
     if(statefulSequence){
       records.push(statefulSequence);
       scenes.push({...scene,preparedStatefulSequence:statefulSequence});
+      continue;
+    }
+    const semanticSequence=await materializeSemanticInstructionalFrames({projectId:state.projectId,scene,assets:state.assets,outputDir:path.join(absoluteOutput,'semantic-sequences')});
+    if(semanticSequence){
+      records.push(semanticSequence);
+      scenes.push({...scene,preparedSemanticSequence:semanticSequence});
       continue;
     }
     const plan = scene.canonicalVisualPlan || {};
@@ -434,6 +551,8 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
   const inputPath=path.join(folder,'input.json');
   fs.writeFileSync(inputPath,JSON.stringify({scene,frames:sequence.frames,outputPath:sequence.frames[0].outputPath,
     phonePath:sequence.frames[0].phonePath,
+    semanticTeaching:sequence.semanticTeaching===true,
+    sourceTeaching:sequence.sourceTeaching||null,
     componentTerms:Object.fromEntries((state.knowledgeModel.components||[]).map(c=>[c.id,c.name]))}));
   const result=spawnSync(process.execPath,[path.resolve(__dirname,'../../scripts/prepare-source-visuals.mjs'),
     '--composition-review',inputPath,'--output-dir',folder],{env:compositionReviewEnvironment(env),windowsHide:true,encoding:'utf8',timeout:180000});
@@ -446,4 +565,4 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
  return {assets:attachSequenceReviewEvidence({assets:state.assets,records:materialized.records,reviewPaths}),reviewPaths};
 }
 
-module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, materializeTrackStateFrames, materializeStatefulInstructionalFrames, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill };
+module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, cellsFor, materializeVisualPlanFrames, materializeTrackStateFrames, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, semanticTeachingStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill };

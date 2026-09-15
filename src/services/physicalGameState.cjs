@@ -23,6 +23,13 @@ function verifiedInstructionalSequence(candidate, requirement, sceneId) {
    const row=sequence.review?.scenes?.find(s=>s.scene_id===sceneId||s.sceneId===sceneId||s.id===sceneId)?.candidates?.find(c=>c.status==='MEASURED');
    const packet=row?.evidencePacket;
    if(!row||packet.visualRole!=='COMPOSITION'||packet.responseContract!=='normalized-composition-sequence-v2')continue;
+   const semanticTeaching=sequence.semanticTeaching===true;
+   if(semanticTeaching){
+    if(sequence.contract!=='mobius-source-grounded-semantic-sequence-v1'
+      ||packet.semanticTeaching?.contract!=='mobius-source-grounded-semantic-sequence-v1'
+      ||JSON.stringify(packet.semanticTeaching.sourceTeaching)!==JSON.stringify(sequence.sourceTeaching||[])
+      ||sequence.frames.some(frame=>!String(frame.stage?.instructionalText||'').trim()))continue;
+   } else if(packet.semanticTeaching) continue;
    const compared={...requirement};delete compared.evidenceSceneId;
    if(JSON.stringify(packet.requirement)!==JSON.stringify(compared))continue;
    if(sourceAsset.sourceImageSha256!==pixelHash(candidate.filePath))continue;
@@ -96,12 +103,16 @@ function derivePhysicalGameState(atom = {}) {
     confidence: atom.confidence,
     reviewState: atom.reviewState,
   }));
-  const before = normalizeStateStage({ id: 'before', label: 'Avant', items: baseItems }, 'before');
+  // A derived state is still grounded in the RuleAtom that caused it.  Earlier
+  // versions put citations only on items, which made a truthful state sequence
+  // look unproven to the materializer.  Carry the same source references on
+  // every derived stage; this adds provenance, not a new game fact.
+  const before = normalizeStateStage({ id: 'before', label: 'Avant', items: baseItems, sourceRefs: atom.sourceRefs || [] }, 'before');
   const afterItems = baseItems.map((item) => ({
     ...item,
     ...(requirement.oneShotMarkerRequired ? { availability: 'CONSUMED', consumed: true, visibility: 'REMOVED', removed: true } : {}),
   }));
-  const after = normalizeStateStage({ id: 'after', label: 'Après', items: afterItems }, 'after');
+  const after = normalizeStateStage({ id: 'after', label: 'Après', items: afterItems, sourceRefs: atom.sourceRefs || [] }, 'after');
   return normalizePhysicalGameState({
     ruleAtomId: atom.id,
     transitionType: requirement.oneShotMarkerRequired ? 'CONSUMED_TRIGGER'
