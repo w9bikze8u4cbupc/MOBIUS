@@ -75,6 +75,19 @@ test('sidecar checksum and measured size are strict', () => {
   expect(() => storage.createCompactCanonicalProductionState(state(), { projectId: 'fixture', relativePath: '../outside.json' })).toThrow(/path/);
 });
 
+test('oversize diagnostics identify the largest logical fields without changing the budget', () => {
+  const oversized = state();
+  oversized.largeEvidence = 'x'.repeat(storage.CANONICAL_STATE_BUDGET_BYTES);
+  try {
+    storage.createCompactCanonicalProductionState(oversized, { projectId: 'fixture' });
+    throw new Error('expected an oversize failure');
+  } catch (error) {
+    expect(error.code).toBe('PROJECT_STATE_TOO_LARGE');
+    expect(error.measuredBytes).toBeGreaterThan(storage.CANONICAL_STATE_BUDGET_BYTES);
+    expect(error.largestFields[0]).toMatchObject({ field: 'largeEvidence', bytes: expect.any(Number) });
+  }
+});
+
 test('the compact representation is deterministic and does not duplicate sidecar evidence on replay', () => {
   const full = state();
   const first = storage.createCompactCanonicalProductionState(full, { projectId: 'fixture' });
@@ -94,6 +107,7 @@ test('materialization evidence and validation assets are stored once and hydrate
   };
   full.assets[0].instructionalSequences = [sequence];
   full.visualPlans[0].validation = { valid: true, selectedAssets: [full.assets[0]] };
+  full.visualPlans[0].cockpit.validation = full.visualPlans[0].validation;
   full.scenes[0].preparedInstructionalDiagram = sequence;
   full.visualPlanMaterialization = { contract: 'materializer-v7', outputDir: 'C:/project/production', records: [sequence] };
 
@@ -105,6 +119,8 @@ test('materialization evidence and validation assets are stored once and hydrate
   expect(first.compact.scenes[0].materializationEvidenceRefs.preparedInstructionalDiagram).toEqual(expect.any(String));
   expect(first.compact.visualPlans[0].validation.selectedAssets).toBeUndefined();
   expect(first.compact.visualPlans[0].validation.selectedAssetIds).toEqual(['asset']);
+  expect(first.compact.visualPlans[0].cockpit.validation).toBeUndefined();
+  expect(first.compact.visualPlans[0].cockpitDerivation.derivedFields).toContain('validation');
   expect(first.compact.visualPlanMaterialization.records[0]).toEqual({ materializationEvidenceRef: expect.any(String) });
 
   const hydrated = storage.hydrateCanonicalProductionState(first.compact, first.artifact);

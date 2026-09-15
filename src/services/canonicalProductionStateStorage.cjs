@@ -36,7 +36,20 @@ function failure(message, code = 'PROJECT_STATE_INVALID') {
 
 function assertBudget(value, budget, label) {
   const size = bytes(value);
-  if (size > budget) throw failure(`${label} is ${size} UTF-8 bytes; budget is ${budget}. Explicit recovery is required.`, 'PROJECT_STATE_TOO_LARGE');
+  if (size > budget) {
+    const largestFields = value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.entries(value).filter(([, fieldValue]) => fieldValue !== undefined)
+        .map(([field, fieldValue]) => ({ field, bytes: bytes(fieldValue) }))
+        .sort((left, right) => right.bytes - left.bytes).slice(0, 8)
+      : [];
+    const detail = largestFields.length
+      ? ` Largest fields: ${largestFields.map((entry) => `${entry.field}=${entry.bytes}`).join(', ')}.` : '';
+    const error = failure(`${label} is ${size} UTF-8 bytes; budget is ${budget}.${detail} Explicit recovery is required.`, 'PROJECT_STATE_TOO_LARGE');
+    error.measuredBytes = size;
+    error.budgetBytes = budget;
+    error.largestFields = largestFields;
+    throw error;
+  }
   return size;
 }
 
@@ -211,7 +224,10 @@ function compactPlan(plan, candidateEvidence, materializationEvidence) {
   const planFields = { ...rawPlanFields, ...(hasValidation ? { validation } : {}) };
   const { assetCandidates, sourceReferences, ...cockpitFields } = cockpit;
   const derivedFields = Object.keys(cockpitFields)
-    .filter((key) => Object.hasOwn(planFields, key) && isDeepStrictEqual(cockpitFields[key], planFields[key]));
+    // Compare Cockpit mirrors with the original rich plan before replacing
+    // embedded validation assets with IDs. Otherwise that same rich validation
+    // graph survives as a supposedly unique Cockpit field.
+    .filter((key) => Object.hasOwn(rawPlanFields, key) && isDeepStrictEqual(cockpitFields[key], rawPlanFields[key]));
   const uniqueCockpit = Object.fromEntries(Object.entries(cockpitFields)
     .filter(([key]) => !derivedFields.includes(key)));
   const derivation = {
@@ -254,7 +270,8 @@ function hydratePlan(plan, artifact, assetsById) {
     throw failure('Visual Plan Cockpit derivation uses an unsupported contract.');
   }
   const derived = Object.fromEntries((cockpitDerivation.derivedFields || [])
-    .filter((key) => Object.hasOwn(planFields, key)).map((key) => [key, planFields[key]]));
+    .filter((key) => Object.hasOwn(planFields, key))
+    .map((key) => [key, key === 'validation' ? validation : planFields[key]]));
   if (cockpitDerivation.assetCandidatesDeclared) {
     derived.assetCandidates = (cockpitDerivation.assetCandidateEvidenceRefs || []).map((reference) => {
       const candidate = artifact?.candidateEvidence?.[reference?.candidateEvidenceRef];
