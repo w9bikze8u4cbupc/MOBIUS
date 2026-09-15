@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   automaticAuthorizedSourceRecoveryInput,
   automaticAuthorizedSourceRecoveryInputHash,
+  sourceVisualReviewInput,
 } from '../../scripts/run-rulebook-production.mjs';
 import resolver from '../../src/services/sourceAssetResolver.cjs';
 
@@ -35,4 +36,19 @@ test('authorized publisher recovery checkpoint replays only unchanged dependenci
   });
   assert.equal(replay, first);
   assert.notEqual(changedDocument, first);
+});
+
+test('initial visual review incorporates recovered publisher candidates in its single bounded input', () => {
+  const common = {
+    visualScriptHash: 'script', hephHash: 'hephaestus', sourceSha256: 'a'.repeat(64),
+    matchModel: 'fixture-model', providerConfiguration: 'fixture-config',
+  };
+  const localOnly = sourceVisualReviewInput(common);
+  const withPublisher = sourceVisualReviewInput({
+    ...common,
+    authorizedCandidateManifests: [{ contract: 'publisher-v2', candidates: [{ id: 'official-image' }] }],
+  });
+  assert.equal(withPublisher.pipeline, 'focused-source-visuals-v15-authorized-candidates-first');
+  assert.equal(withPublisher.authorizedCandidateManifests.length, 1);
+  assert.notDeepEqual(withPublisher, localOnly);
 });

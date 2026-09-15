@@ -66,7 +66,7 @@ const VOICE_ID = process.env.ELEVENLABS_VOICE_ID_AMELIE || 'UJCi4DDncuo0VJDSIegj
 const VOICE_NAME = 'Amélie';
 const MODEL_ID = 'eleven_multilingual_v2';
 const { DEFAULT_NARRATION_PRESET, getEditorialContract } = editorialStandard;
-const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v14-bounded-autopilot-batches';
+const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v15-authorized-candidates-first';
 const DEFAULT_BASE_URL = process.env.MOBIUS_BASE_URL || 'http://127.0.0.1:5001';
 
 function argsToObject(argv = process.argv.slice(2)) {
@@ -474,6 +474,24 @@ export function automaticAuthorizedSourceRecoveryInput({ sourceSha256, identity,
 
 export function automaticAuthorizedSourceRecoveryInputHash(options) {
   return hashValue(automaticAuthorizedSourceRecoveryInput(options));
+}
+
+export function sourceVisualReviewInput({ visualScriptHash, hephHash, sourceSha256, matchModel, providerConfiguration, providerRecovery, continuation, authorizedCandidateManifests = [] } = {}) {
+  return {
+    pipeline: VISUAL_PIPELINE_VERSION,
+    visualScriptHash,
+    hephHash,
+    sourceSha256,
+    qualityMode: 'LOCAL_SCREENING_NOT_PIXEL_VALIDATION',
+    matchModel: matchModel || null,
+    providerConfiguration: providerConfiguration || null,
+    providerRecovery: providerRecovery || null,
+    continuation: continuation || null,
+    // Exact publisher candidates must participate in the same bounded match
+    // batch as local source pixels. A separate later batch can otherwise find
+    // its shared budget exhausted before examining the new source at all.
+    authorizedCandidateManifests: authorizedCandidateManifests.map((manifest) => hashValue(manifest)),
+  };
 }
 
 function recoverySupersedes(prior, inputHash) {
@@ -1131,22 +1149,34 @@ async function runZeroState(options = {}) {
   const baseSemanticPath = path.join(baseVisualReviewDir, 'source-visual-semantic-matches.json');
   const baseFocusedCropManifestPath = path.join(baseVisualReviewDir, 'focused-page-crops.json');
   const baseCombinedVisualManifestPath = path.join(baseVisualReviewDir, 'source-visual-manifest.json');
+  // An official publisher recovery requires only the authoritative document
+  // map and a verified title. Run it before the first provider-backed source
+  // review, so the bounded batch weighs recovered pixels alongside local PDF
+  // pixels instead of exhausting its budget on the latter first. BGG feature
+  // recovery remains available as a later path when no publisher source is
+  // available, because it needs a measured local component template.
+  const earlyAutomaticRecovery = await recoverAutomaticAuthorizedCandidates({
+    root, projectDir, sourceSha256: identity.sha256, identity: canonicalGameIdentity, visualScript, assets: [],
+    documentMap: rulebookKnowledgeModel.documentMap,
+  });
+  const earlyCandidateManifestPaths = earlyAutomaticRecovery.originalManifest && exists(earlyAutomaticRecovery.originalManifest)
+    ? [earlyAutomaticRecovery.originalManifest] : [];
+  const earlyCandidateManifests = earlyCandidateManifestPaths.map((candidatePath) => jsonIf(candidatePath, {}));
   const priorVisualAnalysis = jsonIf(baseSemanticPath, {});
-  const baseVisualReviewHash = hashValue({
-    pipeline: VISUAL_PIPELINE_VERSION,
+  const baseVisualReviewHash = hashValue(sourceVisualReviewInput({
     visualScriptHash,
     hephHash,
     sourceSha256: identity.sha256,
-    qualityMode: 'LOCAL_SCREENING_NOT_PIXEL_VALIDATION',
     matchModel: process.env.MOBIUS_VISUAL_MATCH_MODEL || aiPreflight.status.model,
     providerConfiguration: aiPreflight.status.configurationFingerprint,
     providerRecovery: visualProviderRecoveryIdentity(process.env),
     continuation: visualAnalysisContinuationIdentity(priorVisualAnalysis),
-  });
+    authorizedCandidateManifests: earlyCandidateManifests,
+  }));
   let visualAutopilot = null;
   if (!stageReady(checkpoint, 'visual-review-base', baseVisualReviewHash, [baseQualityPath, baseSemanticPath, baseCombinedVisualManifestPath, baseFocusedCropManifestPath])) {
     const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
-    const visualArgs = [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--hephaestus-evidence', hephEvidencePath, '--output-dir', baseVisualReviewDir, '--page-dir', pageDir, '--extraction', path.join(productionDir, 'zero-state-extraction.json'), '--source-sha256', identity.sha256, '--source-pdf', await sourceService.resolveFile(projectId)];
+    const visualArgs = [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--hephaestus-evidence', hephEvidencePath, '--output-dir', baseVisualReviewDir, '--page-dir', pageDir, '--extraction', path.join(productionDir, 'zero-state-extraction.json'), '--source-sha256', identity.sha256, '--source-pdf', await sourceService.resolveFile(projectId), ...earlyCandidateManifestPaths.flatMap((candidatePath) => ['--authorized-candidate-manifest', candidatePath])];
     visualAutopilot = await runBoundedVisualReviewBatches({
       env: process.env,
       readReport: () => jsonIf(baseSemanticPath, {}),
@@ -1163,18 +1193,22 @@ async function runZeroState(options = {}) {
   });
 
   const baseCatalog = loadSourceVisualCatalog(baseCombinedVisualManifestPath, { qualityReportPath: baseQualityPath, semanticReportPath: baseSemanticPath, hephaestusEvidencePath: hephEvidencePath });
-  const automaticRecovery = await recoverAutomaticAuthorizedCandidates({
-    root, projectDir, sourceSha256: identity.sha256, identity: canonicalGameIdentity, visualScript, assets: baseCatalog.assets,
-    documentMap: rulebookKnowledgeModel.documentMap,
-  });
-  const automaticCandidateManifestPaths = automaticRecovery.originalManifest && exists(automaticRecovery.originalManifest)
-    ? [automaticRecovery.originalManifest] : [];
+  const automaticRecovery = earlyCandidateManifestPaths.length ? earlyAutomaticRecovery
+    : await recoverAutomaticAuthorizedCandidates({
+      root, projectDir, sourceSha256: identity.sha256, identity: canonicalGameIdentity, visualScript, assets: baseCatalog.assets,
+      documentMap: rulebookKnowledgeModel.documentMap,
+    });
+  const automaticCandidateManifestPaths = earlyCandidateManifestPaths.length ? earlyCandidateManifestPaths
+    : (automaticRecovery.originalManifest && exists(automaticRecovery.originalManifest) ? [automaticRecovery.originalManifest] : []);
   let visualReviewDir = baseVisualReviewDir;
   let qualityPath = baseQualityPath;
   let semanticPath = baseSemanticPath;
   let focusedCropManifestPath = baseFocusedCropManifestPath;
   let combinedVisualManifestPath = baseCombinedVisualManifestPath;
-  if (automaticCandidateManifestPaths.length) {
+  // Candidates recovered before base review were already inspected in that
+  // single bounded batch. Only a recovery that appeared after a local-only
+  // base review needs a separate, deferred authorized review.
+  if (automaticCandidateManifestPaths.length && !earlyCandidateManifestPaths.length) {
     visualReviewDir = path.join(productionDir, 'authorized-source-visual-review');
     qualityPath = path.join(visualReviewDir, 'source-visual-quality.json');
     semanticPath = path.join(visualReviewDir, 'source-visual-semantic-matches.json');
