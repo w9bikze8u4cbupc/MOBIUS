@@ -453,10 +453,17 @@ def candidates_for(packet, assets):
         confirmed_bindings, hypothesis_bindings = bindings(m)
         bound_referent = bool(requested_ids & confirmed_bindings)
         hypothesis_referent = bool(requested_ids & hypothesis_bindings)
+        # A provider-localized child crop is the next bounded pixel hypothesis
+        # for that exact referent even when its page is not a rule citation.
+        # This link only schedules the child COMPONENT inspection: it is never
+        # identity evidence and cannot bypass the downstream pixel/crop gates.
+        localized_referent = m.get('localizedReferent')
+        localized_referent_link = localized_referent in requested_ids
         # Native images linked only to a page remain deliberately deferred
         # until localization.  An explicit *hypothesis* binding is useful
         # enough to inspect, but only as one candidate among others.
-        if m.get('retrieval_context') and not m.get('visual_kind') and not (bound_referent or hypothesis_referent):
+        if m.get('retrieval_context') and not m.get('visual_kind') and not (
+                bound_referent or hypothesis_referent or localized_referent_link):
             # Text linked native images are expanded only after pixel localization;
             # an entire page's logos/backgrounds must not consume the first budget.
             continue
@@ -470,7 +477,8 @@ def candidates_for(packet, assets):
         # hypotheses, it does not manufacture semantic relevance.
         external_unscoped = authority_rank(a, m) > 0 and m.get('source_page') is None
         hypothesis_link = hypothesis_referent and not external_unscoped
-        linked = bound_referent or hypothesis_link or m.get('source_page') in packet['sourcePages'] or bool(overlap and tokens)
+        linked = (bound_referent or hypothesis_link or localized_referent_link
+            or m.get('source_page') in packet['sourcePages'] or bool(overlap and tokens))
         if not linked:
             provenance = m.get('provenance') or {}
             recovery_kind = str(provenance.get('retrievalKind') or '')
@@ -494,6 +502,7 @@ def candidates_for(packet, assets):
         confirmed_bindings, hypothesis_bindings = bindings(m)
         bound_referent = bool(requested_ids & confirmed_bindings)
         hypothesis_referent = bool(requested_ids & hypothesis_bindings)
+        localized_referent_link = m.get('localizedReferent') in requested_ids
         text = ' '.join(str(v or '') for v in [m.get('layout_text'), m.get('heading'),
             m.get('category'), m.get('label'), a.get('label'), *list(m.get('semanticObjects') or [])]).lower()
         heading = str(m.get('heading') or '').lower()
@@ -501,6 +510,9 @@ def candidates_for(packet, assets):
         score += sum(min(5, text.count(t.rstrip('s'))) for t in tokens)
         score += 6 if bound_referent else 0
         score += 2 if hypothesis_referent else 0
+        # Inspect the exact crop produced by a prior localization before
+        # spending the next allowance on another broad page hypothesis.
+        score += 80 if localized_referent_link else 0
         # Stronger source authority breaks only otherwise comparable retrieval
         # hypotheses. It cannot accept a component without a pixel verdict.
         score += authority_rank(a, m)

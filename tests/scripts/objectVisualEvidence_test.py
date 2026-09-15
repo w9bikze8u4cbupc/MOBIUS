@@ -424,6 +424,43 @@ class ObjectEvidenceTests(unittest.TestCase):
                 {'page': 3, 'quote': '1 Player board', 'excerptHash': None}])
             self.assertTrue(all('objects' not in row for row in result))
 
+    def test_localized_referent_crop_is_replayed_before_unrelated_page_hypotheses(self):
+        """A generated crop remains a hypothesis, but it must reach the next COMPONENT pass."""
+        with tempfile.TemporaryDirectory() as directory:
+            crop, page = Path(directory) / 'crop', Path(directory) / 'page'
+            crop.write_bytes(b'localized-child-pixels')
+            page.write_bytes(b'broad-page-pixels')
+            packet = {
+                'requiredObjects': [{'id': 'comp-board', 'term': {'name': 'Player board'}}],
+                'sourcePages': [3],
+                'visualSearchPages': [9],
+                'requirement': {'componentDiscovery': True},
+            }
+            result = matcher.candidates_for(packet, [
+                {'asset_id': 'broad-page', 'path': str(page), 'asset_metadata': {
+                    'source_page': 3, 'visual_kind': 'source-page-localization',
+                    'layout_text': 'Player board', 'dimensions': {'width': 2500, 'height': 3500}}},
+                {'asset_id': 'localized-child', 'path': str(crop), 'asset_metadata': {
+                    # The component was localized on a setup page, not the
+                    # inventory/rule citation carried by this packet.
+                    'source_page': 9, 'visual_kind': 'localized-object-crop',
+                    'localizedReferent': 'comp-board',
+                    'dimensions': {'width': 500, 'height': 320}}},
+            ])
+            self.assertEqual([row['asset_id'] for row in result], ['localized-child', 'broad-page'])
+            self.assertTrue(all('objects' not in row for row in result))
+
+    def test_localized_crop_for_another_referent_does_not_enter_search(self):
+        with tempfile.TemporaryDirectory() as directory:
+            crop = Path(directory) / 'crop'
+            crop.write_bytes(b'other-component-pixels')
+            packet = {'requiredObjects': [{'id': 'wanted', 'term': {'name': 'Wanted board'}}],
+                'sourcePages': [3], 'requirement': {'componentDiscovery': True}}
+            result = matcher.candidates_for(packet, [{'asset_id': 'other-crop', 'path': str(crop),
+                'asset_metadata': {'source_page': 9, 'visual_kind': 'localized-object-crop',
+                    'localizedReferent': 'different'}}])
+            self.assertEqual(result, [])
+
     def test_stateful_source_terms_rank_retrieval_but_do_not_prove_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             inventory, state_page = Path(directory) / 'inventory', Path(directory) / 'state'
