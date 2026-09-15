@@ -113,6 +113,40 @@ test('normal production materializer promotes only a validated static identity s
   });
 }, 30000);
 
+test('normal renderer materializes a cited non-physical rule without pretending it is a game component', async () => {
+  const state = {
+    projectId: 'non-physical-teaching', assets: [], sourceSelections: [],
+    visualPlans: [{ ruleAtomId: 'abstract-rule', actualGameAssetRequired: false,
+      validation: { valid: true, violations: [] } }],
+    scenes: [{ id: 'knowledge-abstract-rule', atomId: 'abstract-rule', section: 'Tour de jeu',
+      narration: 'À votre tour, choisissez vos actions dans l’ordre voulu.',
+      on_screen_text: 'Choisissez vos actions\nDans l’ordre voulu',
+      source_pages: [10], sourceRefs: [{ page: 10, excerptHash: 'official-rule' }],
+      visualReviewState: 'resolved',
+      visualRequirement: { actualGameAssetRequired: false, requiredObjects: [] },
+      canonicalVisualPlan: { actualGameAssetRequired: false, validation: { valid: true } } }],
+  };
+  const result = await materializeVisualPlanFrames({ state, outputDir });
+  expect(result.records).toHaveLength(1);
+  expect(result.records[0]).toMatchObject({ contract: 'mobius-source-grounded-text-teaching-still-v1',
+    produced: true, validated: true, sourceRefs: [{ page: 10 }] });
+  expect(result.scenes[0]).toMatchObject({
+    renderVisual: { kind: 'source-grounded-text-teaching', fullFrame: true },
+  });
+  expect(await sharp(result.records[0].outputPath).metadata()).toMatchObject({ width: 1920, height: 1080 });
+  expect(await sharp(result.records[0].phonePath).metadata()).toMatchObject({ width: 390, height: 219 });
+}, 30000);
+
+test('text teaching cannot replace a physical referent requirement', async () => {
+  const { materializeSourceGroundedTextStill } = require('../../src/services/visualPlanMaterializer.cjs');
+  const scene = { id: 'physical', atomId: 'physical', on_screen_text: 'Placez le jeton',
+    sourceRefs: [{ page: 2 }], visualRequirement: { actualGameAssetRequired: true, requiredObjects: ['token'] } };
+  await expect(materializeSourceGroundedTextStill({
+    state: { scenes: [scene], visualPlans: [{ ruleAtomId: 'physical', validation: { valid: true } }] },
+    scene, outputDir,
+  })).resolves.toBeNull();
+});
+
 test('deterministic identity validation refuses a transition even with an accepted exact component', async () => {
   const crypto = require('node:crypto');
   const { materializeInstructionalStill } = require('../../src/services/visualPlanMaterializer.cjs');

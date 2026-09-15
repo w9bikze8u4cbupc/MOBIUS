@@ -14,6 +14,7 @@ const STATE_SEQUENCE_CONTRACT = 'mobius-source-measured-state-sequence-v2';
 const SEMANTIC_SEQUENCE_CONTRACT = 'mobius-source-grounded-semantic-sequence-v2';
 const INSTRUCTIONAL_DIAGRAM_CONTRACT = 'mobius-source-grounded-instructional-diagram-v2';
 const TRACK_SEQUENCE_CONTRACT = 'mobius-source-measured-track-sequence-v2';
+const TEXT_TEACHING_STILL_CONTRACT = 'mobius-source-grounded-text-teaching-still-v1';
 
 function stateValueLabel(item = {}) {
   if (item.instructionalDiagramOnly) return 'Référent source';
@@ -640,6 +641,62 @@ function sourceFile(asset = {}) {
   return asset.displayPath || asset.renderPath || asset.filePath || asset.path || asset.sourceImage || null;
 }
 
+/** Render an abstract/source-grounded rule that has no physical referent.
+ * This is the normal presentation renderer, not a substitute image. It may be
+ * accepted deterministically only when the canonical requirement explicitly
+ * says that actual game pixels are not required and valid rulebook citations
+ * remain visible in the scene metadata. */
+async function materializeSourceGroundedTextStill({ state, scene, outputDir } = {}) {
+  const requirement = scene?.visualRequirement || {};
+  const plan = (state.visualPlans || []).find((row) => row.ruleAtomId === scene?.atomId) || {};
+  const sourceRefs = (scene?.sourceRefs || []).filter((ref) => Number(ref?.page) > 0);
+  if (!scene || requirement.actualGameAssetRequired !== false || (requirement.requiredObjects || []).length
+    || plan.validation?.valid === false || !sourceRefs.length || !String(scene.on_screen_text || '').trim()) return null;
+  const folder = path.resolve(outputDir);
+  await fs.promises.mkdir(folder, { recursive: true });
+  const presentation = canonicalTeachingPresentation(scene, state.scenes.indexOf(scene), {});
+  presentation.background = { color: '#1f1510' };
+  // Reuse the renderer's canonical text-teaching presentation path. It keeps
+  // the brand typography and source citation in one centered, phone-safe
+  // panel without pretending that an empty visual pane contains game pixels.
+  presentation.layout.mode = 'text-teaching';
+  presentation.layout.metadataCard = true;
+  presentation.layout.presentationLayout = {
+    ...(presentation.layout.presentationLayout || {}),
+    contentType: 'metadata',
+    minimumFontPx: 44,
+    preferredFontPx: 50,
+  };
+  const outputPath = path.join(folder, `${scene.id}.png`);
+  const configPath = path.join(folder, `${scene.id}.render-config.json`);
+  await fs.promises.writeFile(configPath, JSON.stringify({
+    projectId: state.projectId,
+    video: { resolution: { width: 1920, height: 1080 }, fps: 30 },
+    scenes: [presentation],
+  }, null, 2));
+  const rendered = spawnSync(process.execPath, [path.resolve(__dirname, '../../scripts/render-storyboard-ffmpeg.mjs'),
+    '--config', configPath, '--out', outputPath, '--still'], { encoding: 'utf8', windowsHide: true });
+  await fs.promises.writeFile(path.join(folder, `${scene.id}.render.log`), `${rendered.stdout || ''}${rendered.stderr || ''}`);
+  if (rendered.status !== 0) throw new Error('NORMAL_TEXT_TEACHING_STILL_RENDER_FAILED');
+  const phonePath = path.join(folder, `${scene.id}.phone.png`);
+  await sharp(outputPath).resize(390, 219).png().toFile(phonePath);
+  const desktop = await sharp(outputPath).metadata();
+  const phone = await sharp(phonePath).metadata();
+  const validation = {
+    contract: TEXT_TEACHING_STILL_CONTRACT,
+    valid: desktop.width === 1920 && desktop.height === 1080 && phone.width === 390 && phone.height === 219,
+    actualGameAssetRequired: false,
+    requiredObjects: [],
+    sourceRefs,
+    renderConfigSha256: sha(fs.readFileSync(configPath)),
+    outputSha256: sha(fs.readFileSync(outputPath)),
+    phoneSha256: sha(fs.readFileSync(phonePath)),
+  };
+  return { contract: TEXT_TEACHING_STILL_CONTRACT, sceneId: scene.id, ruleAtomId: scene.atomId,
+    produced: true, validated: validation.valid, outputPath, phonePath, configPath, validation,
+    sourceRefs, preparedOnly: false };
+}
+
 function gridCells(count, width, height, inset = 44) {
   const columns = count <= 3 ? count : Math.min(4, Math.ceil(Math.sqrt(count)));
   const rows = Math.ceil(count / columns);
@@ -700,6 +757,18 @@ async function materializeVisualPlanFrames({ state, outputDir, width = 1400, hei
   const scenes = [];
   for (const scene of state.scenes) {
     if(scene.instructionalSequence){scenes.push(scene);records.push(scene.instructionalSequence);continue;}
+    const textTeachingStill = await materializeSourceGroundedTextStill({
+      state, scene, outputDir: path.join(absoluteOutput, 'text-teaching-stills'),
+    });
+    if (textTeachingStill) {
+      records.push(textTeachingStill);
+      scenes.push({ ...scene, textTeachingStill,
+        renderVisual: { path: textTeachingStill.outputPath, assetId: `text-teaching:${scene.atomId}`,
+          kind: 'source-grounded-text-teaching', fullFrame: true, confidence: 1,
+          reason: 'Canonical non-physical rule rendered as a source-grounded French teaching card.',
+          sourcePage: textTeachingStill.sourceRefs[0]?.page || null, provenance: textTeachingStill.sourceRefs } });
+      continue;
+    }
     const trackSequence=await materializeTrackStateFrames({projectId:state.projectId,scene,assets:state.assets,outputDir:path.join(absoluteOutput,'track-sequences')});
     if(trackSequence){
       records.push(trackSequence);
@@ -877,4 +946,4 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
  return {assets:attachSequenceReviewEvidence({assets:state.assets,records:materialized.records,reviewPaths}),reviewPaths};
 }
 
-module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, STATE_SEQUENCE_CONTRACT, SEMANTIC_SEQUENCE_CONTRACT, INSTRUCTIONAL_DIAGRAM_CONTRACT, TRACK_SEQUENCE_CONTRACT, cellsFor, localizedVisualTeaching, statefulTeachingLayout, statefulComponentDisplayBounds, sourceMeasuredComponentCandidate, materializeVisualPlanFrames, materializeTrackStateFrames, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, materializeSourceGroundedInstructionalDiagram, semanticTeachingStages, instructionalDiagramStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill, validateDeterministicIdentityStill };
+module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, STATE_SEQUENCE_CONTRACT, SEMANTIC_SEQUENCE_CONTRACT, INSTRUCTIONAL_DIAGRAM_CONTRACT, TRACK_SEQUENCE_CONTRACT, TEXT_TEACHING_STILL_CONTRACT, cellsFor, localizedVisualTeaching, statefulTeachingLayout, statefulComponentDisplayBounds, sourceMeasuredComponentCandidate, materializeVisualPlanFrames, materializeTrackStateFrames, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, materializeSourceGroundedInstructionalDiagram, materializeSourceGroundedTextStill, semanticTeachingStages, instructionalDiagramStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill, validateDeterministicIdentityStill };

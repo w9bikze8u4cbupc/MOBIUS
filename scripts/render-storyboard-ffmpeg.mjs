@@ -250,6 +250,36 @@ function getSafeMargins(w, h) {
 function getSceneLayout(scene, w, h) {
   const layout = scene?.layout || {};
   const margins = getSafeMargins(w, h);
+  if (layout.mode === 'text-teaching') {
+    const contentWidth = w - (margins.x * 2);
+    const panelWidth = Math.round(contentWidth * 0.82);
+    const panelHeight = Math.round(h * 0.58);
+    const panelX = Math.round((w - panelWidth) / 2);
+    const panelY = Math.round((h - panelHeight) / 2);
+    const padding = Math.round(PRESENTATION_TOKENS.layout.panelPaddingPx1080 * (h / 1080));
+    return {
+      mode: layout.mode,
+      isTeaching: true,
+      metadataCard: true,
+      panelWidth,
+      panelX,
+      panelY,
+      panelHeight,
+      textWidth: panelWidth - (padding * 2),
+      textSide: 'center',
+      imageSide: 'none',
+      imageX: w,
+      imageY: h,
+      imageWidth: 1,
+      imageHeight: 1,
+      padding,
+      headingY: panelY + padding,
+      bodyY: panelY + Math.round(panelHeight * 0.24),
+      referenceY: panelY + panelHeight - padding - Math.round(30 * (h / 1080)),
+      bodyFontPx: Math.round(56 * (h / 1080)),
+      margins,
+    };
+  }
   if (layout.mode === 'wide-diagram') {
     const contentWidth = w - (margins.x * 2);
     const imageWidth = Math.round(contentWidth * 0.88);
