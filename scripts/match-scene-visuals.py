@@ -299,6 +299,22 @@ def explicit_referent_priority():
     return {value: index for index, value in enumerate(values) if value}
 
 
+def explicit_allowed_referents():
+    """Optional exact scope for a provider-budget recovery tranche.
+
+    The normal source pass remains complete when this is absent.  When an
+    operator has authorized a finite list of component searches, a stateful or
+    narrative scene that happens to sort later must not spend that allowance
+    on another referent.  Cache hits and all local reconciliation still run.
+    """
+    return {value.strip() for value in str(os.getenv('MOBIUS_VISUAL_SOURCE_ALLOWED_REFERENTS') or '').split(',') if value.strip()}
+
+
+def packet_is_within_explicit_referent_scope(packet, allowed):
+    required = {row.get('id') for row in (packet.get('requiredObjects') or []) if row.get('id')}
+    return not allowed or bool(required) and required <= allowed
+
+
 def prioritize_scenes(scenes, terms=None, assets=None):
     """Return analysis order without mutating the authored scene sequence.
 
@@ -1042,8 +1058,10 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
         for a in qa.get('assets', []) if (a.get('asset_metadata') or {}).get('phonePath')]
     available_asset_identities = {(asset_id, image_hash) for asset_id, image_hash in source_identities
         if not asset_id.startswith('phone:')}
+    allowed_referents = explicit_allowed_referents()
     run_cache = cache_dir / ('run-' + digest([SEARCH_EXECUTION_VERSION, COMPOSITION_RESPONSE_CONTRACT, SEARCH_CONTRACT, CONTRACT, MODEL, script, source_identities,
-        [a.get('asset_metadata') for a in qa.get('assets', [])], imported_inventory, os.getenv('MOBIUS_VISUAL_SCENE_ID'), max_calls, client is not None, recovery_epoch()]) + '.json')
+        [a.get('asset_metadata') for a in qa.get('assets', [])], imported_inventory, os.getenv('MOBIUS_VISUAL_SCENE_ID'),
+        sorted(allowed_referents), max_calls, client is not None, recovery_epoch()]) + '.json')
     previous = json.loads(run_cache.read_text(encoding='utf-8')) if run_cache.exists() else None
     retained = retained_measurements(os.getenv('MOBIUS_VISUAL_PREVIOUS_REPORT', ''), cache_dir)
     if previous is not None:
@@ -1239,6 +1257,10 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     cache.write_text(json.dumps({'identity': identity, 'objects': objects}, ensure_ascii=False), encoding='utf-8')
                     result['validationRecovery'] = 'exact-scene-track-measurement; no new provider call'
                     hits += 1
+                elif not packet_is_within_explicit_referent_scope(scoped_packet, allowed_referents):
+                    result['reason'] = 'outside explicitly authorized source referent scope'
+                    results.append(result)
+                    continue
                 elif client is None or calls >= max_calls or blocker or os.getenv('MOBIUS_VISUAL_CACHE_ONLY') == 'true':
                     result["reason"] = blocker or "pixel analysis unavailable or bounded budget exhausted"
                     results.append(result)

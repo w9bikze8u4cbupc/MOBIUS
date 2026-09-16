@@ -706,6 +706,21 @@ class ObjectEvidenceTests(unittest.TestCase):
                 'capture-discovery', 'basic-discovery', 'fuel-track',
             ])
 
+    def test_explicit_recovery_scope_rejects_unlisted_or_mixed_provider_packets(self):
+        allowed = {'capture-token', 'basic-action-card'}
+        self.assertTrue(matcher.packet_is_within_explicit_referent_scope({
+            'requiredObjects': [{'id': 'capture-token'}],
+        }, allowed))
+        self.assertFalse(matcher.packet_is_within_explicit_referent_scope({
+            'requiredObjects': [{'id': 'fuel-board'}],
+        }, allowed))
+        self.assertFalse(matcher.packet_is_within_explicit_referent_scope({
+            'requiredObjects': [{'id': 'capture-token'}, {'id': 'unrelated-card'}],
+        }, allowed))
+        self.assertTrue(matcher.packet_is_within_explicit_referent_scope({
+            'requiredObjects': [{'id': 'fuel-board'}],
+        }, set()))
+
     def test_track_geometry_is_scheduled_from_outer_scene_not_identity_packet(self):
         packet = {'requirement': {'trackStateRequired': True}}
         scoped = {'requiredObjects': [{'id': 'board'}], 'requirement': {'identityOnly': True}}
