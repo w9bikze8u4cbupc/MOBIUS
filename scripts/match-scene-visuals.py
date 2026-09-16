@@ -831,6 +831,70 @@ def authorize_continuation(filename, request_path):
         lock.unlink()
 
 
+def reallocate_unspent_continuation(filename, request_path):
+    """Move an explicit continuation's *unspent* calls between stages.
+
+    This is not a new allowance: maxTotal and historical receipts remain
+    unchanged. It exists because a bounded recovery can prove that the next
+    missing evidence belongs to another normal pipeline stage than originally
+    anticipated.
+    """
+    request_file = Path(request_path).resolve()
+    request = json.loads(request_file.read_text(encoding='utf-8'))
+    ident = request.get('id', '')
+    continuation_id = request.get('continuationId', '')
+    source_group = request.get('fromGroup', '')
+    target_group = request.get('toGroup', '')
+    amount = request.get('calls')
+    if (not re.fullmatch(r'[A-Za-z0-9_-]{4,100}', ident)
+            or not re.fullmatch(r'[A-Za-z0-9_-]{4,100}', continuation_id)
+            or not request.get('authorization') or not request.get('reason')
+            or request.get('model') != MODEL or source_group == target_group
+            or not isinstance(source_group, str) or not isinstance(target_group, str)
+            or type(amount) is not int or not 0 < amount <= 100):
+        raise ValueError('A bounded same-model reallocation mandate is required')
+    ledger = Path(filename)
+    lock = ledger.with_suffix('.lock')
+    handle = lock.open('x', encoding='utf-8')
+    try:
+        data = json.loads(ledger.read_text(encoding='utf-8'))
+        records = data.setdefault('reallocations', [])
+        request_hash = digest(request)
+        previous = next((record for record in records if record['id'] == ident), None)
+        if previous:
+            if previous['requestHash'] != request_hash:
+                raise ValueError('Reallocation ID already belongs to another mandate')
+            return previous
+        continuation = next((record for record in data.get('continuations', []) if record.get('id') == continuation_id), None)
+        if not continuation:
+            raise ValueError('Reallocation must reference an existing continuation')
+        allocation = int((continuation.get('additionalCallsByGroup') or {}).get(source_group, 0))
+        already_moved = sum(int(record.get('calls', 0)) for record in records
+                            if record.get('continuationId') == continuation_id and record.get('fromGroup') == source_group)
+        group_caps = dict(data.get('groupCaps') or {})
+        spent = sum(row.get('group') == source_group for row in data.get('calls', []))
+        base_cap = int(group_caps.get(source_group, data.get('maxPerGroup', 0)))
+        if amount > allocation - already_moved or base_cap - spent < amount:
+            raise ValueError('Reallocation exceeds the referenced continuation\'s unspent source group')
+        group_caps[source_group] = base_cap - amount
+        group_caps[target_group] = int(group_caps.get(target_group, data.get('maxPerGroup', 0))) + amount
+        record = {'id': ident, 'recordedAt': datetime.now(timezone.utc).isoformat(), 'requestHash': request_hash,
+            'requestPath': str(request_file), 'continuationId': continuation_id, 'model': MODEL,
+            'authorization': request['authorization'], 'reason': request['reason'], 'fromGroup': source_group,
+            'toGroup': target_group, 'calls': amount, 'maxTotalPreserved': data.get('maxTotal'),
+            'callsPreserved': len(data.get('calls', []))}
+        records.append(record)
+        data['groupCaps'] = group_caps
+        data['recoveryEpoch'] = ident
+        tmp = ledger.with_suffix('.tmp')
+        tmp.write_text(json.dumps(data, indent=2), encoding='utf-8')
+        tmp.replace(ledger)
+        return record
+    finally:
+        handle.close()
+        lock.unlink()
+
+
 def reopen_provider_blocker(filename, access_check, prior_failure, recovery_id):
     """Explicit operator recovery, never an automatic retry or a new allowance."""
     check_path, failure_path = Path(access_check), Path(prior_failure)
@@ -1372,6 +1436,9 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
 def main():
     if len(sys.argv) == 4 and sys.argv[1] == '--authorize-continuation':
         print(json.dumps(authorize_continuation(*sys.argv[2:])))
+        return
+    if len(sys.argv) == 4 and sys.argv[1] == '--reallocate-continuation':
+        print(json.dumps(reallocate_unspent_continuation(*sys.argv[2:])))
         return
     if len(sys.argv) == 5 and sys.argv[1] == '--reconcile-provider-receipt':
         print(json.dumps(reconcile_provider_receipt(*sys.argv[2:])))

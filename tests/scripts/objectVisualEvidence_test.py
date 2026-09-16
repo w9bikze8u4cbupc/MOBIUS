@@ -215,6 +215,26 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(resumed['maxTotal'], 48)
             self.assertEqual(resumed['groupCaps'], {'source': 24, 'composition': 32, 'default': 16})
 
+    @patch.object(matcher, 'MODEL', 'fixture-model')
+    def test_reallocation_moves_only_unspent_continuation_calls(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger, continuation, request = Path(directory) / 'budget.json', Path(directory) / 'continuation.json', Path(directory) / 'reallocate.json'
+            ledger.write_text(json.dumps({'maxTotal': 10, 'maxPerGroup': 5,
+                'groupCaps': {'source': 5, 'composition': 5}, 'calls': [{'group': 'composition'}],
+                'continuations': [{'id': 'continuation', 'additionalCallsByGroup': {'composition': 3}}]}))
+            request.write_text(json.dumps({'id': 'move-unspent', 'continuationId': 'continuation', 'model': matcher.MODEL,
+                'authorization': 'operator fixture', 'reason': 'next evidence belongs to source analysis',
+                'fromGroup': 'composition', 'toGroup': 'source', 'calls': 2}))
+            record = matcher.reallocate_unspent_continuation(ledger, request)
+            resumed = json.loads(ledger.read_text())
+            self.assertEqual(record['maxTotalPreserved'], 10)
+            self.assertEqual(resumed['maxTotal'], 10)
+            self.assertEqual(resumed['groupCaps'], {'source': 7, 'composition': 3})
+            self.assertEqual(resumed['calls'], [{'group': 'composition'}])
+            with self.assertRaises(ValueError):
+                request.write_text(json.dumps({**json.loads(request.read_text()), 'id': 'move-too-many', 'calls': 2}))
+                matcher.reallocate_unspent_continuation(ledger, request)
+
     def test_invalid_provider_verdict_preserves_response_and_suspends_without_retry(self):
         with tempfile.TemporaryDirectory() as directory:
             pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'

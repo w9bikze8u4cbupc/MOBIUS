@@ -106,6 +106,18 @@ async function main() {
   await mkdir(outputDir, { recursive: true });
 
   const inputScript = JSON.parse(readFileSync(scriptPath, 'utf8'));
+  // A recovery may have a small, explicit provider allowance.  Reorder its
+  // normal source-grounded scenes toward shared unresolved referents while
+  // retaining the complete script and all requirements.  This only decides
+  // which evidence is inspected first; it never creates a binding.
+  const priorityReferents = new Set(String(process.env.MOBIUS_VISUAL_SOURCE_PRIORITY_REFERENTS || '')
+    .split(',').map((value) => value.trim()).filter(Boolean));
+  const prioritizedScenes = (inputScript.scenes || []).map((scene, index) => ({ scene, index }))
+    .sort((left, right) => {
+      const score = (entry) => (entry.scene.visualRequirement?.requiredObjects || [])
+        .filter((referent) => priorityReferents.has(referent)).length;
+      return score(right) - score(left) || left.index - right.index;
+    }).map((entry) => entry.scene);
   // Teaching citations establish a rule, but the component inventory can be
   // the authoritative page that names or pictures the referent.  Carry those
   // pages into bounded *candidate discovery* only.  This makes no identity,
@@ -114,7 +126,7 @@ async function main() {
   const sourceEvidenceScript = {
     ...inputScript,
     sourceSearchContract: 'mobius-component-inventory-search-hypotheses-v1',
-    scenes: (inputScript.scenes || []).map((scene) => {
+    scenes: prioritizedScenes.map((scene) => {
       const pages = new Set(scene.source_pages || []);
       for (const referent of scene.visualRequirement?.requiredObjects || []) {
         const term = inputScript.componentTerms?.[referent] || {};
