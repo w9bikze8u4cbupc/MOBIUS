@@ -119,12 +119,28 @@ export class RuntimeCompatibilityError extends Error {
   }
 }
 
-async function fetchCapabilities({ baseUrl, apiKey, fetchImpl }) {
+async function withRequestDeadline(request, timeoutMs, code) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new RuntimeCompatibilityError(
+      code,
+      'MOBIUS API capability preflight timed out.',
+    )), timeoutMs);
+  });
+  try {
+    return await Promise.race([request, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function fetchCapabilities({ baseUrl, apiKey, fetchImpl, requestTimeoutMs = 20_000 }) {
   let response;
   try {
-    response = await fetchImpl(`${String(baseUrl).replace(/\/$/, '')}/api/runtime/capabilities`, {
-      headers: apiKey ? { 'x-api-key': apiKey, 'x-mobius-api-key': apiKey } : {},
-    });
+    const signal = AbortSignal.timeout(requestTimeoutMs);
+    response = await withRequestDeadline(fetchImpl(`${String(baseUrl).replace(/\/$/, '')}/api/runtime/capabilities`, {
+      headers: apiKey ? { 'x-api-key': apiKey, 'x-mobius-api-key': apiKey } : {}, signal,
+    }), requestTimeoutMs, 'RUNTIME_API_UNAVAILABLE');
   } catch (cause) {
     throw new RuntimeCompatibilityError('RUNTIME_API_UNAVAILABLE', `MOBIUS API runtime is unavailable: ${cause.message}`, { cause });
   }
@@ -141,11 +157,12 @@ export async function preflightRuntimeCompatibility({
   fetchImpl = fetch,
   requirements = buildWorkerRuntimeRequirements(),
   alignRuntime = null,
+  requestTimeoutMs = 20_000,
 } = {}) {
   let capabilities;
   let firstError = null;
   try {
-    capabilities = await fetchCapabilities({ baseUrl, apiKey, fetchImpl });
+    capabilities = await fetchCapabilities({ baseUrl, apiKey, fetchImpl, requestTimeoutMs });
   } catch (error) {
     firstError = error;
   }
@@ -157,7 +174,7 @@ export async function preflightRuntimeCompatibility({
   if (!compatibility.compatible && alignRuntime) {
     alignment = await alignRuntime({ baseUrl, requirements, capabilities, compatibility, error: firstError });
     if (alignment?.attempted) {
-      capabilities = await fetchCapabilities({ baseUrl, apiKey, fetchImpl });
+      capabilities = await fetchCapabilities({ baseUrl, apiKey, fetchImpl, requestTimeoutMs });
       compatibility = evaluateRuntimeCompatibility(capabilities, requirements);
       if (compatibility.compatible) alignment = { ...alignment, aligned: true };
     }

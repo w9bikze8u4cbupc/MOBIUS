@@ -72,4 +72,11 @@ describe('canonical AI provider readiness', () => {
       fetchImpl: async () => apiResponse({ configured: true, ready: true, provider: 'openai', model: 'test-model' }),
     })).rejects.toMatchObject({ code: 'AI_NOT_CONFIGURED', classification: 'configuration_required' });
   });
+
+  test('a readiness request stranded by a runtime restart expires before production can spend work', async () => {
+    await expect(preflightAiProviderReadiness({
+      baseUrl: 'http://fixture.local', requestTimeoutMs: 5,
+      fetchImpl: async () => new Promise(() => {}),
+    })).rejects.toMatchObject({ code: 'AI_RUNTIME_UNAVAILABLE', classification: 'retryable_runtime' });
+  });
 });

@@ -63,6 +63,13 @@ describe('canonical runtime compatibility', () => {
     })).rejects.toMatchObject({ code: 'RUNTIME_API_UNAVAILABLE', classification: 'retryable_runtime' });
   });
 
+  test('a capabilities request stranded by a runtime restart expires instead of holding a worker', async () => {
+    await expect(preflightRuntimeCompatibility({
+      baseUrl: 'http://fixture.local', requirements, requestTimeoutMs: 5,
+      fetchImpl: async () => new Promise(() => {}),
+    })).rejects.toMatchObject({ code: 'RUNTIME_API_UNAVAILABLE', classification: 'retryable_runtime' });
+  });
+
   test('safe canonical alignment is rechecked before passing', async () => {
     const current = buildApiRuntimeCapabilities({ env: { MOBIUS_BUILD_SHA: '2'.repeat(40) } });
     const stale = { contract: RUNTIME_CAPABILITY_CONTRACT, runtimeIdentity: '0'.repeat(40), contracts: {} };

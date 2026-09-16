@@ -203,12 +203,27 @@ export function evaluateAiProviderReadiness(status) {
   return { ready: reasons.length === 0, reasons };
 }
 
-export async function preflightAiProviderReadiness({ baseUrl, apiKey, fetchImpl = fetch } = {}) {
+async function withReadinessDeadline(request, timeoutMs) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error('AI readiness endpoint timed out.'), {
+      code: 'AI_RUNTIME_UNAVAILABLE',
+    })), timeoutMs);
+  });
+  try {
+    return await Promise.race([request, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export async function preflightAiProviderReadiness({ baseUrl, apiKey, fetchImpl = fetch, requestTimeoutMs = 20_000 } = {}) {
   let response;
   try {
-    response = await fetchImpl(`${String(baseUrl).replace(/\/$/, '')}/api/ai/status?check=1`, {
+    response = await withReadinessDeadline(fetchImpl(`${String(baseUrl).replace(/\/$/, '')}/api/ai/status?check=1`, {
       headers: apiKey ? { 'x-api-key': apiKey, 'x-mobius-api-key': apiKey } : {},
-    });
+      signal: AbortSignal.timeout(requestTimeoutMs),
+    }), requestTimeoutMs);
   } catch (cause) {
     throw new AiProviderReadinessError({
       code: 'AI_RUNTIME_UNAVAILABLE',
