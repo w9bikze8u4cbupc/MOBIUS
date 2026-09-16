@@ -862,6 +862,51 @@ class ObjectEvidenceTests(unittest.TestCase):
         self.assertFalse(matcher.should_refine_measured_object_crop('COMPONENT', {**measured, 'complete': False}, 0))
         self.assertFalse(matcher.should_refine_measured_object_crop('COMPOSITION', measured, 0))
 
+    @patch.object(matcher, 'MODEL', 'fixture-model')
+    def test_durable_mandate_allows_a_component_crop_verification_for_the_same_referent(self):
+        """The ledger-approved crop is a second source substep, not a retry."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ledger, mandate = root / 'budget.json', root / 'mandate.json'
+            ledger.write_text(json.dumps({'maxTotal': 2, 'maxPerGroup': 2,
+                'groupCaps': {'source': 2}, 'calls': []}), encoding='utf-8')
+            mandate.write_text(json.dumps({'id': 'two-step-component', 'model': matcher.MODEL,
+                'authorization': 'fixture operator', 'reason': 'parent then faithful child crop',
+                'additionalCallsByGroup': {'source': 2},
+                'sourceAnalysisMandate': {'contract': matcher.SOURCE_ANALYSIS_MANDATE_CONTRACT,
+                    'referents': [{'id': 'board', 'maxCalls': 2, 'allowedRoles': ['COMPONENT']}]}}), encoding='utf-8')
+            matcher.authorize_continuation(ledger, mandate)
+            pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'
+            script = {'scenes': [{'id': 'scene', 'source_pages': [2], 'visualRequirement': {
+                'requiredObjects': ['board'], 'componentDiscovery': True}}],
+                'componentTerms': {'board': {'canonicalTerm': 'Game board', 'evidence': [{'page': 2, 'quote': 'Board'}]}}}
+            qa = {'assets': [{'asset_id': 'parent', 'path': str(pixels), 'asset_metadata': {'source_page': 2}}]}
+            calls = []
+            def create(**kwargs):
+                calls.append(kwargs)
+                child = len(calls) == 2
+                row = {'requiredObject': 'board', 'present': True, 'confidence': .97,
+                    'complete': True, 'isolated': child, 'stateCompatible': True,
+                    'bbox': [.1, .1, .9, .9],
+                    'reason': 'faithful child crop' if child else 'complete board with an overlapping unrelated object'}
+                return types.SimpleNamespace(usage=None, choices=[types.SimpleNamespace(
+                    message=types.SimpleNamespace(content=json.dumps({'objects': [row]})))])
+            client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            with patch.dict(matcher.os.environ, {
+                'MOBIUS_VISUAL_BUDGET_LEDGER': str(ledger),
+                'MOBIUS_VISUAL_BUDGET_GROUP': 'source',
+                'MOBIUS_VISUAL_SOURCE_MANDATE_ID': 'two-step-component',
+                'MOBIUS_VISUAL_SOURCE_ALLOWED_REFERENTS': 'board',
+            }, clear=False):
+                result = matcher.run(script, qa, root / 'cache', 2, client)
+            self.assertEqual(result['summary']['providerCalls'], 2)
+            self.assertEqual(len(calls), 2)
+            candidates = result['scenes'][0]['candidates']
+            self.assertTrue(any(c['asset_id'].startswith('localized-') and c['objects'][0]['isolated']
+                for c in candidates if c['status'] == 'MEASURED'))
+            recorded = json.loads(ledger.read_text(encoding='utf-8'))['calls']
+            self.assertEqual([row['sourceReservation']['referent'] for row in recorded], ['board', 'board'])
+
     def test_identity_coverage_prioritizes_reused_single_referent_before_an_unrelated_transition(self):
         scenes = [
             {'id': 'transition', 'visualRequirement': {'requiredObjects': ['rare'], 'transitionRequired': True}},

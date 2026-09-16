@@ -321,6 +321,20 @@ def packet_repeats_explicit_referent(packet, allowed, attempted):
     return bool(allowed and required & allowed & attempted)
 
 
+def durable_source_analysis_mandate_active():
+    """Whether the canonical ledger owns source substep limits.
+
+    A durable mandate can deliberately authorize two distinct pixel
+    measurements for one referent: a cluttered parent inspection followed by
+    a COMPONENT verdict for its evidence-bound child crop.  The historical
+    process-local fairness set was designed for a one-call recovery and must
+    not suppress that second, explicitly budgeted substep.  reserve_call()
+    atomically validates referent, role, and cumulative maxCalls in the
+    ledger, including across process restarts.
+    """
+    return bool(str(os.getenv('MOBIUS_VISUAL_SOURCE_MANDATE_ID') or '').strip())
+
+
 def prioritize_scenes(scenes, terms=None, assets=None):
     """Return analysis order without mutating the authored scene sequence.
 
@@ -1374,7 +1388,8 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     result['reason'] = 'outside explicitly authorized source referent scope'
                     results.append(result)
                     continue
-                elif packet_repeats_explicit_referent(scoped_packet, allowed_referents, attempted_explicit_referents):
+                elif (not durable_source_analysis_mandate_active()
+                      and packet_repeats_explicit_referent(scoped_packet, allowed_referents, attempted_explicit_referents)):
                     result['reason'] = 'one provider attempt already used for this explicitly authorized referent'
                     results.append(result)
                     continue
