@@ -75,6 +75,26 @@ test('source and composition subprocesses receive the same durable ledger explic
   assert.equal(composition.MOBIUS_VISUAL_COMPOSITION_BUDGET_GROUP, 'composition');
 });
 
+test('canonical source subprocess configuration takes its bounded referent mandate from the durable ledger', async (t) => {
+  const { root, projectDir } = await fixture();
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const budget = await ensureCanonicalVisualProviderBudget({ projectId: PROJECT_ID, projectDir, sourceSha256: SOURCE_SHA });
+  const ledger = JSON.parse(await fs.readFile(budget.path, 'utf8'));
+  ledger.sourceAnalysisMandates = [{
+    id: 'fixture-source-slice', contract: 'mobius-source-visual-analysis-mandate-v1',
+    referents: [{ id: 'capture-token', maxCalls: 1, allowedRoles: ['COMPONENT'] }],
+  }];
+  ledger.activeSourceAnalysisMandateId = 'fixture-source-slice';
+  await fs.writeFile(budget.path, JSON.stringify(ledger));
+  const source = canonicalVisualProviderEnvironment({
+    root, budget: { ...budget, ledger }, group: 'source',
+    env: { MOBIUS_VISUAL_SOURCE_ALLOWED_REFERENTS: 'stale-terminal-value' },
+  });
+  assert.equal(source.MOBIUS_VISUAL_SOURCE_MANDATE_ID, 'fixture-source-slice');
+  assert.equal(source.MOBIUS_VISUAL_SOURCE_ALLOWED_REFERENTS, 'capture-token');
+  assert.equal(source.MOBIUS_VISUAL_SOURCE_PRIORITY_REFERENTS, 'capture-token');
+});
+
 test('a production-marked visual subprocess fails closed before a provider call without its ledger', () => {
   const result = spawnSync(process.execPath, ['scripts/prepare-source-visuals.mjs'], {
     cwd: process.cwd(),

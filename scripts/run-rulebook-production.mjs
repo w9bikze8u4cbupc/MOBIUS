@@ -280,12 +280,24 @@ export function canonicalVisualProviderEnvironment({ root, budget, group, env = 
   if (!budget?.path || !['source', 'composition'].includes(group)) {
     throw new Error('Canonical visual provider environment requires a project budget and known group.');
   }
+  const ledger = budget.ledger || jsonIf(budget.path, {});
+  const activeSourceMandate = group === 'source' && ledger?.activeSourceAnalysisMandateId
+    ? (ledger.sourceAnalysisMandates || []).find((row) => row?.id === ledger.activeSourceAnalysisMandateId) : null;
+  const mandateReferents = activeSourceMandate?.referents?.map((row) => row.id).filter(Boolean) || [];
   return {
     ...canonicalRuntimeConfigurationEnvironment({ root, env }),
     MOBIUS_VISUAL_BUDGET_LEDGER: budget.path,
     MOBIUS_VISUAL_BUDGET_GROUP: group,
     MOBIUS_VISUAL_REQUIRE_BUDGET_LEDGER: 'true',
     MOBIUS_VISUAL_COMPOSITION_BUDGET_GROUP: 'composition',
+    // The durable ledger, not an inherited terminal variable, is the source
+    // of truth for a finite source-analysis mandate. The matcher validates it
+    // again under the ledger lock immediately before a provider reservation.
+    MOBIUS_VISUAL_SOURCE_MANDATE_ID: activeSourceMandate?.id || '',
+    ...(activeSourceMandate ? {
+      MOBIUS_VISUAL_SOURCE_ALLOWED_REFERENTS: mandateReferents.join(','),
+      MOBIUS_VISUAL_SOURCE_PRIORITY_REFERENTS: mandateReferents.join(','),
+    } : {}),
   };
 }
 

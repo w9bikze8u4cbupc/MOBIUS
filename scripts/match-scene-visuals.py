@@ -21,6 +21,7 @@ SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v15-explicit-referen
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v3'
 RESPONSE_BUDGET_CONTRACT = 'mobius-visual-response-budget-v1'
+SOURCE_ANALYSIS_MANDATE_CONTRACT = 'mobius-source-visual-analysis-mandate-v1'
 MODEL = os.getenv("MOBIUS_VISUAL_MATCH_MODEL") or os.getenv("OPENAI_MODEL")
 _probe_spec = importlib.util.spec_from_file_location('mobius_visual_probe', Path(__file__).with_name('qualify-source-visuals.py'))
 _probe_module = importlib.util.module_from_spec(_probe_spec)
@@ -729,7 +730,55 @@ def native_localization_alternatives(asset, assets):
         return -(d.get('width', 0) * d.get('height', 0)), a['asset_id']
     return sorted(rows, key=detail)[:2]
 
-def reserve_call(identity, provider_failure=None):
+def _validated_source_analysis_mandate(request, source_allocation):
+    """Normalize the durable per-referent budget authority for source pixels.
+
+    A source allowance is not interchangeable generic capacity: a bounded
+    recovery names the components it may inspect and how many distinct visual
+    substeps each one may consume. LOCALIZATION and COMPONENT are deliberately
+    separate reservations because locating an object does not validate a crop.
+    """
+    mandate = request.get('sourceAnalysisMandate')
+    if mandate is None:
+        return None
+    if not isinstance(mandate, dict) or mandate.get('contract') != SOURCE_ANALYSIS_MANDATE_CONTRACT:
+        raise ValueError('A canonical source-analysis mandate contract is required')
+    referents = mandate.get('referents')
+    if not isinstance(referents, list) or not referents:
+        raise ValueError('A source-analysis mandate requires named referents')
+    normalized, ids = [], set()
+    for row in referents:
+        ident = row.get('id') if isinstance(row, dict) else None
+        maximum = row.get('maxCalls') if isinstance(row, dict) else None
+        roles = row.get('allowedRoles') if isinstance(row, dict) else None
+        if (not isinstance(ident, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', ident)
+                or ident in ids or type(maximum) is not int or not 0 < maximum <= 32
+                or not isinstance(roles, list) or not roles
+                or any(role not in ('LOCALIZATION', 'COMPONENT', 'TRACK') for role in roles)):
+            raise ValueError('Invalid source-analysis mandate referent')
+        ids.add(ident)
+        normalized.append({'id': ident, 'maxCalls': maximum, 'allowedRoles': sorted(set(roles))})
+    if sum(row['maxCalls'] for row in normalized) > source_allocation:
+        raise ValueError('Source-analysis mandate exceeds its explicitly authorized source allocation')
+    return {'contract': SOURCE_ANALYSIS_MANDATE_CONTRACT, 'referents': normalized,
+        'maxCalls': sum(row['maxCalls'] for row in normalized)}
+
+
+def _active_source_analysis_mandate(data, mandate_id):
+    record = next((row for row in data.get('sourceAnalysisMandates', []) if row.get('id') == mandate_id), None)
+    if (not record or record.get('contract') != SOURCE_ANALYSIS_MANDATE_CONTRACT
+            or data.get('activeSourceAnalysisMandateId') != mandate_id):
+        return None
+    return record
+
+
+def source_reservation(packet, role):
+    """Describe the exact source substep for durable reservation validation."""
+    ids = [row.get('id') for row in packet.get('requiredObjects') or [] if row.get('id')]
+    return {'contract': SOURCE_ANALYSIS_MANDATE_CONTRACT, 'referents': sorted(set(ids)), 'role': role}
+
+
+def reserve_call(identity, provider_failure=None, reservation=None):
     """Optional durable mission cap, shared by all phases/directories. Fail closed on concurrent ownership."""
     filename = os.getenv('MOBIUS_VISUAL_BUDGET_LEDGER')
     if not filename:
@@ -755,7 +804,32 @@ def reserve_call(identity, provider_failure=None):
         if not provider_failure and (len(rows) >= data['maxTotal'] or sum(r['group'] == group for r in rows) >= group_cap):
             return False
         if not provider_failure:
-            rows.append({'group': group, 'identity': identity, 'ordinal': len(rows) + 1})
+            mandate_id = str(os.getenv('MOBIUS_VISUAL_SOURCE_MANDATE_ID') or '').strip()
+            reservation_record = None
+            if group == 'source' and mandate_id:
+                mandate = _active_source_analysis_mandate(data, mandate_id)
+                if not mandate or not isinstance(reservation, dict) or reservation.get('contract') != SOURCE_ANALYSIS_MANDATE_CONTRACT:
+                    return False
+                referents = reservation.get('referents')
+                role = reservation.get('role')
+                # A multi-object packet needs separate source evidence for
+                # each component. It cannot consume one component's mandate
+                # and then silently claim another was inspected too.
+                if not isinstance(referents, list) or len(referents) != 1 or not isinstance(referents[0], str):
+                    return False
+                referent = referents[0]
+                plan = next((row for row in mandate.get('referents', []) if row.get('id') == referent), None)
+                spent = sum(1 for row in rows if row.get('group') == 'source'
+                    and (row.get('sourceReservation') or {}).get('mandateId') == mandate_id
+                    and (row.get('sourceReservation') or {}).get('referent') == referent)
+                if (not plan or role not in plan.get('allowedRoles', []) or spent >= plan.get('maxCalls', 0)):
+                    return False
+                reservation_record = {'contract': SOURCE_ANALYSIS_MANDATE_CONTRACT,
+                    'mandateId': mandate_id, 'referent': referent, 'role': role}
+            row = {'group': group, 'identity': identity, 'ordinal': len(rows) + 1}
+            if reservation_record:
+                row['sourceReservation'] = reservation_record
+            rows.append(row)
         tmp = ledger.with_suffix('.tmp')
         tmp.write_text(json.dumps(data, indent=2), encoding='utf-8')
         tmp.replace(ledger)
@@ -852,6 +926,7 @@ def authorize_continuation(filename, request_path):
             group: int(prior_group_caps.get(group, data['maxPerGroup']))
             for group in set(spent) | set(prior_group_caps) | set(allocations)
         }
+        source_mandate = _validated_source_analysis_mandate(request, int(allocations.get('source', 0)))
         record = {'id': ident, 'recordedAt': datetime.now(timezone.utc).isoformat(),
             'requestHash': request_hash, 'requestPath': str(request_file), 'model': MODEL,
             'authorization': request['authorization'], 'reason': request['reason'],
@@ -863,6 +938,11 @@ def authorize_continuation(filename, request_path):
         data['groupCaps'] = {g: n + allocations.get(g, 0) for g, n in base_group_caps.items()}
         data['providerBlocker'] = None
         data['recoveryEpoch'] = ident
+        if source_mandate:
+            source_record = {'id': ident, **source_mandate, 'recordedAt': record['recordedAt'],
+                'requestHash': request_hash, 'sourceAllocation': int(allocations.get('source', 0))}
+            data.setdefault('sourceAnalysisMandates', []).append(source_record)
+            data['activeSourceAnalysisMandateId'] = ident
         tmp = ledger.with_suffix('.tmp')
         tmp.write_text(json.dumps(data, indent=2), encoding='utf-8')
         tmp.replace(ledger)
@@ -1282,7 +1362,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                         result['reason'] = f'IMAGE_PROBE_UNAVAILABLE:{type(exc).__name__}'
                         results.append(result)
                         continue
-                    if not reserve_call(identity):
+                    if not reserve_call(identity, reservation=source_reservation(scoped_packet, role)):
                         result['reason'] = 'cumulative visual budget exhausted or provider blocked'
                         results.append(result)
                         continue
@@ -1506,7 +1586,11 @@ def main():
     script, quality, output = map(Path, sys.argv[1:])
     local = os.getenv("MOBIUS_VISUAL_LOCAL_ONLY", "").lower() in {"1", "true", "yes"}
     budget = max(0, min(32, int(os.getenv("MOBIUS_VISUAL_MATCH_MAX_CALLS", "8"))))
-    client = None if local or not MODEL or not os.getenv("OPENAI_API_KEY") else OpenAI(max_retries=0, timeout=90)
+    # The Node runtime propagates its canonical provider base URL here. The SDK
+    # default would otherwise send an integration key to the public endpoint.
+    client = None if local or not MODEL or not os.getenv("OPENAI_API_KEY") else OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("OPENAI_BASE_URL") or None,
+        max_retries=0, timeout=90)
     payload = run(json.loads(script.read_text(encoding="utf-8-sig")), json.loads(quality.read_text(encoding="utf-8-sig")),
         output.parent / "object-evidence-cache", budget, client)
     output.parent.mkdir(parents=True, exist_ok=True)

@@ -216,6 +216,53 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(resumed['groupCaps'], {'source': 24, 'composition': 32, 'default': 16})
 
     @patch.object(matcher, 'MODEL', 'fixture-model')
+    def test_durable_source_analysis_mandate_reserves_only_named_referent_substeps(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger, mandate = Path(directory) / 'budget.json', Path(directory) / 'mandate.json'
+            ledger.write_text(json.dumps({'maxTotal': 10, 'maxPerGroup': 4,
+                'groupCaps': {'source': 4}, 'calls': []}), encoding='utf-8')
+            mandate.write_text(json.dumps({'id': 'component-slice', 'model': matcher.MODEL,
+                'authorization': 'fixture operator', 'reason': 'bounded component evidence',
+                'additionalCallsByGroup': {'source': 3},
+                'sourceAnalysisMandate': {'contract': matcher.SOURCE_ANALYSIS_MANDATE_CONTRACT,
+                    'referents': [
+                        {'id': 'target-token', 'maxCalls': 2, 'allowedRoles': ['LOCALIZATION', 'COMPONENT']},
+                        {'id': 'target-board', 'maxCalls': 1, 'allowedRoles': ['COMPONENT']},
+                    ]}}), encoding='utf-8')
+            matcher.authorize_continuation(ledger, mandate)
+            token_packet = {'requiredObjects': [{'id': 'target-token'}]}
+            board_packet = {'requiredObjects': [{'id': 'target-board'}]}
+            other_packet = {'requiredObjects': [{'id': 'comp-5'}]}
+            with patch.dict(matcher.os.environ, {
+                'MOBIUS_VISUAL_BUDGET_LEDGER': str(ledger), 'MOBIUS_VISUAL_BUDGET_GROUP': 'source',
+                'MOBIUS_VISUAL_SOURCE_MANDATE_ID': 'component-slice',
+            }, clear=False):
+                self.assertTrue(matcher.reserve_call({'call': 'loc'}, reservation=matcher.source_reservation(token_packet, 'LOCALIZATION')))
+                self.assertTrue(matcher.reserve_call({'call': 'component'}, reservation=matcher.source_reservation(token_packet, 'COMPONENT')))
+                self.assertTrue(matcher.reserve_call({'call': 'board'}, reservation=matcher.source_reservation(board_packet, 'COMPONENT')))
+                self.assertFalse(matcher.reserve_call({'call': 'token-repeat'}, reservation=matcher.source_reservation(token_packet, 'COMPONENT')))
+                self.assertFalse(matcher.reserve_call({'call': 'wrong-component'}, reservation=matcher.source_reservation(other_packet, 'COMPONENT')))
+            resumed = json.loads(ledger.read_text(encoding='utf-8'))
+            reservations = [row['sourceReservation'] for row in resumed['calls']]
+            self.assertEqual([(row['referent'], row['role']) for row in reservations], [
+                ('target-token', 'LOCALIZATION'), ('target-token', 'COMPONENT'), ('target-board', 'COMPONENT'),
+            ])
+
+    @patch.object(matcher, 'MODEL', 'fixture-model')
+    def test_source_analysis_mandate_cannot_hide_two_substeps_in_one_referent_allowance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger, mandate = Path(directory) / 'budget.json', Path(directory) / 'mandate.json'
+            ledger.write_text(json.dumps({'maxTotal': 8, 'maxPerGroup': 4,
+                'groupCaps': {'source': 4}, 'calls': []}), encoding='utf-8')
+            mandate.write_text(json.dumps({'id': 'too-small-plan', 'model': matcher.MODEL,
+                'authorization': 'fixture operator', 'reason': 'invalid hidden substeps',
+                'additionalCallsByGroup': {'source': 1},
+                'sourceAnalysisMandate': {'contract': matcher.SOURCE_ANALYSIS_MANDATE_CONTRACT,
+                    'referents': [{'id': 'token', 'maxCalls': 2, 'allowedRoles': ['LOCALIZATION', 'COMPONENT']}]}}), encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, 'exceeds'):
+                matcher.authorize_continuation(ledger, mandate)
+
+    @patch.object(matcher, 'MODEL', 'fixture-model')
     def test_reallocation_moves_only_unspent_continuation_calls(self):
         with tempfile.TemporaryDirectory() as directory:
             ledger, continuation, request = Path(directory) / 'budget.json', Path(directory) / 'continuation.json', Path(directory) / 'reallocate.json'
