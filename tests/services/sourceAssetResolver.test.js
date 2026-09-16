@@ -127,7 +127,14 @@ test('Cockpit retains a deterministic crop-derivation rejection on the candidate
     }],
   })] });
   expect(selection.status).toBe('UNRESOLVED');
-  expect(selection.reviewItem.candidates[0].objectAnalysisAttempts).toEqual([expect.objectContaining({
+  // Cockpit previews intentionally carry a compact candidate row. The rich
+  // pixel-analysis graph remains in the resolver's evidence entry and is
+  // externalized by project storage for detail hydration rather than copied
+  // once per review item.
+  expect(selection.reviewItem.candidates[0]).toEqual(expect.objectContaining({
+    assetId: 'clipped-parent', objectAnalysisAttemptCount: 1,
+  }));
+  expect(selection.rankedEntries[0].candidate.objectAnalysisAttempts).toEqual([expect.objectContaining({
     status: 'REJECTED', reasonCode: 'OBJECT_TOUCHES_PARENT_CROP_EDGE', requiredObject: 'game board',
   })]);
 });
