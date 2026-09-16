@@ -46,6 +46,19 @@ test('a single exhausted provider is still reported as provider-unavailable', as
   });
 });
 
+test('a single empty provider response is normalized as recoverable provider failure', async () => {
+  const run = createAiProviderRun({
+    env: {}, providerOrder: ['openai'], maxRetries: 0,
+    providers: { openai: { model: 'empty-model', adapter: async () => response(null) } },
+  });
+  await assert.rejects(() => run.complete({ messages: [{ role: 'user', content: 'rules' }] }), (error) => {
+    assert.equal(error.code, 'AI_PROVIDER_ALL_FAILED');
+    assert.equal(error.classification, 'provider_unavailable');
+    assert.deepEqual(error.providerAttempts.map((attempt) => attempt.category), ['empty_response']);
+    return true;
+  });
+});
+
 test('schema-invalid output retries once, then uses the next provider', async () => {
   let firstCalls = 0;
   const run = createAiProviderRun({

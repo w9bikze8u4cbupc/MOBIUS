@@ -2,7 +2,7 @@
 
 const crypto = require('node:crypto');
 
-const RULE_VISUAL_REFERENT_RECOVERY_CONTRACT = 'mobius-rule-visual-referent-recovery-v2';
+const RULE_VISUAL_REFERENT_RECOVERY_CONTRACT = 'mobius-rule-visual-referent-recovery-v3';
 
 function clean(value) {
   return String(value ?? '').replace(/\s+/g, ' ').trim();

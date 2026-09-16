@@ -252,6 +252,12 @@ export function createAiProviderRun({ env = process.env, providerOrder, allowedP
         'rate_limited_transient',
         'network_transient',
         'provider_5xx',
+        // A successful HTTP exchange with no usable completion is a provider
+        // execution boundary, never evidence that the source document is
+        // terminally invalid.  Preserve it as a structured retryable result
+        // so Inbox can require an explicit recovery rather than quarantining
+        // a valid rulebook.
+        'empty_response',
         'unknown_provider_failure',
       ].includes(finalCategory);
       if (!providerUnavailable) throw lastFailure.cause || lastFailure;

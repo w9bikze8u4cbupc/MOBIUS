@@ -272,6 +272,7 @@ export async function recoverRuleVisualReferents({ model, cachePath, env = proce
   const ai = getAiConfig(env);
   const packet = buildRuleVisualReferentRecoveryPacket(model);
   const inputHash = hashVisualReferentRecoveryPacket({ packet, provider: ai.provider, model: ai.model });
+  const batchSize = 6;
   const write = (file, value) => {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(`${file}.tmp`, JSON.stringify(value, null, 2));
@@ -287,24 +288,6 @@ export async function recoverRuleVisualReferents({ model, cachePath, env = proce
   if (cachePath && fs.existsSync(cachePath)) {
     const prior = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
     if (prior.inputHash === inputHash) return { ...prior, result: validate(prior), providerCalls: 0, reused: true };
-  }
-  const receiptPath = cachePath ? `${cachePath}.${inputHash}.response.json` : null;
-  if (receiptPath && fs.existsSync(receiptPath)) {
-    const raw = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
-    const result = validate(JSON.parse(raw.content));
-    const recovered = {
-      contract: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT,
-      inputHash,
-      provider: ai.provider,
-      model: ai.model,
-      result,
-      usage: raw.usage || null,
-      providerCalls: 0,
-      reused: true,
-      validationRecovery: 'validated-cached-provider-response',
-    };
-    if (cachePath) write(cachePath, recovered);
-    return recovered;
   }
   const fields = {
     ruleAtomId: { type: 'string' },
@@ -326,39 +309,66 @@ export async function recoverRuleVisualReferents({ model, cachePath, env = proce
       },
     },
   };
-  const ledger = reserveGenerationBudget(env, { inputHash, contract: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT, model: ai.model });
-  try {
-    const run = complete ? null : createAiProviderRun({ env, maxRetries: 0, allowedProviders: [ai.provider === 'ai-integrations' ? 'openai' : ai.provider] });
-    const response = await (complete || run.complete)({
-      messages: [{
-        role: 'user',
-        content: 'For every requested RuleAtom, recover its visual referent using ONLY the supplied official excerpts and existing component inventory. This does not change rules and does not select an image. Components marked REVIEW_ONLY_EXTRACTION_HYPOTHESIS are retrieval artifacts, not eligible identities. Return COMPONENTS_GROUNDED only with existing SOURCE_GROUNDED_COMPONENT IDs directly supported by the excerpt. Replace review-only current referents rather than preserving their labels. Return SOURCE_FAITHFUL_DIAGRAM only when the excerpt establishes the teaching point but no physical component is required to teach it; never use it to avoid a missing component or supersede a trusted current component. Otherwise return UNRESOLVED. Copy a short exact substring from the supplied excerpt for every evidence row. Never cite another page, invent a component, infer a token from a name, or use outside game knowledge.\n' + JSON.stringify(packet),
-      }],
-      options: getGenerationOptions(ai, { max_completion_tokens: 5000, response_format: schema }, 'rulebook_domain_synthesis'),
-      maxRetries: 0,
-      inputHash,
-      promptTemplateVersion: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT,
-      schemaContractVersion: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT,
-    });
-    const raw = response.response.choices[0].message.content;
-    if (receiptPath) write(receiptPath, { inputHash, content: raw, usage: response.response.usage, provenance: response.provenance });
-    const result = validate(JSON.parse(raw));
-    const record = {
-      contract: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT,
-      inputHash,
-      provider: ai.provider,
-      model: ai.model,
-      result,
-      usage: response.response.usage || null,
-      providerCalls: 1,
-      reused: false,
-    };
-    if (cachePath) write(cachePath, record);
-    return record;
-  } catch (error) {
-    recordGenerationFailure(ledger, error);
-    throw error;
+  const batches = [];
+  for (let offset = 0; offset < packet.candidates.length; offset += batchSize) {
+    batches.push(packet.candidates.slice(offset, offset + batchSize));
   }
+  const recoveries = [];
+  const batchRecords = [];
+  let providerCalls = 0;
+  for (let index = 0; index < batches.length; index += 1) {
+    const batchPacket = { ...packet, candidates: batches[index] };
+    const batchInputHash = hashVisualReferentRecoveryPacket({ packet: batchPacket, provider: ai.provider, model: ai.model });
+    const receiptPath = cachePath ? `${cachePath}.${batchInputHash}.response.json` : null;
+    let result;
+    let usage = null;
+    let reused = false;
+    if (receiptPath && fs.existsSync(receiptPath)) {
+      const raw = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+      result = validateRuleVisualReferentRecovery(batchPacket, JSON.parse(raw.content));
+      usage = raw.usage || null;
+      reused = true;
+    } else {
+      const ledger = reserveGenerationBudget(env, { inputHash: batchInputHash, contract: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT, model: ai.model, batch: index + 1, batches: batches.length });
+      try {
+        const run = complete ? null : createAiProviderRun({ env, maxRetries: 0, allowedProviders: [ai.provider === 'ai-integrations' ? 'openai' : ai.provider] });
+        const response = await (complete || run.complete)({
+          messages: [{
+            role: 'user',
+            content: 'For every requested RuleAtom, recover its visual referent using ONLY the supplied official excerpts and existing component inventory. This does not change rules and does not select an image. Components marked REVIEW_ONLY_EXTRACTION_HYPOTHESIS are retrieval artifacts, not eligible identities. Return COMPONENTS_GROUNDED only with existing SOURCE_GROUNDED_COMPONENT IDs directly supported by the excerpt. Replace review-only current referents rather than preserving their labels. Return SOURCE_FAITHFUL_DIAGRAM only when the excerpt establishes the teaching point but no physical component is required to teach it; never use it to avoid a missing component or supersede a trusted current component. Otherwise return UNRESOLVED. Copy a short exact substring from the supplied excerpt for every evidence row. Never cite another page, invent a component, infer a token from a name, or use outside game knowledge.\n' + JSON.stringify(batchPacket),
+          }],
+          options: getGenerationOptions(ai, { max_completion_tokens: 5000, response_format: schema }, 'rulebook_domain_synthesis'),
+          maxRetries: 0,
+          inputHash: batchInputHash,
+          promptTemplateVersion: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT,
+          schemaContractVersion: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT,
+        });
+        const raw = response.response.choices[0].message.content;
+        result = validateRuleVisualReferentRecovery(batchPacket, JSON.parse(raw));
+        usage = response.response.usage || null;
+        if (receiptPath) write(receiptPath, { inputHash: batchInputHash, content: raw, usage, provenance: response.provenance });
+        providerCalls += 1;
+      } catch (error) {
+        recordGenerationFailure(ledger, error);
+        throw error;
+      }
+    }
+    recoveries.push(...result.recoveries);
+    batchRecords.push({ batch: index + 1, inputHash: batchInputHash, candidates: batches[index].map((candidate) => candidate.id), providerCalls: reused ? 0 : 1, reused, usage });
+  }
+  const result = validate({ recoveries });
+  const record = {
+    contract: RULE_VISUAL_REFERENT_RECOVERY_CONTRACT,
+    inputHash,
+    provider: ai.provider,
+    model: ai.model,
+    result,
+    batches: batchRecords,
+    providerCalls,
+    reused: providerCalls === 0,
+  };
+  if (cachePath) write(cachePath, record);
+  return record;
 }
 
 const { classifyVisualLanguage } = editorialStandard;
