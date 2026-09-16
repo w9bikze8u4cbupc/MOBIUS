@@ -535,6 +535,25 @@ def candidates_for(packet, assets):
             return 6
         return 0
 
+    def gallery_discovery_rank(asset):
+        """Rank opaque official-gallery pixels by their *retrieval* role.
+
+        Product-gallery filenames/URLs are not component identity evidence, but
+        their generic editorial role is useful when deciding which one bounded
+        discovery image to inspect.  A setup/components photograph generally
+        offers more component pixels than a box, logo, or portrait.  The
+        provider still receives the exact requested referent and is solely
+        responsible for accepting or rejecting the visible object.
+        """
+        metadata = asset.get('asset_metadata') or {}
+        provenance = metadata.get('provenance') or {}
+        source = ' '.join(str(provenance.get(key) or '') for key in ('sourceUrl', 'url', 'title', 'description'))
+        source = source.lower()
+        positive = ('setup', 'set-up', 'component', 'gameplay', 'table', 'overview', 'contents')
+        negative = ('box', 'cover', 'logo', 'banner', 'portrait', 'figure', 'figurine')
+        return (sum(1 for token in positive if token in source)
+            - sum(1 for token in negative if token in source))
+
     rows = []
     # An exact-title publisher gallery may have no useful source-owned caption
     # (a common CMS pattern).  It is still a legitimate *bounded discovery*
@@ -672,6 +691,7 @@ def candidates_for(packet, assets):
     # crop and state gates before the canonical resolver can bind anything.
     if requirement.get('componentDiscovery') and gallery_fallbacks:
         external = sorted(gallery_fallbacks, key=lambda a: (
+            -gallery_discovery_rank(a),
             -int((a.get('asset_metadata') or {}).get('original_dimensions', {}).get('width') or (a.get('asset_metadata') or {}).get('dimensions', {}).get('width') or 0)
             * int((a.get('asset_metadata') or {}).get('original_dimensions', {}).get('height') or (a.get('asset_metadata') or {}).get('dimensions', {}).get('height') or 0),
             a['asset_id']))

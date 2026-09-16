@@ -717,6 +717,31 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual([row['asset_id'] for row in result], ['local', 'gallery'])
             self.assertTrue(all('objects' not in row for row in result))
 
+    def test_uncaptioned_official_setup_gallery_outranks_box_art_only_for_discovery(self):
+        """A URL's editorial role ranks retrieval; it never proves identity."""
+        with tempfile.TemporaryDirectory() as directory:
+            local, box, setup = [Path(directory) / name for name in ['local', 'box', 'setup']]
+            local.write_bytes(b'local-pixels')
+            box.write_bytes(b'box-pixels')
+            setup.write_bytes(b'setup-pixels')
+            packet = {
+                'requiredObjects': [{'id': 'board', 'term': {'name': 'Player board'}}],
+                'sourcePages': [4], 'requirement': {'componentDiscovery': True},
+            }
+            base = {'sourceAuthority': 'OFFICIAL_PUBLISHER_HIGH_RES', 'source_page': None,
+                'component_bindings': [{'componentId': 'board', 'reviewState': 'hypothesis'}],
+                'dimensions': {'width': 1600, 'height': 1000},
+                'provenance': {'retrievalKind': 'publisher-product-page-gallery'}}
+            result = matcher.candidates_for(packet, [
+                {'asset_id': 'local', 'path': str(local), 'asset_metadata': {
+                    'source_page': 4, 'heading': 'Components', 'dimensions': {'width': 900, 'height': 600}}},
+                {'asset_id': 'box', 'path': str(box), 'asset_metadata': {
+                    **base, 'provenance': {**base['provenance'], 'sourceUrl': 'https://publisher.example/game-box.jpg'}}},
+                {'asset_id': 'setup', 'path': str(setup), 'asset_metadata': {
+                    **base, 'provenance': {**base['provenance'], 'sourceUrl': 'https://publisher.example/game-setup.jpg'}}},
+            ])
+            self.assertEqual([row['asset_id'] for row in result], ['local', 'setup'])
+
     def test_uncaptioned_gallery_is_not_used_for_normal_scene_or_product_jsonld(self):
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / 'gallery'
