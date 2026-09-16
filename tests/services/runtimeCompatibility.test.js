@@ -56,6 +56,14 @@ describe('canonical runtime compatibility', () => {
     expect(evaluateRuntimeCompatibility(stale, requirements)).toMatchObject({ compatible: false });
   });
 
+  test('a pre-v13 composition runtime is rejected before an Inbox worker can reuse v13 frames', () => {
+    const stale = buildApiRuntimeCapabilities({ env: { MOBIUS_BUILD_SHA: '5'.repeat(40) } });
+    stale.contracts.sourceMeasuredComposition = 'mobius-visual-plan-materializer-v12';
+    expect(evaluateRuntimeCompatibility(stale, requirements).reasons).toContain(
+      'sourceMeasuredComposition:mobius-visual-plan-materializer-v12!=mobius-visual-plan-materializer-v13',
+    );
+  });
+
   test('unavailable API reports a truthful retryable runtime state', async () => {
     await expect(preflightRuntimeCompatibility({
       baseUrl: 'http://fixture.local', requirements,

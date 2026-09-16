@@ -10,6 +10,10 @@ import ffprobeStatic from 'ffprobe-static';
 const execFileAsync = promisify(execFile);
 const FFMPEG_BIN = process.env.MOBIUS_FFMPEG_PATH || ffmpegStatic || 'ffmpeg';
 const FFPROBE_BIN = process.env.MOBIUS_FFPROBE_PATH || ffprobeStatic.path || 'ffprobe';
+// Tool versions are provenance only. They must never keep an otherwise
+// completed package (or its worker) alive indefinitely when a host binary is
+// unhealthy. Media inspection and rendering retain their own failure paths.
+const TOOL_VERSION_TIMEOUT_MS = 2_000;
 
 const CONFIG_DIR = path.join(process.cwd(), 'config');
 const LOCALIZATION_GENERATED_PATH = path.join(CONFIG_DIR, 'localization.generated.json');
@@ -68,11 +72,22 @@ function loadLocalizationConfig() {
 
 async function detectToolVersion(binary) {
   try {
-    const { stdout } = await execFileAsync(binary, ['-version']);
+    const { stdout } = await execFileAsync(binary, ['-version'], {
+      timeout: TOOL_VERSION_TIMEOUT_MS,
+      windowsHide: true,
+    });
     const firstLine = stdout.split(/\r?\n/)[0];
-    return firstLine || null;
+    return {
+      version: firstLine || null,
+      status: firstLine ? 'available' : 'empty-output',
+    };
   } catch (err) {
-    return null;
+    const timedOut = err?.killed === true || err?.code === 'ETIMEDOUT';
+    return {
+      version: null,
+      status: timedOut ? 'timed-out' : 'unavailable',
+      ...(timedOut ? { timeoutMs: TOOL_VERSION_TIMEOUT_MS } : {}),
+    };
   }
 }
 
@@ -145,7 +160,7 @@ function buildEnvSection() {
   };
 }
 
-async function buildToolsSection({ dryRun = false } = {}) {
+async function buildToolsSection({ dryRun = false, hasMediaArtifacts = false } = {}) {
   // A dry-run establishes only that the render contract/configuration is
   // consumable. It neither creates media nor needs the host binaries. Do not
   // let an informational manifest probe turn a completed dry-run into a slow
@@ -157,13 +172,28 @@ async function buildToolsSection({ dryRun = false } = {}) {
       probesSkipped: 'dry-run-no-media-produced',
     };
   }
-  const [ffmpeg, ffprobe] = await Promise.all([
+  // Caption- and metadata-only packages do not invoke a media tool. Avoid
+  // probing the host merely to fill informational provenance: it makes an
+  // isolated SRT package depend on FFmpeg availability and was the source of
+  // the macOS packaging test timeout.
+  if (!hasMediaArtifacts) {
+    return {
+      ffmpeg: null,
+      ffprobe: null,
+      probesSkipped: 'no-media-artifacts',
+    };
+  }
+  const [ffmpegProbe, ffprobeProbe] = await Promise.all([
     detectToolVersion(FFMPEG_BIN),
     detectToolVersion(FFPROBE_BIN),
   ]);
   return {
-    ffmpeg,
-    ffprobe,
+    ffmpeg: ffmpegProbe.version,
+    ffprobe: ffprobeProbe.version,
+    versionProbes: {
+      ffmpeg: ffmpegProbe,
+      ffprobe: ffprobeProbe,
+    },
   };
 }
 
@@ -292,7 +322,10 @@ export async function packageRenderJob({ jobId, outputDir, jobConfig, dryRun = f
     localizationConfig,
     dryRun,
   });
-  const tools = await buildToolsSection({ dryRun });
+  const tools = await buildToolsSection({
+    dryRun,
+    hasMediaArtifacts: media.video.length > 0 || media.audio.length > 0,
+  });
   const env = buildEnvSection();
 
   const manifest = {
