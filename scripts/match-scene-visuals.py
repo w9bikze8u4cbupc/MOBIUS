@@ -17,7 +17,7 @@ SEARCH_CONTRACT = "mobius-referent-localization-v1"
 # substage no longer leaks a KeyError into a faux provider-unavailable result.
 # The version is part of the execution cache identity so that a prior local
 # bookkeeping failure is not replayed as if pixels had been inspected.
-SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v13-authorized-gallery-discovery'
+SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v14-retained-track-recovery'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v3'
 RESPONSE_BUDGET_CONTRACT = 'mobius-visual-response-budget-v1'
@@ -911,33 +911,63 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
         if prior and scene_measurement_complete(scene, prior):
             scenes.append(prior)
             continue
-        retained_required = (scene.get('visualRequirement') or {}).get('requiredObjects') or []
+        requirement = scene.get('visualRequirement') or {}
+        retained_required = requirement.get('requiredObjects') or []
+        retained_track_recovery = False
+        replayed = []
         if retained_required and all(retained_component_identity_proven(ident, retained, available_asset_identities) for ident in retained_required):
             replayed = retained_component_candidates(retained_required, retained, available_asset_identities)
-            if replayed:
+            # A complete COMPONENT measurement proves the physical object's
+            # identity, not a scene-specific numbered track or its transition.
+            # Do not let the identity-reuse fast path suppress the bounded
+            # TRACK measurement required by a stateful teaching scene.  The
+            # retained component remains in the report alongside the separate
+            # scene-scoped TRACK verdict, so both proofs stay independently
+            # replayable and auditable.
+            retained_track_recovery = bool(requirement.get('trackStateRequired') and replayed)
+            if replayed and not retained_track_recovery:
                 scenes.append({"scene_id": scene.get('id'), "status": "object-evidence-ready",
                     "selected_asset_id": None, "reason": "Canonical object/detail/state validation required",
                     "candidates": replayed})
                 hits += len(replayed)
-            elif prior:
+                continue
+            elif prior and not retained_track_recovery:
                 scenes.append(prior)
-            continue
+                continue
         if prior and previous and not scene_needs_identity_work(scene, previous):
             # A separate scene already established the exact physical referent.
             # Retain this scene's state review untouched; component discovery is
             # complete and must not spend another provider call here.
-            scenes.append(prior)
-            continue
+            # Stateful requirements cannot inherit a COMPONENT-only verdict.
+            # They fall through to their bounded scene-specific measurement.
+            if not retained_track_recovery:
+                scenes.append(prior)
+                continue
         packet = packet_for(scene, script.get("componentTerms") or {})
-        packet['requiredObjects'] = [obj for obj in packet['requiredObjects']
-            if not retained_component_identity_proven(obj['id'], retained, available_asset_identities)
-            and not (previous and component_identity_proven(obj['id'], previous))]
+        if retained_track_recovery:
+            # Keep the exact referent in the full packet. TRACK evidence is
+            # scene-scoped and validates geometry plus source-bound state
+            # stages; removing an already-proven COMPONENT here would leave
+            # the provider without the object it must measure.
+            packet['requiredObjects'] = [obj for obj in packet['requiredObjects']
+                if obj['id'] in retained_required]
+        else:
+            packet['requiredObjects'] = [obj for obj in packet['requiredObjects']
+                if not retained_component_identity_proven(obj['id'], retained, available_asset_identities)
+                and not (previous and component_identity_proven(obj['id'], previous))]
         if not packet['requiredObjects']:
             if prior:
                 scenes.append(prior)
             continue
         results = []
-        queue = candidates_for(packet, qa.get("assets", [])) if packet['requiredObjects'] else []
+        if retained_track_recovery:
+            # Re-measure only the exact, compatible source pixels which
+            # already passed COMPONENT identity.  This is not a new discovery
+            # search and cannot spend the source allowance on unrelated pages.
+            queue = [{**candidate, 'asset_metadata': {**(candidate.get('asset_metadata') or {}),
+                'visual_kind': 'track-geometry'}} for candidate in replayed]
+        else:
+            queue = candidates_for(packet, qa.get("assets", [])) if packet['requiredObjects'] else []
         visited = set()
         for asset in queue:
             visit_id = (asset['asset_id'], (asset.get('asset_metadata') or {}).get('visual_kind'))
@@ -1242,8 +1272,9 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     except (OSError, KeyError, ValueError):
                         pass  # This run is already blocked; never call a provider to repair bookkeeping.
             results.append(result)
-        scenes.append({"scene_id": scene.get("id"), "status": "object-evidence-ready" if any(r["status"] == "MEASURED" for r in results) else "needs_visual_review",
-            "selected_asset_id": None, "reason": "Canonical object/detail/state validation required", "candidates": results})
+        report_candidates = [*replayed, *results]
+        scenes.append({"scene_id": scene.get("id"), "status": "object-evidence-ready" if any(r["status"] == "MEASURED" for r in report_candidates) else "needs_visual_review",
+            "selected_asset_id": None, "reason": "Canonical object/detail/state validation required", "candidates": report_candidates})
     deferred = bool(not blocker and any(candidate.get('status') == 'UNKNOWN'
         and budget_exhausted_reason(candidate.get('reason'))
         for scene in scenes for candidate in scene.get('candidates', [])))

@@ -120,6 +120,46 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(result['summary']['providerCalls'], 2)
             self.assertEqual(len(calls), 2)
 
+    def test_retained_component_identity_still_schedules_scene_scoped_track_measurement(self):
+        """Replay keeps exact identity pixels but must not skip track geometry."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'
+            image_hash = matcher.hashlib.sha256(pixels.read_bytes()).hexdigest()
+            component = {'requiredObject': 'board', 'present': True, 'confidence': .99,
+                'complete': True, 'isolated': True, 'stateCompatible': True,
+                'bbox': [.1, .1, .9, .9], 'reason': 'Exact retained board',
+                'visualRole': 'COMPONENT', 'imageSha256': image_hash}
+            # This retained report is intentionally component-only. A former
+            # scheduler treated it as sufficient for a later stateful scene.
+            (root / 'run-retained.json').write_text(json.dumps({'scenes': [{
+                'scene_id': 'identity-scene', 'candidates': [{
+                    'asset_id': 'board-image', 'path': str(pixels), 'status': 'MEASURED',
+                    'objects': [component], 'evidencePacket': {'visualRole': 'COMPONENT'},
+                }],
+            }]}), encoding='utf-8')
+            script = {'scenes': [{'id': 'track-scene', 'source_pages': [2], 'visualRequirement': {
+                'requiredObjects': ['board'], 'trackStateRequired': True,
+                'beforeState': 'Start at 1.', 'afterState': 'Keep the value next turn.'}}]}
+            qa = {'assets': [{'asset_id': 'board-image', 'path': str(pixels), 'asset_metadata': {'source_page': 2}}]}
+            track = {**component, 'trackLabelFrench': 'Réserve',
+                'trackPoints': [{'value': 1, 'x': .2, 'y': .8}, {'value': 2, 'x': .7, 'y': .4}],
+                'stateStages': [{'label': 'Début', 'caption': '1', 'narration': 'Un.', 'position': 1,
+                    'isExample': False, 'sourcePages': [2]}, {'label': 'Après', 'caption': '2', 'narration': 'Deux.', 'position': 2,
+                    'isExample': True, 'sourcePages': [2]}]}
+            calls = []
+            def create(**kwargs):
+                calls.append(kwargs)
+                self.assertIn('Map the VISIBLE numbered track', kwargs['messages'][0]['content'][0]['text'])
+                return types.SimpleNamespace(usage=None, choices=[types.SimpleNamespace(
+                    message=types.SimpleNamespace(content=json.dumps({'objects': [track]})))])
+            client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            result = matcher.run(script, qa, root, 1, client)
+            candidates = result['scenes'][0]['candidates']
+            self.assertEqual(result['summary']['providerCalls'], 1)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual([candidate['objects'][0]['visualRole'] for candidate in candidates], ['COMPONENT', 'TRACK'])
+
     @patch.object(matcher, 'MODEL', 'fixture-model')
     def test_bounded_continuation_preserves_history_and_does_not_reopen_auth(self):
         with tempfile.TemporaryDirectory() as directory:
