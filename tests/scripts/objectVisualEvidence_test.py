@@ -439,6 +439,31 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(result[0]['asset_id'], 'context')
             self.assertEqual(len(result), 2)
 
+    def test_distinct_native_images_on_one_page_are_not_collapsed_before_pixel_qa(self):
+        """A page render and each embedded image are distinct discovery hypotheses."""
+        with tempfile.TemporaryDirectory() as directory:
+            page, first, second = [Path(directory) / name for name in ['page', 'first', 'second']]
+            page.write_bytes(b'page-render-pixels')
+            first.write_bytes(b'first-native-pixels')
+            second.write_bytes(b'second-native-pixels')
+            packet = {'requiredObjects': [{'id': 'comp-board', 'term': {'name': 'Player board'}}],
+                'sourcePages': [4]}
+            assets = [
+                {'asset_id': 'page-render', 'path': str(page), 'asset_metadata': {
+                    'source_page': 4, 'visual_kind': 'source-page-localization',
+                    'layout_text': 'Player board', 'dimensions': {'width': 2000, 'height': 1400}}},
+                {'asset_id': 'native-one', 'path': str(first), 'asset_metadata': {
+                    'source_page': 4, 'retrieval_context': {'role': 'PAGE_SEARCH_HYPOTHESIS'},
+                    'component_bindings': [{'componentId': 'comp-board', 'confidence': .4,
+                        'reviewState': 'needs_review'}], 'dimensions': {'width': 700, 'height': 500}}},
+                {'asset_id': 'native-two', 'path': str(second), 'asset_metadata': {
+                    'source_page': 4, 'retrieval_context': {'role': 'PAGE_SEARCH_HYPOTHESIS'},
+                    'component_bindings': [{'componentId': 'comp-board', 'confidence': .4,
+                        'reviewState': 'needs_review'}], 'dimensions': {'width': 650, 'height': 500}}},
+            ]
+            self.assertEqual([row['asset_id'] for row in matcher.candidates_for(packet, assets)],
+                ['page-render', 'native-one', 'native-two'])
+
     def test_component_inventory_pages_and_bindings_expand_search_without_proving_identity(self):
         """Inventory provenance is a retrieval hint, never an auto-acceptance."""
         with tempfile.TemporaryDirectory() as directory:

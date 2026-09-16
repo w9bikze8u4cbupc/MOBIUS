@@ -535,14 +535,35 @@ def candidates_for(packet, assets):
         score -= 20 if re.search(r'background|logo|decorative', str(m.get('classification') or '')) else 0
         return (-score, -min(1000000, int(d.get('width') or 0) * int(d.get('height') or 0)), a['asset_id'])
     # Keep source diversity rather than spending every call on one page's
-    # columns. External candidates have no PDF page; group them by asset so a
-    # gallery cannot collapse to its first arbitrary image.
+    # columns. A PDF page render is one broad localization hypothesis, but
+    # native embedded images on that same page are distinct source pixels.
+    # Collapsing both kinds to the page used to discard every native component
+    # except the first one before pixel QA could inspect it. They therefore
+    # retain their individual identities here; the six-item bound, pixel-hash
+    # deduplication above, and the provider's exact-component gate still keep
+    # discovery finite and conservative. External candidates have no PDF page
+    # and are likewise grouped by asset so a gallery cannot collapse to its
+    # first arbitrary image.
     result, pages = [], set()
     for a in sorted(rows, key=key):
         m = a.get('asset_metadata') or {}
         authority = str(m.get('sourceAuthority') or a.get('sourceAuthority') or '')
-        group = ((m.get('source_page'), m.get('visual_kind') == 'source-page-localization')
-            if m.get('source_page') is not None else ('external', authority, a['asset_id']))
+        page = m.get('source_page')
+        kind = m.get('visual_kind')
+        if page is None:
+            group = ('external', authority, a['asset_id'])
+        elif kind == 'source-page-localization':
+            # Several render/crop aliases of one page are alternatives for the
+            # same localization task; retain only the strongest one.
+            group = ('page-localization', page)
+        elif m.get('retrieval_context') and not kind:
+            # Each extracted native image is a separately addressable pixel
+            # source, even when its source-page provenance is shared.
+            group = ('native', page, a['asset_id'])
+        else:
+            # Derived crops and ordinary source assets remain individually
+            # inspectable. Exact duplicate pixels were removed before ranking.
+            group = ('source-asset', page, a['asset_id'])
         if group in pages:
             continue
         result.append(a)
