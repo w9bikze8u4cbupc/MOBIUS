@@ -123,6 +123,50 @@ test('an explicit cited result can establish a face-down state without a separat
  expect(state.stages[1].items[0].faceState).toBe('FACE_DOWN');
 });
 
+test('a source-grounded placement changes the movable object, not its support', () => {
+ const state = derivePhysicalGameState({
+   id: 'place-card-on-board', placement: 'Place the Criminal card on the Planet board.',
+   stateBefore: 'The Planet board is free.', stateChange: 'The Criminal card arrives.',
+   stateAfter: 'The Criminal card occupies the Planet board.', sourceRefs: [{ page: 8 }],
+   confidence: .95, reviewState: 'accepted', componentRefs: ['planet-board', 'criminal-card'],
+   visualRequirement: { requiredObjects: ['planet-board', 'criminal-card'], transitionRequired: true,
+     requiredRelationship: 'Place the Criminal card on the Planet board.',
+     requiredObjectDescriptors: [
+       { id: 'planet-board', name: 'Planet board', category: 'board' },
+       { id: 'criminal-card', name: 'Criminal card', category: 'card' },
+     ] },
+ });
+ const after = state.stages.at(-1);
+ expect(after.items.find((item) => item.id === 'planet-board')).toMatchObject({ role: 'ANCHOR', location: null });
+ expect(after.items.find((item) => item.id === 'criminal-card')).toMatchObject({
+   role: 'MOVABLE', arrangement: 'ON_ANCHOR', anchorRef: 'planet-board',
+   location: 'Place the Criminal card on the Planet board.',
+ });
+});
+
+test('a cited deck plus market row keeps both physical representations and quantity', () => {
+ const state = derivePhysicalGameState({
+   id: 'prepare-market', placement: 'The Common Deck is on the Common Deck board; the 5 cards are in a line.',
+   orientation: 'The Common Deck is face down and the 5 cards are face up.',
+   stateBefore: 'The Common Deck cards are not prepared.',
+   stateAfter: 'A face-down Common Deck is on its board and 5 face-up cards are in a line.',
+   sourceRefs: [{ page: 4 }], confidence: .95, reviewState: 'accepted', componentRefs: ['common-cards', 'common-board'],
+   visualRequirement: { requiredObjects: ['common-cards', 'common-board'], transitionRequired: true,
+     setupPlacementRequired: true, requiredObjectDescriptors: [
+       { id: 'common-cards', name: 'Common Deck cards', category: 'card' },
+       { id: 'common-board', name: 'Common Deck board', category: 'board' },
+     ] },
+ });
+ const cards = state.stages.at(-1).items.find((item) => item.id === 'common-cards');
+ const board = state.stages.at(-1).items.find((item) => item.id === 'common-board');
+ expect(cards).toMatchObject({ role: 'MOVABLE', anchorRef: 'common-board', quantity: 5, faceState: 'FACE_DOWN' });
+ expect(cards.representations).toEqual(expect.arrayContaining([
+   expect.objectContaining({ id: 'deck', arrangement: 'STACK', faceState: 'FACE_DOWN' }),
+   expect.objectContaining({ id: 'row', arrangement: 'LINE', quantity: 5, faceState: 'FACE_UP' }),
+ ]));
+ expect(board.faceState).toBe('NOT_APPLICABLE');
+});
+
 test('an instructional diagram stays bound to exact component pixels, labels and the full physical requirement',()=>{
  const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
  const {verifiedInstructionalSequence}=require('../../src/services/physicalGameState.cjs');

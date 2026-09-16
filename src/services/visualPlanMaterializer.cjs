@@ -9,7 +9,7 @@ const { teachingSceneLayout, containedDisplayBounds, PRESENTATION_TOKENS } = req
 const crypto = require('node:crypto');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const xml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
-const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v9';
+const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v10';
 const STATE_SEQUENCE_CONTRACT = 'mobius-source-measured-state-sequence-v2';
 const SEMANTIC_SEQUENCE_CONTRACT = 'mobius-source-grounded-semantic-sequence-v2';
 const INSTRUCTIONAL_DIAGRAM_CONTRACT = 'mobius-source-grounded-instructional-diagram-v2';
@@ -61,6 +61,10 @@ function relationshipOverlay(states = [], requirement = {}, stage = {}) {
   const kind = instructionalRelationshipKind(requirement);
   if (kind === 'NONE') return '';
   const first = states[0], last = states[states.length - 1];
+  const overlaid = states.find((value) => value.item?.anchorRef && value.item?.arrangement === 'ON_ANCHOR');
+  if (overlaid && ['action', 'after', 'result', 'final'].includes(String(stage.id || stage.diagramStage || '').toLowerCase())) {
+    return `<rect x="${overlaid.left - 16}" y="${overlaid.top - 16}" width="${overlaid.width + 32}" height="${overlaid.height + 32}" rx="20" fill="none" stroke="#f4d35e" stroke-width="8"/><text x="${overlaid.left + overlaid.width / 2}" y="${Math.max(390, overlaid.top - 28)}" text-anchor="middle" fill="#fff3d9" font-family="Arial" font-size="38" font-weight="bold">SUR LE SUPPORT</text>`;
+  }
   const x1 = first.left + first.width / 2, y1 = first.top + first.height / 2;
   const x2 = last.left + last.width / 2, y2 = last.top + last.height / 2;
   if (kind === 'SEPARATE') {
@@ -104,18 +108,22 @@ function localizedVisualTeaching(scene = {}) {
 }
 
 function statefulTeachingLayout(referentCount = 1) {
-  const componentRegion = { x: 130, y: 430, width: 1660, height: 460 };
+  // The state sequence reserves a readable explanatory band, then gives the
+  // physical state its own fixed stage.  Labels live below that stage instead
+  // of competing with the source pixels above it; this preserves the source
+  // image at phone scale rather than letting decorative badges cover it.
+  const componentRegion = { x: 130, y: 410, width: 1660, height: 450 };
   return {
     componentRegion,
     cells: gridCells(referentCount, componentRegion.width, componentRegion.height, 0)
       .map((cell) => ({ ...cell, x: cell.x + componentRegion.x, y: cell.y + componentRegion.y })),
     typography: {
       headlinePx: 64,
-      stagePx: 48,
-      instructionalPx: 52,
-      instructionalLineHeightPx: 60,
-      componentLabelPx: 42,
-      footerPx: 40,
+      stagePx: 52,
+      instructionalPx: 60,
+      instructionalLineHeightPx: 68,
+      componentLabelPx: 56,
+      footerPx: 36,
     },
   };
 }
@@ -126,7 +134,8 @@ function stageStateSignature(stage = {}, referents = []) {
     return [referent, item.location || null, item.orientation || null, item.faceState || null,
       item.visibility || null, item.quantity ?? null, item.trackPosition ?? null,
       item.availability || null, Boolean(item.consumed), Boolean(item.removed),
-      item.coveredBy || [], item.covers || []];
+      item.coveredBy || [], item.covers || [], item.role || null, item.arrangement || null,
+      item.anchorRef || null, item.representations || []];
   }));
 }
 
@@ -184,7 +193,13 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
   const layers = [{ input: backdrop, left: 0, top: 0 }];
   const states = [];
   let minimumSourcePixelsPerDisplayPixel = Infinity;
-  for (const [position, entry] of selected.entries()) {
+  const ordered = [...selected].sort((left, right) => {
+    const leftItem = (stage.items || []).find((value) => value.componentRef === left.referent || value.id === left.referent) || {};
+    const rightItem = (stage.items || []).find((value) => value.componentRef === right.referent || value.id === right.referent) || {};
+    return Number(rightItem.role === 'ANCHOR') - Number(leftItem.role === 'ANCHOR');
+  });
+  for (const [orderedPosition, entry] of ordered.entries()) {
+    const position = selected.indexOf(entry);
     const cell = cells[position];
     const item = (stage.items || []).find((value) => value.componentRef === entry.referent || value.id === entry.referent);
     if (!item) return null;
@@ -196,43 +211,95 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
     const detailHeight = Number(entry.asset.trueDetailDimensions?.height || sourceHeight);
     const detailScale = Math.min(detailWidth / sourceWidth / .8, detailHeight / sourceHeight / .8);
     const scale = Math.min(cell.width / sourceWidth, cell.height / sourceHeight, 1.15, detailScale);
-    const width = Math.max(1, Math.floor(sourceWidth * scale));
-    const height = Math.max(1, Math.floor(sourceHeight * scale));
+    let width = Math.max(1, Math.floor(sourceWidth * scale));
+    let height = Math.max(1, Math.floor(sourceHeight * scale));
     const sourcePixelsPerDisplayPixel = Math.min(sourceWidth / width, sourceHeight / height);
     if (sourcePixelsPerDisplayPixel < .8) return null;
     minimumSourcePixelsPerDisplayPixel = Math.min(minimumSourcePixelsPerDisplayPixel, sourcePixelsPerDisplayPixel);
-    const image = await sharp(sourceFile(entry.asset)).resize(width, height, { fit: 'contain' }).png().toBuffer();
     const requirement = scene.visualRequirement || {};
     const terminalStage = ['after', 'result', 'final'].includes(String(stage.id || stage.diagramStage || '').toLowerCase())
       || index === total - 1;
     const transitionLane = selected.length === 1 && total > 1
       && (requirement.setupPlacementRequired || requirement.requiredRelationship || item.location
         || item.semanticInstructionOnly || item.instructionalDiagramOnly);
+    const anchorState = item.anchorRef ? states.find((value) => value.referent === item.anchorRef) : null;
+    const relationStage = ['action', 'after', 'result', 'final'].includes(String(stage.id || stage.diagramStage || '').toLowerCase()) || index === total - 1;
+    if (anchorState && item.arrangement === 'ON_ANCHOR' && relationStage) {
+      const relationScale = Math.min((anchorState.width * .44) / width, (anchorState.height * .54) / height, 1);
+      width = Math.max(1, Math.floor(width * relationScale));
+      height = Math.max(1, Math.floor(height * relationScale));
+    }
+    const image = await sharp(sourceFile(entry.asset)).resize(width, height, { fit: 'contain' }).png().toBuffer();
     const centeredLeft = cell.x + Math.floor((cell.width - width) / 2);
     const laneTravel = transitionLane ? Math.min(360, Math.max(120, Math.floor((cell.width - width) * .3))) : 0;
     const stageProgress = total > 1 ? index / (total - 1) : .5;
-    const left = centeredLeft + (transitionLane ? Math.round((stageProgress * 2 - 1) * laneTravel) : 0);
-    const top = cell.y + Math.floor((cell.height - height) / 2);
+    let left = centeredLeft + (transitionLane ? Math.round((stageProgress * 2 - 1) * laneTravel) : 0);
+    let top = cell.y + Math.floor((cell.height - height) / 2);
+    if (anchorState && item.arrangement === 'ON_ANCHOR' && relationStage) {
+      left = Math.round(anchorState.left + anchorState.width * .54 - width / 2);
+      top = Math.round(anchorState.top + anchorState.height * .56 - height / 2);
+    }
     const quantity = Number.isInteger(item.quantity) && item.quantity > 1 ? item.quantity : 1;
     // A discard/deck pile is a relationship, not an exact numeric claim.
     // Two offset copies make the cited pile visible without inventing a card
     // count. Explicit quantities continue to use their measured value.
     const pileCopies = terminalStage && requirement.discardPileRequired
       && (selected.length === 1 || /discard|défausse/i.test(String(item.location || ''))) ? 2 : 1;
+    const representations = item.representations?.length ? item.representations : [{ id: 'object', arrangement: item.arrangement || 'SINGLE',
+      quantity, faceState: item.faceState, label: null, anchorRef: item.anchorRef }];
+    const representationStates = [];
+    let extentLeft = left, extentTop = top, extentRight = left + width, extentBottom = top + height;
+    for (const [representationIndex, representation] of representations.entries()) {
+      const representationCount = representations.length;
+      const slotWidth = Math.floor(Math.max(width, cell.width) / representationCount);
+      const repScale = representationCount > 1 ? Math.min(1, slotWidth / width * .82) : 1;
+      const repWidth = Math.max(1, Math.floor(width * repScale));
+      const repHeight = Math.max(1, Math.floor(height * repScale));
+      const repImage = repScale === 1 ? image : await sharp(sourceFile(entry.asset)).resize(repWidth, repHeight, { fit: 'contain' }).png().toBuffer();
+      let repLeft = representationCount > 1 ? cell.x + representationIndex * slotWidth + Math.floor((slotWidth - repWidth) / 2) : left;
+      let repTop = representationCount > 1 ? cell.y + Math.floor((cell.height - repHeight) / 2) : top;
+      if (anchorState && representation.anchorRef && relationStage) {
+        repLeft = Math.round(anchorState.left + anchorState.width * (.38 + representationIndex * .24) - repWidth / 2);
+        repTop = Math.round(anchorState.top + anchorState.height * .56 - repHeight / 2);
+      }
+      const line = representation.arrangement === 'LINE';
+      const explicitRepresentationQuantity = Number.isInteger(representation.quantity) && representation.quantity > 0
+        ? representation.quantity : null;
+      // A stack with no cited count depicts plurality using two offset copies;
+      // it must not inherit the exact quantity of a separate row represented by
+      // the same component source. A line may use the item's quantity only when
+      // there is no second representation competing for that semantic value.
+      const count = representation.arrangement === 'STACK' && explicitRepresentationQuantity == null
+        ? 2
+        : Math.max(1, Math.min(explicitRepresentationQuantity
+          ?? (representations.length === 1 ? quantity : 1), 5));
+      const available = representationCount > 1 ? slotWidth : cell.width;
+      const copyOffset = count > 1 ? Math.min(line ? Math.max(22, Math.floor((available - repWidth) / (count - 1))) : 26, 150) : 0;
+      for (let copy = count - 1; copy >= 0; copy -= 1) {
+        const copyLeft = repLeft + copy * copyOffset;
+        const copyTop = repTop - (line ? 0 : copy * Math.min(12, copyOffset));
+        layers.push({ input: repImage, left: copyLeft, top: copyTop,
+          opacity: (item.removed || item.visibility === 'REMOVED') ? .24 : 1 });
+        extentLeft = Math.min(extentLeft, copyLeft); extentTop = Math.min(extentTop, copyTop);
+        extentRight = Math.max(extentRight, copyLeft + repWidth); extentBottom = Math.max(extentBottom, copyTop + repHeight);
+      }
+      representationStates.push({ id: representation.id, label: representation.label, arrangement: representation.arrangement,
+        quantity: representation.quantity, faceState: representation.faceState, left: repLeft, top: repTop,
+        width: repWidth + copyOffset * (count - 1), height: repHeight, copies: count });
+    }
     const visibleCopies = Math.max(pileCopies, Math.min(quantity, 4));
     const copyOffset = visibleCopies > 1 ? Math.min(26, Math.floor((cell.width - width) / Math.max(1, visibleCopies - 1))) : 0;
-    for (let copy = visibleCopies - 1; copy >= 0; copy -= 1) {
-      layers.push({ input: image, left: left + copy * copyOffset, top: top - copy * Math.min(12, copyOffset),
-        opacity: (item.removed || item.visibility === 'REMOVED') ? .24 : 1 });
-    }
     states.push({ referent: entry.referent, assetId: entry.asset.id, label: stateValueLabel(item),
-      left, top, width: width + copyOffset * (visibleCopies - 1), height, item,
+      left: extentLeft, top: extentTop, width: extentRight - extentLeft, height: extentBottom - extentTop, item,
       transitionLane, terminalStage, pileVisual: pileCopies > 1,
-      faceMask: item.faceState === 'FACE_DOWN' });
+      faceMask: item.faceState === 'FACE_DOWN' && !item.representations?.length, representationStates });
   }
   const labels = states.map((value) => {
     const lines = stateBadgeLines(value.item, scene.visualRequirement || {}, stage);
-    const labelTop = Math.max(338, value.top - (lines.length > 1 ? 102 : 66));
+    // State labels are intentionally outside the source component stage.
+    // Previous top-positioned badges collided with representation labels and
+    // made the actual object smaller on a phone-sized rendering.
+    const labelTop = componentRegion.y + componentRegion.height + 18;
     const labelHeight = lines.length > 1 ? 92 : 56;
     const crossed = (value.item.removed || value.item.visibility === 'REMOVED')
       ? `<line x1="${value.left}" y1="${value.top}" x2="${value.left + value.width}" y2="${value.top + value.height}" stroke="#ec6c3b" stroke-width="10"/><line x1="${value.left + value.width}" y1="${value.top}" x2="${value.left}" y2="${value.top + value.height}" stroke="#ec6c3b" stroke-width="10"/>`
@@ -240,17 +307,24 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
     const faceMask = value.faceMask
       ? `<rect x="${value.left}" y="${value.top}" width="${value.width}" height="${value.height}" rx="14" fill="#231811" fill-opacity=".88" stroke="#e1c184" stroke-width="5" stroke-dasharray="18 12"/><text x="${value.left + value.width / 2}" y="${value.top + value.height / 2}" text-anchor="middle" fill="#fff3d9" font-family="Arial" font-size="42" font-weight="bold">FACE CACHÉE</text>`
       : '';
+    const representationMasks = (value.representationStates || []).map((representation) => {
+      const title = representation.label
+        ? `<text x="${representation.left + representation.width / 2}" y="${Math.max(componentRegion.y + 28, representation.top - 18)}" text-anchor="middle" fill="#f4d35e" font-family="Arial" font-size="38" font-weight="bold">${xml(representation.label)}</text>` : '';
+      const mask = representation.faceState === 'FACE_DOWN'
+        ? `<rect x="${representation.left}" y="${representation.top}" width="${representation.width}" height="${representation.height}" rx="14" fill="#231811" fill-opacity=".9" stroke="#e1c184" stroke-width="5" stroke-dasharray="18 12"/><text x="${representation.left + representation.width / 2}" y="${representation.top + representation.height / 2}" text-anchor="middle" fill="#fff3d9" font-family="Arial" font-size="36" font-weight="bold">FACE CACHÉE</text>` : '';
+      return `${title}${mask}`;
+    }).join('');
     const zone = value.transitionLane
       ? `<rect x="${value.left - 28}" y="${value.top - 28}" width="${value.width + 56}" height="${value.height + 56}" rx="22" fill="none" stroke="${value.terminalStage ? '#f4d35e' : '#7f6a52'}" stroke-width="4" stroke-dasharray="16 12"/>`
       : '';
-    return `${zone}<rect x="${value.left}" y="${labelTop}" width="${Math.max(180, value.width)}" height="${labelHeight}" rx="12" fill="#231811" fill-opacity=".94" stroke="#be9a58" stroke-width="2"/>${lines.map((line, lineIndex) => `<text x="${value.left + 16}" y="${labelTop + 40 + lineIndex * 38}" fill="#fff3d9" font-family="Arial" font-size="${Math.min(typography.componentLabelPx, 38)}" font-weight="bold">${xml(line)}</text>`).join('')}${faceMask}${crossed}`;
+    return `${zone}<rect x="${value.left}" y="${labelTop}" width="${Math.max(180, value.width)}" height="${labelHeight}" rx="12" fill="#231811" fill-opacity=".94" stroke="#be9a58" stroke-width="2"/>${lines.map((line, lineIndex) => `<text x="${value.left + 16}" y="${labelTop + 40 + lineIndex * 38}" fill="#fff3d9" font-family="Arial" font-size="${Math.min(typography.componentLabelPx, 38)}" font-weight="bold">${xml(line)}</text>`).join('')}${representationMasks}${faceMask}${crossed}`;
   }).join('');
   const headline = String(scene.on_screen_text || scene.title || scene.visualRequirement?.purpose || '').split(/\n/)[0].slice(0, 120);
   const headlineLines = wrapSvgText(headline, 46, 2);
   const headlineText = headlineLines.map((line, lineIndex) => `<text x="96" y="${104 + lineIndex * 58}" fill="#fff3d9" font-family="Arial" font-size="56" font-weight="bold">${xml(line)}</text>`).join('');
   const stageY = 116 + headlineLines.length * 58;
   const instructionY = stageY + 60;
-  const instructionalLines = wrapSvgText(stage.instructionalText, 58, 2);
+  const instructionalLines = wrapSvgText(stage.instructionalText, 60, 2);
   const instructionalText = instructionalLines.map((line, lineIndex) => `<text x="96" y="${instructionY + lineIndex * typography.instructionalLineHeightPx}" fill="#fff3d9" font-family="Arial" font-size="${typography.instructionalPx}">${xml(line)}</text>`).join('');
   const presentationKind = (stage.items || []).some((item) => item.instructionalDiagramOnly)
     ? 'Illustration explicative fondée sur le livret'
@@ -276,7 +350,7 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
   return { id: `${sequenceId}-state-${index + 1}`, outputPath: target, phonePath, renderConfigPath: configPath,
     narration: scene.narration, stage, sourcePixelsPerDisplayPixel: minimumSourcePixelsPerDisplayPixel,
     actualDisplayBounds: { left: componentRegion.x, top: componentRegion.y, width: componentRegion.width, height: componentRegion.height },
-    typography, visualState: states.map(({ referent, assetId, left, top, width, height, transitionLane, terminalStage, pileVisual, faceMask }) => ({ referent, assetId, left, top, width, height, transitionLane, terminalStage, pileVisual, faceMask })),
+    typography, visualState: states.map(({ referent, assetId, left, top, width, height, transitionLane, terminalStage, pileVisual, faceMask, representationStates }) => ({ referent, assetId, left, top, width, height, transitionLane, terminalStage, pileVisual, faceMask, representationStates })),
     phoneTypographyPx: Object.fromEntries(Object.entries(typography).map(([key, value]) => [key, Number((value * 390 / 1920).toFixed(2))])),
     preparedOnly: true, validated: false };
 }

@@ -9,7 +9,8 @@ const { isDeepStrictEqual } = require('node:util');
 const pixelHash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const SUPPORTED_SEQUENCE_MATERIALIZER_CONTRACTS=new Set([
  'mobius-visual-plan-materializer-v8',
- 'mobius-visual-plan-materializer-v9',
+  'mobius-visual-plan-materializer-v9',
+  'mobius-visual-plan-materializer-v10',
 ]);
 const REQUIRED_SEMANTIC_SEQUENCE_CONTRACT='mobius-source-grounded-semantic-sequence-v2';
 const REQUIRED_INSTRUCTIONAL_DIAGRAM_CONTRACT='mobius-source-grounded-instructional-diagram-v2';
@@ -128,10 +129,119 @@ function normalizePhysicalItem(item = {}) {
     availability: AVAILABILITY_STATES.has(availability) ? availability : 'UNKNOWN',
     consumed: item.consumed === true || availability === 'CONSUMED',
     removed: item.removed === true || visibility === 'REMOVED',
+    role: clean(item.role).toUpperCase() || 'OBJECT',
+    arrangement: clean(item.arrangement).toUpperCase() || null,
+    anchorRef: clean(item.anchorRef) || null,
+    representations: Array.isArray(item.representations) ? item.representations.map((entry, index) => ({
+      id: clean(entry.id || `${item.id || item.componentRef}-representation-${index + 1}`),
+      label: clean(entry.label) || null,
+      arrangement: clean(entry.arrangement).toUpperCase() || 'SINGLE',
+      anchorRef: clean(entry.anchorRef) || null,
+      quantity: entry.quantity === null || entry.quantity === undefined || entry.quantity === ''
+        ? null : (Number.isFinite(Number(entry.quantity)) ? Number(entry.quantity) : null),
+      faceState: FACE_STATES.has(String(entry.faceState || '').toUpperCase())
+        ? String(entry.faceState).toUpperCase() : 'NOT_APPLICABLE',
+    })) : [],
     sourceRefs: Array.isArray(item.sourceRefs) ? item.sourceRefs : [],
     confidence: Math.max(0, Math.min(1, Number(item.confidence ?? 0))),
     reviewState: item.reviewState || 'review-required',
   };
+}
+
+const NUMBER_WORDS = new Map([
+  ['one', 1], ['two', 2], ['three', 3], ['four', 4], ['five', 5], ['six', 6],
+  ['seven', 7], ['eight', 8], ['nine', 9], ['ten', 10],
+  ['un', 1], ['une', 1], ['deux', 2], ['trois', 3], ['quatre', 4], ['cinq', 5],
+  ['six', 6], ['sept', 7], ['huit', 8], ['neuf', 9], ['dix', 10],
+]);
+
+function numberValue(value) {
+  const token = clean(value).toLocaleLowerCase('fr-CA');
+  if (/^\d+$/.test(token)) return Number(token);
+  return NUMBER_WORDS.get(token) ?? null;
+}
+
+function descriptorKind(descriptor = {}) {
+  const text = clean([descriptor.name, descriptor.category, ...(descriptor.aliases || [])].join(' ')).toLocaleLowerCase('fr-CA');
+  if (/board|plateau|track|piste|gauge|jauge|zone|mat\b/.test(text)) return 'SURFACE';
+  if (/card|carte|deck|paquet/.test(text)) return 'CARD';
+  if (/token|jeton|cube|marker|marqueur|miniature|standee|figurine|pion/.test(text)) return 'PIECE';
+  return 'OBJECT';
+}
+
+function descriptorTerms(descriptor = {}) {
+  const generic = new Set(['card', 'cards', 'carte', 'cartes', 'deck', 'board', 'plateau', 'token', 'tokens',
+    'jeton', 'jetons', 'cube', 'cubes', 'marker', 'marqueur', 'miniature', 'miniatures', 'the', 'de', 'des', 'du']);
+  return clean([descriptor.name, ...(descriptor.aliases || [])].join(' ')).toLocaleLowerCase('fr-CA')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').match(/[a-z0-9]+/g)?.filter((term) => term.length > 2 && !generic.has(term)) || [];
+}
+
+function mentionedIn(text, descriptor = {}) {
+  const normalized = clean(text).toLocaleLowerCase('fr-CA').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return descriptorTerms(descriptor).some((term) => new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(normalized));
+}
+
+function firstExplicitQuantity(text, descriptor = {}, descriptors = []) {
+  const normalized = clean(text).toLocaleLowerCase('fr-CA').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+  const terms = descriptorTerms(descriptor);
+  for (const term of terms) {
+    const match = normalized.match(new RegExp(`\\b(\\d+|one|two|three|four|five|six|seven|eight|nine|ten|un|une|deux|trois|quatre|cinq|sept|huit|neuf|dix)\\b(?:\\s+[a-z]+){0,2}\\s+${term}\\b`, 'i'));
+    if (match) return numberValue(match[1]);
+  }
+  const kind = descriptorKind(descriptor);
+  const sameKind = descriptors.filter((entry) => descriptorKind(entry) === kind);
+  if (sameKind.length === 1) {
+    const noun = kind === 'CARD' ? '(?:cards?|cartes?)' : kind === 'PIECE' ? '(?:tokens?|jetons?|cubes?|miniatures?|markers?|marqueurs?)' : '(?:boards?|plateaux?)';
+    const match = normalized.match(new RegExp(`\\b(\\d+|one|two|three|four|five|six|seven|eight|nine|ten|un|une|deux|trois|quatre|cinq|sept|huit|neuf|dix)\\b(?:\\s+[a-z]+){0,2}\\s+${noun}\\b`, 'i'));
+    if (match) return numberValue(match[1]);
+  }
+  return null;
+}
+
+function stageRepresentations(text, descriptor = {}, { anchorRef = null } = {}) {
+  if (descriptorKind(descriptor) !== 'CARD') return [];
+  const normalized = clean(text).toLocaleLowerCase('fr-CA');
+  const result = [];
+  const quantity = firstExplicitQuantity(text, descriptor, [descriptor]);
+  const faceDown = /face[-\s]down|face[-\s]cach[eé]e/.test(normalized);
+  const faceUp = /face[-\s]up|face[-\s]visible/.test(normalized);
+  if (/deck|paquet/.test(normalized)) result.push({ id: 'deck', label: 'Deck', arrangement: 'STACK', anchorRef,
+    quantity: null, faceState: faceDown ? 'FACE_DOWN' : 'NOT_APPLICABLE' });
+  if ((quantity && /cards?|cartes?/.test(normalized)) || /purchasing area|zone d['’]achat|in a line|en ligne/.test(normalized)) {
+    result.push({ id: 'row', label: /purchasing area|zone d['’]achat/.test(normalized) ? 'Zone d’achat' : 'Cartes',
+      arrangement: 'LINE', anchorRef: null, quantity: quantity || null, faceState: faceUp ? 'FACE_UP' : 'NOT_APPLICABLE' });
+  }
+  if (/discard pile|d[eé]fausse/.test(normalized)) result.push({ id: 'discard', label: 'Défausse', arrangement: 'STACK',
+    anchorRef: null, quantity: null, faceState: faceUp ? 'FACE_UP' : 'NOT_APPLICABLE' });
+  return result;
+}
+
+function deriveObjectSemantics(requirement = {}, atom = {}) {
+  const refs = unique((requirement.requiredObjects || atom.componentRefs || []).map(clean));
+  const supplied = new Map((requirement.requiredObjectDescriptors || []).map((entry) => [clean(entry.id), entry]));
+  const descriptors = refs.map((id) => ({ id, name: id, category: null, aliases: [], ...(supplied.get(id) || {}) }));
+  const placementText = clean([atom.placement, requirement.requiredRelationship].filter(Boolean).join(' '));
+  const stateText = clean([atom.stateBefore, atom.stateChange, atom.stateAfter, atom.result,
+    requirement.beforeState, requirement.actionState, requirement.afterState, ...(atom.procedureSteps || [])].filter(Boolean).join(' '));
+  const surfaces = descriptors.filter((entry) => descriptorKind(entry) === 'SURFACE');
+  const movable = descriptors.filter((entry) => ['CARD', 'PIECE'].includes(descriptorKind(entry)));
+  let anchor = null;
+  if ((/\bon\b|\bsur\b|next to|beside|left of|right of|à côté|a cote|près de|pres de/i.test(placementText) || requirement.setupPlacementRequired)
+    && surfaces.length === 1 && movable.length) anchor = surfaces[0];
+  else if (/\bon\b|\bsur\b/i.test(placementText) && descriptors.length === 2) {
+    anchor = descriptors.find((entry) => descriptorKind(entry) === 'CARD') || null;
+  }
+  return descriptors.map((descriptor) => {
+    const kind = descriptorKind(descriptor);
+    const role = anchor?.id === descriptor.id ? 'ANCHOR'
+      : (anchor && descriptor.id !== anchor.id ? 'MOVABLE' : (mentionedIn(stateText, descriptor) ? 'FOCUS' : 'CONTEXT'));
+    let arrangement = null;
+    if (role === 'MOVABLE') arrangement = /next to|beside|left of|right of|à côté|a cote/i.test(placementText) ? 'BESIDE_ANCHOR' : 'ON_ANCHOR';
+    else if (/in a line|en ligne/i.test(stateText) && kind === 'CARD') arrangement = 'LINE';
+    else if ((/deck|paquet|discard pile|d[eé]fausse/i.test(stateText)) && kind === 'CARD') arrangement = 'STACK';
+    return { ...descriptor, kind, role, arrangement, anchorRef: role === 'MOVABLE' ? anchor?.id || null : null };
+  });
 }
 
 function normalizeStateStage(stage = {}, fallbackId = 'state') {
@@ -154,6 +264,8 @@ function derivePhysicalGameState(atom = {}) {
   const requirement = atom.visualRequirement || {};
   if (requirement.physicalState) return normalizePhysicalGameState(requirement.physicalState, atom);
   const refs = unique([...(atom.componentRefs || []), ...(requirement.requiredObjects || [])].map(clean));
+  const semantics = deriveObjectSemantics(requirement, atom);
+  const byRef = new Map(semantics.map((entry) => [entry.id, entry]));
   // Structured orientation is authoritative when present.  Provider-backed
   // RuleAtoms sometimes carry the same explicit fact in stateAfter/result;
   // recognize only literal face-up/face-down language from those cited rule
@@ -166,7 +278,11 @@ function derivePhysicalGameState(atom = {}) {
     requirement.afterState,
     requirement.requiredState,
   ].filter(Boolean).join(' '));
-  const baseItems = refs.map((componentRef) => normalizePhysicalItem({
+  const baseItems = refs.map((componentRef) => {
+    const semantic = byRef.get(componentRef) || { id: componentRef, role: 'OBJECT', arrangement: null, anchorRef: null };
+    const explicitQuantity = requirement.requiredQuantities?.find((entry) => entry.componentRef === componentRef)?.quantity;
+    const inferredQuantity = firstExplicitQuantity(clean([atom.stateBefore, requirement.beforeState].join(' ')), semantic, semantics);
+    return normalizePhysicalItem({
     id: componentRef,
     componentRef,
     // A placement rule establishes the destination, not that the component is
@@ -176,27 +292,47 @@ function derivePhysicalGameState(atom = {}) {
     orientation: null,
     faceState: 'NOT_APPLICABLE',
     visibility: 'VISIBLE',
-    quantity: requirement.requiredQuantities?.find((entry) => entry.componentRef === componentRef)?.quantity,
+    quantity: explicitQuantity ?? inferredQuantity,
+    role: semantic.role,
+    arrangement: semantic.arrangement,
+    anchorRef: semantic.anchorRef,
+    representations: stageRepresentations(clean([atom.stateBefore, requirement.beforeState].join(' ')), semantic,
+      { anchorRef: semantic.anchorRef }),
     sourceRefs: atom.sourceRefs || [],
     confidence: atom.confidence,
     reviewState: atom.reviewState,
-  }));
+    });
+  });
   // A derived state is still grounded in the RuleAtom that caused it.  Earlier
   // versions put citations only on items, which made a truthful state sequence
   // look unproven to the materializer.  Carry the same source references on
   // every derived stage; this adds provenance, not a new game fact.
   const before = normalizeStateStage({ id: 'before', label: 'Avant', items: baseItems, sourceRefs: atom.sourceRefs || [] }, 'before');
-  const afterItems = baseItems.map((item) => ({
+  const afterText = clean([atom.stateChange, atom.stateAfter, atom.result, requirement.actionState, requirement.afterState,
+    ...(atom.procedureSteps || [])].filter(Boolean).join(' '));
+  const afterItems = baseItems.map((item) => {
+    const semantic = byRef.get(item.componentRef) || {};
+    const explicitQuantity = requirement.requiredQuantities?.find((entry) => entry.componentRef === item.componentRef)?.quantity;
+    const inferredQuantity = firstExplicitQuantity(afterText, semantic, semantics);
+    const targetPlacement = semantic.role === 'MOVABLE' || refs.length === 1
+      || (!semantics.some((entry) => entry.role === 'MOVABLE') && mentionedIn(atom.placement, semantic));
+    const itemFaceState = finalFaceState !== 'NOT_APPLICABLE'
+      && (semantic.kind === 'CARD' || refs.length === 1) ? finalFaceState : 'NOT_APPLICABLE';
+    return ({
     ...item,
-    ...(atom.placement || requirement.requiredRelationship ? {
+    ...(targetPlacement && (atom.placement || requirement.requiredRelationship) ? {
       location: atom.placement || requirement.requiredRelationship,
     } : {}),
-    ...(finalFaceState !== 'NOT_APPLICABLE' ? {
+    ...(semantic.arrangement ? { arrangement: semantic.arrangement, anchorRef: semantic.anchorRef || null } : {}),
+    ...(explicitQuantity != null || inferredQuantity != null ? { quantity: explicitQuantity ?? inferredQuantity } : {}),
+    representations: stageRepresentations(afterText, semantic, { anchorRef: semantic.anchorRef }),
+    ...(itemFaceState !== 'NOT_APPLICABLE' ? {
       orientation: atom.orientation || requirement.requiredOrientation || null,
-      faceState: finalFaceState,
+      faceState: itemFaceState,
     } : {}),
     ...(requirement.oneShotMarkerRequired ? { availability: 'CONSUMED', consumed: true, visibility: 'REMOVED', removed: true } : {}),
-  }));
+    });
+  });
   const after = normalizeStateStage({ id: 'after', label: 'Après', items: afterItems, sourceRefs: atom.sourceRefs || [] }, 'after');
   return normalizePhysicalGameState({
     ruleAtomId: atom.id,
@@ -256,5 +392,6 @@ module.exports = {
   derivePhysicalGameState,
   normalizePhysicalGameState,
   normalizePhysicalItem,
+  deriveObjectSemantics,
   validatePhysicalGameState,
 };

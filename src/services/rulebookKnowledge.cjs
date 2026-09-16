@@ -100,7 +100,21 @@ function normalizeSourceRefs(sourceRefs = []) {
   })).filter((ref) => ref.page !== null);
 }
 
-function inferVisualRequirement(atom = {}) {
+function visualObjectDescriptors(atom = {}, components = []) {
+  const byId = new Map((components || []).map((component) => [clean(component.id), component]));
+  return unique((atom.componentRefs || []).map(clean)).map((id) => {
+    const component = byId.get(id) || {};
+    return {
+      id,
+      name: clean(component.name || component.label || id),
+      category: clean(component.category || component.type) || null,
+      aliases: unique([...(component.aliases || []), ...(component.sourceTerms || [])].map(clean)),
+      sourcePage: Number(component.sourcePage || component.sourceRefs?.[0]?.page) || null,
+    };
+  });
+}
+
+function inferVisualRequirement(atom = {}, componentInventory = []) {
   const domain = clean(atom.domain);
   const text = clean([
     atom.title,
@@ -114,7 +128,7 @@ function inferVisualRequirement(atom = {}) {
     atom.result,
     ...(atom.procedureSteps || []),
   ].filter(Boolean).join(' ')).toLocaleLowerCase('fr-CA');
-  const components = unique((atom.componentRefs || []).map(String));
+  const componentIds = unique((atom.componentRefs || []).map(String));
   const transitionRequired = Boolean(atom.stateBefore || atom.stateChange || atom.stateAfter)
     || /(?:avant|après|apres|retirer|déplacer|deplacer|placer|construire|défausser|defausser|révéler|reveler|consomm)/i.test(text);
   const layered = /(?:face cachée|face cachee|face visible|face retournée|face retournee|recouvr|accessible|sous la carte|pile)/i.test(text);
@@ -135,13 +149,14 @@ function inferVisualRequirement(atom = {}) {
   // obligations must come from actual placement/orientation/material cues;
   // semantic transitions remain teachable sequences, but are not promoted to
   // unsupported board-state claims.
-  const physicalStateRequired = components.length > 0 && Boolean(
+  const physicalStateRequired = componentIds.length > 0 && Boolean(
     atom.placement || atom.orientation || setup || layered || track || oneShot || discard
     || /(?:sur la case|sur le plateau|dans la pile|dans le paquet|à gauche|a gauche|à droite|a droite|au centre|face cachée|face cachee|face visible|retiré|retire|hors jeu|marqueur|curseur)/i.test(text)
   );
   return {
     purpose: clean(atom.title || atom.choice || atom.result),
-    requiredObjects: components,
+    requiredObjects: componentIds,
+    requiredObjectDescriptors: visualObjectDescriptors(atom, componentInventory),
     requiredState: physicalStateRequired ? (clean(atom.stateAfter || atom.stateChange) || null) : null,
     requiredOrientation: clean(atom.orientation) || null,
     requiredRelationship: clean(atom.placement) || null,
@@ -149,7 +164,7 @@ function inferVisualRequirement(atom = {}) {
     actionState: clean(atom.stateChange || atom.choice) || null,
     afterState: clean(atom.stateAfter || atom.result) || null,
     transitionRequired,
-    setupPlacementRequired: setup && components.length > 0,
+    setupPlacementRequired: setup && componentIds.length > 0,
     layeredStateRequired: layered,
     faceStateRequired: layered,
     cardFamilyRequired: cardFamily,
@@ -161,7 +176,7 @@ function inferVisualRequirement(atom = {}) {
     discardPileRequired: discard,
     deckIdentityRequired: deckIdentity,
     representativeExamplesRequired: cardFamily || comparison || scoring,
-    actualGameAssetRequired: components.length > 0 || ['components', 'setup', 'action', 'triggered_effect', 'scoring', 'victory', 'end_condition'].includes(domain),
+    actualGameAssetRequired: componentIds.length > 0 || ['components', 'setup', 'action', 'triggered_effect', 'scoring', 'victory', 'end_condition'].includes(domain),
   };
 }
 
@@ -169,8 +184,8 @@ function inferVisualRequirement(atom = {}) {
  * source-recovery evidence and explicitly specialized visual metadata.  This
  * lets a visual-contract upgrade invalidate only visual planning/materializing
  * state; cached source-grounded RuleAtoms and HEPHAESTUS pixels remain valid. */
-function productionVisualRequirementForAtom(atom = {}) {
-  const inferred = inferVisualRequirement(atom);
+function productionVisualRequirementForAtom(atom = {}, components = []) {
+  const inferred = inferVisualRequirement(atom, components);
   const prior = atom.visualRequirement || {};
   return normalizeVisualRequirement({
     ...prior,
@@ -193,15 +208,23 @@ function productionVisualRequirementForAtom(atom = {}) {
     discardPileRequired: inferred.discardPileRequired,
     deckIdentityRequired: inferred.deckIdentityRequired,
     representativeExamplesRequired: inferred.representativeExamplesRequired,
-  }, atom);
+    requiredObjectDescriptors: visualObjectDescriptors(atom, components),
+  }, atom, components);
 }
 
-function normalizeVisualRequirement(requirement = {}, atom = {}) {
-  const inferred = inferVisualRequirement(atom);
+function normalizeVisualRequirement(requirement = {}, atom = {}, components = []) {
+  const inferred = inferVisualRequirement(atom, components);
   const merged = { ...inferred, ...requirement };
   return {
     purpose: clean(merged.purpose),
     requiredObjects: unique(merged.requiredObjects?.map(clean)),
+    requiredObjectDescriptors: (merged.requiredObjectDescriptors || []).map((entry) => ({
+      id: clean(entry.id),
+      name: clean(entry.name || entry.id),
+      category: clean(entry.category) || null,
+      aliases: unique((entry.aliases || []).map(clean)),
+      sourcePage: Number(entry.sourcePage) > 0 ? Number(entry.sourcePage) : null,
+    })).filter((entry) => entry.id && unique(merged.requiredObjects?.map(clean)).includes(entry.id)),
     requiredQuantities: Array.isArray(merged.requiredQuantities) ? merged.requiredQuantities : [],
     requiredState: clean(merged.requiredState) || null,
     requiredOrientation: clean(merged.requiredOrientation) || null,
@@ -1083,7 +1106,7 @@ function buildKnowledgeTeachingPlan(model) {
   return {
     contract: 'mobius-knowledge-teaching-plan-v2',
     projectId: model.projectId,
-    scenes: atoms.map((atom) => ({ atomId: atom.id, majorSection: atom.teaching.majorSection, heading: atom.teaching.heading, narration: atom.teaching.narration, displayLines: atom.teaching.displayLines, profile: atom.teaching.profile, pauseCue: atom.teaching.pauseCue, visualRequirement: productionVisualRequirementForAtom(atom), sourceRefs: atom.sourceRefs })),
+    scenes: atoms.map((atom) => ({ atomId: atom.id, majorSection: atom.teaching.majorSection, heading: atom.teaching.heading, narration: atom.teaching.narration, displayLines: atom.teaching.displayLines, profile: atom.teaching.profile, pauseCue: atom.teaching.pauseCue, visualRequirement: productionVisualRequirementForAtom(atom, model.components || []), sourceRefs: atom.sourceRefs })),
   };
 }
 

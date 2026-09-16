@@ -28,7 +28,7 @@ export const CANONICAL_RUNTIME_CONTRACTS = Object.freeze({
   cockpitVisualEvidence: 'mobius-cockpit-visual-evidence-v1',
   // Final composition acceptance is bound to the current materializer. This
   // invalidates stale pixels/captions without invalidating source extraction.
-  sourceMeasuredComposition: 'mobius-visual-plan-materializer-v9',
+  sourceMeasuredComposition: 'mobius-visual-plan-materializer-v10',
   documentCompleteness: 'mobius-rulebook-document-completeness-v1',
   knowledgeTeaching: 'mobius-source-grounded-teaching-localization-v2',
 });

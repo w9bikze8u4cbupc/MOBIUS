@@ -574,7 +574,7 @@ export function automaticAuthorizedSourceRecoveryInput({ sourceSha256, identity,
     // The parent checkpoint owns discovery/orchestration; the nested contract
     // owns how publisher product evidence is enumerated. Both are required to
     // reuse a result safely.
-    contract: 'mobius-automatic-authorized-source-recovery-v3',
+    contract: 'mobius-automatic-authorized-source-recovery-v4',
     publisherCandidateRecoveryContract,
     sourceSha256,
     title: identity?.displayName || null,
@@ -659,7 +659,7 @@ async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSh
       const targetEvidence = targets.map((target) => targetInfo.provenance[target]).filter(Boolean);
       return {
         ...candidate,
-        sourcePdfSha256,
+        sourcePdfSha256: sourceSha256,
         sourceRefs: [...new Map(targetEvidence.flatMap((target) => target.sourceRefs || [])
           .filter((ref) => ref && Number(ref.page) > 0)
           .map((ref) => [`${ref.page}:${ref.evidenceId || ref.source || ''}`, ref])).values()],
@@ -668,7 +668,7 @@ async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSh
     });
     await saveJson(recovered.originalManifest, { ...recoveredManifest, candidates });
     const state = {
-      contract: 'mobius-automatic-authorized-source-recovery-v3', inputHash, sourceSha256, title: identity.displayName,
+      contract: 'mobius-automatic-authorized-source-recovery-v4', inputHash, sourceSha256, title: identity.displayName,
       status: 'RECOVERED', match, targets: targetInfo.provenance,
       originalManifest: recovered.originalManifest, featureReport: recovered.featureReport, detailReport: recovered.detailReport,
       cacheReused: recovered.cacheReused, supersedes: recoverySupersedes(prior, inputHash),
@@ -680,7 +680,7 @@ async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSh
     // be reached. Preserve an actionable recovery fact; never downgrade the
     // PDF to terminal failure or pretend local source pixels were sufficient.
     const state = {
-      contract: 'mobius-automatic-authorized-source-recovery-v3', inputHash, sourceSha256, title: identity.displayName,
+      contract: 'mobius-automatic-authorized-source-recovery-v4', inputHash, sourceSha256, title: identity.displayName,
       status: 'CANDIDATE_RECOVERY_UNAVAILABLE', match, targets: targetInfo.provenance, originalManifest: null,
       reason: String(error?.message || 'authorized-candidate-recovery-failed').replace(/[\r\n]+/g, ' ').slice(0, 500),
       supersedes: recoverySupersedes(prior, inputHash),
@@ -700,7 +700,7 @@ async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSh
       outputDir: recoveryDir,
     });
     const state = {
-      contract: 'mobius-automatic-authorized-source-recovery-v3', inputHash, sourceSha256, title: identity.displayName,
+      contract: 'mobius-automatic-authorized-source-recovery-v4', inputHash, sourceSha256, title: identity.displayName,
       status: recovered.status, match, targets: targetInfo.provenance,
       originalManifest: recovered.status === 'RECOVERED' ? recovered.originalManifest : null,
       publisherRecovery: { contract: recovered.contract, origins: recovered.origins, inputHash: recovered.inputHash, reused: recovered.reused },
@@ -710,7 +710,7 @@ async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSh
     return state;
   } catch (error) {
     const state = {
-      contract: 'mobius-automatic-authorized-source-recovery-v3', inputHash, sourceSha256, title: identity.displayName,
+      contract: 'mobius-automatic-authorized-source-recovery-v4', inputHash, sourceSha256, title: identity.displayName,
       status: 'OFFICIAL_PUBLISHER_RECOVERY_UNAVAILABLE', match, targets: targetInfo.provenance, originalManifest: null,
       reason: String(error?.message || 'official-publisher-candidate-recovery-failed').replace(/[\r\n]+/g, ' ').slice(0, 500),
       supersedes: recoverySupersedes(prior, inputHash),
@@ -718,6 +718,25 @@ async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSh
     await saveJson(statePath, state);
     return state;
   }
+}
+
+/**
+ * Publisher discovery can run before local component measurement, while BGG
+ * feature recovery necessarily runs after it. Keep both authority paths in a
+ * single ordered plan: finding a gallery is not evidence that its pixels have
+ * enough component detail.
+ */
+export function authorizedRecoveryManifestPlan({ earlyRecovery = null, measuredRecovery = null } = {}) {
+  const manifestFor = (recovery) => recovery?.originalManifest && exists(recovery.originalManifest)
+    ? path.resolve(recovery.originalManifest) : null;
+  const earlyManifest = manifestFor(earlyRecovery);
+  const measuredManifest = manifestFor(measuredRecovery);
+  return {
+    contract: 'mobius-authorized-source-recovery-cascade-v1',
+    manifests: [...new Set([earlyManifest, measuredManifest].filter(Boolean))],
+    deferredManifests: measuredManifest && measuredManifest !== earlyManifest ? [measuredManifest] : [],
+    recoveries: [earlyRecovery, measuredRecovery].filter(Boolean),
+  };
 }
 
 async function runZeroState(options = {}) {
@@ -1378,13 +1397,19 @@ async function runZeroState(options = {}) {
   }
 
   const baseCatalog = loadSourceVisualCatalog(baseCombinedVisualManifestPath, { qualityReportPath: baseQualityPath, semanticReportPath: baseSemanticPath, hephaestusEvidencePath: hephEvidencePath });
-  const automaticRecovery = earlyCandidateManifestPaths.length ? earlyAutomaticRecovery
-    : await recoverAutomaticAuthorizedCandidates({
-      root, projectDir, sourceSha256: identity.sha256, identity: canonicalGameIdentity, visualScript, assets: baseCatalog.assets,
-      documentMap: rulebookKnowledgeModel.documentMap,
-    });
-  const automaticCandidateManifestPaths = earlyCandidateManifestPaths.length ? earlyCandidateManifestPaths
-    : (automaticRecovery.originalManifest && exists(automaticRecovery.originalManifest) ? [automaticRecovery.originalManifest] : []);
+  // A source-disclosed publisher gallery may still lack the exact component
+  // detail needed downstream. Always perform the measured follow-up once local
+  // component evidence exists; its exact-game BGG result supplements rather
+  // than replaces the earlier official source and replays on its own hash.
+  const measuredAutomaticRecovery = await recoverAutomaticAuthorizedCandidates({
+    root, projectDir, sourceSha256: identity.sha256, identity: canonicalGameIdentity, visualScript, assets: baseCatalog.assets,
+    documentMap: rulebookKnowledgeModel.documentMap,
+  });
+  const automaticRecovery = authorizedRecoveryManifestPlan({
+    earlyRecovery: earlyAutomaticRecovery,
+    measuredRecovery: measuredAutomaticRecovery,
+  });
+  const automaticCandidateManifestPaths = automaticRecovery.manifests;
   let visualReviewDir = baseVisualReviewDir;
   let qualityPath = baseQualityPath;
   let semanticPath = baseSemanticPath;
@@ -1393,7 +1418,7 @@ async function runZeroState(options = {}) {
   // Candidates recovered before base review were already inspected in that
   // single bounded batch. Only a recovery that appeared after a local-only
   // base review needs a separate, deferred authorized review.
-  if (automaticCandidateManifestPaths.length && !earlyCandidateManifestPaths.length) {
+  if (automaticRecovery.deferredManifests.length) {
     visualReviewDir = path.join(productionDir, 'authorized-source-visual-review');
     qualityPath = path.join(visualReviewDir, 'source-visual-quality.json');
     semanticPath = path.join(visualReviewDir, 'source-visual-semantic-matches.json');
@@ -1402,12 +1427,12 @@ async function runZeroState(options = {}) {
     const authorizedReviewHash = hashValue({
       pipeline: VISUAL_PIPELINE_VERSION,
       baseVisualReviewHash,
-      authorizedCandidateManifests: automaticCandidateManifestPaths.map((candidatePath) => hashValue(jsonIf(candidatePath, {}))),
+      authorizedCandidateManifests: automaticRecovery.deferredManifests.map((candidatePath) => hashValue(jsonIf(candidatePath, {}))),
       continuation: visualAnalysisContinuationIdentity(jsonIf(semanticPath, {})),
     });
     if (!stageReady(checkpoint, 'authorized-source-visual-review', authorizedReviewHash, [qualityPath, semanticPath, combinedVisualManifestPath, focusedCropManifestPath])) {
       const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
-      const result = spawnSync(process.execPath, [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--hephaestus-evidence', hephEvidencePath, '--output-dir', visualReviewDir, '--page-dir', pageDir, '--extraction', path.join(productionDir, 'zero-state-extraction.json'), '--source-sha256', identity.sha256, '--source-pdf', await sourceService.resolveFile(projectId), '--previous-semantic-report', baseSemanticPath, ...automaticCandidateManifestPaths.flatMap((candidatePath) => ['--authorized-candidate-manifest', candidatePath])], {
+      const result = spawnSync(process.execPath, [path.join(root, 'scripts', 'prepare-source-visuals.mjs'), '--script', visualScriptPath, '--asset-manifest', hephManifestPath, '--hephaestus-evidence', hephEvidencePath, '--output-dir', visualReviewDir, '--page-dir', pageDir, '--extraction', path.join(productionDir, 'zero-state-extraction.json'), '--source-sha256', identity.sha256, '--source-pdf', await sourceService.resolveFile(projectId), '--previous-semantic-report', baseSemanticPath, ...automaticRecovery.deferredManifests.flatMap((candidatePath) => ['--authorized-candidate-manifest', candidatePath])], {
         cwd: root, env: { ...visualSourceEnv, PYTHON: python }, stdio: 'inherit', windowsHide: true,
       });
       if (result.status !== 0) {
@@ -1418,13 +1443,13 @@ async function runZeroState(options = {}) {
       }
     }
     markStage(checkpoint, 'authorized-source-visual-review', authorizedReviewHash, [qualityPath, semanticPath, combinedVisualManifestPath, focusedCropManifestPath], {
-      recovery: automaticRecovery.status,
-      candidates: automaticCandidateManifestPaths.length,
+      recovery: automaticRecovery.recoveries.map((entry) => entry.status),
+      candidates: automaticRecovery.deferredManifests.length,
     });
   }
   const visualReviewHash = hashValue({ baseVisualReviewHash, automaticRecovery, activeManifest: hashValue(jsonIf(combinedVisualManifestPath, {})) });
   markStage(checkpoint, 'visual-review', visualReviewHash, [qualityPath, semanticPath, combinedVisualManifestPath, focusedCropManifestPath], {
-    recovery: automaticRecovery.status,
+    recovery: automaticRecovery.recoveries.map((entry) => entry.status),
   });
 
   const catalog = loadSourceVisualCatalog(combinedVisualManifestPath, { qualityReportPath: qualityPath, semanticReportPath: semanticPath, hephaestusEvidencePath: hephEvidencePath });

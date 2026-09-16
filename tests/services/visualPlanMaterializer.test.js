@@ -195,15 +195,19 @@ test('stateful materializer prepares a source-bound multi-component sequence onl
   const scene = { id: 'stateful', atomId: 'atom', title: 'Défausser', narration: 'Montrez le changement.', on_screen_text: 'Défaussez les cartes.', source_pages: [2],
     visualRequirement: { actualGameAssetRequired: true, requiredObjects: ['card', 'discard'], transitionRequired: true },
     physicalState: { reviewState: 'accepted', stages: [
-      { id: 'before', label: 'Avant', sourceRefs: [{ page: 2 }], items: [{ id: 'card', componentRef: 'card', visibility: 'VISIBLE', faceState: 'FACE_UP' }, { id: 'discard', componentRef: 'discard', visibility: 'VISIBLE', faceState: 'FACE_DOWN' }] },
-      { id: 'after', label: 'Après', sourceRefs: [{ page: 2 }], items: [{ id: 'card', componentRef: 'card', visibility: 'REMOVED', removed: true, faceState: 'FACE_UP' }, { id: 'discard', componentRef: 'discard', visibility: 'VISIBLE', faceState: 'FACE_UP' }] },
+      { id: 'before', label: 'Avant', sourceRefs: [{ page: 2 }], items: [{ id: 'card', componentRef: 'card', visibility: 'VISIBLE', faceState: 'FACE_UP', role: 'MOVABLE', arrangement: 'ON_ANCHOR', anchorRef: 'discard' }, { id: 'discard', componentRef: 'discard', visibility: 'VISIBLE', faceState: 'FACE_DOWN', role: 'ANCHOR' }] },
+      { id: 'after', label: 'Après', sourceRefs: [{ page: 2 }], items: [{ id: 'card', componentRef: 'card', visibility: 'VISIBLE', faceState: 'FACE_UP', role: 'MOVABLE', arrangement: 'ON_ANCHOR', anchorRef: 'discard' }, { id: 'discard', componentRef: 'discard', visibility: 'VISIBLE', faceState: 'FACE_UP', role: 'ANCHOR' }] },
     ] },
   };
   const result = await materializeStatefulInstructionalFrames({ projectId: 'stateful-fixture', scene, assets, outputDir });
-  expect(result).toMatchObject({ contract: 'mobius-source-measured-state-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v9', sceneId: 'stateful', preparedOnly: true });
+  expect(result).toMatchObject({ contract: 'mobius-source-measured-state-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v10', sceneId: 'stateful', preparedOnly: true });
   expect(result.sourceAssets).toHaveLength(2);
   expect(result.frames).toHaveLength(2);
   expect(await sharp(result.frames[0].outputPath).metadata()).toMatchObject({ width: 1920, height: 1080 });
+  const finalAnchor = result.frames[1].visualState.find((item) => item.referent === 'discard');
+  const finalCard = result.frames[1].visualState.find((item) => item.referent === 'card');
+  expect(finalCard.left).toBeGreaterThan(finalAnchor.left);
+  expect(finalCard.left + finalCard.width).toBeLessThanOrEqual(finalAnchor.left + finalAnchor.width + 1);
   const unchanged = { ...scene, physicalState: { ...scene.physicalState, stages: scene.physicalState.stages.map((stage) => ({ ...stage, items: stage.items.map((item) => ({ ...item, visibility: 'VISIBLE', removed: false, faceState: 'FACE_UP' })) })) } };
   await expect(materializeStatefulInstructionalFrames({ projectId: 'stateful-fixture', scene: unchanged, assets, outputDir })).resolves.toBeNull();
 }, 60000);
@@ -272,7 +276,7 @@ test('semantic materializer labels a cited transition without claiming a physica
   const assets = [{ id: 'card-asset', filePath: fixture, displayPath: fixture, width: 1600, height: 900, nativeWidthPx: 1600, nativeHeightPx: 900,
     sourceAuthority: 'OFFICIAL_RULEBOOK', sourceAuthorityRank: 50, sourcePdfSha256: 'a'.repeat(64), sourceRefs: [{ page: 4 }], semanticObjects: ['card'], objectVisualEvidence: [component] }];
   const result = await materializeSemanticInstructionalFrames({ projectId: 'semantic-fixture', scene, assets, outputDir });
-  expect(result).toMatchObject({ contract: 'mobius-source-grounded-semantic-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v9', semanticTeaching: true, sceneId: 'semantic', preparedOnly: true });
+  expect(result).toMatchObject({ contract: 'mobius-source-grounded-semantic-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v10', semanticTeaching: true, sceneId: 'semantic', preparedOnly: true });
   expect(result.sourceTeaching.map(stage => stage.instructionalText)).toEqual(['La carte est disponible en français.', 'Résolvez son effet en français.', 'Poursuivez votre tour en français.']);
   expect(result.frames).toHaveLength(3);
   expect(await sharp(result.frames[0].outputPath).metadata()).toMatchObject({ width: 1920, height: 1080 });
@@ -337,7 +341,7 @@ test('instructional diagram prepares concrete teaching from independently measur
     nativeWidthPx: 1600, nativeHeightPx: 900, sourceAuthority: 'OFFICIAL_RULEBOOK', sourceAuthorityRank: 50, sourcePdfSha256: 'a'.repeat(64),
     sourceRefs: [{ page: 5 }], semanticObjects: [id], objectVisualEvidence: [component(id, `${id}-asset`)] }));
   const result = await materializeSourceGroundedInstructionalDiagram({ projectId: 'diagram-fixture', scene, assets, outputDir });
-  expect(result).toMatchObject({ contract: 'mobius-source-grounded-instructional-diagram-v2', materializerContract: 'mobius-visual-plan-materializer-v9', instructionalDiagram: true, sceneId: 'diagram', preparedOnly: true });
+  expect(result).toMatchObject({ contract: 'mobius-source-grounded-instructional-diagram-v2', materializerContract: 'mobius-visual-plan-materializer-v10', instructionalDiagram: true, sceneId: 'diagram', preparedOnly: true });
   expect(result.sourceAssets).toHaveLength(2);
   expect(result.frames).toHaveLength(3);
   expect(await sharp(result.frames[0].outputPath).metadata()).toMatchObject({ width: 1920, height: 1080 });
