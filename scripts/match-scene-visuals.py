@@ -717,8 +717,19 @@ def candidates_for(packet, assets):
                 # above, but cannot be stranded behind five pages that only
                 # repeat the inventory text.  Box/cover gallery entries keep
                 # their conservative last-slot behavior.
-                result = ([candidate] + result[:5]
-                    if gallery_discovery_rank(candidate) > 0 else result[:5] + [candidate])
+                if gallery_discovery_rank(candidate) > 0:
+                    # A publisher setup photo is a useful broad discovery
+                    # hypothesis, but it must not leapfrog a child crop made
+                    # from an already positive, exact-referent localization.
+                    # The crop still needs its own COMPONENT verdict; this
+                    # only ensures the bounded next call verifies the most
+                    # specific compatible pixels before returning to a broad
+                    # gallery image.
+                    localized = [row for row in result if (row.get('asset_metadata') or {}).get('localizedReferent') in requested_ids]
+                    remainder = [row for row in result if row not in localized]
+                    result = localized + [candidate] + remainder[:max(0, 5 - len(localized))]
+                else:
+                    result = result[:5] + [candidate]
                 break
     return result[:6]
 

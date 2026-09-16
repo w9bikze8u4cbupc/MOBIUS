@@ -742,6 +742,33 @@ class ObjectEvidenceTests(unittest.TestCase):
             ])
             self.assertEqual([row['asset_id'] for row in result], ['setup', 'local'])
 
+    def test_replayed_localized_crop_outranks_broad_official_setup_gallery(self):
+        """A child of a positive localization is the next COMPONENT hypothesis."""
+        with tempfile.TemporaryDirectory() as directory:
+            localized, local, setup = [Path(directory) / name for name in ['localized', 'local', 'setup']]
+            localized.write_bytes(b'localized-board-pixels')
+            local.write_bytes(b'component-page-pixels')
+            setup.write_bytes(b'official-setup-pixels')
+            packet = {
+                'requiredObjects': [{'id': 'board', 'term': {'name': 'Player board'}}],
+                'sourcePages': [4], 'requirement': {'componentDiscovery': True},
+            }
+            setup_metadata = {'sourceAuthority': 'OFFICIAL_PUBLISHER_HIGH_RES', 'source_page': None,
+                'label': 'official setup gallery',
+                'component_bindings': [{'componentId': 'board', 'reviewState': 'hypothesis'}],
+                'dimensions': {'width': 1600, 'height': 1000},
+                'provenance': {'retrievalKind': 'publisher-product-page-gallery',
+                    'sourceUrl': 'https://publisher.example/game-setup.jpg'}}
+            result = matcher.candidates_for(packet, [
+                {'asset_id': 'local', 'path': str(local), 'asset_metadata': {
+                    'source_page': 4, 'heading': 'Components', 'dimensions': {'width': 900, 'height': 600}}},
+                {'asset_id': 'localized-child', 'path': str(localized), 'asset_metadata': {
+                    'source_page': 9, 'visual_kind': 'localized-object-crop', 'localizedReferent': 'board',
+                    'dimensions': {'width': 500, 'height': 320}}},
+                {'asset_id': 'setup', 'path': str(setup), 'asset_metadata': setup_metadata},
+            ])
+            self.assertEqual([row['asset_id'] for row in result], ['localized-child', 'setup', 'local'])
+
     def test_uncaptioned_gallery_is_not_used_for_normal_scene_or_product_jsonld(self):
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / 'gallery'

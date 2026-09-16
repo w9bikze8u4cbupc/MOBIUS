@@ -70,10 +70,11 @@ const { DEFAULT_NARRATION_PRESET, getEditorialContract } = editorialStandard;
 // Includes deterministic evidence-bound crop derivation. Bump this whenever a
 // measured candidate can gain new persisted acceptance/rejection provenance so
 // replay cannot silently reuse a manifest produced under an older contract.
-// v28: a durable source-analysis mandate owns deliberately paired parent/crop
-// measurements. Re-run only visual-review descendants so a legacy process-local
-// one-attempt guard cannot strand a fresh, evidence-bound child crop.
-const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v28-durable-crop-substeps';
+// v29: a durable source-analysis mandate owns deliberately paired parent/crop
+// measurements, and replayed children of positive localizations outrank broad
+// gallery hypotheses. Re-run only visual-review descendants so the next bounded
+// source call reaches the strongest compatible pixels.
+const VISUAL_PIPELINE_VERSION = 'focused-source-visuals-v29-replayed-crop-priority';
 const DEFAULT_BASE_URL = process.env.MOBIUS_BASE_URL || 'http://127.0.0.1:5001';
 const VISUAL_PROVIDER_BUDGET_CONTRACT = 'mobius-project-visual-provider-budget-v1';
 const VISUAL_PROVIDER_RECEIPT_CONTRACTS = new Set([
