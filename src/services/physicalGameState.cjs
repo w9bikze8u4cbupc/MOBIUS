@@ -9,9 +9,10 @@ const { instructionalSequenceSourceAssets } = require('./instructionalSequenceSo
 const pixelHash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const SUPPORTED_SEQUENCE_MATERIALIZER_CONTRACTS=new Set([
  'mobius-visual-plan-materializer-v8',
-  'mobius-visual-plan-materializer-v9',
-  'mobius-visual-plan-materializer-v10',
-  'mobius-visual-plan-materializer-v11',
+ 'mobius-visual-plan-materializer-v9',
+ 'mobius-visual-plan-materializer-v10',
+ 'mobius-visual-plan-materializer-v11',
+ 'mobius-visual-plan-materializer-v12',
 ]);
 const REQUIRED_SEMANTIC_SEQUENCE_CONTRACT='mobius-source-grounded-semantic-sequence-v2';
 const REQUIRED_INSTRUCTIONAL_DIAGRAM_CONTRACT='mobius-source-grounded-instructional-diagram-v2';

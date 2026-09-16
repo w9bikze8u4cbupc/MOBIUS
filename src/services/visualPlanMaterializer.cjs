@@ -10,7 +10,7 @@ const { instructionalSequenceSourceAssets } = require('./instructionalSequenceSo
 const crypto = require('node:crypto');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const xml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
-const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v11';
+const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v12';
 const STATE_SEQUENCE_CONTRACT = 'mobius-source-measured-state-sequence-v2';
 const SEMANTIC_SEQUENCE_CONTRACT = 'mobius-source-grounded-semantic-sequence-v2';
 const INSTRUCTIONAL_DIAGRAM_CONTRACT = 'mobius-source-grounded-instructional-diagram-v2';
@@ -64,7 +64,10 @@ function relationshipOverlay(states = [], requirement = {}, stage = {}) {
   const first = states[0], last = states[states.length - 1];
   const overlaid = states.find((value) => value.item?.anchorRef && value.item?.arrangement === 'ON_ANCHOR');
   if (overlaid && ['action', 'after', 'result', 'final'].includes(String(stage.id || stage.diagramStage || '').toLowerCase())) {
-    return `<rect x="${overlaid.left - 16}" y="${overlaid.top - 16}" width="${overlaid.width + 32}" height="${overlaid.height + 32}" rx="20" fill="none" stroke="#f4d35e" stroke-width="8"/><text x="${overlaid.left + overlaid.width / 2}" y="${Math.max(390, overlaid.top - 28)}" text-anchor="middle" fill="#fff3d9" font-family="Arial" font-size="38" font-weight="bold">SUR LE SUPPORT</text>`;
+    // The outline proves the physical relationship. Repeating a relationship
+    // label directly above an anchored component collides with source labels
+    // and face-state masks at phone scale.
+    return `<rect x="${overlaid.left - 16}" y="${overlaid.top - 16}" width="${overlaid.width + 32}" height="${overlaid.height + 32}" rx="20" fill="none" stroke="#f4d35e" stroke-width="8"/>`;
   }
   const x1 = first.left + first.width / 2, y1 = first.top + first.height / 2;
   const x2 = last.left + last.width / 2, y2 = last.top + last.height / 2;
@@ -138,6 +141,35 @@ function stageStateSignature(stage = {}, referents = []) {
       item.coveredBy || [], item.covers || [], item.role || null, item.arrangement || null,
       item.anchorRef || null, item.representations || []];
   }));
+}
+
+function sourceGroundedDisplayStages(scene = {}, stages = []) {
+  const localized = localizedVisualTeaching(scene);
+  const rendered = stages.map((stage) => {
+    const id = String(stage.id || '').toLowerCase();
+    const instructionalText = stage.instructionalText
+      || (id === 'before' ? localized.beforeState : (id === 'after' || id === 'result' || id === 'final') ? localized.afterState : localized.actionState)
+      || null;
+    return instructionalText ? { ...stage, instructionalText } : stage;
+  });
+  const hasAction = rendered.some((stage) => String(stage.id || '').toLowerCase() === 'action');
+  const actionText = localized.actionState || String(scene.visualRequirement?.actionState || '').trim();
+  if (hasAction || !actionText || rendered.length < 2) return rendered;
+  const afterIndex = rendered.findIndex((stage) => ['after', 'result', 'final'].includes(String(stage.id || '').toLowerCase()));
+  const insertion = afterIndex > 0 ? afterIndex : 1;
+  const reference = rendered[Math.min(insertion, rendered.length - 1)];
+  // The source may establish a transition without documenting a separate
+  // photograph of the in-progress state. Reuse only its already-cited
+  // physical state and mark the intermediate frame as an explanatory action,
+  // never as a newly observed arrangement.
+  rendered.splice(insertion, 0, {
+    ...reference,
+    id: 'action',
+    label: 'Action',
+    instructionalText: actionText,
+    instructionalActionCue: true,
+  });
+  return rendered;
 }
 
 function statefulComponentDisplayBounds(asset = {}, { referentCount = 1, position = 0 } = {}) {
@@ -315,7 +347,10 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
       ? `<rect x="${value.left}" y="${value.top}" width="${value.width}" height="${value.height}" rx="14" fill="#231811" fill-opacity=".88" stroke="#e1c184" stroke-width="5" stroke-dasharray="18 12"/><text x="${value.left + value.width / 2}" y="${value.top + value.height / 2}" text-anchor="middle" fill="#fff3d9" font-family="Arial" font-size="42" font-weight="bold">FACE CACHÉE</text>`
       : '';
     const representationMasks = (value.representationStates || []).map((representation) => {
-      const title = representation.label
+      // A face-state mask already carries the required readable label. Adding
+      // a representation title on the same tiny anchored object produces two
+      // contradictory/overlapping captions instead of more evidence.
+      const title = representation.label && representation.faceState !== 'FACE_DOWN'
         ? `<text x="${representation.left + representation.width / 2}" y="${Math.max(componentRegion.y + 28, representation.top - 18)}" text-anchor="middle" fill="#f4d35e" font-family="Arial" font-size="38" font-weight="bold">${xml(representation.label)}</text>` : '';
       const mask = representation.faceState === 'FACE_DOWN'
         ? `<rect x="${representation.left}" y="${representation.top}" width="${representation.width}" height="${representation.height}" rx="14" fill="#231811" fill-opacity=".9" stroke="#e1c184" stroke-width="5" stroke-dasharray="18 12"/><text x="${representation.left + representation.width / 2}" y="${representation.top + representation.height / 2}" text-anchor="middle" fill="#fff3d9" font-family="Arial" font-size="36" font-weight="bold">FACE CACHÉE</text>` : '';
@@ -333,13 +368,20 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
   const instructionY = stageY + 60;
   const instructionalLines = wrapSvgText(stage.instructionalText, 60, 2);
   const instructionalText = instructionalLines.map((line, lineIndex) => `<text x="96" y="${instructionY + lineIndex * typography.instructionalLineHeightPx}" fill="#fff3d9" font-family="Arial" font-size="${typography.instructionalPx}">${xml(line)}</text>`).join('');
-  const presentationKind = (stage.items || []).some((item) => item.instructionalDiagramOnly)
-    ? 'Illustration explicative fondée sur le livret'
-    : ((stage.items || []).some((item) => item.semanticInstructionOnly) ? 'Explication fondée sur le livret' : 'État source du jeu');
+  const presentationKind = stage.instructionalActionCue
+    ? 'Action expliquée d’après le livret'
+    : (stage.items || []).some((item) => item.instructionalDiagramOnly)
+      ? 'Illustration explicative fondée sur le livret'
+      : (stage.items || []).some((item) => item.semanticInstructionOnly)
+        ? 'Explication fondée sur le livret'
+        : 'État source du jeu';
   const progress = Array.from({ length: total }, (_, step) => `<rect x="${1390 + step * 92}" y="126" width="70" height="12" rx="6" fill="${step === index ? '#f4d35e' : '#6a5745'}"/>`).join('');
   const relationship = relationshipOverlay(states, scene.visualRequirement || {}, stage);
+  const actionCue = stage.instructionalActionCue
+    ? '<path d="M 1510 330 A 78 78 0 1 1 1600 390" fill="none" stroke="#f4d35e" stroke-width="10" marker-end="url(#mobius-arrow)"/><text x="1510" y="470" fill="#e1c184" font-family="Arial" font-size="34" font-weight="bold">ACTION CITÉE</text>'
+    : '';
   const panelSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><rect x="42" y="38" width="1836" height="1004" rx="32" fill="#231811" fill-opacity=".86" stroke="#be9a58" stroke-width="3"/></svg>`);
-  const overlaySvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><defs><marker id="mobius-arrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M0,0 L14,7 L0,14 z" fill="#f4d35e"/></marker></defs>${headlineText}<text x="96" y="${stageY}" fill="#e1c184" font-family="Arial" font-size="${typography.stagePx}" font-weight="bold">${xml(stage.label || `Étape ${index + 1}`)}</text>${progress}${instructionalText}${relationship}${labels}<text x="96" y="1000" fill="#fff3d9" font-family="Arial" font-size="${typography.footerPx}">${index + 1} / ${total} · ${xml(presentationKind)} · Livret p. ${xml((scene.source_pages || []).join(', '))}</text></svg>`);
+  const overlaySvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><defs><marker id="mobius-arrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M0,0 L14,7 L0,14 z" fill="#f4d35e"/></marker></defs>${headlineText}<text x="96" y="${stageY}" fill="#e1c184" font-family="Arial" font-size="${typography.stagePx}" font-weight="bold">${xml(stage.label || `Étape ${index + 1}`)}</text>${progress}${instructionalText}${actionCue}${relationship}${labels}<text x="96" y="1000" fill="#fff3d9" font-family="Arial" font-size="${typography.footerPx}">${index + 1} / ${total} · ${xml(presentationKind)} · Livret p. ${xml((scene.source_pages || []).join(', '))}</text></svg>`);
   layers.splice(1, 0, { input: panelSvg, left: 0, top: 0 });
   layers.push({ input: overlaySvg, left: 0, top: 0 });
   const target = path.resolve(outputDir, `${sequenceId}-state-${index + 1}.png`);
@@ -378,17 +420,24 @@ async function materializeStatefulInstructionalFrames({ projectId, scene, assets
   if (state.reviewState !== 'accepted' || stages.length < 2 || stages.length > 6
     || new Set(stages.map((stage) => stageStateSignature(stage, referents))).size < 2) return null;
   if (stages.some((stage) => !stage.sourceRefs?.length || referents.some((referent) => !(stage.items || []).some((item) => item.componentRef === referent || item.id === referent)))) return null;
-  if (requirement.requiredRelationship && !(state.relationshipAssertions || []).every((entry) => entry.sourceRefs?.length)) return null;
+  // `[].every(...)` would accept a missing relationship proof. A textual
+  // requirement alone is not enough to place one measured component on
+  // another: physical-state compilation must retain at least one cited
+  // relationship assertion before this materializer creates a composition.
+  const relationshipAssertions = state.relationshipAssertions || [];
+  if (requirement.requiredRelationship && (!relationshipAssertions.length
+    || relationshipAssertions.some((entry) => !entry?.relationship || !entry.sourceRefs?.length))) return null;
   const selected = referents.map((referent, position) => {
     const candidate = sourceMeasuredComponentCandidate({ scene, referent, assets, referentCount: referents.length, position });
     return candidate && { ...candidate, referent };
   });
   if (selected.some((entry) => !entry)) return null;
+  const displayStages = sourceGroundedDisplayStages(scene, stages);
   const sequenceId = String(scene.id).replace(/[^a-z0-9_-]+/gi, '-');
   await fs.promises.mkdir(outputDir, { recursive: true });
   const frames = [];
-  for (const [index, stage] of stages.entries()) {
-    const frame = await renderStatefulFrame({ projectId, scene, sequenceId, stage, index, total: stages.length, selected, outputDir });
+  for (const [index, stage] of displayStages.entries()) {
+    const frame = await renderStatefulFrame({ projectId, scene, sequenceId, stage, index, total: displayStages.length, selected, outputDir });
     if (!frame) return null;
     frames.push(frame);
   }
@@ -396,6 +445,7 @@ async function materializeStatefulInstructionalFrames({ projectId, scene, assets
     assetId: selected[0].asset.id, sourceAssets: selected.map((entry) => ({ assetId: entry.asset.id,
       sourceImageSha256: sha(fs.readFileSync(sourceFile(entry.asset))), sourcePdfSha256: entry.asset.sourcePdfSha256,
       componentEvidence: entry.component })), frames, sourceComponentEvidence: selected.map((entry) => entry.component),
+    sourceTeaching: displayStages.map((stage) => ({ id: stage.id, label: stage.label, instructionalText: stage.instructionalText || null, sourceRefs: stage.sourceRefs || [] })),
     preparedOnly: true, validated: false };
 }
 
@@ -1160,4 +1210,4 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
   policy:{sceneIds:[...policy.sceneIds],maxProviderCalls:policy.maxProviderCalls}};
 }
 
-module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, compositionReviewPolicy, VISUAL_PLAN_MATERIALIZER_CONTRACT, STATE_SEQUENCE_CONTRACT, SEMANTIC_SEQUENCE_CONTRACT, INSTRUCTIONAL_DIAGRAM_CONTRACT, TRACK_SEQUENCE_CONTRACT, TEXT_TEACHING_STILL_CONTRACT, cellsFor, localizedVisualTeaching, statefulTeachingLayout, statefulComponentDisplayBounds, sourceMeasuredComponentCandidate, materializeVisualPlanFrames, materializeTrackStateFrames, assessTrackStateMaterialization, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, materializeSourceGroundedInstructionalDiagram, materializeSourceGroundedTextStill, semanticTeachingStages, instructionalDiagramStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill, validateDeterministicIdentityStill };
+module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, compositionReviewPolicy, VISUAL_PLAN_MATERIALIZER_CONTRACT, STATE_SEQUENCE_CONTRACT, SEMANTIC_SEQUENCE_CONTRACT, INSTRUCTIONAL_DIAGRAM_CONTRACT, TRACK_SEQUENCE_CONTRACT, TEXT_TEACHING_STILL_CONTRACT, cellsFor, localizedVisualTeaching, sourceGroundedDisplayStages, statefulTeachingLayout, statefulComponentDisplayBounds, sourceMeasuredComponentCandidate, materializeVisualPlanFrames, materializeTrackStateFrames, assessTrackStateMaterialization, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, materializeSourceGroundedInstructionalDiagram, materializeSourceGroundedTextStill, semanticTeachingStages, instructionalDiagramStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill, validateDeterministicIdentityStill };

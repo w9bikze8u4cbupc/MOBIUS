@@ -590,6 +590,19 @@ def candidates_for(packet, assets):
         # identity evidence and cannot bypass the downstream pixel/crop gates.
         localized_referent = m.get('localizedReferent')
         localized_referent_link = localized_referent in requested_ids
+        # A page-column crop is produced from document layout, not from a
+        # measured visual region.  Its OCR can mention the requested object
+        # while its pixels contain only prose, headings, or unrelated card
+        # fragments.  Treat that text as retrieval context for the parent page
+        # rather than a COMPONENT candidate.  A later localization may still
+        # link a derived crop explicitly to the referent, at which point that
+        # child is eligible for its own bounded pixel inspection.
+        provenance = m.get('provenance') or {}
+        layout_hypothesis = (
+            str(m.get('evidenceStatus') or '').upper() == 'LAYOUT_HYPOTHESIS'
+            and m.get('visual_kind') == 'focused-page-crop'
+            and str(provenance.get('extraction') or '') == 'layout-derived-column-crop'
+        )
         # Native images linked only to a page remain deliberately deferred
         # until localization.  An explicit *hypothesis* binding is useful
         # enough to inspect, but only as one candidate among others.
@@ -608,8 +621,9 @@ def candidates_for(packet, assets):
         # hypotheses, it does not manufacture semantic relevance.
         external_unscoped = authority_rank(a, m) > 0 and m.get('source_page') is None
         hypothesis_link = hypothesis_referent and not external_unscoped
+        page_or_text_link = (m.get('source_page') in packet['sourcePages'] or bool(overlap and tokens))
         linked = (bound_referent or hypothesis_link or localized_referent_link
-            or m.get('source_page') in packet['sourcePages'] or bool(overlap and tokens))
+            or (page_or_text_link and not layout_hypothesis))
         if not linked:
             provenance = m.get('provenance') or {}
             recovery_kind = str(provenance.get('retrievalKind') or '')

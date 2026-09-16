@@ -164,6 +164,34 @@ describe('API render preview dry-run', () => {
     expect(result).toContain('scene-end-card');
   });
 
+  test('renderer dry-run never probes a configured FFmpeg binary', () => {
+    const tempDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'mobius-dry-run-'));
+    const fakeFfmpeg = path.join(tempDir, process.platform === 'win32' ? 'ffmpeg.cmd' : 'ffmpeg');
+    const configPath = path.join(tempDir, 'render.json');
+    try {
+      fs.writeFileSync(configPath, JSON.stringify({
+        ...FIXTURE_RENDER_JOB_CONFIG,
+        scenes: [{ id: 'dry', durationSec: 1, background: { color: '#000000' }, overlays: [] }],
+        assets: { ...FIXTURE_RENDER_JOB_CONFIG.assets, storyboardScenes: [{ id: 'dry', durationSec: 1, type: 'intro' }] },
+        timing: { totalDurationSec: 1, scenes: [{ id: 'dry', durationSec: 1 }] },
+      }));
+      if (process.platform === 'win32') {
+        fs.writeFileSync(fakeFfmpeg, '@echo off\r\nping -n 8 127.0.0.1 >nul\r\n');
+      } else {
+        fs.writeFileSync(fakeFfmpeg, '#!/bin/sh\nsleep 8\n');
+        fs.chmodSync(fakeFfmpeg, 0o755);
+      }
+      const result = execFileSync(process.execPath, [RENDERER_SCRIPT, '--config', configPath, '--dry-run'], {
+        encoding: 'utf8',
+        env: { ...process.env, MOBIUS_FFMPEG_PATH: fakeFfmpeg },
+        timeout: 1500,
+      });
+      expect(result).toContain('[DRY RUN] Config is valid');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   test('each generated scene has required fields for rendering', async () => {
     const job = enqueueRenderJob(FIXTURE_RENDER_JOB_CONFIG);
     const completed = await waitForJob(job.id);

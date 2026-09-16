@@ -525,6 +525,24 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual(result[0]['asset_id'], 'context')
             self.assertEqual(len(result), 2)
 
+    def test_layout_column_hypothesis_with_matching_ocr_cannot_be_a_component_candidate(self):
+        """A text-only PDF column must be localized before COMPONENT analysis."""
+        with tempfile.TemporaryDirectory() as directory:
+            column, localized = Path(directory) / 'column', Path(directory) / 'localized'
+            column.write_bytes(b'rulebook prose mentioning fuel cube')
+            localized.write_bytes(b'localized component pixels')
+            packet = {'requiredObjects': [{'id': 'comp-fuel', 'term': {'name': 'Fuel cube'}}], 'sourcePages': [8]}
+            assets = [
+                {'asset_id': 'layout-column', 'path': str(column), 'asset_metadata': {
+                    'source_page': 8, 'visual_kind': 'focused-page-crop', 'evidenceStatus': 'LAYOUT_HYPOTHESIS',
+                    'layout_text': 'Fuel cube', 'provenance': {'extraction': 'layout-derived-column-crop'}}},
+                {'asset_id': 'localized-fuel', 'path': str(localized), 'asset_metadata': {
+                    'source_page': 8, 'visual_kind': 'focused-page-crop', 'evidenceStatus': 'LAYOUT_HYPOTHESIS',
+                    'localizedReferent': 'comp-fuel', 'layout_text': 'Fuel cube',
+                    'provenance': {'extraction': 'provider-localized-region'}}},
+            ]
+            self.assertEqual([row['asset_id'] for row in matcher.candidates_for(packet, assets)], ['localized-fuel'])
+
     def test_distinct_native_images_on_one_page_are_not_collapsed_before_pixel_qa(self):
         """A page render and each embedded image are distinct discovery hypotheses."""
         with tempfile.TemporaryDirectory() as directory:

@@ -157,13 +157,6 @@ function checkFfmpeg() {
   }
 }
 
-const ffmpegAvailable = checkFfmpeg();
-
-if (!ffmpegAvailable && !dryRun) {
-  console.error('FFmpeg is not available. Install ffmpeg or use --dry-run to validate config only.');
-  process.exit(1);
-}
-
 // ---------------------------------------------------------------------------
 // Dry-run mode: print planned render stages and exit
 // ---------------------------------------------------------------------------
@@ -182,6 +175,16 @@ if (dryRun) {
   console.log(`\n[DRY RUN] Would produce: ${finalOutput}`);
   console.log('[DRY RUN] Config is valid. Exiting without rendering.');
   process.exit(0);
+}
+
+// A dry run validates the render contract and never invokes FFmpeg.  Probing
+// the binary before that branch made the API's dry-run job depend on a cold
+// platform binary startup, despite no media being rendered.  Keep the real
+// render guard immediately after the dry-run boundary.
+const ffmpegAvailable = checkFfmpeg();
+if (!ffmpegAvailable) {
+  console.error('FFmpeg is not available. Install ffmpeg or use --dry-run to validate config only.');
+  process.exit(1);
 }
 
 // ---------------------------------------------------------------------------
