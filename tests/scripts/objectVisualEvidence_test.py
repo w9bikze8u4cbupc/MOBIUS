@@ -721,6 +721,56 @@ class ObjectEvidenceTests(unittest.TestCase):
             'requiredObjects': [{'id': 'fuel-board'}],
         }, set()))
 
+    def test_explicit_recovery_allows_one_new_pixel_attempt_per_named_referent(self):
+        allowed = {'capture-token', 'basic-action-card'}
+        attempted = {'capture-token'}
+        self.assertTrue(matcher.packet_repeats_explicit_referent({
+            'requiredObjects': [{'id': 'capture-token'}],
+        }, allowed, attempted))
+        self.assertFalse(matcher.packet_repeats_explicit_referent({
+            'requiredObjects': [{'id': 'basic-action-card'}],
+        }, allowed, attempted))
+        self.assertFalse(matcher.packet_repeats_explicit_referent({
+            'requiredObjects': [{'id': 'capture-token'}],
+        }, set(), attempted))
+
+    def test_explicit_recovery_distributes_provider_calls_across_named_referents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pixels = ROOT / 'tests/fixtures/images/test-bg-100x100.png'
+            script = {'scenes': [
+                {'id': 'capture-discovery', 'source_pages': [2], 'visualRequirement': {
+                    'requiredObjects': ['capture-token'], 'componentDiscovery': True}},
+                {'id': 'basic-discovery', 'source_pages': [3], 'visualRequirement': {
+                    'requiredObjects': ['basic-action-card'], 'componentDiscovery': True}},
+            ], 'componentTerms': {
+                'capture-token': {'canonicalTerm': 'Capture token', 'evidence': [{'page': 2, 'quote': 'Capture tokens'}]},
+                'basic-action-card': {'canonicalTerm': 'Basic Action card', 'evidence': [{'page': 3, 'quote': 'Basic Action cards'}]},
+            }}
+            qa = {'assets': [
+                {'asset_id': 'capture-one', 'path': str(pixels), 'asset_metadata': {'source_page': 2}},
+                {'asset_id': 'capture-two', 'path': str(pixels), 'asset_metadata': {'source_page': 2}},
+                {'asset_id': 'basic-one', 'path': str(pixels), 'asset_metadata': {'source_page': 3}},
+                {'asset_id': 'basic-two', 'path': str(pixels), 'asset_metadata': {'source_page': 3}},
+            ]}
+            calls = []
+            def create(**kwargs):
+                text = kwargs['messages'][0]['content'][0]['text']
+                calls.append(text)
+                required = 'capture-token' if 'capture-token' in text else 'basic-action-card'
+                row = {'requiredObject': required, 'present': False, 'confidence': .99, 'complete': False,
+                    'isolated': False, 'stateCompatible': False, 'bbox': [], 'reason': 'fixture negative'}
+                return types.SimpleNamespace(usage=None, choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=json.dumps({'objects': [row]})))])
+            client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+            with patch.dict(matcher.os.environ, {
+                'MOBIUS_VISUAL_SOURCE_PRIORITY_REFERENTS': 'capture-token,basic-action-card',
+                'MOBIUS_VISUAL_SOURCE_ALLOWED_REFERENTS': 'capture-token,basic-action-card',
+            }, clear=False):
+                result = matcher.run(script, qa, Path(directory), 2, client)
+            self.assertEqual(result['summary']['providerCalls'], 2)
+            self.assertEqual(len(calls), 2)
+            self.assertIn('capture-token', calls[0])
+            self.assertIn('basic-action-card', calls[1])
+
     def test_track_geometry_is_scheduled_from_outer_scene_not_identity_packet(self):
         packet = {'requirement': {'trackStateRequired': True}}
         scoped = {'requiredObjects': [{'id': 'board'}], 'requirement': {'identityOnly': True}}

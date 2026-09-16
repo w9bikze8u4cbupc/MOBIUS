@@ -17,7 +17,7 @@ SEARCH_CONTRACT = "mobius-referent-localization-v2"
 # substage no longer leaks a KeyError into a faux provider-unavailable result.
 # The version is part of the execution cache identity so that a prior local
 # bookkeeping failure is not replayed as if pixels had been inspected.
-SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v14-retained-track-recovery'
+SEARCH_EXECUTION_VERSION = 'object-scoped-crop-verification-v15-explicit-referent-fairness'
 COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v3'
 RESPONSE_BUDGET_CONTRACT = 'mobius-visual-response-budget-v1'
@@ -313,6 +313,11 @@ def explicit_allowed_referents():
 def packet_is_within_explicit_referent_scope(packet, allowed):
     required = {row.get('id') for row in (packet.get('requiredObjects') or []) if row.get('id')}
     return not allowed or bool(required) and required <= allowed
+
+
+def packet_repeats_explicit_referent(packet, allowed, attempted):
+    required = {row.get('id') for row in (packet.get('requiredObjects') or []) if row.get('id')}
+    return bool(allowed and required & allowed & attempted)
 
 
 def prioritize_scenes(scenes, terms=None, assets=None):
@@ -1080,6 +1085,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                 'continuationRequired': False}}
     calls = hits = 0
     blocker = None
+    attempted_explicit_referents = set()
     scenes = []
     generated = list(previous.get('generatedAssets') or []) if previous else []
     previous_by_scene = {scene.get('scene_id'): scene for scene in (previous.get('scenes') or [])} if previous else {}
@@ -1261,6 +1267,10 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     result['reason'] = 'outside explicitly authorized source referent scope'
                     results.append(result)
                     continue
+                elif packet_repeats_explicit_referent(scoped_packet, allowed_referents, attempted_explicit_referents):
+                    result['reason'] = 'one provider attempt already used for this explicitly authorized referent'
+                    results.append(result)
+                    continue
                 elif client is None or calls >= max_calls or blocker or os.getenv('MOBIUS_VISUAL_CACHE_ONLY') == 'true':
                     result["reason"] = blocker or "pixel analysis unavailable or bounded budget exhausted"
                     results.append(result)
@@ -1277,6 +1287,9 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                         results.append(result)
                         continue
                     calls += 1
+                    attempted_explicit_referents.update(
+                        obj['id'] for obj in scoped_packet.get('requiredObjects') or []
+                        if obj.get('id') in allowed_referents)
                     provider_attempted = True
                     prompt = ("Inspect ONLY these pixels and supplied official context. Caller terms are hypotheses, not proof. "
                         "Return exactly one verdict per requiredObject. Confidence 0..1; unknown means false. "

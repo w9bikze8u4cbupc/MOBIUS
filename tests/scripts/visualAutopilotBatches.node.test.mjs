@@ -34,4 +34,5 @@ test('visual Autopilot limit is conservative and bounded', () => {
   assert.equal(visualAutopilotBatchLimit({}), 2);
   assert.equal(visualAutopilotBatchLimit({ MOBIUS_VISUAL_AUTOPILOT_MAX_BATCHES: '0' }), 1);
   assert.equal(visualAutopilotBatchLimit({ MOBIUS_VISUAL_AUTOPILOT_MAX_BATCHES: '99' }), 4);
+  assert.equal(visualAutopilotBatchLimit({ MOBIUS_VISUAL_SOURCE_ALLOWED_REFERENTS: 'board,token' }), 1);
 });

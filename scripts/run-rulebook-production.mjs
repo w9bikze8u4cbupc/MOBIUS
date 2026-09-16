@@ -135,6 +135,11 @@ function visualAnalysisContinuationIdentity(report = {}) {
 }
 
 function visualAutopilotBatchLimit(env = process.env) {
+  // A finite referent allow-list is an explicit recovery mandate, not an
+  // invitation to retry the same component on the next automatic batch. The
+  // matcher gives each named referent one novel pixel attempt; a second batch
+  // would reset that in-memory fairness cursor and spend the mandate again.
+  if (String(env.MOBIUS_VISUAL_SOURCE_ALLOWED_REFERENTS || '').trim()) return 1;
   const requested = Number(env.MOBIUS_VISUAL_AUTOPILOT_MAX_BATCHES || 2);
   // Each matcher invocation has its own provider-call ceiling and the shared
   // ledger remains the hard mission budget. Two batches let Autopilot finish
