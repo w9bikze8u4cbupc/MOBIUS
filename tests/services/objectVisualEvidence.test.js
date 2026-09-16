@@ -50,4 +50,6 @@ test('review candidates are unique and retain all rejection/evidence references'
   const replay = resolveSourceAssets({ atom: { id: 'a' }, requirement, candidates: [candidate({ objectVisualEvidence: [] })] });
   expect(first).toEqual(replay);
   expect(first.reviewItem.candidates[0].rejectionReasons).toContain('object-pixel-evidence-missing:comp-57');
+  expect(first.reviewItem.candidates[0]).toMatchObject({ assetCatalogRef: 'image', objectEvidenceCount: 0 });
+  expect(first.reviewItem.candidates[0].objectVisualEvidence).toBeUndefined();
 });

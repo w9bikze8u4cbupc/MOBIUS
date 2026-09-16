@@ -655,18 +655,36 @@ export function registerProjectPersistenceRoutes(app, { db, projectSource = proj
   app.get('/api/projects/:projectId/visual-reviews', (req, res) => readVisualContext(req, res, (context, projectId) => {
     const items = context.visualReviewItems || context.canonicalProductionState?.reviewItems || [];
     return res.json({ projectId, items: items.map((item) => {
-      const internal = canonicalStateStorage.hydrateVisualReviewItem(item, context.visualEvidenceArtifactData);
+      // Keep the list transport compact.  Each candidate has a stable
+      // assetCatalogRef and the image endpoint resolves that one asset when
+      // Cockpit asks for a thumbnail; expanding every rich evidence graph here
+      // would recreate the production-state amplification on a GET response.
+      const internal = canonicalStateStorage.hydrateVisualReviewItem(item, context.visualEvidenceArtifactData, { hydrateAssetCatalogRefs: false, hydrateAllCandidateAssessments: false });
       return transport.hydrateVisualReviewItem(internal, context.visualEvidence);
     }).map((item) => ({ ...item, candidates: (item.candidates || []).map((candidate) => ({
       ...candidate, thumbnailPath: undefined,
       thumbnailUrl: `/api/projects/${encodeURIComponent(projectId)}/visual-reviews/assets/${encodeURIComponent(candidate.assetId)}/file`,
     })) })) });
   }));
+  app.get('/api/projects/:projectId/visual-reviews/:reviewId/candidates', (req, res) => readVisualContext(req, res, (context, projectId) => {
+    const items = context.visualReviewItems || context.canonicalProductionState?.reviewItems || [];
+    const item = items.find((entry) => entry?.id === req.params.reviewId);
+    if (!item) return res.status(404).json({ code: 'VISUAL_REVIEW_NOT_FOUND' });
+    const internal = canonicalStateStorage.hydrateVisualReviewItem(item, context.visualEvidenceArtifactData, { hydrateAssetCatalogRefs: false });
+    return res.json({ projectId, reviewId: item.id, candidateCount: internal.candidates.length,
+      candidates: transport.hydrateVisualReviewItem(internal, context.visualEvidence).candidates.map((candidate) => ({
+        ...candidate, thumbnailPath: undefined,
+        thumbnailUrl: `/api/projects/${encodeURIComponent(projectId)}/visual-reviews/assets/${encodeURIComponent(candidate.assetId)}/file`,
+      })) });
+  }));
   app.get('/api/projects/:projectId/visual-reviews/assets/:assetId/file', (req, res) => readVisualContext(req, res, async (context, projectId) => {
     try {
       const items = context.visualReviewItems || context.canonicalProductionState?.reviewItems || [];
-      const candidate = items.flatMap((item) => canonicalStateStorage.hydrateVisualReviewItem(item, context.visualEvidenceArtifactData).candidates || [])
+      const compactCandidate = items.flatMap((item) => canonicalStateStorage.hydrateVisualReviewItem(item, context.visualEvidenceArtifactData, { hydrateAssetCatalogRefs: false }).candidates || [])
         .find((row) => row.assetId === req.params.assetId);
+      const candidate = compactCandidate?.assetCatalogRef
+        ? (context.visualEvidenceArtifactData?.assetCatalog || []).find((asset) => String(asset.id || asset.assetId) === compactCandidate.assetCatalogRef)
+        : compactCandidate;
       if (!candidate?.thumbnailPath) return res.status(404).json({ code: 'REVIEW_IMAGE_MISSING' });
       const sourceFile = await projectSource.resolveFile(projectId);
       const root = fs.realpathSync(path.dirname(path.dirname(sourceFile)));

@@ -71,6 +71,24 @@ function uniqueAssets(assets = []) {
   return [...byId.values()];
 }
 
+// A resolver ranking contains a rich candidate so it can make its decision.
+// Once that decision is made, scene state must retain only the assessment;
+// the canonical asset catalogue and the per-referent assessment table own the
+// source pixels/provenance.  Retaining the candidate here multiplied a 431
+// asset catalogue by every teaching atom before persistence could compact it.
+function compactRankingAssessment(entry) {
+  return {
+    assetId: entry?.candidate?.id || entry?.assetId || null,
+    authority: entry?.candidate?.sourceAuthority || entry?.authority || null,
+    authorityRank: entry?.candidate?.sourceAuthorityRank || entry?.authorityRank || 0,
+    confidence: entry?.confidence || 0,
+    semanticScore: entry?.semanticScore || 0,
+    trueSourcePixelsPerDisplayPixel: entry?.trueSourcePixelsPerDisplayPixel || 0,
+    valid: entry?.valid === true,
+    violations: entry?.hardViolations || entry?.violations || [],
+  };
+}
+
 function resolveAtomSources(atom, assets, displayBounds) {
   const requirement = atom.visualRequirement || {};
   const referents = requirement.requiredObjects || [];
@@ -105,6 +123,11 @@ function resolveAtomSources(atom, assets, displayBounds) {
     displayBounds,
     minimumAssets: 1,
   }));
+  // Each per-referent resolver owns the complete, compact assessment table.
+  // A review item is the sole persisted owner of that table when human action
+  // is needed; keeping it again below in referentSelections made state size
+  // grow with both candidate count and scene count before compaction.
+  const reviewAssessments = perReferent.flatMap((selection) => selection.ranked || []);
   const accepted = perReferent.every((selection) => selection.status === 'AUTO_ACCEPTED');
   const selectedById = new Map(perReferent.flatMap((selection) => selection.selectedAssets).map((asset) => [asset.id, asset]));
   const suggestedById = new Map(perReferent.flatMap((selection) => selection.suggestedAssets).map((asset) => [asset.id, asset]));
@@ -126,13 +149,16 @@ function resolveAtomSources(atom, assets, displayBounds) {
     // Keep this transport-safe: the complete immutable asset lives once in
     // the catalog and Cockpit can dereference it by ID after hydration.
     identityValidatedAssetIds: accepted ? identityAssets.map((asset) => asset.id) : [],
-    ranked: reviewEvidence,
+    ranked: reviewEvidence.map(compactRankingAssessment),
     referentSelections: perReferent.map(({ rankedEntries, ranked, reviewItem, ...selection }, index) => ({
       ...selection, requiredObject: referents[index],
-      // Lossless columnar assessment table: assets/provenance live in the canonical
-      // catalogue; scene review shows relevant candidates, this retains ALL scores.
+      // The review item owns the complete assessment table when review is
+      // required.  Accepted selections can be deterministically replayed from
+      // this catalogue/versioned resolver without retaining every rejection.
       assessmentColumns: ['assetId', 'authority', 'authorityRank', 'confidence', 'semanticScore', 'trueSourcePixelsPerDisplayPixel', 'valid', 'violations'],
-      candidateAssessments: ranked.map((row) => [row.assetId, row.authority, row.authorityRank, row.confidence, row.semanticScore, row.trueSourcePixelsPerDisplayPixel, row.valid, row.violations]),
+      candidateAssessmentContract: 'mobius-source-selection-assessment-reference-v1',
+      candidateAssessmentCount: ranked.length,
+      candidateAssessmentOwner: accepted ? 'deterministic-catalog-replay' : `visual-review:${atom.id}`,
     })),
     confidence: perReferent.length ? Math.min(...perReferent.map((selection) => selection.confidence)) : 0,
     reviewState: accepted && !needsFinalComposition ? 'accepted' : 'needs_review',
@@ -140,7 +166,7 @@ function resolveAtomSources(atom, assets, displayBounds) {
     reviewItem: accepted && !needsFinalComposition ? null : buildVisualReviewItem({
       atom,
       requirement,
-      ranked: reviewEvidence,
+      ranked: reviewAssessments,
       reason,
     }),
   };
@@ -273,7 +299,12 @@ function compileCanonicalProductionState({
     // Per-referent selections intentionally retain rich ranked evidence.
     // Project-state transport/storage content-address duplicates losslessly;
     // dropping only rankedEntries here is NOT a size budget or compaction gate.
-    sourceSelections: sourceSelections.map(({ rankedEntries, ...selection }) => selection),
+    sourceSelections: sourceSelections.map(({ rankedEntries, reviewItem, ...selection }) => ({
+      ...selection,
+      // The shared Cockpit queue owns the review object.  The selection keeps
+      // only its stable link until storage converts it to an evidence ref.
+      ...(reviewItem?.id ? { reviewItemId: reviewItem.id } : {}),
+    })),
     visualPlans: plans,
     scenes,
     reviewItems,

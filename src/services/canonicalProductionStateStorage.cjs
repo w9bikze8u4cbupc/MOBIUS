@@ -9,18 +9,24 @@
 const { createHash } = require('node:crypto');
 const { isDeepStrictEqual } = require('node:util');
 
-const CANONICAL_STATE_STORAGE_CONTRACT = 'mobius-canonical-production-state-storage-v3';
+const CANONICAL_STATE_STORAGE_CONTRACT = 'mobius-canonical-production-state-storage-v4';
 const LEGACY_CANONICAL_STATE_STORAGE_CONTRACTS = Object.freeze([
+  'mobius-canonical-production-state-storage-v3',
   'mobius-canonical-production-state-storage-v2',
   'mobius-canonical-production-state-storage-v1',
 ]);
 const LEGACY_CANONICAL_STATE_STORAGE_CONTRACT = LEGACY_CANONICAL_STATE_STORAGE_CONTRACTS.at(-1);
-const VISUAL_EVIDENCE_ARTIFACT_CONTRACT = 'mobius-canonical-visual-evidence-artifact-v2';
-const LEGACY_VISUAL_EVIDENCE_ARTIFACT_CONTRACT = 'mobius-canonical-visual-evidence-artifact-v1';
+const VISUAL_EVIDENCE_ARTIFACT_CONTRACT = 'mobius-canonical-visual-evidence-artifact-v3';
+const LEGACY_VISUAL_EVIDENCE_ARTIFACT_CONTRACTS = Object.freeze([
+  'mobius-canonical-visual-evidence-artifact-v2',
+  'mobius-canonical-visual-evidence-artifact-v1',
+]);
+const LEGACY_VISUAL_EVIDENCE_ARTIFACT_CONTRACT = LEGACY_VISUAL_EVIDENCE_ARTIFACT_CONTRACTS.at(-1);
 const VISUAL_PLAN_COCKPIT_DERIVATION_CONTRACT = 'mobius-visual-plan-cockpit-derivation-v1';
 const SELECTION_RANKING_REFERENCE_CONTRACT = 'mobius-source-selection-ranking-reference-v1';
 const CANONICAL_STATE_BUDGET_BYTES = 14 * 1024 * 1024;
 const VISUAL_EVIDENCE_ARTIFACT_BUDGET_BYTES = 128 * 1024 * 1024;
+const COCKPIT_REVIEW_CANDIDATE_PREVIEW_LIMIT = 8;
 
 function json(value) { return JSON.stringify(value); }
 function bytes(value) { return Buffer.byteLength(json(value), 'utf8'); }
@@ -187,21 +193,33 @@ function selectionReference(selection, evidenceKey) {
     reason: selection?.reason || null,
     selectedAssetIds: (selection?.selectedAssets || []).map(assetId).filter(Boolean),
     suggestedAssetIds: (selection?.suggestedAssets || []).map(assetId).filter(Boolean),
-    reviewItemId: selection?.reviewItem?.id || null,
+    reviewItemId: selection?.reviewItem?.id || selection?.reviewItemId || null,
     visualEvidenceSelectionRef: evidenceKey,
   };
 }
 
-function externalizeReviewItem(item, candidates, materializationEvidence) {
+function externalizeReviewItem(item, candidates, materializationEvidence, reviewCandidateAssessments) {
   if (!item || typeof item !== 'object') return item;
+  const compactCandidates = (item.candidates || []).map((candidate) => {
+    // Compiler review candidates already reference the canonical asset
+    // catalogue.  Do not turn a compact reference back into a per-review
+    // evidence copy; hydration verifies that the referenced asset exists.
+    if (candidate?.assetCatalogRef && candidate?.assetId) return candidate;
+    const compactCandidate = externalizeAssetSequences(candidate, materializationEvidence);
+    const evidenceKey = digest(compactCandidate);
+    candidates[evidenceKey] ||= compactCandidate;
+    return { assetId: assetId(candidate), candidateEvidenceRef: evidenceKey };
+  });
+  const assessmentKey = digest(compactCandidates);
+  reviewCandidateAssessments[assessmentKey] ||= compactCandidates;
   return {
     ...item,
-    candidates: (item.candidates || []).map((candidate) => {
-      const compactCandidate = externalizeAssetSequences(candidate, materializationEvidence);
-      const evidenceKey = digest(compactCandidate);
-      candidates[evidenceKey] ||= compactCandidate;
-      return { assetId: assetId(candidate), candidateEvidenceRef: evidenceKey };
-    }),
+    candidateAssessmentContract: 'mobius-cockpit-review-candidate-assessments-v1',
+    candidateAssessmentRef: assessmentKey,
+    candidateCount: compactCandidates.length,
+    // A ranked preview keeps the normal Cockpit list immediately actionable;
+    // the entire lossless table remains available by its stable reference.
+    candidates: compactCandidates.slice(0, COCKPIT_REVIEW_CANDIDATE_PREVIEW_LIMIT),
   };
 }
 
@@ -336,7 +354,7 @@ function hydrateVisualPlanMaterialization(value, artifact) {
 }
 
 function validateArtifact(artifact, descriptor = null) {
-  if (!artifact || ![VISUAL_EVIDENCE_ARTIFACT_CONTRACT, LEGACY_VISUAL_EVIDENCE_ARTIFACT_CONTRACT].includes(artifact.contract)
+  if (!artifact || ![VISUAL_EVIDENCE_ARTIFACT_CONTRACT, ...LEGACY_VISUAL_EVIDENCE_ARTIFACT_CONTRACTS].includes(artifact.contract)
     || !artifact.projectId || !artifact.assetCatalog || !artifact.selectionEvidence || !artifact.candidateEvidence) {
     throw failure('Visual evidence artifact is missing or uses an unsupported contract.');
   }
@@ -344,6 +362,11 @@ function validateArtifact(artifact, descriptor = null) {
     && (!artifact.materializationEvidence || typeof artifact.materializationEvidence !== 'object'
       || Array.isArray(artifact.materializationEvidence))) {
     throw failure('Visual materialization evidence dictionary is missing.');
+  }
+  if (artifact.contract === VISUAL_EVIDENCE_ARTIFACT_CONTRACT
+    && (!artifact.reviewCandidateAssessments || typeof artifact.reviewCandidateAssessments !== 'object'
+      || Array.isArray(artifact.reviewCandidateAssessments))) {
+    throw failure('Visual review candidate assessment dictionary is missing.');
   }
   if (descriptor?.contentSha256 && digest(artifact) !== descriptor.contentSha256) {
     throw failure('Visual evidence artifact checksum mismatch.');
@@ -360,6 +383,9 @@ function validateArtifact(artifact, descriptor = null) {
   for (const [key, evidence] of Object.entries(artifact.materializationEvidence || {})) {
     if (digest(evidence) !== key) throw failure('Visual materialization evidence checksum mismatch.');
   }
+  for (const [key, assessments] of Object.entries(artifact.reviewCandidateAssessments || {})) {
+    if (digest(assessments) !== key) throw failure('Visual review candidate assessments checksum mismatch.');
+  }
   return artifact;
 }
 
@@ -374,6 +400,7 @@ function createCompactCanonicalProductionState(state, {
   }
   const candidateEvidence = Object.create(null);
   const materializationEvidence = Object.create(null);
+  const reviewCandidateAssessments = Object.create(null);
   const assetIds = new Set((state.assets || []).map(assetId).filter(Boolean));
   const selectionEvidenceById = Object.create(null);
   const compactSelections = (state.sourceSelections || []).map((selection) => {
@@ -382,7 +409,7 @@ function createCompactCanonicalProductionState(state, {
     selectionEvidenceById[key] ||= evidence;
     return selectionReference(selection, key);
   });
-  const compactReviews = (state.reviewItems || []).map((item) => externalizeReviewItem(item, candidateEvidence, materializationEvidence));
+  const compactReviews = (state.reviewItems || []).map((item) => externalizeReviewItem(item, candidateEvidence, materializationEvidence, reviewCandidateAssessments));
   const compactPlans = (state.visualPlans || []).map((plan) => compactPlan(plan, candidateEvidence, materializationEvidence));
   const compactScenes = (state.scenes || []).map((scene) => compactScene(scene, materializationEvidence));
   const compactMaterialization = compactVisualPlanMaterialization(state.visualPlanMaterialization, materializationEvidence);
@@ -394,6 +421,7 @@ function createCompactCanonicalProductionState(state, {
     selectionEvidence: selectionEvidenceById,
     candidateEvidence,
     materializationEvidence,
+    reviewCandidateAssessments,
   };
   const artifactBytes = assertBudget(artifact, VISUAL_EVIDENCE_ARTIFACT_BUDGET_BYTES, 'Visual evidence artifact');
   const artifactDescriptor = {
@@ -430,12 +458,31 @@ function createCompactCanonicalProductionState(state, {
   return { compact, artifact, artifactDescriptor, compactBytes, artifactBytes };
 }
 
-function hydrateVisualReviewItem(item, artifact) {
+function hydrateVisualReviewItem(item, artifact, { hydrateAssetCatalogRefs = true, hydrateAllCandidateAssessments = true } = {}) {
   const needsArtifact = (item?.candidates || []).some((candidate) => Boolean(candidate?.candidateEvidenceRef));
-  if (needsArtifact) validateArtifact(artifact);
+  const needsCatalog = (item?.candidates || []).some((candidate) => Boolean(candidate?.assetCatalogRef));
+  if (needsArtifact || needsCatalog) validateArtifact(artifact);
+  const assetsById = new Map((artifact?.assetCatalog || []).map((asset) => [assetId(asset), asset]));
+  const assessmentRows = item?.candidateAssessmentRef && hydrateAllCandidateAssessments
+    ? artifact?.reviewCandidateAssessments?.[item.candidateAssessmentRef] : null;
+  if (item?.candidateAssessmentRef && hydrateAllCandidateAssessments
+    && (!assessmentRows || digest(assessmentRows) !== item.candidateAssessmentRef)) {
+    throw failure('Visual review candidate assessments are missing or corrupt.');
+  }
+  const rows = assessmentRows || item?.candidates || [];
   return {
     ...item,
-    candidates: (item?.candidates || []).map((candidate) => {
+    candidates: rows.map((candidate) => {
+      if (candidate?.assetCatalogRef) {
+        const asset = assetsById.get(candidate.assetCatalogRef);
+        if (!asset || assetId(asset) !== candidate.assetId) throw failure('Visual review asset catalogue reference is missing or corrupt.');
+        if (!hydrateAssetCatalogRefs) return candidate;
+        const { assetCatalogRef, ...inline } = candidate;
+        return {
+          ...hydrateAssetSequences(asset, artifact),
+          ...inline,
+        };
+      }
       if (!candidate?.candidateEvidenceRef) return candidate;
       const evidence = artifact.candidateEvidence[candidate.candidateEvidenceRef];
       if (!evidence || digest(evidence) !== candidate.candidateEvidenceRef) throw failure('Visual review candidate evidence is missing or corrupt.');

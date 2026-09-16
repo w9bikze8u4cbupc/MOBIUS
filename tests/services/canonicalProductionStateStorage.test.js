@@ -67,6 +67,22 @@ test('canonical persistence keeps rich candidate evidence once while state remai
   expect(storedSelection.ranked[0].candidate).toBeUndefined();
 });
 
+test('catalogue-backed review rows preserve every score without multiplying rich asset evidence', () => {
+  const full = state();
+  const asset = full.assets[1];
+  full.reviewItems = Array.from({ length: 48 }, (_, index) => ({
+    id: `catalogue-review-${index}`,
+    candidates: [{ assetId: 'candidate', assetCatalogRef: 'candidate', confidence: .4, rejectionReasons: ['crop'] }],
+  }));
+  const result = storage.createCompactCanonicalProductionState(full, { projectId: 'fixture' });
+  // The source-selection table owns one rich candidate proof.  The 48
+  // catalogue-backed reviews must not add 48 further copies.
+  expect(Object.keys(result.artifact.candidateEvidence)).toHaveLength(1);
+  expect(result.compact.reviewItems).toHaveLength(48);
+  const hydrated = storage.hydrateCanonicalProductionState(result.compact, result.artifact);
+  expect(hydrated.reviewItems[0].candidates[0]).toEqual(expect.objectContaining({ assetId: 'candidate', thumbnailPath: asset.thumbnailPath, confidence: .4 }));
+});
+
 test('sidecar checksum and measured size are strict', () => {
   const result = storage.createCompactCanonicalProductionState(state(), { projectId: 'fixture' });
   const changed = JSON.parse(JSON.stringify(result.artifact));

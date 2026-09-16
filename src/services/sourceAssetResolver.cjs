@@ -11,7 +11,7 @@ const { verifiedInstructionalSequence, instructionalSequenceSourceAssets } = req
 const { DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT } = require('./objectAwareCrop.cjs');
 const { componentTrust } = require('./ruleVisualReferentRecovery.cjs');
 
-const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v9';
+const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v10';
 const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v5';
 const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v2';
 // This version is also a dependency of the orchestration checkpoint.  Keep it
@@ -472,12 +472,35 @@ function recommendedOperatorAction({ ranked = [], failureClassification = [] } =
   return 'Choose one unambiguous, source-grounded candidate from the ranked evidence, or confirm that source evidence is insufficient.';
 }
 
+/**
+ * A compiler can assess every asset, but a Cockpit review must not embed every
+ * rich asset graph once per scene.  The asset catalogue is the single owner of
+ * pixel evidence, source excerpts and provider attempts; this row preserves
+ * the per-scene score and rejection without duplicating that graph.  The
+ * storage hydrator can dereference assetCatalogRef for a detailed inspection.
+ */
+function compactReviewCandidate(entry) {
+  const candidate = entry.candidate || {};
+  return {
+    assetId: candidate.id || entry.assetId || null,
+    assetCatalogRef: candidate.id || entry.assetId || null,
+    semanticScore: entry.semanticScore,
+    detailRatio: entry.trueSourcePixelsPerDisplayPixel,
+    confidence: entry.confidence,
+    valid: entry.valid,
+    rejectionReasons: entry.hardViolations || [],
+    objectEvidenceCount: candidate.objectVisualEvidence ? candidate.objectVisualEvidence.length : (entry.objectEvidenceCount || 0),
+    objectAnalysisAttemptCount: candidate.objectAnalysisAttempts ? candidate.objectAnalysisAttempts.length : (entry.objectAnalysisAttemptCount || 0),
+    evidenceStatus: candidate.objectVisualEvidence ? (candidate.objectVisualEvidence.length ? 'MEASURED_NOT_NECESSARILY_VALID' : 'UNKNOWN') : (entry.evidenceStatus || 'UNKNOWN'),
+  };
+}
+
 function buildVisualReviewItem({ atom, requirement = {}, ranked = [], reason, referent = null } = {}) {
   const failureClassification = classifyFailure(ranked);
   const idSuffix = referent ? `:${normalizeReferent(referent).replace(/\s+/g, '-') || 'referent'}` : '';
   return {
     id: `visual-review:${atom?.id || 'unknown'}${idSuffix}`,
-    contract: 'mobius-cockpit-visual-review-item-v2',
+    contract: 'mobius-cockpit-visual-review-item-v3',
     scopeType: 'VISUAL_REQUIREMENT',
     kind: 'visual-source-selection',
     sceneId: atom?.id ? `knowledge-${atom.id}` : null,
@@ -491,22 +514,12 @@ function buildVisualReviewItem({ atom, requirement = {}, ranked = [], reason, re
     physicalStateRequirement: requirement.physicalStateRequirement || requirement.physicalState || null,
     reason,
     failureClassification,
-    candidateIds: [...new Set(ranked.map((entry) => entry.candidate.id))],
-    candidates: [...new Map(ranked.map((entry) => [entry.candidate.id, entry])).values()].map((entry) => ({
-      assetId: entry.candidate.id,
-      thumbnailPath: entry.candidate.filePath || null,
-      sourceRefs: entry.candidate.sourceRefs || [],
-      provenance: entry.candidate.provenance || null,
-      semanticScore: entry.semanticScore,
-      detailRatio: entry.trueSourcePixelsPerDisplayPixel,
-      confidence: entry.confidence,
-      valid: entry.valid,
-      rejectionReasons: entry.hardViolations,
-      objectVisualEvidence: entry.candidate.objectVisualEvidence || [],
-      objectAnalysisAttempts: entry.candidate.objectAnalysisAttempts || [],
-      evidenceStatus: (entry.candidate.objectVisualEvidence || []).length ? 'MEASURED_NOT_NECESSARILY_VALID' : 'UNKNOWN',
-      bindingHypotheses: entry.candidate.bindingHypotheses || [],
-    })),
+    candidateIds: [...new Set(ranked.map((entry) => entry?.candidate?.id || entry?.assetId).filter(Boolean))],
+    // Keep every assessed candidate, but retain each rich asset only once in
+    // the canonical asset catalogue.  This is a lossless reference, not a
+    // top-N truncation: sourceSelections retain the complete score table and
+    // Cockpit can hydrate the catalogue entry by assetCatalogRef.
+    candidates: [...new Map(ranked.map((entry) => [entry?.candidate?.id || entry?.assetId, entry]).filter(([id]) => id)).values()].map(compactReviewCandidate),
     recommendedOperatorAction: recommendedOperatorAction({ ranked, failureClassification }),
   };
 }
