@@ -32,7 +32,7 @@ function knowledge() {
   } });
 }
 
-test('normal compiler derives source selection, physical state, VisualPlan and Cockpit state', () => {
+test('normal compiler keeps a stateful scene at composition review after component identity is proven', () => {
   const model = knowledge();
   const coverage = buildTutorialCoverageMatrix(model, { includedAtomIds: ['setup-board'], storyboardAtomIds: ['setup-board'], visualizedAtomIds: ['setup-board'], narratedAtomIds: ['setup-board'] });
   const result = compileCanonicalProductionState({
@@ -45,11 +45,17 @@ test('normal compiler derives source selection, physical state, VisualPlan and C
     }], displayBounds: { width: 900, height: 600 },
   });
   expect(result.CODEX_REQUIRED_FOR_NORMAL_PRODUCTION).toBe(false);
-  expect(result.status).toBe('READY');
-  expect(result.scenes[0]).toMatchObject({ visualReviewState: 'resolved', visualPlan: { coverageStatus: 'resolved' } });
+  expect(result.status).toBe('REVIEW_REQUIRED');
+  expect(result.scenes[0]).toMatchObject({ visualReviewState: 'needs_visual_review', visualPlan: { coverageStatus: 'partial' } });
   expect(result.visualPlans[0].compositionType).toBe('REAL_SETUP_PLACEMENT');
   expect(result.physicalStates[0].stages.length).toBe(2);
-  expect(result.reviewItems).toHaveLength(0);
+  expect(result.sourceSelections[0]).toMatchObject({
+    status: 'REVIEW_REQUIRED',
+    reason: 'component-identities-ready-final-composition-required',
+    selectedAssets: [],
+    identityValidatedAssetIds: ['board-master'],
+  });
+  expect(result.reviewItems).toHaveLength(1);
 });
 
 test('uncertain visual source becomes a Cockpit item instead of a weak fallback', () => {

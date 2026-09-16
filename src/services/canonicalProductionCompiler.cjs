@@ -15,7 +15,47 @@ const { runProductionQualityGate } = require('./productionQualityGate.cjs');
 const { canonicalTeachingPresentation } = require('./visualPlanMaterializer.cjs');
 const { buildKnowledgeTeachingPlan, productionVisualRequirementForAtom } = require('./rulebookKnowledge.cjs');
 
-const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v10';
+const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v11';
+
+const SCENE_STATE_REQUIREMENT_KEYS = Object.freeze([
+  'requiredState', 'requiredOrientation', 'requiredQuantities', 'requiredRelationship',
+  'beforeState', 'actionState', 'afterState', 'transitionRequired', 'setupPlacementRequired',
+  'layeredStateRequired', 'faceStateRequired', 'trackStateRequired', 'oneShotMarkerRequired',
+  'progressiveScoringRequired', 'comparisonGroupRequired', 'physicalState',
+  'physicalStateRequirement', 'discardPileRequired', 'deckIdentityRequired',
+]);
+
+function sceneSpecificVisualRequirement(requirement = {}) {
+  return SCENE_STATE_REQUIREMENT_KEYS.some((key) => {
+    const value = requirement[key];
+    return value != null && value !== false && (!Array.isArray(value) || value.length > 0);
+  });
+}
+
+/**
+ * A component source is selected in two distinct contracts:
+ *
+ * 1. an exact COMPONENT measurement proves the real object is visible,
+ * complete and readable; and
+ * 2. a final composition measurement proves the source objects teach the
+ * requested placement, transition, relationship or state together.
+ *
+ * Sending the full second contract to the first resolver asks a photograph of
+ * a card or token to prove an animation before the materializer has made it.
+ * This projection intentionally keeps provenance and semantic identity while
+ * removing only scene-state assertions.  It is never a final visual pass.
+ */
+function componentIdentityRequirement(requirement = {}, referent, atomId) {
+  const identity = { ...requirement };
+  for (const key of SCENE_STATE_REQUIREMENT_KEYS) delete identity[key];
+  return {
+    ...identity,
+    actualGameAssetRequired: true,
+    requiredObjects: [referent],
+    evidenceSceneId: `component-identity:${atomId}:${referent}`,
+    componentIdentityOnly: true,
+  };
+}
 
 function uniqueAssets(assets = []) {
   const byId = new Map();
@@ -57,9 +97,10 @@ function resolveAtomSources(atom, assets, displayBounds) {
   // image to independently depict the whole relation or transition.
   const sequenceSelection = resolveInstructionalSequenceSources({ atom, requirement, candidates: assets, displayBounds });
   if (sequenceSelection) return sequenceSelection;
+  const needsFinalComposition = sceneSpecificVisualRequirement(requirement);
   const perReferent = referents.map((referent) => resolveSourceAssets({
     atom,
-    requirement: { ...requirement, requiredObjects: [referent], evidenceSceneId: `knowledge-${atom.id}` },
+    requirement: componentIdentityRequirement(requirement, referent, atom.id),
     candidates: assets,
     displayBounds,
     minimumAssets: 1,
@@ -68,13 +109,23 @@ function resolveAtomSources(atom, assets, displayBounds) {
   const selectedById = new Map(perReferent.flatMap((selection) => selection.selectedAssets).map((asset) => [asset.id, asset]));
   const suggestedById = new Map(perReferent.flatMap((selection) => selection.suggestedAssets).map((asset) => [asset.id, asset]));
   const reviewEvidence = perReferent.flatMap((selection) => (selection.rankedEntries || []).slice(0, 5));
-  const reason = accepted ? 'all-physical-referents-passed-canonical-auto-accept-thresholds' : 'one-or-more-physical-referents-require-cockpit-review';
+  const identityAssets = [...selectedById.values()];
+  const reason = !accepted ? 'one-or-more-physical-referents-require-cockpit-review'
+    : needsFinalComposition ? 'component-identities-ready-final-composition-required'
+      : 'all-physical-referents-passed-canonical-auto-accept-thresholds';
   return {
     contract: SOURCE_ASSET_RESOLVER_CONTRACT,
     ruleAtomId: atom.id,
-    status: accepted ? 'AUTO_ACCEPTED' : (suggestedById.size ? 'REVIEW_REQUIRED' : 'UNRESOLVED'),
-    selectedAssets: accepted ? [...selectedById.values()] : [],
-    suggestedAssets: [...suggestedById.values()],
+    // Do not mark a stateful requirement complete before the normal
+    // materializer and composition reviewer have inspected the final frames.
+    // The catalog retains identity-ready source assets so the materializer can
+    // create those frames without another extraction or provider call.
+    status: accepted && !needsFinalComposition ? 'AUTO_ACCEPTED' : (identityAssets.length || suggestedById.size ? 'REVIEW_REQUIRED' : 'UNRESOLVED'),
+    selectedAssets: accepted && !needsFinalComposition ? identityAssets : [],
+    suggestedAssets: accepted ? identityAssets : [...suggestedById.values()],
+    // Keep this transport-safe: the complete immutable asset lives once in
+    // the catalog and Cockpit can dereference it by ID after hydration.
+    identityValidatedAssetIds: accepted ? identityAssets.map((asset) => asset.id) : [],
     ranked: reviewEvidence,
     referentSelections: perReferent.map(({ rankedEntries, ranked, reviewItem, ...selection }, index) => ({
       ...selection, requiredObject: referents[index],
@@ -84,9 +135,9 @@ function resolveAtomSources(atom, assets, displayBounds) {
       candidateAssessments: ranked.map((row) => [row.assetId, row.authority, row.authorityRank, row.confidence, row.semanticScore, row.trueSourcePixelsPerDisplayPixel, row.valid, row.violations]),
     })),
     confidence: perReferent.length ? Math.min(...perReferent.map((selection) => selection.confidence)) : 0,
-    reviewState: accepted ? 'accepted' : 'needs_review',
+    reviewState: accepted && !needsFinalComposition ? 'accepted' : 'needs_review',
     reason,
-    reviewItem: accepted ? null : buildVisualReviewItem({
+    reviewItem: accepted && !needsFinalComposition ? null : buildVisualReviewItem({
       atom,
       requirement,
       ranked: reviewEvidence,

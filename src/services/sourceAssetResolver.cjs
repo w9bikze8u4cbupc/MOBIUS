@@ -11,7 +11,7 @@ const { verifiedInstructionalSequence, instructionalSequenceSourceAssets } = req
 const { DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT } = require('./objectAwareCrop.cjs');
 const { componentTrust } = require('./ruleVisualReferentRecovery.cjs');
 
-const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v7';
+const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v8';
 const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v5';
 const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v2';
 // This version is also a dependency of the orchestration checkpoint.  Keep it
@@ -320,6 +320,13 @@ function objectEvidenceFor(candidate, referent, sceneId = null, { allowReusableI
 }
 
 function requiresSceneSpecificEvidence(requirement = {}) {
+  // Component discovery and identity binding deliberately run before a
+  // stateful scene is composed.  A measured card, token or board can prove
+  // that its own pixels are real and complete, but it cannot by itself prove
+  // a later movement, pile, placement or relationship.  The compiler marks
+  // this bounded first phase explicitly; the final composition remains
+  // mandatory for the full scene requirement.
+  if (requirement.componentIdentityOnly === true) return false;
   return Boolean(requirement.transitionRequired || requirement.setupPlacementRequired
     || requirement.layeredStateRequired || requirement.trackStateRequired
     || requirement.requiredRelationship || requirement.requiredState
