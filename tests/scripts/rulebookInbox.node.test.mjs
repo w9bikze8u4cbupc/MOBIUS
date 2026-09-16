@@ -153,6 +153,51 @@ test('Cockpit review can be explicitly reopened after a generator revision witho
   assert.equal((await inboxStatus({ root })).waiting, 1);
 });
 
+test('an interrupted worker can be explicitly recovered only after its recorded owner is gone', async () => {
+  const root = await tempRoot();
+  const paths = await ensureInbox(path.join(root, 'data', 'rulebook-inbox'));
+  const sourcePath = path.join(paths.waiting, 'interrupted.pdf');
+  await fs.writeFile(sourcePath, Buffer.from('%PDF-interrupted-source'));
+  const identity = await computePdfIdentity(sourcePath);
+  const state = JSON.parse(await fs.readFile(paths.state, 'utf8'));
+  state.items[identity.sha256] = {
+    status: 'processing', stage: 'zero-state-production', source: identity, sourcePath,
+    ownerId: 'interrupted-owner', leaseToken: 'interrupted-token', pid: 900000000,
+    claimedAt: '2026-01-01T00:00:00.000Z', startedAt: '2026-01-01T00:00:01.000Z', retryCount: 0,
+  };
+  await fs.writeFile(paths.state, JSON.stringify(state));
+
+  await assert.rejects(() => requeueInboxItem({ root, sha256: identity.sha256 }), /recover-interrupted/);
+  const recovered = await requeueInboxItem({ root, sha256: identity.sha256, recoverInterrupted: true });
+  assert.equal(recovered.status, 'waiting');
+  assert.equal(recovered.item.ownerId, null);
+  assert.equal(recovered.item.interruptionHistory.at(-1).status, 'processing');
+  assert.equal(await fs.readFile(recovered.sourcePath, 'utf8'), '%PDF-interrupted-source');
+});
+
+test('interrupted recovery cannot clear a live worker item', async () => {
+  const root = await tempRoot();
+  const paths = await ensureInbox(path.join(root, 'data', 'rulebook-inbox'));
+  const sourcePath = path.join(paths.waiting, 'live-owner.pdf');
+  await fs.writeFile(sourcePath, Buffer.from('%PDF-live-owner-source'));
+  const identity = await computePdfIdentity(sourcePath);
+  const state = JSON.parse(await fs.readFile(paths.state, 'utf8'));
+  state.items[identity.sha256] = {
+    status: 'processing', source: identity, sourcePath,
+    ownerId: 'live-owner', leaseToken: 'live-token', pid: process.pid,
+    claimedAt: '2026-01-01T00:00:00.000Z', retryCount: 0,
+  };
+  await fs.writeFile(paths.state, JSON.stringify(state));
+
+  await assert.rejects(
+    () => requeueInboxItem({ root, sha256: identity.sha256, recoverInterrupted: true }),
+    /still owned by live worker/,
+  );
+  const current = JSON.parse(await fs.readFile(paths.state, 'utf8')).items[identity.sha256];
+  assert.equal(current.status, 'processing');
+  assert.equal(current.ownerId, 'live-owner');
+});
+
 test('terminal parser failures are quarantined and not retried forever', () => {
   assert.deepEqual(classifyInboxError(visualProviderFailure({summary:{providerBlocker:'InternalServerError; HTTP 520'}})),
     {class:'recovery-required',retryable:true,explicitRecovery:true});

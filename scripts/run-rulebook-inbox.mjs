@@ -246,6 +246,10 @@ function isWithin(directory, candidate) {
 export async function requeueInboxItem(options = {}) {
   const root = path.resolve(options.root || process.cwd());
   const paths = await ensureInbox(path.resolve(options.inboxRoot || path.join(root, 'data', 'rulebook-inbox')));
+  // Retain pre-recovery evidence. acquireLease() may remove a dead lease
+  // before granting recovery, but an active item is recoverable only when it
+  // is demonstrably no longer owned by a live worker.
+  const priorLease = safeRead(paths.lease, null);
   const recoveryLease = await acquireLease(paths);
   if (!recoveryLease) throw new Error('Inbox recovery refused: another worker owns the lease.');
   try {
@@ -254,10 +258,21 @@ export async function requeueInboxItem(options = {}) {
   const state = await loadState(paths);
   const item = state.items[sha256];
   const reopenReview = options.reopenReview === true || options['reopen-review'] === true;
+  const recoverInterrupted = options.recoverInterrupted === true || options['recover-interrupted'] === true;
   const requeueableFailure = ['failed-terminal', 'failed-retryable'].includes(item?.status);
   const explicitlyReopenedReview = item?.status === 'review-required' && reopenReview;
-  if (!item || (!requeueableFailure && !explicitlyReopenedReview)) {
-    throw new Error(`Inbox source ${sha256} is not in a failed state. Use --reopen-review to explicitly rerun a Cockpit review boundary after a generator change.`);
+  const activeItem = ACTIVE_STATUSES.includes(item?.status);
+  const interruptedOwner = activeItem && recoverInterrupted
+    && item?.ownerId && item?.leaseToken && Number.isInteger(Number(item?.pid))
+    && !isProcessAlive(item.pid)
+    && (!priorLease || (priorLease.ownerId === item.ownerId
+      && priorLease.token === item.leaseToken
+      && Number(priorLease.pid) === Number(item.pid)));
+  if (!item || (!requeueableFailure && !explicitlyReopenedReview && !interruptedOwner)) {
+    if (activeItem && recoverInterrupted && isProcessAlive(item?.pid)) {
+      throw new Error(`Inbox recovery refused: active source ${sha256} is still owned by live worker PID ${item.pid}.`);
+    }
+    throw new Error(`Inbox source ${sha256} is not in a failed state. Use --reopen-review to explicitly rerun a Cockpit review boundary after a generator change, or --recover-interrupted only after its recorded worker has stopped.`);
   }
 
   const filename = path.basename(item.source?.filename || 'rulebook.pdf');
@@ -289,7 +304,7 @@ export async function requeueInboxItem(options = {}) {
     stage: item.stage || null,
     worker: { ownerId: item.ownerId || null, pid: item.pid || null, claimedAt: item.claimedAt || null },
   };
-  const historyField = explicitlyReopenedReview ? 'reviewReopenHistory' : 'failureHistory';
+  const historyField = interruptedOwner ? 'interruptionHistory' : (explicitlyReopenedReview ? 'reviewReopenHistory' : 'failureHistory');
   const requeued = await updateItem(paths, state, sha256, {
     status: 'waiting',
     stage: 'waiting',
@@ -308,11 +323,12 @@ export async function requeueInboxItem(options = {}) {
     requeuedAt: now(),
     [historyField]: [...(Array.isArray(item[historyField]) ? item[historyField] : []), previousState],
   });
-  await appendEvent(paths, explicitlyReopenedReview ? 'review-reopened' : 'requeued', {
+  await appendEvent(paths, interruptedOwner ? 'interrupted-recovered' : (explicitlyReopenedReview ? 'review-reopened' : 'requeued'), {
     sha256,
     previousStatus: previousState.status,
     sourcePath: waitingPath,
     reviewItems: previousState.reviewItems,
+    previousOwner: interruptedOwner ? previousState.worker : null,
   });
   return { status: 'waiting', sha256, sourcePath: waitingPath, item: requeued };
   } finally {
@@ -617,7 +633,7 @@ async function main() {
     : command === 'watch'
       ? await runInboxWatch(options)
       : command === 'requeue'
-        ? await requeueInboxItem({ ...options, sha256: values.sha || values['source-sha'], reopenReview: Boolean(values['reopen-review']) })
+        ? await requeueInboxItem({ ...options, sha256: values.sha || values['source-sha'], reopenReview: Boolean(values['reopen-review']), recoverInterrupted: Boolean(values['recover-interrupted']) })
         : await runInboxOnce(options);
   console.log(JSON.stringify(result, null, 2));
   if (result.status === 'failed-terminal') process.exitCode = 2;
