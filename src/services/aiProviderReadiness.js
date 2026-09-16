@@ -125,7 +125,7 @@ export async function getAiProviderReadiness({
       if (selected.provider === 'openai') {
         const status = await getOpenAiStatus({ checkAccess: true });
         ready = Boolean(status.ready && status.model === selected.model);
-        detail = status.message || '';
+        detail = `${status.code ? `${status.code}: ` : ''}${status.message || ''}`;
       } else {
         const result = await listModels({ provider: selected.provider, env });
         ready = result.models.includes(selected.model);

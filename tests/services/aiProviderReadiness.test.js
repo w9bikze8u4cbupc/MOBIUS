@@ -36,6 +36,18 @@ describe('canonical AI provider readiness', () => {
     expect(evaluateAiProviderReadiness(status).ready).toBe(true);
   });
 
+  test('a metadata timeout stays a truthful provider-unavailable readiness result', async () => {
+    const status = await getAiProviderReadiness({
+      env: { OPENAI_API_KEY: 'secret-for-test', OPENAI_MODEL: 'test-model' },
+      checkAccess: true,
+      getOpenAiStatus: async () => ({ ...await readyOpenAiStatus(), ready: false,
+        code: 'AI_ACCESS_CHECK_TIMEOUT', message: 'metadata timed out' }),
+    });
+    expect(status).toMatchObject({ configured: true, ready: false, code: 'AI_MODEL_UNAVAILABLE', classification: 'provider_unavailable' });
+    expect(status.message).toContain('AI_ACCESS_CHECK_TIMEOUT');
+    expect(JSON.stringify(status)).not.toContain('secret-for-test');
+  });
+
   test.each([
     [{ OPENAI_API_KEY: 'present' }, 'credential but no model'],
     [{ OPENAI_MODEL: 'test-model' }, 'model but no credential'],

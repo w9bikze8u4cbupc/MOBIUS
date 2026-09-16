@@ -72,7 +72,20 @@ test('an accessible configured model is ready after only a model metadata check'
 
   expect(status).toMatchObject({ configured: true, provider: 'openai', model: 'test-model', ready: true });
   expect(status.message).toMatch(/ready/i);
-  expect(mockRetrieve).toHaveBeenCalledWith('test-model');
+  expect(mockRetrieve).toHaveBeenCalledWith('test-model', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  expect(mockCompletionCreate).not.toHaveBeenCalled();
+});
+
+test('a timed-out metadata probe is a concise retryable access failure without a completion', async () => {
+  const aborted = new Error('request aborted');
+  aborted.name = 'AbortError';
+  mockRetrieve.mockRejectedValueOnce(aborted);
+
+  const status = await getAiStatus({ checkAccess: true });
+
+  expect(status).toMatchObject({ configured: true, ready: false, code: 'AI_ACCESS_CHECK_TIMEOUT' });
+  expect(status.message).toMatch(/timed out/i);
+  expect(mockRetrieve).toHaveBeenCalledTimes(1);
   expect(mockCompletionCreate).not.toHaveBeenCalled();
 });
 
