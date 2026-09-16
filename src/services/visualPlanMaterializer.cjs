@@ -10,7 +10,7 @@ const { instructionalSequenceSourceAssets } = require('./instructionalSequenceSo
 const crypto = require('node:crypto');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const xml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
-const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v12';
+const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v13';
 const STATE_SEQUENCE_CONTRACT = 'mobius-source-measured-state-sequence-v2';
 const SEMANTIC_SEQUENCE_CONTRACT = 'mobius-source-grounded-semantic-sequence-v2';
 const INSTRUCTIONAL_DIAGRAM_CONTRACT = 'mobius-source-grounded-instructional-diagram-v2';
@@ -39,6 +39,11 @@ function stateValueLabel(item = {}) {
 }
 
 function stateBadgeLines(item = {}, requirement = {}, stage = {}) {
+  // A mixed representation (for example a face-down stack plus a face-up
+  // row) owns its own labels.  Collapsing its item-level quantity/face state
+  // into one badge produces claims such as "face down × 5" even when the five
+  // visible objects belong to a different representation.
+  if (item.representations?.length) return [];
   const terminal = ['after', 'result', 'final'].includes(String(stage.id || stage.diagramStage || '').toLowerCase());
   const primary = terminal && requirement.discardPileRequired ? 'Défausse'
     : terminal && requirement.setupPlacementRequired && item.location ? 'Emplacement final'
@@ -159,15 +164,37 @@ function sourceGroundedDisplayStages(scene = {}, stages = []) {
   const insertion = afterIndex > 0 ? afterIndex : 1;
   const reference = rendered[Math.min(insertion, rendered.length - 1)];
   // The source may establish a transition without documenting a separate
-  // photograph of the in-progress state. Reuse only its already-cited
-  // physical state and mark the intermediate frame as an explanatory action,
-  // never as a newly observed arrangement.
+  // photograph of the in-progress state.  For a source-grounded stack → line
+  // change, the action frame shows the cited source arrangement before the
+  // reveal rather than cloning the final arrangement and decorating it with a
+  // detached arrow.  This is a structural illustration of the transition,
+  // not a claim that the PDF photographed an intermediate state.
+  const actionItems = (reference.items || []).map((item) => {
+    const representations = item.representations || [];
+    const hasStack = representations.some((representation) => representation.arrangement === 'STACK');
+    const hasLine = representations.some((representation) => representation.arrangement === 'LINE');
+    if (!hasStack || !hasLine) return item;
+    return {
+      ...item,
+      representations: representations
+        .filter((representation) => representation.arrangement !== 'LINE')
+        // The action frame is an explanatory view of the cited operation, not
+        // a second claim that the final physical placement has already
+        // happened. Keep the deck readable beside its contextual anchor; the
+        // final frame remains responsible for the on-anchor relation.
+        .map((representation) => representation.arrangement === 'STACK'
+          ? { ...representation, anchorRef: null, instructionalActionRepresentation: true }
+          : representation),
+      instructionalTransitionSource: 'STACK_BEFORE_LINE',
+    };
+  });
   rendered.splice(insertion, 0, {
     ...reference,
     id: 'action',
     label: 'Action',
     instructionalText: actionText,
     instructionalActionCue: true,
+    items: actionItems,
   });
   return rendered;
 }
@@ -263,7 +290,11 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
         || item.semanticInstructionOnly || item.instructionalDiagramOnly);
     const anchorState = item.anchorRef ? states.find((value) => value.referent === item.anchorRef) : null;
     const relationStage = ['action', 'after', 'result', 'final'].includes(String(stage.id || stage.diagramStage || '').toLowerCase()) || index === total - 1;
-    if (anchorState && item.arrangement === 'ON_ANCHOR' && relationStage) {
+    // An item-level anchor applies only to the single representation that is
+    // actually placed on that anchor.  In particular, a revealed LINE beside
+    // a face-down STACK must keep the room needed to teach five visible
+    // objects; it must not inherit the stack's contextual scale.
+    if (!item.representations?.length && anchorState && item.arrangement === 'ON_ANCHOR' && relationStage) {
       const relationScale = Math.min((anchorState.width * .44) / width, (anchorState.height * .54) / height, 1);
       width = Math.max(1, Math.floor(width * relationScale));
       height = Math.max(1, Math.floor(height * relationScale));
@@ -274,7 +305,7 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
     const stageProgress = total > 1 ? index / (total - 1) : .5;
     let left = centeredLeft + (transitionLane ? Math.round((stageProgress * 2 - 1) * laneTravel) : 0);
     let top = cell.y + Math.floor((cell.height - height) / 2);
-    if (anchorState && item.arrangement === 'ON_ANCHOR' && relationStage) {
+    if (!item.representations?.length && anchorState && item.arrangement === 'ON_ANCHOR' && relationStage) {
       left = Math.round(anchorState.left + anchorState.width * .54 - width / 2);
       top = Math.round(anchorState.top + anchorState.height * .56 - height / 2);
     }
@@ -287,20 +318,12 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
     const representations = item.representations?.length ? item.representations : [{ id: 'object', arrangement: item.arrangement || 'SINGLE',
       quantity, faceState: item.faceState, label: null, anchorRef: item.anchorRef }];
     const representationStates = [];
-    let extentLeft = left, extentTop = top, extentRight = left + width, extentBottom = top + height;
+    let extentLeft = item.representations?.length ? Infinity : left;
+    let extentTop = item.representations?.length ? Infinity : top;
+    let extentRight = item.representations?.length ? -Infinity : left + width;
+    let extentBottom = item.representations?.length ? -Infinity : top + height;
     for (const [representationIndex, representation] of representations.entries()) {
       const representationCount = representations.length;
-      const slotWidth = Math.floor(Math.max(width, cell.width) / representationCount);
-      const repScale = representationCount > 1 ? Math.min(1, slotWidth / width * .82) : 1;
-      const repWidth = Math.max(1, Math.floor(width * repScale));
-      const repHeight = Math.max(1, Math.floor(height * repScale));
-      const repImage = repScale === 1 ? image : await sharp(sourceFile(entry.asset)).resize(repWidth, repHeight, { fit: 'contain' }).png().toBuffer();
-      let repLeft = representationCount > 1 ? cell.x + representationIndex * slotWidth + Math.floor((slotWidth - repWidth) / 2) : left;
-      let repTop = representationCount > 1 ? cell.y + Math.floor((cell.height - repHeight) / 2) : top;
-      if (anchorState && representation.anchorRef && relationStage) {
-        repLeft = Math.round(anchorState.left + anchorState.width * (.38 + representationIndex * .24) - repWidth / 2);
-        repTop = Math.round(anchorState.top + anchorState.height * .56 - repHeight / 2);
-      }
       const line = representation.arrangement === 'LINE';
       const explicitRepresentationQuantity = Number.isInteger(representation.quantity) && representation.quantity > 0
         ? representation.quantity : null;
@@ -312,8 +335,58 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
         ? 2
         : Math.max(1, Math.min(explicitRepresentationQuantity
           ?? (representations.length === 1 ? quantity : 1), 5));
-      const available = representationCount > 1 ? slotWidth : cell.width;
-      const copyOffset = count > 1 ? Math.min(line ? Math.max(22, Math.floor((available - repWidth) / (count - 1))) : 26, 150) : 0;
+      const maxSourceScale = Math.min(1.15, detailScale);
+      let repWidth = width;
+      let repHeight = height;
+      let repLeft = left;
+      let repTop = top;
+      let copyOffset = 0;
+      if (line) {
+        // A row is evaluated in the free space of its own cell.  The source
+        // pixels still cap its size, but an unrelated anchored stack cannot
+        // shrink it to a decorative strip.
+        const gap = count > 1 ? Math.max(14, Math.min(28, Math.floor(cell.width * .018))) : 0;
+        const availableWidth = Math.max(1, Math.floor(cell.width * .94) - gap * (count - 1));
+        const availableHeight = Math.max(1, Math.floor(cell.height * .80));
+        const lineScale = Math.min(maxSourceScale, availableWidth / (sourceWidth * count), availableHeight / sourceHeight);
+        repWidth = Math.max(1, Math.floor(sourceWidth * lineScale));
+        repHeight = Math.max(1, Math.floor(sourceHeight * lineScale));
+        const rowWidth = repWidth * count + gap * (count - 1);
+        repLeft = cell.x + Math.floor((cell.width - rowWidth) / 2);
+        repTop = cell.y + Math.floor((cell.height - repHeight) / 2);
+        copyOffset = repWidth + gap;
+      } else if (representation.instructionalActionRepresentation) {
+        // Reserve a label lane for an explanatory action view.  It remains
+        // source-sized and is explicitly marked as explanatory; this avoids
+        // covering the very deck whose face state the learner must see.
+        const actionScale = Math.min(maxSourceScale, (cell.width * .60) / sourceWidth, (cell.height * .74) / sourceHeight);
+        repWidth = Math.max(1, Math.floor(sourceWidth * actionScale));
+        repHeight = Math.max(1, Math.floor(sourceHeight * actionScale));
+        repLeft = cell.x + Math.floor((cell.width - repWidth) / 2);
+        repTop = cell.y + Math.floor((cell.height - repHeight) / 2) + 22;
+      } else if (anchorState && representation.anchorRef && relationStage) {
+        const relationScale = Math.min((anchorState.width * .44) / repWidth, (anchorState.height * .54) / repHeight, 1);
+        repWidth = Math.max(1, Math.floor(repWidth * relationScale));
+        repHeight = Math.max(1, Math.floor(repHeight * relationScale));
+        repLeft = Math.round(anchorState.left + anchorState.width * (.54 + representationIndex * .12) - repWidth / 2);
+        repTop = Math.round(anchorState.top + anchorState.height * .56 - repHeight / 2);
+        copyOffset = count > 1 ? Math.min(26, Math.max(8, Math.floor(repWidth * .13))) : 0;
+      } else if (representationCount > 1) {
+        const slotWidth = Math.floor(cell.width / representationCount);
+        const slotScale = Math.min(1, slotWidth / repWidth * .82);
+        repWidth = Math.max(1, Math.floor(repWidth * slotScale));
+        repHeight = Math.max(1, Math.floor(repHeight * slotScale));
+        repLeft = cell.x + representationIndex * slotWidth + Math.floor((slotWidth - repWidth) / 2);
+        repTop = cell.y + Math.floor((cell.height - repHeight) / 2);
+        copyOffset = count > 1 ? Math.min(26, Math.max(8, Math.floor(repWidth * .13))) : 0;
+      } else {
+        copyOffset = count > 1 ? Math.min(26, Math.max(8, Math.floor(repWidth * .13))) : 0;
+      }
+      const representationSourcePixelsPerDisplayPixel = Math.min(sourceWidth / repWidth, sourceHeight / repHeight);
+      if (representationSourcePixelsPerDisplayPixel < .8) return null;
+      minimumSourcePixelsPerDisplayPixel = Math.min(minimumSourcePixelsPerDisplayPixel, representationSourcePixelsPerDisplayPixel);
+      const repImage = (repWidth === width && repHeight === height) ? image
+        : await sharp(sourceFile(entry.asset)).resize(repWidth, repHeight, { fit: 'contain' }).png().toBuffer();
       for (let copy = count - 1; copy >= 0; copy -= 1) {
         const copyLeft = repLeft + copy * copyOffset;
         const copyTop = repTop - (line ? 0 : copy * Math.min(12, copyOffset));
@@ -324,10 +397,13 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
       }
       representationStates.push({ id: representation.id, label: representation.label, arrangement: representation.arrangement,
         quantity: representation.quantity, faceState: representation.faceState, left: repLeft, top: repTop,
-        width: repWidth + copyOffset * (count - 1), height: repHeight, copies: count });
+        width: repWidth + copyOffset * (count - 1), height: repHeight, copies: count,
+        sourcePixelsPerDisplayPixel: Number(representationSourcePixelsPerDisplayPixel.toFixed(3)),
+        anchored: Boolean(anchorState && representation.anchorRef && relationStage) });
     }
     const visibleCopies = Math.max(pileCopies, Math.min(quantity, 4));
     const copyOffset = visibleCopies > 1 ? Math.min(26, Math.floor((cell.width - width) / Math.max(1, visibleCopies - 1))) : 0;
+    if (!Number.isFinite(extentLeft)) return null;
     states.push({ referent: entry.referent, assetId: entry.asset.id, label: stateValueLabel(item),
       left: extentLeft, top: extentTop, width: extentRight - extentLeft, height: extentBottom - extentTop, item,
       transitionLane, terminalStage, pileVisual: pileCopies > 1,
@@ -347,19 +423,27 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
       ? `<rect x="${value.left}" y="${value.top}" width="${value.width}" height="${value.height}" rx="14" fill="#231811" fill-opacity=".88" stroke="#e1c184" stroke-width="5" stroke-dasharray="18 12"/><text x="${value.left + value.width / 2}" y="${value.top + value.height / 2}" text-anchor="middle" fill="#fff3d9" font-family="Arial" font-size="42" font-weight="bold">FACE CACHÉE</text>`
       : '';
     const representationMasks = (value.representationStates || []).map((representation) => {
-      // A face-state mask already carries the required readable label. Adding
-      // a representation title on the same tiny anchored object produces two
-      // contradictory/overlapping captions instead of more evidence.
-      const title = representation.label && representation.faceState !== 'FACE_DOWN'
-        ? `<text x="${representation.left + representation.width / 2}" y="${Math.max(componentRegion.y + 28, representation.top - 18)}" text-anchor="middle" fill="#f4d35e" font-family="Arial" font-size="38" font-weight="bold">${xml(representation.label)}</text>` : '';
+      // Label each representation independently.  The card row and its deck
+      // can have different face states and quantities, so a single item badge
+      // would make a false combined claim.  On a small anchored object we put
+      // the face-state text outside the pixels instead of covering them.
+      const label = representation.faceState === 'FACE_DOWN'
+        ? `${representation.label || 'Paquet'} face cachée`
+        : representation.label || '';
+      const titleY = Math.max(componentRegion.y + 30, representation.top - 16);
+      const title = label
+        ? `<text x="${representation.left + representation.width / 2}" y="${titleY}" text-anchor="middle" fill="#f4d35e" font-family="Arial" font-size="34" font-weight="bold">${xml(label)}</text>` : '';
       const mask = representation.faceState === 'FACE_DOWN'
-        ? `<rect x="${representation.left}" y="${representation.top}" width="${representation.width}" height="${representation.height}" rx="14" fill="#231811" fill-opacity=".9" stroke="#e1c184" stroke-width="5" stroke-dasharray="18 12"/><text x="${representation.left + representation.width / 2}" y="${representation.top + representation.height / 2}" text-anchor="middle" fill="#fff3d9" font-family="Arial" font-size="36" font-weight="bold">FACE CACHÉE</text>` : '';
+        ? `<rect x="${representation.left}" y="${representation.top}" width="${representation.width}" height="${representation.height}" rx="14" fill="#231811" fill-opacity=".78" stroke="#e1c184" stroke-width="5" stroke-dasharray="18 12"/>` : '';
       return `${title}${mask}`;
     }).join('');
     const zone = value.transitionLane
       ? `<rect x="${value.left - 28}" y="${value.top - 28}" width="${value.width + 56}" height="${value.height + 56}" rx="22" fill="none" stroke="${value.terminalStage ? '#f4d35e' : '#7f6a52'}" stroke-width="4" stroke-dasharray="16 12"/>`
       : '';
-    return `${zone}<rect x="${value.left}" y="${labelTop}" width="${Math.max(180, value.width)}" height="${labelHeight}" rx="12" fill="#231811" fill-opacity=".94" stroke="#be9a58" stroke-width="2"/>${lines.map((line, lineIndex) => `<text x="${value.left + 16}" y="${labelTop + 40 + lineIndex * 38}" fill="#fff3d9" font-family="Arial" font-size="${Math.min(typography.componentLabelPx, 38)}" font-weight="bold">${xml(line)}</text>`).join('')}${representationMasks}${faceMask}${crossed}`;
+    const summary = lines.length
+      ? `<rect x="${value.left}" y="${labelTop}" width="${Math.max(180, value.width)}" height="${labelHeight}" rx="12" fill="#231811" fill-opacity=".94" stroke="#be9a58" stroke-width="2"/>${lines.map((line, lineIndex) => `<text x="${value.left + 16}" y="${labelTop + 40 + lineIndex * 38}" fill="#fff3d9" font-family="Arial" font-size="${Math.min(typography.componentLabelPx, 38)}" font-weight="bold">${xml(line)}</text>`).join('')}`
+      : '';
+    return `${zone}${summary}${representationMasks}${faceMask}${crossed}`;
   }).join('');
   const headline = String(scene.on_screen_text || scene.title || scene.visualRequirement?.purpose || '').split(/\n/)[0].slice(0, 120);
   const headlineLines = wrapSvgText(headline, 46, 2);
@@ -377,9 +461,10 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
         : 'État source du jeu';
   const progress = Array.from({ length: total }, (_, step) => `<rect x="${1390 + step * 92}" y="126" width="70" height="12" rx="6" fill="${step === index ? '#f4d35e' : '#6a5745'}"/>`).join('');
   const relationship = relationshipOverlay(states, scene.visualRequirement || {}, stage);
-  const actionCue = stage.instructionalActionCue
-    ? '<path d="M 1510 330 A 78 78 0 1 1 1600 390" fill="none" stroke="#f4d35e" stroke-width="10" marker-end="url(#mobius-arrow)"/><text x="1510" y="470" fill="#e1c184" font-family="Arial" font-size="34" font-weight="bold">ACTION CITÉE</text>'
-    : '';
+  // A cited action is demonstrated by the source-grounded difference between
+  // its own stage and the after stage (for example stack → revealed row).
+  // Do not add a decorative arrow that is not itself evidence of the action.
+  const actionCue = '';
   const panelSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><rect x="42" y="38" width="1836" height="1004" rx="32" fill="#231811" fill-opacity=".86" stroke="#be9a58" stroke-width="3"/></svg>`);
   const overlaySvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${frameWidth}" height="${frameHeight}"><defs><marker id="mobius-arrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M0,0 L14,7 L0,14 z" fill="#f4d35e"/></marker></defs>${headlineText}<text x="96" y="${stageY}" fill="#e1c184" font-family="Arial" font-size="${typography.stagePx}" font-weight="bold">${xml(stage.label || `Étape ${index + 1}`)}</text>${progress}${instructionalText}${actionCue}${relationship}${labels}<text x="96" y="1000" fill="#fff3d9" font-family="Arial" font-size="${typography.footerPx}">${index + 1} / ${total} · ${xml(presentationKind)} · Livret p. ${xml((scene.source_pages || []).join(', '))}</text></svg>`);
   layers.splice(1, 0, { input: panelSvg, left: 0, top: 0 });
@@ -396,11 +481,35 @@ async function renderStatefulFrame({ projectId, scene, sequenceId, stage, index,
   if (rendered.status !== 0) throw new Error('NORMAL_STATEFUL_STILL_RENDER_FAILED');
   const phonePath = target.replace(/\.png$/, '.phone.png');
   await sharp(target).resize(390, 219).png().toFile(phonePath);
+  const phoneScale = 390 / frameWidth;
+  const renderedTypography = {
+    headlinePx: 56,
+    stagePx: typography.stagePx,
+    instructionalPx: typography.instructionalPx,
+    representationLabelPx: 34,
+    footerPx: typography.footerPx,
+  };
+  const phoneReadability = {
+    scale: Number(phoneScale.toFixed(5)),
+    typographyPx: Object.fromEntries(Object.entries(renderedTypography)
+      .map(([key, value]) => [key, Number((value * phoneScale).toFixed(2))])),
+    representations: states.flatMap((value) => (value.representationStates || []).map((representation) => ({
+      referent: value.referent,
+      id: representation.id,
+      arrangement: representation.arrangement,
+      copies: representation.copies,
+      widthPx: Number((representation.width * phoneScale).toFixed(2)),
+      heightPx: Number((representation.height * phoneScale).toFixed(2)),
+      sourcePixelsPerDisplayPixel: representation.sourcePixelsPerDisplayPixel,
+      anchored: representation.anchored,
+    }))),
+  };
   return { id: `${sequenceId}-state-${index + 1}`, outputPath: target, phonePath, renderConfigPath: configPath,
     narration: scene.narration, stage, sourcePixelsPerDisplayPixel: minimumSourcePixelsPerDisplayPixel,
     actualDisplayBounds: { left: componentRegion.x, top: componentRegion.y, width: componentRegion.width, height: componentRegion.height },
     typography, visualState: states.map(({ referent, assetId, left, top, width, height, transitionLane, terminalStage, pileVisual, faceMask, representationStates }) => ({ referent, assetId, left, top, width, height, transitionLane, terminalStage, pileVisual, faceMask, representationStates })),
-    phoneTypographyPx: Object.fromEntries(Object.entries(typography).map(([key, value]) => [key, Number((value * 390 / 1920).toFixed(2))])),
+    phoneTypographyPx: Object.fromEntries(Object.entries(typography).map(([key, value]) => [key, Number((value * phoneScale).toFixed(2))])),
+    phoneReadability,
     preparedOnly: true, validated: false };
 }
 

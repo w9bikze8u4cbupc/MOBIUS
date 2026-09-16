@@ -229,7 +229,7 @@ test('stateful materializer prepares a source-bound multi-component sequence onl
   const missingRelationshipProof = { ...scene, physicalState: { ...scene.physicalState, relationshipAssertions: [] } };
   await expect(materializeStatefulInstructionalFrames({ projectId: 'stateful-fixture', scene: missingRelationshipProof, assets, outputDir })).resolves.toBeNull();
   const result = await materializeStatefulInstructionalFrames({ projectId: 'stateful-fixture', scene, assets, outputDir });
-  expect(result).toMatchObject({ contract: 'mobius-source-measured-state-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v12', sceneId: 'stateful', preparedOnly: true });
+  expect(result).toMatchObject({ contract: 'mobius-source-measured-state-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v13', sceneId: 'stateful', preparedOnly: true });
   expect(result.sourceAssets).toHaveLength(2);
   expect(result.frames).toHaveLength(2);
   expect(await sharp(result.frames[0].outputPath).metadata()).toMatchObject({ width: 1920, height: 1080 });
@@ -259,6 +259,61 @@ test('stateful display inserts only a cited explanatory action frame when the so
   });
   expect(result[1].items).toEqual(stages[1].items);
 });
+
+test('a stack-to-row action frame keeps the cited action distinct from the revealed row', () => {
+  const { sourceGroundedDisplayStages } = require('../../src/services/visualPlanMaterializer.cjs');
+  const stages = [
+    { id: 'before', label: 'Avant', sourceRefs: [{ page: 4 }], items: [{ componentRef: 'cards', representations: [{ id: 'deck', arrangement: 'STACK', faceState: 'FACE_DOWN' }] }] },
+    { id: 'after', label: 'Après', sourceRefs: [{ page: 4 }], items: [{ componentRef: 'cards', representations: [
+      { id: 'deck', arrangement: 'STACK', faceState: 'FACE_DOWN' },
+      { id: 'market', arrangement: 'LINE', quantity: 5, faceState: 'FACE_UP' },
+    ] }] },
+  ];
+  const result = sourceGroundedDisplayStages({ localizedTeaching: { actionState: 'Révélez les cartes citées.' } }, stages);
+  expect(result.map((stage) => stage.id)).toEqual(['before', 'action', 'after']);
+  expect(result[1].items[0].representations).toEqual([expect.objectContaining({
+    id: 'deck', arrangement: 'STACK', faceState: 'FACE_DOWN', anchorRef: null, instructionalActionRepresentation: true,
+  })]);
+  expect(result[2].items[0].representations).toHaveLength(2);
+});
+
+test('an unanchored revealed row retains its own measured space beside an anchored stack', async () => {
+  const crypto = require('node:crypto');
+  const { materializeStatefulInstructionalFrames } = require('../../src/services/visualPlanMaterializer.cjs');
+  const imageSha256 = crypto.createHash('sha256').update(fs.readFileSync(fixture)).digest('hex');
+  const proof = (requiredObject, assetId) => ({ contract: 'mobius-object-visual-evidence-v2', requiredObject, assetId,
+    imageSha256, evidencePacketHash: `${requiredObject}-packet`, model: 'fixture-model', method: 'provider-pixel-analysis',
+    visualRole: 'COMPONENT', present: true, complete: true, isolated: true, stateCompatible: true, confidence: .99,
+    bbox: [.1, .1, .9, .9], reason: 'Complete fixture component' });
+  const assets = ['cards', 'board'].map((referent) => ({ id: `${referent}-asset`, filePath: fixture, displayPath: fixture,
+    width: 1600, height: 900, nativeWidthPx: 1600, nativeHeightPx: 900, sourceAuthority: 'OFFICIAL_RULEBOOK', sourceAuthorityRank: 50,
+    sourcePdfSha256: 'a'.repeat(64), sourceRefs: [{ page: 4 }], semanticObjects: [referent], objectVisualEvidence: [proof(referent, `${referent}-asset`)] }));
+  const cards = (includeRow) => ({ id: 'cards', componentRef: 'cards', visibility: 'VISIBLE', faceState: 'FACE_DOWN', arrangement: 'ON_ANCHOR', anchorRef: 'board', representations: [
+    { id: 'deck', arrangement: 'STACK', faceState: 'FACE_DOWN', anchorRef: 'board', label: 'Paquet' },
+    ...(includeRow ? [{ id: 'market', arrangement: 'LINE', quantity: 5, faceState: 'FACE_UP', label: 'Zone visible' }] : []),
+  ] });
+  const board = { id: 'board', componentRef: 'board', visibility: 'VISIBLE', faceState: 'NOT_APPLICABLE', role: 'ANCHOR' };
+  const scene = { id: 'stack-to-row', atomId: 'stack-to-row', title: 'Révéler une rangée', narration: 'Préparez la rangée.', source_pages: [4],
+    localizedTeaching: { beforeState: 'Le paquet est prêt.', actionState: 'Révélez les cartes citées.', afterState: 'La rangée est accessible.' },
+    visualRequirement: { actualGameAssetRequired: true, requiredObjects: ['cards', 'board'], transitionRequired: true, requiredRelationship: 'Cards are placed on the board.' },
+    physicalState: { reviewState: 'accepted', relationshipAssertions: [{ relationship: 'Cards are placed on the board.', sourceRefs: [{ page: 4 }] }], stages: [
+      { id: 'before', sourceRefs: [{ page: 4 }], items: [cards(false), board] },
+      { id: 'after', sourceRefs: [{ page: 4 }], items: [cards(true), board] },
+    ] },
+  };
+  const result = await materializeStatefulInstructionalFrames({ projectId: 'stack-row-fixture', scene, assets, outputDir });
+  expect(result.materializerContract).toBe('mobius-visual-plan-materializer-v13');
+  const actionCards = result.frames.find((frame) => frame.stage.id === 'action').visualState.find((state) => state.referent === 'cards');
+  const finalCards = result.frames.find((frame) => frame.stage.id === 'after').visualState.find((state) => state.referent === 'cards');
+  const deck = finalCards.representationStates.find((representation) => representation.id === 'deck');
+  const row = finalCards.representationStates.find((representation) => representation.id === 'market');
+  expect(actionCards.representationStates.map((representation) => representation.id)).toEqual(['deck']);
+  expect(row).toMatchObject({ copies: 5, anchored: false });
+  expect(deck).toMatchObject({ anchored: true });
+  expect(row.width).toBeGreaterThan(deck.width * 2);
+  expect(result.frames.find((frame) => frame.stage.id === 'after').phoneReadability.representations)
+    .toEqual(expect.arrayContaining([expect.objectContaining({ id: 'market', copies: 5, widthPx: expect.any(Number) })]));
+}, 60000);
 
 test('stateful source detail is measured at the exact bounded render footprint', () => {
   const {
@@ -324,7 +379,7 @@ test('semantic materializer labels a cited transition without claiming a physica
   const assets = [{ id: 'card-asset', filePath: fixture, displayPath: fixture, width: 1600, height: 900, nativeWidthPx: 1600, nativeHeightPx: 900,
     sourceAuthority: 'OFFICIAL_RULEBOOK', sourceAuthorityRank: 50, sourcePdfSha256: 'a'.repeat(64), sourceRefs: [{ page: 4 }], semanticObjects: ['card'], objectVisualEvidence: [component] }];
   const result = await materializeSemanticInstructionalFrames({ projectId: 'semantic-fixture', scene, assets, outputDir });
-  expect(result).toMatchObject({ contract: 'mobius-source-grounded-semantic-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v12', semanticTeaching: true, sceneId: 'semantic', preparedOnly: true });
+  expect(result).toMatchObject({ contract: 'mobius-source-grounded-semantic-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v13', semanticTeaching: true, sceneId: 'semantic', preparedOnly: true });
   expect(result.sourceTeaching.map(stage => stage.instructionalText)).toEqual(['La carte est disponible en français.', 'Résolvez son effet en français.', 'Poursuivez votre tour en français.']);
   expect(result.frames).toHaveLength(3);
   expect(await sharp(result.frames[0].outputPath).metadata()).toMatchObject({ width: 1920, height: 1080 });
@@ -389,7 +444,7 @@ test('instructional diagram prepares concrete teaching from independently measur
     nativeWidthPx: 1600, nativeHeightPx: 900, sourceAuthority: 'OFFICIAL_RULEBOOK', sourceAuthorityRank: 50, sourcePdfSha256: 'a'.repeat(64),
     sourceRefs: [{ page: 5 }], semanticObjects: [id], objectVisualEvidence: [component(id, `${id}-asset`)] }));
   const result = await materializeSourceGroundedInstructionalDiagram({ projectId: 'diagram-fixture', scene, assets, outputDir });
-  expect(result).toMatchObject({ contract: 'mobius-source-grounded-instructional-diagram-v2', materializerContract: 'mobius-visual-plan-materializer-v12', instructionalDiagram: true, sceneId: 'diagram', preparedOnly: true });
+  expect(result).toMatchObject({ contract: 'mobius-source-grounded-instructional-diagram-v2', materializerContract: 'mobius-visual-plan-materializer-v13', instructionalDiagram: true, sceneId: 'diagram', preparedOnly: true });
   expect(result.sourceAssets).toHaveLength(2);
   expect(result.frames).toHaveLength(3);
   expect(await sharp(result.frames[0].outputPath).metadata()).toMatchObject({ width: 1920, height: 1080 });

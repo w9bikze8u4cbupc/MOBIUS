@@ -5,6 +5,14 @@ Cowboy source SHA: `e10e5d1d2ce4f0acb4f1ec355577b3e3b7828b3a10fb4c6a277205bf9b69
 
 The fuel lesson now has five normal-renderer instructional frames, provider-derived geometry, cited state transitions and independent frame/phone review. This proves one lesson only. No complete Cowboy MP4 or final Twelve Labs evaluation exists at this checkpoint.
 
+September 16 action-composition recovery: a compact canonical Cowboy subset was
+compiled, stored, hydrated and rematerialized through the normal services with
+zero provider calls. The deck action view is structurally distinct from the
+five-card revealed row, and its measured phone bounds are retained with the
+frames. This is still `prepared-only`: the contextual Common Deck board has
+only 100×107 native pixels, so the one permitted fresh composition verdict was
+not spent and no historical negative verdict was transferred to the new frames.
+
 The Director explicitly authorized resumed full production and a new bounded mission allowance. The old 14-call visual envelope remains historical. Additional calls retain the same ledger and provider; no counters are reset. Current counters and receipts are in `out/cowboy-end-to-end/` and the historical visual ledger.
 
 September 15 visual recovery checkpoint: the canonical Inbox worker reused the

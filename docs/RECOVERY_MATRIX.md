@@ -5,9 +5,9 @@ These entries track the Director-supplied RF references; they do not redefine th
 | References | Reused/reconnected protection | Current proof status |
 |---|---|---|
 | RF-001 / RF-002 | Source identity, object-level pixel review, native reconstruction, high-detail PDF localization, state-dependent composition acceptance | One five-state fuel lesson rendered and independently reviewed. Official cited pages can now be re-rasterized at 300 dpi with SHA/page lineage for localization only; whole-tutorial visual coverage remains pending. |
-| RF-003 / RF-005 | Compact project transport, source isolation, owned locks, atomic checkpoints | Existing enriched whole-project proof preserved. New full tutorial state must pass the same limits. |
+| RF-003 / RF-005 | Compact project transport, source isolation, owned locks, atomic checkpoints | Existing enriched whole-project proof preserved. Hydration reconnects each compact scene to its canonical plan and physical state without duplicating them in transport; a resumed materializer can therefore reuse compatible evidence. |
 | RF-011 / RF-014 | Source/model/contract caches, provider budget reservation, per-segment narration checkpoints | Compatible source and provider receipts retained; failures never become successful evidence. |
-| RF-016 | Whole composition versus isolated component validation | Exact frame/phone hashes and ordered state checks exercised for Cowboy; a strict deterministic static-identity composition gate is exercised for Terraforming. One autonomous scene per game passes in the isolated zero-provider replay. Full tutorial/video QA and Director verdict remain pending. |
+| RF-016 | Whole composition versus isolated component validation | Exact frame/phone hashes and ordered state checks exercised for Cowboy; stack and revealed-row representations now have independent measured bounds. A prepared Cowboy sequence is not accepted without a new whole-composition verdict. Full tutorial/video QA and Director verdict remain pending. |
 
 Evidence root: `out/cowboy-end-to-end/`; historical `out/first-pedagogical-visual-proof/` and Attempts 1–10 remain intact. No full-video success is inferred from tests or still images.
 

@@ -7,8 +7,8 @@ test('composition verdict is invalidated by changed phone pixels, state or requi
  const hash=()=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
  const requirement={requiredObjects:['track'],trackStateRequired:true};
  const frames=[1,2].map(n=>({id:`frame-${n}`,stage:{position:n},outputPath:file,phonePath:file,sourceImageSha256:hash(),sourcePixelsPerDisplayPixel:1}));
- const sequence={contract:'mobius-source-measured-track-sequence-v2',materializerContract:'mobius-visual-plan-materializer-v12',sceneId:'scene',assetId:'asset',frames,review:{scenes:[{scene_id:'scene',candidates:[{status:'MEASURED',evidencePacket:{
- visualRole:'COMPOSITION',responseContract:'normalized-composition-sequence-v2',materializerContract:'mobius-visual-plan-materializer-v12',sequenceContract:'mobius-source-measured-track-sequence-v2',requirement,
+ const sequence={contract:'mobius-source-measured-track-sequence-v2',materializerContract:'mobius-visual-plan-materializer-v13',sceneId:'scene',assetId:'asset',frames,review:{scenes:[{scene_id:'scene',candidates:[{status:'MEASURED',evidencePacket:{
+ visualRole:'COMPOSITION',responseContract:'normalized-composition-sequence-v2',materializerContract:'mobius-visual-plan-materializer-v13',sequenceContract:'mobius-source-measured-track-sequence-v2',requirement,
  sequenceFrames:frames.map(f=>({id:f.id,stage:{...f.stage},imageSha256:hash(),phoneSha256:hash()}))},
  objects:[{requiredObject:'track',visualRole:'COMPOSITION',method:'provider-pixel-analysis',confidence:.98,present:true,complete:true,isolated:true,stateCompatible:true,purposeSatisfied:true,phoneReadable:true}]}]}]}};
  const candidate={id:'asset',filePath:file,instructionalSequences:[sequence]};
@@ -18,7 +18,6 @@ test('composition verdict is invalidated by changed phone pixels, state or requi
  fs.writeFileSync(file,'changed fixture pixels');expect(verifiedInstructionalSequence(candidate,requirement,'scene')).toBeNull();
  fs.rmSync(folder,{recursive:true,force:true});
 });
-
 test('a multi-component source-measured sequence stays bound to every source asset',()=>{
  const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
  const {verifiedInstructionalSequence}=require('../../src/services/physicalGameState.cjs');
@@ -41,7 +40,6 @@ test('a multi-component source-measured sequence stays bound to every source ass
  expect(verifiedInstructionalSequence({id:'discard-asset',filePath:second,instructionalSequences:[sequence]},requirement,'scene')).toBeNull();
  fs.rmSync(folder,{recursive:true,force:true});
 });
-
 test('derives a reusable consumed one-shot marker transition', () => {
   const state = derivePhysicalGameState({
     id: 'threshold', domain: 'triggered_effect', componentRefs: ['penalty-token'],

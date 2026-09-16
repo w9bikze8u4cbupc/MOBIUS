@@ -145,7 +145,18 @@ function buildEnvSection() {
   };
 }
 
-async function buildToolsSection() {
+async function buildToolsSection({ dryRun = false } = {}) {
+  // A dry-run establishes only that the render contract/configuration is
+  // consumable. It neither creates media nor needs the host binaries. Do not
+  // let an informational manifest probe turn a completed dry-run into a slow
+  // platform-dependent job.
+  if (dryRun) {
+    return {
+      ffmpeg: null,
+      ffprobe: null,
+      probesSkipped: 'dry-run-no-media-produced',
+    };
+  }
   const [ffmpeg, ffprobe] = await Promise.all([
     detectToolVersion(FFMPEG_BIN),
     detectToolVersion(FFPROBE_BIN),
@@ -156,12 +167,12 @@ async function buildToolsSection() {
   };
 }
 
-async function describeMediaEntries({ files, outputDir, kind }) {
+async function describeMediaEntries({ files, outputDir, kind, dryRun = false }) {
   const entries = [];
   for (const file of files) {
     const [sha256, probe] = await Promise.all([
       computeSha256(file),
-      isVideoFile(file) || isAudioFile(file) ? probeMedia(file) : Promise.resolve({}),
+      !dryRun && (isVideoFile(file) || isAudioFile(file)) ? probeMedia(file) : Promise.resolve({}),
     ]);
 
     entries.push({
@@ -211,10 +222,11 @@ async function buildMediaSection({
   metadata,
   outputDir,
   localizationConfig,
+  dryRun = false,
 }) {
   const [videoEntries, audioEntries, captionEntries, imageEntries, metadataEntries] = await Promise.all([
-    describeMediaEntries({ files: videos, outputDir, kind: 'video' }),
-    describeMediaEntries({ files: audios, outputDir, kind: 'audio' }),
+    describeMediaEntries({ files: videos, outputDir, kind: 'video', dryRun }),
+    describeMediaEntries({ files: audios, outputDir, kind: 'audio', dryRun }),
     (async () => {
       const entries = [];
       for (const file of captions) {
@@ -263,7 +275,7 @@ function buildChecksums(media) {
     .map((entry) => ({ path: entry.path, sha256: entry.sha256 }));
 }
 
-export async function packageRenderJob({ jobId, outputDir, jobConfig }) {
+export async function packageRenderJob({ jobId, outputDir, jobConfig, dryRun = false }) {
   const artifactGroups = await collectArtifacts(outputDir);
   const loadedLocalization = loadLocalizationConfig();
   const jobLocalization = jobConfig?.localization || {};
@@ -278,8 +290,9 @@ export async function packageRenderJob({ jobId, outputDir, jobConfig }) {
     ...artifactGroups,
     outputDir,
     localizationConfig,
+    dryRun,
   });
-  const tools = await buildToolsSection();
+  const tools = await buildToolsSection({ dryRun });
   const env = buildEnvSection();
 
   const manifest = {

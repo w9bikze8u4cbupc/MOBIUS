@@ -13,6 +13,7 @@
 const path = require('path');
 const fs = require('fs');
 const { execFileSync } = require('child_process');
+const { pathToFileURL } = require('url');
 const {
   enqueueRenderJob,
   getJob,
@@ -187,6 +188,54 @@ describe('API render preview dry-run', () => {
         timeout: 1500,
       });
       expect(result).toContain('[DRY RUN] Config is valid');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('API dry-run packaging skips configured FFmpeg and FFprobe probes', () => {
+    const tempDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'mobius-api-dry-run-'));
+    const fakeTool = path.join(tempDir, process.platform === 'win32' ? 'media-tool.cmd' : 'media-tool');
+    const childScript = path.join(tempDir, 'run-api-dry-run.mjs');
+    try {
+      if (process.platform === 'win32') {
+        fs.writeFileSync(fakeTool, '@echo off\r\nping -n 8 127.0.0.1 >nul\r\n');
+      } else {
+        fs.writeFileSync(fakeTool, '#!/bin/sh\nsleep 8\n');
+        fs.chmodSync(fakeTool, 0o755);
+      }
+      const queueUrl = pathToFileURL(path.resolve(__dirname, '../../src/api/renderQueue.js')).href;
+      fs.writeFileSync(childScript, `
+        import { enqueueRenderJob, getJob, resetRenderQueue } from ${JSON.stringify(queueUrl)};
+        const job = enqueueRenderJob(JSON.parse(process.env.MOBIUS_TEST_RENDER_CONFIG));
+        const deadline = Date.now() + 1200;
+        while (Date.now() < deadline) {
+          const current = getJob(job.id);
+          if (current?.status === 'completed' || current?.status === 'failed') {
+            console.log(JSON.stringify({ status: current.status, error: current.error, tools: current.manifest?.tools }));
+            resetRenderQueue();
+            process.exit(current.status === 'completed' ? 0 : 1);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        resetRenderQueue();
+        throw new Error('API_DRY_RUN_DID_NOT_COMPLETE');
+      `);
+      const output = execFileSync(process.execPath, [childScript], {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          RENDERER_DRY_RUN: 'true',
+          MOBIUS_FFMPEG_PATH: fakeTool,
+          MOBIUS_FFPROBE_PATH: fakeTool,
+          JOB_RESULTS_DIR: path.join(tempDir, 'jobs'),
+          MOBIUS_TEST_RENDER_CONFIG: JSON.stringify(FIXTURE_RENDER_JOB_CONFIG),
+        },
+        timeout: 1800,
+      });
+      const result = JSON.parse(output.trim());
+      expect(result).toMatchObject({ status: 'completed', error: null,
+        tools: { ffmpeg: null, ffprobe: null, probesSkipped: 'dry-run-no-media-produced' } });
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

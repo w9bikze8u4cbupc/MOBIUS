@@ -162,6 +162,7 @@ async function collectArtifacts(jobOutputDir, publicBasePath) {
 export async function runRenderJob(job, options = {}) {
   const jobOutputDir = path.join(options.outputBaseDir || RENDER_OUTPUT_BASE, job.id);
   const publicBasePath = path.join('/uploads/render-jobs', job.id);
+  const dryRun = process.env.RENDERER_DRY_RUN === 'true';
   await ensureDir(jobOutputDir);
 
   // Determine if we should adapt config for storyboard renderer
@@ -225,6 +226,7 @@ export async function runRenderJob(job, options = {}) {
               jobId: job.id,
               outputDir: jobOutputDir,
               jobConfig: job.config,
+              dryRun,
             });
           } catch (packagingError) {
             console.error('Failed to package render job', job.id, packagingError);

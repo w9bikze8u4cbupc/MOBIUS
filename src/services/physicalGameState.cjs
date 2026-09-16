@@ -13,6 +13,7 @@ const SUPPORTED_SEQUENCE_MATERIALIZER_CONTRACTS=new Set([
  'mobius-visual-plan-materializer-v10',
  'mobius-visual-plan-materializer-v11',
  'mobius-visual-plan-materializer-v12',
+ 'mobius-visual-plan-materializer-v13',
 ]);
 const REQUIRED_SEMANTIC_SEQUENCE_CONTRACT='mobius-source-grounded-semantic-sequence-v2';
 const REQUIRED_INSTRUCTIONAL_DIAGRAM_CONTRACT='mobius-source-grounded-instructional-diagram-v2';
@@ -227,7 +228,7 @@ function stageRepresentations(text, descriptor = {}, { anchorRef = null } = {}) 
   const quantity = firstExplicitQuantity(text, descriptor, [descriptor]);
   const faceDown = /face[-\s]down|face[-\s]cach[eé]e/.test(normalized);
   const faceUp = /face[-\s]up|face[-\s]visible/.test(normalized);
-  if (/deck|paquet/.test(normalized)) result.push({ id: 'deck', label: 'Deck', arrangement: 'STACK', anchorRef,
+  if (/deck|paquet/.test(normalized)) result.push({ id: 'deck', label: 'Paquet', arrangement: 'STACK', anchorRef,
     quantity: null, faceState: faceDown ? 'FACE_DOWN' : 'NOT_APPLICABLE' });
   if ((quantity && /cards?|cartes?/.test(normalized)) || /purchasing area|zone d['’]achat|in a line|en ligne/.test(normalized)) {
     result.push({ id: 'row', label: /purchasing area|zone d['’]achat/.test(normalized) ? 'Zone d’achat' : 'Cartes',

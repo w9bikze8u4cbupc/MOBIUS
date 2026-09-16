@@ -510,14 +510,35 @@ function hydrateCanonicalProductionState(state, artifact) {
       ...(reference.reviewItemId ? { reviewItem: reviewsById.get(reference.reviewItemId) || { id: reference.reviewItemId } } : {}),
     };
   });
+  const visualPlans = (state.visualPlans || []).map((plan) => hydratePlan(plan, artifact, byId));
+  const physicalStatesById = new Map((state.physicalStates || [])
+    .filter((physicalState) => physicalState?.ruleAtomId)
+    .map((physicalState) => [physicalState.ruleAtomId, physicalState]));
+  const visualPlansById = new Map(visualPlans
+    .filter((plan) => plan?.ruleAtomId)
+    .map((plan) => [plan.ruleAtomId, plan]));
+  // The compact transport deliberately stores these once in their canonical
+  // collections.  Reconnect them while hydrating rather than forcing every
+  // resume path to rebuild a compiler-only scene shape (or duplicating large
+  // plans/states into every scene before the HTTP size budget is checked).
+  const scenes = (state.scenes || []).map((scene) => {
+    const hydratedScene = hydrateScene(scene, artifact);
+    const physicalState = physicalStatesById.get(hydratedScene.physicalStateId || hydratedScene.atomId);
+    const canonicalVisualPlan = visualPlansById.get(hydratedScene.visualPlanId || hydratedScene.atomId);
+    return {
+      ...hydratedScene,
+      ...(physicalState ? { physicalState } : {}),
+      ...(canonicalVisualPlan ? { canonicalVisualPlan, visualPlan: canonicalVisualPlan.cockpit || null } : {}),
+    };
+  });
   return {
     ...state,
     contract: state.compilerContract || state.contract,
     assets: hydratedAssets,
     selectedAssets: (state.selectedAssets || []).map((reference) => byId.get(assetId(reference))).filter(Boolean),
     sourceSelections: selections,
-    visualPlans: (state.visualPlans || []).map((plan) => hydratePlan(plan, artifact, byId)),
-    scenes: (state.scenes || []).map((scene) => hydrateScene(scene, artifact)),
+    visualPlans,
+    scenes,
     reviewItems,
     visualPlanMaterialization: hydrateVisualPlanMaterialization(state.visualPlanMaterialization, artifact),
   };

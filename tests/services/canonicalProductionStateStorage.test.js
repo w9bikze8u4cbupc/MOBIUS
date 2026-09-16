@@ -41,6 +41,10 @@ function state() {
         },
       };
     }),
+    physicalStates: Array.from({ length: 8 }, (_, index) => ({
+      contract: 'mobius-physical-game-state-v1', ruleAtomId: `atom-${index}`,
+      transitionType: 'STATIC', stages: [{ id: 'before', items: [] }],
+    })),
     scenes: Array.from({ length: 8 }, (_, index) => ({ id: `scene-${index}`, atomId: `atom-${index}`, physicalState: { ruleAtomId: `atom-${index}` }, visualPlan: { ruleAtomId: `atom-${index}` }, canonicalVisualPlan: { ruleAtomId: `atom-${index}` } })),
     reviewItems: Array.from({ length: 8 }, (_, index) => ({ id: `review-${index}`, candidates: [candidate] })),
   };
@@ -58,6 +62,9 @@ test('canonical persistence keeps rich candidate evidence once while state remai
   expect(hydrated.sourceSelections[0].selectedAssets[0]).toEqual(full.assets[0]);
   expect(hydrated.sourceSelections[0].ranked).toEqual(full.sourceSelections[0].ranked);
   expect(hydrated.visualPlans).toEqual(full.visualPlans);
+  expect(hydrated.scenes[0].physicalState).toEqual(full.physicalStates[0]);
+  expect(hydrated.scenes[0].canonicalVisualPlan).toEqual(full.visualPlans[0]);
+  expect(hydrated.scenes[0].visualPlan).toEqual(full.visualPlans[0].cockpit);
   expect(result.compact.visualPlans[0].cockpit.gameState).toBeUndefined();
   expect(result.compact.visualPlans[0].cockpitDerivation.assetCandidateEvidenceRefs[0])
     .toEqual(expect.objectContaining({ candidateEvidenceRef: expect.any(String) }));
