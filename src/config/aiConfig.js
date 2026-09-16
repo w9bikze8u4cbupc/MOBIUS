@@ -9,6 +9,24 @@ function accessCheckTimeoutMs(env = process.env) {
   const parsed = Number(env.MOBIUS_AI_ACCESS_CHECK_TIMEOUT_MS);
   return Number.isFinite(parsed) ? Math.max(1_000, Math.min(60_000, Math.floor(parsed))) : DEFAULT_ACCESS_CHECK_TIMEOUT_MS;
 }
+
+async function withAccessCheckDeadline(request, timeoutMs) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error('AI access check timed out');
+      error.code = 'AI_ACCESS_CHECK_TIMEOUT';
+      reject(error);
+    }, timeoutMs);
+  });
+  try {
+    // The SDK is asked to abort too, but a hard Promise deadline is required:
+    // not every transport settles its promise when an AbortSignal fires.
+    return await Promise.race([request, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 dotenv.config({ path: ENV_FILE_PATH });
 
 let client;
@@ -211,12 +229,15 @@ export async function getAiStatus({ checkAccess = false } = {}) {
         // a provider accepts a TCP connection but does not answer. Pass an
         // abort signal to the SDK request rather than racing an unresolved
         // promise, so the underlying request is cancelled too.
-        await getAiClient().models.retrieve(config.model, {
-          signal: AbortSignal.timeout(accessCheckTimeoutMs()),
-        });
+        await withAccessCheckDeadline(
+          getAiClient().models.retrieve(config.model, {
+            signal: AbortSignal.timeout(accessCheckTimeoutMs()),
+          }),
+          accessCheckTimeoutMs(),
+        );
         return { ready: true, message: `AI model "${config.model}" is ready.` };
       } catch (error) {
-        const timedOut = error?.name === 'AbortError' || error?.code === 'ABORT_ERR'
+        const timedOut = error?.name === 'AbortError' || error?.code === 'ABORT_ERR' || error?.code === 'AI_ACCESS_CHECK_TIMEOUT'
           || /timeout|timed out|abort/i.test(String(error?.message || ''));
         return {
           ready: false,

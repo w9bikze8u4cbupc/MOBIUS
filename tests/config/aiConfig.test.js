@@ -26,6 +26,7 @@ beforeEach(() => {
   process.env.OPENAI_MODEL = 'test-model';
   delete process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
   delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  delete process.env.MOBIUS_AI_ACCESS_CHECK_TIMEOUT_MS;
   mockRetrieve.mockReset();
   mockList.mockReset();
   mockCompletionCreate.mockReset();
@@ -86,6 +87,18 @@ test('a timed-out metadata probe is a concise retryable access failure without a
   expect(status).toMatchObject({ configured: true, ready: false, code: 'AI_ACCESS_CHECK_TIMEOUT' });
   expect(status.message).toMatch(/timed out/i);
   expect(mockRetrieve).toHaveBeenCalledTimes(1);
+  expect(mockCompletionCreate).not.toHaveBeenCalled();
+});
+
+test('an SDK request that ignores abort still returns a bounded readiness failure', async () => {
+  process.env.MOBIUS_AI_ACCESS_CHECK_TIMEOUT_MS = '1000';
+  mockRetrieve.mockImplementationOnce(() => new Promise(() => {}));
+
+  const startedAt = Date.now();
+  const status = await getAiStatus({ checkAccess: true });
+
+  expect(status).toMatchObject({ configured: true, ready: false, code: 'AI_ACCESS_CHECK_TIMEOUT' });
+  expect(Date.now() - startedAt).toBeLessThan(2000);
   expect(mockCompletionCreate).not.toHaveBeenCalled();
 });
 

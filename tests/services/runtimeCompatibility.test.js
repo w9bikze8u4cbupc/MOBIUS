@@ -26,9 +26,9 @@ describe('canonical runtime compatibility', () => {
     expect(evaluateRuntimeCompatibility(stale, requirements).compatible).toBe(false);
   });
 
-  test('a legacy unbounded AI readiness runtime is rejected before it can hold an Inbox lease', () => {
+  test.each(['mobius-ai-provider-readiness-v1', 'mobius-ai-provider-readiness-v2'])('a legacy unbounded AI readiness runtime (%s) is rejected before it can hold an Inbox lease', (legacyContract) => {
     const stale = buildApiRuntimeCapabilities({ env: { MOBIUS_BUILD_SHA: '4'.repeat(40) } });
-    stale.contracts.aiProviderReadiness = 'mobius-ai-provider-readiness-v1';
+    stale.contracts.aiProviderReadiness = legacyContract;
     expect(evaluateRuntimeCompatibility(stale, requirements)).toMatchObject({ compatible: false });
   });
   test('same SHA and compatible contracts pass', () => {
