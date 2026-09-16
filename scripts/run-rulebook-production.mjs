@@ -25,7 +25,7 @@ import {
   normalizeDurableProjectSource,
   sameDurableProjectSource,
 } from '../src/services/projectSourceService.js';
-import { loadSourceVisualCatalog, selectSourceVisual, normalizeSourceReferentTerms, recoverRuleVisualReferents, visualProviderFailure, visualProviderRecoveryIdentity } from '../src/services/sourceVisualSelection.js';
+import { loadSourceVisualCatalog, replayInstructionalSequences, selectSourceVisual, normalizeSourceReferentTerms, recoverRuleVisualReferents, visualProviderFailure, visualProviderRecoveryIdentity } from '../src/services/sourceVisualSelection.js';
 import { runProduction } from './run-source-grounded-production.mjs';
 import editorialStandard from '../src/services/editorialStandard.cjs';
 import { GAME_IDENTITY_CONTRACT_VERSION, resolveCanonicalGameIdentity, titleFromRulebook } from '../src/services/gameIdentity.cjs';
@@ -52,7 +52,7 @@ import { preflightAiProviderReadiness } from '../src/services/aiProviderReadines
 
 const require = createRequire(import.meta.url);
 const { packProjectState, compactVisualEvidence } = require('../src/services/projectStateTransport.cjs');
-const { createCompactCanonicalProductionState } = require('../src/services/canonicalProductionStateStorage.cjs');
+const { createCompactCanonicalProductionState, hydrateCanonicalProductionState } = require('../src/services/canonicalProductionStateStorage.cjs');
 const { extractPdfToIngestionInput } = require('../src/ingestion/pdfExtractor.js');
 const { COMPONENT_INVENTORY_CONTRACT_VERSION, extractComponentInventory } = await import('../src/services/componentInventory.js');
 const { generateStoryboard } = require('../src/storyboard/generator.js');
@@ -99,6 +99,25 @@ function stable(value) {
 function hashValue(value) { return crypto.createHash('sha256').update(stable(value)).digest('hex'); }
 function jsonIf(filePath, fallback = null) {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return fallback; }
+}
+
+// Visual discovery reports are intentionally rebuilt when their search
+// contract changes. Their source catalogue does not itself contain the rich
+// instructional-composition evidence, which is stored once in the canonical
+// state sidecar. Rehydrate only a same-project, same-PDF prior graph; the
+// resolver subsequently revalidates every retained sequence byte-for-byte.
+function reusableInstructionalSequenceAssets({ canonicalStatePath, visualEvidenceArtifactPath, projectId, sourceSha256 } = {}) {
+  const compact = jsonIf(canonicalStatePath);
+  const artifact = jsonIf(visualEvidenceArtifactPath);
+  if (!compact || !artifact || compact.projectId !== projectId || artifact.projectId !== projectId
+      || artifact.sourceSha256 !== sourceSha256) return [];
+  try {
+    return hydrateCanonicalProductionState(compact, artifact).assets || [];
+  } catch {
+    // A corrupt or incompatible historical sidecar must never become a source
+    // of acceptance. The normal source/discovery path remains available.
+    return [];
+  }
 }
 function visualAnalysisContinuationIdentity(report = {}) {
   const summary = report.summary || {};
@@ -1470,9 +1489,22 @@ async function runZeroState(options = {}) {
     recovery: automaticRecovery.recoveries.map((entry) => entry.status),
   });
 
-  const catalog = loadSourceVisualCatalog(combinedVisualManifestPath, { qualityReportPath: qualityPath, semanticReportPath: semanticPath, hephaestusEvidencePath: hephEvidencePath });
   const canonicalStatePath = path.join(productionDir, 'canonical-production-state.json');
   const visualEvidenceArtifactPath = path.join(productionDir, 'visual-evidence-artifact.json');
+  const priorInstructionalSequenceAssets = reusableInstructionalSequenceAssets({
+    canonicalStatePath,
+    visualEvidenceArtifactPath,
+    projectId,
+    sourceSha256: identity.sha256,
+  });
+  const baseCatalogForCompilation = loadSourceVisualCatalog(combinedVisualManifestPath, { qualityReportPath: qualityPath, semanticReportPath: semanticPath, hephaestusEvidencePath: hephEvidencePath });
+  const catalog = {
+    ...baseCatalogForCompilation,
+    assets: replayInstructionalSequences({
+      assets: baseCatalogForCompilation.assets,
+      priorAssets: priorInstructionalSequenceAssets,
+    }),
+  };
   const visualPlansPath = path.join(productionDir, 'visual-plans.json');
   const physicalStatesPath = path.join(productionDir, 'physical-game-states.json');
   const visualReviewItemsPath = path.join(productionDir, 'visual-review-items.json');

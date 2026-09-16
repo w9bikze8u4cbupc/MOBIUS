@@ -666,6 +666,58 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
 }
 
 /**
+ * Reconnect previously measured instructional compositions to a freshly
+ * rebuilt source catalogue. Discovery reports deliberately contain only
+ * source-asset evidence, while composition evidence lives in the compact
+ * project-state sidecar. Dropping the latter during a harmless discovery
+ * replay forces an already checked sequence back through a provider queue.
+ *
+ * This transports evidence; it does not accept a binding. The canonical
+ * resolver still validates current source pixels, requirements, frames, and
+ * provider review before selecting any retained sequence.
+ */
+export function replayInstructionalSequences({ assets = [], priorAssets = [] } = {}) {
+  const currentById = new Map((assets || []).filter((asset) => asset?.id).map((asset) => [asset.id, asset]));
+  const additions = new Map();
+  const sourceAssetsFor = (sequence = {}, fallbackAssetId = null) => {
+    const declared = Array.isArray(sequence.sourceAssets)
+      ? sequence.sourceAssets.filter((source) => source?.assetId)
+      : [];
+    if (declared.length) return declared;
+    const assetId = sequence.assetId || fallbackAssetId;
+    return assetId ? [{ assetId }] : [];
+  };
+  const keyFor = (sequence) => crypto.createHash('sha256').update(JSON.stringify(sequence)).digest('hex');
+
+  for (const priorAsset of priorAssets || []) {
+    for (const sequence of priorAsset?.instructionalSequences || []) {
+      const sources = sourceAssetsFor(sequence, priorAsset?.id);
+      if (!sources.length || !sources.every((source) => currentById.has(source.assetId))) continue;
+      for (const source of sources) {
+        const rows = additions.get(source.assetId) || [];
+        rows.push(sequence);
+        additions.set(source.assetId, rows);
+      }
+    }
+  }
+
+  return (assets || []).map((asset) => {
+    const combined = [...(asset?.instructionalSequences || []), ...(additions.get(asset?.id) || [])];
+    if (!combined.length) return asset;
+    const seen = new Set();
+    return {
+      ...asset,
+      instructionalSequences: combined.filter((sequence) => {
+        const key = keyFor(sequence);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }),
+    };
+  });
+}
+
+/**
  * Select the strongest component visual for a reviewed scene. Explicit scene
  * assignments always win; a rulebook page is returned only as a labelled
  * fallback, never disguised as a component match.

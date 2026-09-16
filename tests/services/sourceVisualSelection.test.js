@@ -122,6 +122,25 @@ beforeAll(async () => {
   inferVisualTypes = mod.inferVisualTypes;
 });
 
+test('replays prior instructional composition evidence only onto a complete rebuilt source graph', async () => {
+  const { replayInstructionalSequences } = await import('../../src/services/sourceVisualSelection.js');
+  const sequence = {
+    sceneId: 'fuel-scene', assetId: 'track',
+    sourceAssets: [{ assetId: 'track', sourceImageSha256: 'track-pixels' }, { assetId: 'marker', sourceImageSha256: 'marker-pixels' }],
+    frames: [{ id: 'before' }, { id: 'after' }], review: { scenes: [] },
+  };
+  const rebuilt = replayInstructionalSequences({
+    assets: [{ id: 'track' }, { id: 'marker' }, { id: 'unrelated' }],
+    priorAssets: [{ id: 'track', instructionalSequences: [sequence] }],
+  });
+  expect(rebuilt.find((asset) => asset.id === 'track').instructionalSequences).toEqual([sequence]);
+  expect(rebuilt.find((asset) => asset.id === 'marker').instructionalSequences).toEqual([sequence]);
+  expect(rebuilt.find((asset) => asset.id === 'unrelated').instructionalSequences).toBeUndefined();
+  expect(replayInstructionalSequences({
+    assets: [{ id: 'track' }], priorAssets: [{ id: 'track', instructionalSequences: [sequence] }],
+  }).find((asset) => asset.id === 'track').instructionalSequences).toBeUndefined();
+});
+
 function makeAsset(root, { id, page = 4, classification = 'card', confidence = 0.8, width = 600, height = 800 }) {
   const fileName = `${id}.png`;
   fs.writeFileSync(path.join(root, 'images', 'all', fileName), 'fixture');

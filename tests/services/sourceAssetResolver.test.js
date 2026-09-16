@@ -140,7 +140,7 @@ test('a verified semantic composition may reuse exact component identity only af
   expect(evaluateCandidate(candidate, requirement, { width: 900, height: 700 }).hardViolations).toContain('object-pixel-evidence-missing:card');
 });
 
-test('a compatible assetId-only track sequence survives resolver, compact storage, and hydration replay', () => {
+test('a compatible assetId-only track sequence survives catalog replay, resolver, compact storage, and hydration', async () => {
   const crypto = require('node:crypto');
   const storage = require('../../src/services/canonicalProductionStateStorage.cjs');
   const hash = crypto.createHash('sha256').update(fs.readFileSync(existingFile)).digest('hex');
@@ -159,7 +159,12 @@ test('a compatible assetId-only track sequence survives resolver, compact storag
     objects: [{ requiredObject: 'track', visualRole: 'COMPOSITION', method: 'provider-pixel-analysis', confidence: .99,
       present: true, complete: true, isolated: true, stateCompatible: true, purposeSatisfied: true, phoneReadable: true }] }] }] } };
   const component = proof('track-asset', existingFile, 'track', { contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT', bbox: [.1, .1, .9, .9] });
-  const source = asset('track-asset', { semanticObjects: ['track'], objectVisualEvidence: [component], instructionalSequences: [sequence] });
+  const priorSource = asset('track-asset', { semanticObjects: ['track'], objectVisualEvidence: [component], instructionalSequences: [sequence] });
+  const { replayInstructionalSequences } = await import('../../src/services/sourceVisualSelection.js');
+  const [source] = replayInstructionalSequences({
+    assets: [asset('track-asset', { semanticObjects: ['track'], objectVisualEvidence: [component] })],
+    priorAssets: [priorSource],
+  });
   const resolved = resolveInstructionalSequenceSources({ atom: { id: 'atom' }, requirement, candidates: [source] });
   expect(resolved).toMatchObject({ status: 'AUTO_ACCEPTED', instructionalSequence: sequence });
   const packed = storage.createCompactCanonicalProductionState({ projectId: 'track-replay', assets: [source], sourceSelections: [resolved], visualPlans: [], scenes: [], reviewItems: [] }, {
