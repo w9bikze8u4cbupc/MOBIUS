@@ -12,7 +12,7 @@ from pathlib import Path
 from openai import OpenAI
 
 CONTRACT = "mobius-object-visual-evidence-v2"
-SEARCH_CONTRACT = "mobius-referent-localization-v1"
+SEARCH_CONTRACT = "mobius-referent-localization-v2"
 # v4 fixes the durable-budget boundary: a ledger without an explicitly named
 # substage no longer leaks a KeyError into a faux provider-unavailable result.
 # The version is part of the execution cache identity so that a prior local
