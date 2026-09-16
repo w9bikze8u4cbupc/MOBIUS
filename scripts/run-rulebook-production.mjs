@@ -412,6 +412,24 @@ async function synchronizeProjectSourceWithApi({
     error.code = 'SOURCE_DESCRIPTOR_INVALID';
     throw error;
   }
+  // A replay owns one immutable, SHA-addressed PDF. Verify the API copy before
+  // sending a multipart body again: this preserves strict cross-root descriptor
+  // validation while avoiding an unnecessary upload (and a needless point of
+  // failure) when the canonical project source already agrees exactly.
+  try {
+    const current = await apiJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/source-pdf`, {
+      apiKey, fetchImpl,
+    });
+    const persisted = normalizeDurableProjectSource(current.sourcePdf, projectId);
+    if (persisted && sameDurableProjectSource(expected, persisted)) {
+      return { descriptor: persisted, idempotent: true, transport: 'verified-existing-source' };
+    }
+  } catch (error) {
+    // Only absence is recoverable by uploading the same canonical source. A
+    // malformed descriptor, authentication problem, or server failure must
+    // remain visible rather than being hidden by a blind overwrite.
+    if (Number(error?.status) !== 404 && error?.code !== 'SOURCE_PDF_NOT_FOUND') throw error;
+  }
   const bytes = await readFile(pdfPath);
   const form = new FormData();
   form.append('file', new Blob([bytes], { type: 'application/pdf' }), filename || expected.filename);
@@ -425,7 +443,7 @@ async function synchronizeProjectSourceWithApi({
     error.status = 409;
     throw error;
   }
-  return { descriptor: persisted, idempotent: result.idempotent === true };
+  return { descriptor: persisted, idempotent: result.idempotent === true, transport: 'uploaded-source' };
 }
 
 function stageReady(checkpoint, name, inputHash, outputs) {

@@ -73,6 +73,15 @@ describe('zero-state production contracts', () => {
             const { buildApiRuntimeCapabilities } = await import('${pathToFileURL(require('path').resolve(__dirname, '../../src/services/runtimeCompatibility.js')).href}');
             return new Response(JSON.stringify(buildApiRuntimeCapabilities({ cwd: ${JSON.stringify(require('path').resolve(__dirname, '../..'))} })), { status: 200, headers: { 'content-type': 'application/json' } });
           }
+          if (route.endsWith('/source-pdf') && (!options.method || options.method === 'GET')) {
+            const requestedProjectId = decodeURIComponent(route.split('/').at(-2));
+            try {
+              const descriptor = await remoteSource.readDescriptor(requestedProjectId);
+              return new Response(JSON.stringify({ sourcePdf: descriptor }), { status: 200, headers: { 'content-type': 'application/json' } });
+            } catch {
+              return new Response(JSON.stringify({ code: 'SOURCE_PDF_NOT_FOUND' }), { status: 404, headers: { 'content-type': 'application/json' } });
+            }
+          }
           if (route.endsWith('/source-pdf') && options.method === 'POST') {
             projectId = decodeURIComponent(route.split('/').at(-2));
             const file = options.body.get('file');
@@ -104,7 +113,7 @@ describe('zero-state production contracts', () => {
     expect(proof.first).toMatchObject({ status: 'stopped', stage: 'source' });
     expect(proof.replay).toMatchObject({ status: 'stopped', stage: 'source' });
     expect(proof.reservationAccepted).toBe(true);
-    expect(proof.uploadCount).toBe(2);
+    expect(proof.uploadCount).toBe(1);
     expect(proof.remoteDescriptor.sha256).toMatch(/^[a-f0-9]{64}$/);
   });
 
@@ -159,6 +168,9 @@ describe('zero-state production contracts', () => {
           const route = new URL(url).pathname;
           calls.push(route);
           if (route === '/api/runtime/capabilities') return new Response(JSON.stringify(buildApiRuntimeCapabilities()), { status: 200, headers: { 'content-type': 'application/json' } });
+          if (route.endsWith('/source-pdf') && (!options.method || options.method === 'GET')) {
+            return new Response(JSON.stringify({ code: 'SOURCE_PDF_NOT_FOUND' }), { status: 404, headers: { 'content-type': 'application/json' } });
+          }
           if (route.endsWith('/source-pdf') && options.method === 'POST') {
             projectId = decodeURIComponent(route.split('/').at(-2));
             const file = options.body.get('file');
