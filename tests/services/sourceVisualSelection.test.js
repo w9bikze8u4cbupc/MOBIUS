@@ -141,6 +141,28 @@ test('replays prior instructional composition evidence only onto a complete rebu
   }).find((asset) => asset.id === 'track').instructionalSequences).toBeUndefined();
 });
 
+test('reconnects measured evidence after a deterministic catalog ID change only when source pixels and PDF match', async () => {
+  const { replayInstructionalSequences } = await import('../../src/services/sourceVisualSelection.js');
+  const sourcePdfSha256 = 'a'.repeat(64);
+  const imageSha256 = 'b'.repeat(64);
+  const prior = { id: 'old-region', sourcePdfSha256, contentHash: imageSha256, objectVisualEvidence: [{
+    assetId: 'old-region', sceneId: 'fuel', requiredObject: 'fuel-track', visualRole: 'TRACK',
+    present: true, complete: true, isolated: true, confidence: .99, evidencePacketHash: 'measured',
+    trackPoints: [{ value: 1, x: .1, y: .2 }, { value: 2, x: .2, y: .3 }],
+    stateStages: [{ position: 1, sourcePages: [7] }, { position: 2, sourcePages: [7] }],
+  }] };
+  const [current] = replayInstructionalSequences({
+    assets: [{ id: 'new-region', sourcePdfSha256, contentHash: imageSha256 }], priorAssets: [prior],
+  });
+  expect(current.objectVisualEvidence).toEqual(expect.arrayContaining([expect.objectContaining({
+    assetId: 'new-region', visualRole: 'TRACK', recoveredFrom: expect.objectContaining({ priorAssetId: 'old-region' }),
+  })]));
+  const [wrongSource] = replayInstructionalSequences({
+    assets: [{ id: 'new-region', sourcePdfSha256: 'c'.repeat(64), contentHash: imageSha256 }], priorAssets: [prior],
+  });
+  expect(wrongSource.objectVisualEvidence).toBeUndefined();
+});
+
 function makeAsset(root, { id, page = 4, classification = 'card', confidence = 0.8, width = 600, height = 800 }) {
   const fileName = `${id}.png`;
   fs.writeFileSync(path.join(root, 'images', 'all', fileName), 'fixture');

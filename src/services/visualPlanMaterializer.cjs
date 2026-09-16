@@ -606,19 +606,33 @@ function chooseTrackCandidate(candidates = []) {
 }
 
 /** Source-measured track + provider-written states; preparation is NOT acceptance. */
-async function materializeTrackStateFrames({ projectId, scene, assets, outputDir } = {}) {
+function assessTrackStateMaterialization({ scene, assets = [] } = {}) {
   const req=scene.visualRequirement || {};
-  if(!req.trackStateRequired || req.requiredObjects?.length!==1)return null;
+  if(!req.trackStateRequired || req.requiredObjects?.length!==1)return {eligible:false,reason:'track-state-not-required',candidates:[]};
   const referent=req.requiredObjects[0];
   const {objectEvidenceFor,identityContextTermsFor}=require('./sourceAssetResolver.cjs');
   const identityContextTerms=identityContextTermsFor(req,referent);
-  const candidates=assets.map(asset=>({asset,component:objectEvidenceFor(asset,referent,scene.id,{identityContextTerms}),
-    track:(asset.objectVisualEvidence||[]).find(r=>r.visualRole==='TRACK'&&r.sceneId===scene.id&&r.requiredObject===referent&&r.assetId===asset.id)}))
-    .filter(({asset,component,track})=>component?.present&&component.complete&&component.isolated&&component.confidence>=.9
-      &&track?.confidence>=.9&&track.complete&&track.trackPoints?.length>1&&track.stateStages?.length>=2&&track.stateStages.length<=8
-      &&track.imageSha256===sha(fs.readFileSync(sourceFile(asset)))&&/^[a-f0-9]{64}$/.test(asset.sourcePdfSha256||''));
-  if(!candidates.length)return null;
-  const selectedCandidate=chooseTrackCandidate(candidates);
+  const candidates=assets.map(asset=>{
+    const component=objectEvidenceFor(asset,referent,scene.id,{identityContextTerms});
+    const track=(asset.objectVisualEvidence||[]).find(r=>r.visualRole==='TRACK'&&r.sceneId===scene.id&&r.requiredObject===referent&&r.assetId===asset.id);
+    const file=sourceFile(asset);
+    const reasons=[];
+    if(!component?.present||!component.complete||!component.isolated||component.confidence<.9)reasons.push('component-evidence-incomplete');
+    if(!track?.confidence||track.confidence<.9||!track.complete||track.trackPoints?.length<=1||track.stateStages?.length<2||track.stateStages?.length>8)reasons.push('track-evidence-incomplete');
+    if(!file||!fs.existsSync(file))reasons.push('source-file-missing');
+    else if(track?.imageSha256!==sha(fs.readFileSync(file)))reasons.push('source-pixel-hash-mismatch');
+    if(!/^[a-f0-9]{64}$/.test(asset.sourcePdfSha256||''))reasons.push('source-pdf-identity-missing');
+    return {asset,component,track,reasons};
+  });
+  const eligible=candidates.filter(candidate=>candidate.reasons.length===0);
+  return {eligible:true,referent,identityContextTerms,candidates,selected:chooseTrackCandidate(eligible)};
+}
+
+async function materializeTrackStateFrames({ projectId, scene, assets, outputDir } = {}) {
+  const assessment=assessTrackStateMaterialization({scene,assets});
+  if(!assessment.eligible||!assessment.selected)return null;
+  const {referent}=assessment;
+  const selectedCandidate=assessment.selected;
   const {asset,track}=selectedCandidate;
   const points=new Map(track.trackPoints.map(p=>[p.value,p]));
   const pages=new Set(scene.source_pages||[]);
@@ -1062,7 +1076,11 @@ async function materializeVisualPlanFrames({ state, outputDir, width = 1400, hei
 function attachSequenceReviewEvidence({ assets, records, reviewPaths=[] }) {
  const reviewed=records.map(record=>{
    const review=reviewPaths.map(p=>JSON.parse(fs.readFileSync(p))).find(r=>r.scenes?.some(s=>s.scene_id===record.sceneId));
-   return review?{...record,review}:null;
+   const sceneReview=review?.scenes?.find(scene=>scene.scene_id===record.sceneId);
+   // An UNKNOWN/review-only composition is indispensable Cockpit evidence,
+   // but it is not a replacement for a previously measured valid sequence.
+   // Preserve the latter until a new positive composition verdict exists.
+   return review&&sceneReview?.candidates?.some(candidate=>candidate.status==='MEASURED')?{...record,review}:null;
  }).filter(Boolean);
  // A reviewed sequence is the current active evidence for its scene. Replays
  // must replace that scene's former materialization instead of appending an
@@ -1096,9 +1114,23 @@ function compositionReviewEnvironment(env = process.env) {
  return group ? {...env,MOBIUS_VISUAL_BUDGET_GROUP:group} : env;
 }
 
+function compositionReviewPolicy(env = process.env) {
+ const value=String(env.MOBIUS_VISUAL_COMPOSITION_SCENE_IDS||'').trim();
+ const sceneIds=new Set(value.split(',').map(id=>id.trim()).filter(Boolean));
+ const raw=String(env.MOBIUS_VISUAL_COMPOSITION_MAX_PROVIDER_CALLS||'').trim();
+ const maxProviderCalls=raw===''?Infinity:Number(raw);
+ if(!Number.isFinite(maxProviderCalls)&&maxProviderCalls!==Infinity)throw new Error('VISUAL_COMPOSITION_PROVIDER_CALL_LIMIT_INVALID');
+ if(maxProviderCalls<0||!Number.isInteger(maxProviderCalls))throw new Error('VISUAL_COMPOSITION_PROVIDER_CALL_LIMIT_INVALID');
+ return {sceneIds,maxProviderCalls};
+}
+
 async function reviewPreparedSequences({state,materialized,outputDir,env=process.env}){
   const reviewPaths=[];
+ const policy=compositionReviewPolicy(env);
+ let providerCalls=0;
  for(const sequence of materialized.records.filter(r=>r.frames?.length && !r.validated)){
+  if(policy.sceneIds.size&&!policy.sceneIds.has(sequence.sceneId))continue;
+  if(providerCalls>=policy.maxProviderCalls)break;
   const scene=state.scenes.find(s=>s.id===sequence.sceneId);
   const folder=path.resolve(outputDir,sequence.sceneId);fs.mkdirSync(folder,{recursive:true});
   const inputPath=path.join(folder,'input.json');
@@ -1116,9 +1148,12 @@ async function reviewPreparedSequences({state,materialized,outputDir,env=process
   const reviewPath=path.join(folder,'composition-review.json');
   if(result.status!==0 || !fs.existsSync(reviewPath))throw new Error('COMPOSITION_REVIEW_EXECUTION_FAILED');
   reviewPaths.push(reviewPath);
-  if(JSON.parse(fs.readFileSync(reviewPath)).summary?.providerBlocker)break;
+  const summary=JSON.parse(fs.readFileSync(reviewPath)).summary||{};
+  providerCalls+=Math.max(0,Number(summary.providerCalls||0));
+  if(summary.providerBlocker)break;
  }
- return {assets:attachSequenceReviewEvidence({assets:state.assets,records:materialized.records,reviewPaths}),reviewPaths};
+ return {assets:attachSequenceReviewEvidence({assets:state.assets,records:materialized.records,reviewPaths}),reviewPaths,providerCalls,
+  policy:{sceneIds:[...policy.sceneIds],maxProviderCalls:policy.maxProviderCalls}};
 }
 
-module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, VISUAL_PLAN_MATERIALIZER_CONTRACT, STATE_SEQUENCE_CONTRACT, SEMANTIC_SEQUENCE_CONTRACT, INSTRUCTIONAL_DIAGRAM_CONTRACT, TRACK_SEQUENCE_CONTRACT, TEXT_TEACHING_STILL_CONTRACT, cellsFor, localizedVisualTeaching, statefulTeachingLayout, statefulComponentDisplayBounds, sourceMeasuredComponentCandidate, materializeVisualPlanFrames, materializeTrackStateFrames, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, materializeSourceGroundedInstructionalDiagram, materializeSourceGroundedTextStill, semanticTeachingStages, instructionalDiagramStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill, validateDeterministicIdentityStill };
+module.exports = { reviewPreparedSequences, attachSequenceReviewEvidence, compositionReviewEnvironment, compositionReviewPolicy, VISUAL_PLAN_MATERIALIZER_CONTRACT, STATE_SEQUENCE_CONTRACT, SEMANTIC_SEQUENCE_CONTRACT, INSTRUCTIONAL_DIAGRAM_CONTRACT, TRACK_SEQUENCE_CONTRACT, TEXT_TEACHING_STILL_CONTRACT, cellsFor, localizedVisualTeaching, statefulTeachingLayout, statefulComponentDisplayBounds, sourceMeasuredComponentCandidate, materializeVisualPlanFrames, materializeTrackStateFrames, assessTrackStateMaterialization, materializeStatefulInstructionalFrames, materializeSemanticInstructionalFrames, materializeSourceGroundedInstructionalDiagram, materializeSourceGroundedTextStill, semanticTeachingStages, instructionalDiagramStages, chooseTrackCandidate, canonicalTeachingPresentation, materializeInstructionalStill, validateDeterministicIdentityStill };

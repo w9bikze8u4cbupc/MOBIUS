@@ -61,6 +61,7 @@ const { compileCanonicalProductionState } = require('../src/services/canonicalPr
 const { recoverAuthorizedBggCandidates, recoverOfficialPublisherCandidates, rectifyAuthorizedCandidate, buildAuthorizedRecoveryTargets, OFFICIAL_PUBLISHER_SOURCE_RECOVERY_CONTRACT } = require('../src/services/sourceAssetResolver.cjs');
 const { buildPhoneScaleQaSheet } = require('../src/services/phoneScaleQa.cjs');
 const { materializeVisualPlanFrames, reviewPreparedSequences } = require('../src/services/visualPlanMaterializer.cjs');
+const { loadRecovery } = require('../src/services/visualEvidenceRecovery.cjs');
 
 const VOICE_ID = process.env.ELEVENLABS_VOICE_ID_AMELIE || 'UJCi4DDncuo0VJDSIegj';
 const VOICE_NAME = 'Amélie';
@@ -1497,12 +1498,17 @@ async function runZeroState(options = {}) {
     projectId,
     sourceSha256: identity.sha256,
   });
+  const recoveredInstructionalEvidenceAssets = loadRecovery({
+    recoveryPath: path.join(productionDir, 'recovered-visual-evidence.json'),
+    projectId,
+    sourceSha256: identity.sha256,
+  });
   const baseCatalogForCompilation = loadSourceVisualCatalog(combinedVisualManifestPath, { qualityReportPath: qualityPath, semanticReportPath: semanticPath, hephaestusEvidencePath: hephEvidencePath });
   const catalog = {
     ...baseCatalogForCompilation,
     assets: replayInstructionalSequences({
       assets: baseCatalogForCompilation.assets,
-      priorAssets: priorInstructionalSequenceAssets,
+      priorAssets: [...priorInstructionalSequenceAssets, ...recoveredInstructionalEvidenceAssets],
     }),
   };
   const visualPlansPath = path.join(productionDir, 'visual-plans.json');

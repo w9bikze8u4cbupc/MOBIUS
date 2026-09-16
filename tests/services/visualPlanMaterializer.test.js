@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const sharp = require('sharp');
-const { materializeVisualPlanFrames, compositionReviewEnvironment, attachSequenceReviewEvidence } = require('../../src/services/visualPlanMaterializer.cjs');
+const { materializeVisualPlanFrames, compositionReviewEnvironment, compositionReviewPolicy, attachSequenceReviewEvidence } = require('../../src/services/visualPlanMaterializer.cjs');
 
 const fixture = path.resolve(__dirname, '../../src/assets/branding/les-jeux-mobius-banner-canonical.png');
 const outputDir = path.resolve(__dirname, '../../out/test-visual-plan-materializer');
@@ -13,6 +13,15 @@ test('composition review may use an explicitly bounded sub-stage ledger group', 
     MOBIUS_VISUAL_COMPOSITION_BUDGET_GROUP: 'composition',
   }).MOBIUS_VISUAL_BUDGET_GROUP).toBe('composition');
   expect(() => compositionReviewEnvironment({ MOBIUS_VISUAL_REQUIRE_BUDGET_LEDGER: 'true' })).toThrow('VISUAL_BUDGET_LEDGER_REQUIRED');
+});
+
+test('composition review policy can bound and target normal evidence measurement without accepting it', () => {
+  expect(compositionReviewPolicy({
+    MOBIUS_VISUAL_COMPOSITION_SCENE_IDS: 'scene-a, scene-b',
+    MOBIUS_VISUAL_COMPOSITION_MAX_PROVIDER_CALLS: '2',
+  })).toMatchObject({ sceneIds: new Set(['scene-a', 'scene-b']), maxProviderCalls: 2 });
+  expect(() => compositionReviewPolicy({ MOBIUS_VISUAL_COMPOSITION_MAX_PROVIDER_CALLS: '-1' }))
+    .toThrow('VISUAL_COMPOSITION_PROVIDER_CALL_LIMIT_INVALID');
 });
 
 test('track preparation prefers stronger measured state evidence before native area', () => {
@@ -28,10 +37,10 @@ test('track preparation prefers stronger measured state evidence before native a
   expect(chooseTrackCandidate([largerButWeaker, candidate('measured-sequence')]).asset.id).toBe('measured-sequence');
 });
 
-test('reviewed sequence replay supersedes the active scene evidence without catalogue growth', () => {
+test('only a measured composition review supersedes active scene evidence without catalogue growth', () => {
   fs.mkdirSync(outputDir, { recursive: true });
   const reviewPath = path.join(outputDir, 'sequence-review.json');
-  fs.writeFileSync(reviewPath, JSON.stringify({ scenes: [{ scene_id: 'scene-a', result: 'REVIEW' }] }));
+  fs.writeFileSync(reviewPath, JSON.stringify({ scenes: [{ scene_id: 'scene-a', result: 'REVIEW', candidates: [{ status: 'MEASURED' }] }] }));
   const stale = { sceneId: 'scene-a', contract: 'sequence-v1', materializerContract: 'materializer-v6', frames: [{ outputPath: 'old.png' }] };
   const unrelated = { sceneId: 'scene-b', contract: 'sequence-v1', materializerContract: 'materializer-v6', frames: [{ outputPath: 'other.png' }] };
   const current = { sceneId: 'scene-a', contract: 'sequence-v2', materializerContract: 'materializer-v7', sourceAssets: [{ assetId: 'asset-a' }], frames: [{ outputPath: 'new.png' }] };
@@ -43,6 +52,16 @@ test('reviewed sequence replay supersedes the active scene evidence without cata
   expect(first[0].instructionalSequences.find((item) => item.sceneId === 'scene-a')).toMatchObject({ contract: 'sequence-v2' });
   expect(first[1].instructionalSequences).toEqual([]);
   expect(replay).toEqual(first);
+});
+
+test('an unresolved composition review preserves a valid active sequence', () => {
+  fs.mkdirSync(outputDir, { recursive: true });
+  const reviewPath = path.join(outputDir, 'unknown-sequence-review.json');
+  fs.writeFileSync(reviewPath, JSON.stringify({ scenes: [{ scene_id: 'scene-a', result: 'REVIEW', candidates: [{ status: 'UNKNOWN' }] }] }));
+  const valid = { sceneId: 'scene-a', contract: 'sequence-v2', validated: true, sourceAssets: [{ assetId: 'asset-a' }] };
+  const prepared = { sceneId: 'scene-a', contract: 'sequence-v3', validated: false, sourceAssets: [{ assetId: 'asset-a' }] };
+  const [asset] = attachSequenceReviewEvidence({ assets: [{ id: 'asset-a', instructionalSequences: [valid] }], records: [prepared], reviewPaths: [reviewPath] });
+  expect(asset.instructionalSequences).toEqual([valid]);
 });
 
 test('mono-image still uses the real storyboard renderer and does not certify unmeasured composition', async () => {

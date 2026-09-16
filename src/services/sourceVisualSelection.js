@@ -678,6 +678,31 @@ export function loadSourceVisualCatalog(manifestPath, options = {}) {
  */
 export function replayInstructionalSequences({ assets = [], priorAssets = [] } = {}) {
   const currentById = new Map((assets || []).filter((asset) => asset?.id).map((asset) => [asset.id, asset]));
+  const validSha = (value) => /^[a-f0-9]{64}$/i.test(String(value || ''));
+  const sourcePdf = (asset = {}) => asset.sourcePdfSha256 || asset.provenance?.sourcePdfSha256
+    || asset.provenance?.sourceRegion?.sourcePdfSha256 || null;
+  const sourcePixels = (asset = {}) => asset.contentHash || asset.imageSha256
+    || asset.provenance?.sourceRegion?.sha256 || asset.nativeSourceEvidence?.assetSha256 || null;
+  // Catalogue IDs are intentionally derived from a manifest/crop pass and can
+  // change while the authoritative PDF pixels remain identical. Reconnect a
+  // measured result only through both immutable identities, never a filename
+  // or a semantic label.
+  const sourceKey = (asset = {}) => validSha(sourcePdf(asset)) && validSha(sourcePixels(asset))
+    ? `${String(sourcePdf(asset)).toLowerCase()}:${String(sourcePixels(asset)).toLowerCase()}` : null;
+  const currentBySource = new Map();
+  for (const asset of assets || []) {
+    const key = sourceKey(asset);
+    if (!key) continue;
+    const rows = currentBySource.get(key) || [];
+    rows.push(asset);
+    currentBySource.set(key, rows);
+  }
+  const uniqueCurrentAsset = (prior = {}) => {
+    if (prior.assetId && currentById.has(prior.assetId)) return currentById.get(prior.assetId);
+    const key = sourceKey(prior);
+    const rows = key ? currentBySource.get(key) || [] : [];
+    return rows.length === 1 ? rows[0] : null;
+  };
   const additions = new Map();
   const sourceAssetsFor = (sequence = {}, fallbackAssetId = null) => {
     const declared = Array.isArray(sequence.sourceAssets)
@@ -689,24 +714,56 @@ export function replayInstructionalSequences({ assets = [], priorAssets = [] } =
   };
   const keyFor = (sequence) => crypto.createHash('sha256').update(JSON.stringify(sequence)).digest('hex');
 
+  const rebindEvidence = (priorAsset, currentAsset) => {
+    const priorKey = sourceKey(priorAsset);
+    if (!priorKey || priorKey !== sourceKey(currentAsset)) return null;
+    const evidence = (priorAsset.objectVisualEvidence || []).filter((row) => row?.present === true
+      && row.complete === true && row.isolated === true && ['COMPONENT', 'TRACK'].includes(row.visualRole));
+    if (!evidence.length) return null;
+    return evidence.map((row) => ({ ...row, assetId: currentAsset.id, imageSha256: sourcePixels(currentAsset),
+      recoveredFrom: { contract: 'mobius-recoverable-visual-evidence-v1', priorAssetId: priorAsset.id, sourceIdentity: priorKey } }));
+  };
+
+  const evidenceAdditions = new Map();
   for (const priorAsset of priorAssets || []) {
+    const samePixels = uniqueCurrentAsset(priorAsset);
+    if (samePixels) {
+      const evidence = rebindEvidence(priorAsset, samePixels);
+      if (evidence) evidenceAdditions.set(samePixels.id, evidence);
+    }
     for (const sequence of priorAsset?.instructionalSequences || []) {
       const sources = sourceAssetsFor(sequence, priorAsset?.id);
-      if (!sources.length || !sources.every((source) => currentById.has(source.assetId))) continue;
-      for (const source of sources) {
-        const rows = additions.get(source.assetId) || [];
-        rows.push(sequence);
-        additions.set(source.assetId, rows);
+      const reboundSources = sources.map((source) => uniqueCurrentAsset(source));
+      if (!sources.length || reboundSources.some((source) => !source)) continue;
+      const rebound = structuredClone(sequence);
+      rebound.assetId = uniqueCurrentAsset({ ...priorAsset, assetId: sequence.assetId })?.id || reboundSources[0].id;
+      rebound.sourceAssets = reboundSources.map((asset, index) => {
+        const source = { ...sources[index], assetId: asset.id };
+        const pixels = sourcePixels(asset) || source.sourceImageSha256;
+        const pdf = sourcePdf(asset) || source.sourcePdfSha256;
+        if (pixels) source.sourceImageSha256 = pixels;
+        else delete source.sourceImageSha256;
+        if (pdf) source.sourcePdfSha256 = pdf;
+        else delete source.sourcePdfSha256;
+        return source;
+      });
+      for (const asset of reboundSources) {
+        const rows = additions.get(asset.id) || [];
+        rows.push(rebound);
+        additions.set(asset.id, rows);
       }
     }
   }
 
   return (assets || []).map((asset) => {
     const combined = [...(asset?.instructionalSequences || []), ...(additions.get(asset?.id) || [])];
-    if (!combined.length) return asset;
+    const evidence = [...(asset?.objectVisualEvidence || []), ...(evidenceAdditions.get(asset?.id) || [])];
+    if (!combined.length && !evidence.length) return asset;
     const seen = new Set();
     return {
       ...asset,
+      objectVisualEvidence: evidence.filter((item, index, rows) => rows.findIndex((row) => `${row.visualRole}:${row.sceneId}:${row.requiredObject}:${row.evidencePacketHash || ''}`
+        === `${item.visualRole}:${item.sceneId}:${item.requiredObject}:${item.evidencePacketHash || ''}`) === index),
       instructionalSequences: combined.filter((sequence) => {
         const key = keyFor(sequence);
         if (seen.has(key)) return false;
