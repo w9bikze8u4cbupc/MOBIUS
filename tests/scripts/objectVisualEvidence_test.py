@@ -695,6 +695,17 @@ class ObjectEvidenceTests(unittest.TestCase):
         self.assertEqual([scene['id'] for scene in matcher.prioritize_scenes(scenes)], ['track', 'discovery', 'ordinary', 'summary'])
         self.assertEqual([scene['id'] for scene in scenes], ['summary', 'ordinary', 'track', 'discovery'])
 
+    def test_explicit_recovery_referents_precede_unrelated_track_work_in_director_order(self):
+        scenes = [
+            {'id': 'fuel-track', 'visualRequirement': {'requiredObjects': ['fuel-board'], 'trackStateRequired': True}},
+            {'id': 'capture-discovery', 'visualRequirement': {'requiredObjects': ['capture-token'], 'componentDiscovery': True}},
+            {'id': 'basic-discovery', 'visualRequirement': {'requiredObjects': ['basic-action-card'], 'componentDiscovery': True}},
+        ]
+        with patch.dict(matcher.os.environ, {'MOBIUS_VISUAL_SOURCE_PRIORITY_REFERENTS': 'capture-token,basic-action-card'}, clear=False):
+            self.assertEqual([scene['id'] for scene in matcher.prioritize_scenes(scenes)], [
+                'capture-discovery', 'basic-discovery', 'fuel-track',
+            ])
+
     def test_track_geometry_is_scheduled_from_outer_scene_not_identity_packet(self):
         packet = {'requirement': {'trackStateRequired': True}}
         scoped = {'requiredObjects': [{'id': 'board'}], 'requirement': {'identityOnly': True}}

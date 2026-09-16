@@ -287,6 +287,18 @@ def external_authorized_term_matches(scene, terms, assets):
     return matches
 
 
+def explicit_referent_priority():
+    """Return the bounded recovery order requested by the canonical worker.
+
+    This is execution scheduling only.  It can never create, relax, or reuse
+    a visual verdict.  A small explicitly-authorized recovery must spend its
+    finite calls on the referents it names, before the ordinary pedagogical
+    scheduler considers unrelated track or transition scenes.
+    """
+    values = [value.strip() for value in str(os.getenv('MOBIUS_VISUAL_SOURCE_PRIORITY_REFERENTS') or '').split(',')]
+    return {value: index for index, value in enumerate(values) if value}
+
+
 def prioritize_scenes(scenes, terms=None, assets=None):
     """Return analysis order without mutating the authored scene sequence.
 
@@ -302,7 +314,15 @@ def prioritize_scenes(scenes, terms=None, assets=None):
     # A caption match is useful only among scenes with comparable teaching
     # urgency.  It must not let a non-teaching discovery packet displace a
     # stateful lesson merely because a broad gallery caption overlaps a term.
-    return sorted(scenes, key=lambda scene: (*analysis_priority(scene, frequencies),
+    requested_order = explicit_referent_priority()
+    def requested_rank(scene):
+        referents = ((scene.get('visualRequirement') or {}).get('requiredObjects') or [])
+        ranks = [requested_order[referent] for referent in referents if referent in requested_order]
+        # Keep the complete normal scheduler unchanged when no explicit bounded
+        # recovery exists.  A named referent is merely inspected first; every
+        # existing semantic, provenance, crop, and state gate still applies.
+        return (0, min(ranks)) if ranks else (1, len(requested_order))
+    return sorted(scenes, key=lambda scene: (*requested_rank(scene), *analysis_priority(scene, frequencies),
         -external_authorized_term_matches(scene, terms, assets)))
 
 def measured_object(row, role=None):
