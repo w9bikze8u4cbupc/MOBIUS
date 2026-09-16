@@ -139,7 +139,7 @@ async function main() {
     }),
   };
   const componentDiscoveryScenes = buildComponentDiscoveryScenes({
-    scenes: inputScript.scenes || [],
+    scenes: prioritizedScenes,
     componentTerms: inputScript.componentTerms || {},
   });
   const sourceEvidenceScriptPath = resolve(outputDir, 'source-evidence-visual-script.json');
