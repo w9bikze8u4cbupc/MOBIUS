@@ -101,9 +101,39 @@ def _referent_identity(ident, entry):
             'evidence': _bounded_official_context(entry.get('evidence'), maximum=2, characters=480)}
     return {'id': ident, 'term': entry or ident, 'category': None, 'frenchTerm': None, 'evidence': []}
 
+def _identity_context_hash(row):
+    """Stable proof key for a named member of a generic component family.
+
+    An empty context is deliberately the reusable generic-family case.  A
+    non-empty context is an official-rulebook constraint, not a tag inferred
+    from an asset filename or a teaching caption.
+    """
+    terms = sorted({str(term).strip() for term in (row.get('identityContextTerms') or []) if str(term).strip()})
+    evidence = sorted([{
+        'page': ref.get('page'), 'excerptHash': ref.get('excerptHash'),
+    } for ref in (row.get('identityContextEvidence') or [])
+        if isinstance(ref, dict) and isinstance(ref.get('page'), int) and ref.get('page') > 0],
+        key=lambda ref: (ref['page'], ref.get('excerptHash') or ''))
+    return digest({'terms': terms, 'evidence': evidence}) if terms else None
+
 def packet_for(scene, terms):
     req = scene.get("visualRequirement") or {}
-    referents = [_referent_identity(ident, terms.get(ident)) for ident in req.get("requiredObjects", [])]
+    descriptors = {row.get('id'): row for row in req.get('requiredObjectDescriptors') or []
+        if isinstance(row, dict) and row.get('id')}
+    referents = []
+    for ident in req.get("requiredObjects", []):
+        referent = _referent_identity(ident, terms.get(ident))
+        descriptor = descriptors.get(ident) or {}
+        # These terms originate in an accepted RuleAtom and exact official
+        # excerpts. They narrow named-variant discovery but never establish
+        # that the named object is visible in candidate pixels.
+        referent['identityContextTerms'] = sorted({str(term).strip() for term in descriptor.get('identityContextTerms') or [] if str(term).strip()})
+        referent['identityContextEvidence'] = [{
+            'page': ref.get('page'), 'excerptHash': ref.get('excerptHash'),
+        } for ref in descriptor.get('identityContextEvidence') or []
+            if isinstance(ref, dict) and isinstance(ref.get('page'), int) and ref.get('page') > 0]
+        referent['identityContextHash'] = _identity_context_hash(referent)
+        referents.append(referent)
     # A rule's cited page often explains an action, while the authoritative
     # component inventory is the page that actually shows or names the thing
     # a learner must recognize.  Both are bounded search hypotheses.  They do
@@ -123,6 +153,10 @@ def packet_for(scene, terms):
             if isinstance(page, int) and page > 0:
                 source_pages.add(page)
                 component_evidence_pages.add(page)
+        for evidence in referent.get('identityContextEvidence') or []:
+            page = evidence.get('page') if isinstance(evidence, dict) else None
+            if isinstance(page, int) and page > 0:
+                source_pages.add(page)
     return {"contract": CONTRACT, "requiredObjects": referents, "requirement": req,
         "sourceRefs": scene.get("sourceRefs") or [], "sourcePages": sorted(source_pages),
         "ruleSourcePages": sorted(rule_source_pages),
@@ -144,7 +178,9 @@ def component_identity_packet(packet, role, asset=None):
         'identityContract': COMPONENT_IDENTITY_PACKET_CONTRACT,
         'visualRole': role,
         'searchContract': SEARCH_CONTRACT,
-        'requiredObjects': [{'id': row['id'], 'term': row.get('term') or row['id']}
+        'requiredObjects': [{'id': row['id'], 'term': row.get('term') or row['id'],
+            'identityContextTerms': row.get('identityContextTerms') or [],
+            'identityContextHash': _identity_context_hash(row)}
             for row in packet.get('requiredObjects') or []],
         'requirement': {
             'actualGameAssetRequired': bool((packet.get('requirement') or {}).get('actualGameAssetRequired')),
@@ -157,6 +193,9 @@ def component_identity_packet(packet, role, asset=None):
             'requiredObject': row['id'], 'canonicalTerm': row.get('term') or row['id'],
             'category': row.get('category'), 'frenchTerm': row.get('frenchTerm'),
             'componentEvidence': row.get('evidence') or [],
+            'variantTerms': row.get('identityContextTerms') or [],
+            'variantEvidence': row.get('identityContextEvidence') or [],
+            'variantContextHash': _identity_context_hash(row),
         } for row in packet.get('requiredObjects') or []],
         # Deliberately exclude this teaching scene's rule excerpts. They
         # describe an action/state and would make the exact same physical
@@ -272,14 +311,19 @@ def measured_object(row, role=None):
         and isinstance(row.get('confidence'), (int, float)) and row['confidence'] >= .9
         and (role is None or row.get('visualRole') == role))
 
-def component_identity_proven(referent, report):
+def _context_matches(row, context_hash=None):
+    # Historical rows have no context and remain valid only for generic-family
+    # requests. A named variant must be measured against its own cited context.
+    return (row.get('identityContextHash') or None) == (context_hash or None)
+
+def component_identity_proven(referent, report, context_hash=None):
     """True only for a complete, isolated provider measurement of this object."""
-    return any(obj.get('requiredObject') == referent and measured_object(obj, 'COMPONENT')
+    return any(obj.get('requiredObject') == referent and _context_matches(obj, context_hash) and measured_object(obj, 'COMPONENT')
         for scene in report.get('scenes', []) for candidate in scene.get('candidates', [])
         for obj in candidate.get('objects', []))
 
 
-def retained_component_identity_proven(referent, retained, available_asset_identities=None):
+def retained_component_identity_proven(referent, retained, available_asset_identities=None, context_hash=None):
     """Use compatible component proofs before scheduling a new recovery epoch.
 
     `retained_measurements` deliberately indexes only exact pixels, object IDs,
@@ -289,12 +333,13 @@ def retained_component_identity_proven(referent, retained, available_asset_ident
     for a component that the canonical catalogue can already reuse.
     """
     available = set(available_asset_identities or [])
-    return any(role == 'COMPONENT' and referent in identity[2]
-        and (not available or (identity[0], identity[1]) in available)
-        for role, identity in (retained.get('identity') or {}))
+    return any(role == 'COMPONENT' and (not available or (identity[0], identity[1]) in available)
+        and any(row.get('requiredObject') == referent and _context_matches(row, context_hash)
+            and measured_object(row, 'COMPONENT') for row in rows)
+        for (role, identity), rows in (retained.get('identity') or {}).items())
 
 
-def retained_component_candidates(referents, retained, available_asset_identities=None):
+def retained_component_candidates(referents, retained, available_asset_identities=None, context_by_referent=None):
     """Project exact retained candidates into the current report.
 
     Reusing an identity must remain visible to the canonical asset catalogue;
@@ -303,8 +348,13 @@ def retained_component_candidates(referents, retained, available_asset_identitie
     """
     available = set(available_asset_identities or [])
     candidates, seen = [], set()
+    context_by_referent = context_by_referent or {}
     for (role, identity), candidate in (retained.get('identityCandidates') or {}).items():
-        if role != 'COMPONENT' or not set(referents) & set(identity[2]):
+        rows = (retained.get('identity') or {}).get((role, identity), [])
+        matching = [referent for referent in referents if any(
+            row.get('requiredObject') == referent and _context_matches(row, context_by_referent.get(referent))
+            and measured_object(row, 'COMPONENT') for row in rows)]
+        if role != 'COMPONENT' or not matching:
             continue
         if available and (identity[0], identity[1]) not in available:
             continue
@@ -315,20 +365,21 @@ def retained_component_candidates(referents, retained, available_asset_identitie
         seen.add(candidate_key)
     return candidates
 
-def scene_needs_identity_work(scene, report):
+def scene_needs_identity_work(scene, report, packet=None):
     required = (scene.get('visualRequirement') or {}).get('requiredObjects') or []
-    return bool(required) and any(not component_identity_proven(ident, report) for ident in required)
+    contexts = {row.get('id'): _identity_context_hash(row) for row in (packet or {}).get('requiredObjects') or []}
+    return bool(required) and any(not component_identity_proven(ident, report, contexts.get(ident)) for ident in required)
 
 def prior_scene_referents(scene):
-    """Recover canonical referent IDs from a persisted matcher scene."""
+    """Recover canonical referent IDs and exact variant constraints."""
     for candidate in scene.get('candidates', []):
         refs = (candidate.get('evidencePacket') or {}).get('requiredObjects') or []
-        ids = [ref.get('id') for ref in refs if isinstance(ref, dict) and ref.get('id')]
-        if ids:
-            return ids
+        rows = [(ref.get('id'), _identity_context_hash(ref)) for ref in refs if isinstance(ref, dict) and ref.get('id')]
+        if rows:
+            return rows
     return []
 
-def scene_measurement_complete(scene, prior):
+def scene_measurement_complete(scene, prior, packet=None):
     """Whether retained pixel evidence already satisfies this exact scene.
 
     This is only an execution optimisation. The canonical resolver remains the
@@ -339,7 +390,8 @@ def scene_measurement_complete(scene, prior):
     if not required:
         return False
     rows = [obj for candidate in prior.get('candidates', []) for obj in candidate.get('objects', [])]
-    component_complete = lambda ident: any(obj.get('requiredObject') == ident and measured_object(obj, 'COMPONENT') for obj in rows)
+    contexts = {row.get('id'): _identity_context_hash(row) for row in (packet or {}).get('requiredObjects') or []}
+    component_complete = lambda ident: any(obj.get('requiredObject') == ident and _context_matches(obj, contexts.get(ident)) and measured_object(obj, 'COMPONENT') for obj in rows)
     if req.get('trackStateRequired'):
         return all(component_complete(ident) and any(obj.get('requiredObject') == ident and measured_object(obj, 'TRACK')
             and len(obj.get('trackPoints') or []) > 1 and len(obj.get('stateStages') or []) >= 2 for obj in rows) for ident in required)
@@ -371,7 +423,7 @@ def continuation_required(report, max_calls):
     # A retained unknown state/composition candidate belongs to later normal
     # composition materialization, not an excuse to repeatedly inspect pixels.
     return any((refs := prior_scene_referents(scene))
-        and any(not component_identity_proven(referent, report) for referent in refs)
+        and any(not component_identity_proven(referent, report, context_hash) for referent, context_hash in refs)
         and any(candidate.get('status') == 'UNKNOWN'
             and budget_exhausted_reason(candidate.get('reason'))
             for candidate in scene.get('candidates', []))
@@ -395,6 +447,10 @@ def candidates_for(packet, assets):
     # widens the bounded search; it cannot accept an asset or bypass crop,
     # detail, physical-state, and source-authority gates.
     terms = [r['term'] if isinstance(r['term'], str) else r['term'].get('name', '') for r in packet['requiredObjects']]
+    # Variant terms only prioritize where to inspect; provider pixel analysis
+    # still owns the decision that the named member is actually visible.
+    terms.extend(term for row in packet.get('requiredObjects') or []
+        for term in row.get('identityContextTerms') or [])
     tokens = set(re.findall(r'[a-z]{3,}', ' '.join(terms).lower())) - {'the', 'and'}
     requested_ids = {row.get('id') for row in packet.get('requiredObjects') or [] if isinstance(row, dict) and row.get('id')}
     component_evidence_pages = {page for page in packet.get('componentEvidencePages') or [] if isinstance(page, int) and page > 0}
@@ -928,16 +984,18 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
     for scene in prioritize_scenes(script.get("scenes", []), script.get("componentTerms") or {}, qa.get("assets", [])):
         if os.getenv('MOBIUS_VISUAL_SCENE_ID') and scene.get('id') != os.environ['MOBIUS_VISUAL_SCENE_ID']:
             continue
+        packet = packet_for(scene, script.get("componentTerms") or {})
+        context_by_referent = {row.get('id'): _identity_context_hash(row) for row in packet.get('requiredObjects') or []}
         prior = previous_by_scene.get(scene.get('id'))
-        if prior and scene_measurement_complete(scene, prior):
+        if prior and scene_measurement_complete(scene, prior, packet):
             scenes.append(prior)
             continue
         requirement = scene.get('visualRequirement') or {}
         retained_required = requirement.get('requiredObjects') or []
         retained_track_recovery = False
         replayed = []
-        if retained_required and all(retained_component_identity_proven(ident, retained, available_asset_identities) for ident in retained_required):
-            replayed = retained_component_candidates(retained_required, retained, available_asset_identities)
+        if retained_required and all(retained_component_identity_proven(ident, retained, available_asset_identities, context_by_referent.get(ident)) for ident in retained_required):
+            replayed = retained_component_candidates(retained_required, retained, available_asset_identities, context_by_referent)
             # A complete COMPONENT measurement proves the physical object's
             # identity, not a scene-specific numbered track or its transition.
             # Do not let the identity-reuse fast path suppress the bounded
@@ -955,7 +1013,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
             elif prior and not retained_track_recovery:
                 scenes.append(prior)
                 continue
-        if prior and previous and not scene_needs_identity_work(scene, previous):
+        if prior and previous and not scene_needs_identity_work(scene, previous, packet):
             # A separate scene already established the exact physical referent.
             # Retain this scene's state review untouched; component discovery is
             # complete and must not spend another provider call here.
@@ -964,7 +1022,6 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
             if not retained_track_recovery:
                 scenes.append(prior)
                 continue
-        packet = packet_for(scene, script.get("componentTerms") or {})
         if retained_track_recovery:
             # Keep the exact referent in the full packet. TRACK evidence is
             # scene-scoped and validates geometry plus source-bound state
@@ -974,8 +1031,8 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                 if obj['id'] in retained_required]
         else:
             packet['requiredObjects'] = [obj for obj in packet['requiredObjects']
-                if not retained_component_identity_proven(obj['id'], retained, available_asset_identities)
-                and not (previous and component_identity_proven(obj['id'], previous))]
+                if not retained_component_identity_proven(obj['id'], retained, available_asset_identities, _identity_context_hash(obj))
+                and not (previous and component_identity_proven(obj['id'], previous, _identity_context_hash(obj)))]
         if not packet['requiredObjects']:
             if prior:
                 scenes.append(prior)
@@ -1123,6 +1180,7 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                         "COMPONENT: verify the actual cropped object boundaries, identity and intrinsic face/orientation. "
                         "stateCompatible concerns intrinsic face/orientation only, NOT scene quantity, ownership, transitions or positions. "
                         "Scene relationships require separate final composition validation. "
+                        "When identityEvidence includes variantTerms, a generic member of the component family is NOT enough: verify the exact named variant from the supplied pixels or return present=false. "
                         "Do not invent game facts. Explain visible evidence and missing evidence.\n" + json.dumps(scoped_packet, ensure_ascii=False))
                     content = [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": probe, "detail": "high"}}]
                     if role == 'TRACK':
@@ -1208,9 +1266,13 @@ def run(script, qa, cache_dir, max_calls=8, client=None):
                     tmp.write_text(json.dumps({'identity': identity, 'objects': objects,
                         'usage': response.usage.model_dump() if response.usage else None}, ensure_ascii=False), encoding='utf-8')
                     tmp.replace(cache)
+                context_by_id = {row['id']: _identity_context_hash(row) for row in scoped_packet.get('requiredObjects') or []}
+                terms_by_id = {row['id']: row.get('identityContextTerms') or [] for row in scoped_packet.get('requiredObjects') or []}
                 result.update(status="MEASURED", objects=[{**r, "contract": CONTRACT, "assetId": asset["asset_id"],
                     "imageSha256": image_hash, "evidencePacketHash": packet_hash, "model": MODEL,
-                    "method": "provider-pixel-analysis", "visualRole": role, "evidenceRequirement": packet['requirement']} for r in objects])
+                    "method": "provider-pixel-analysis", "visualRole": role, "evidenceRequirement": packet['requirement'],
+                    "identityContextHash": context_by_id.get(r['requiredObject']),
+                    "identityContextTerms": terms_by_id.get(r['requiredObject'], [])} for r in objects])
                 if should_measure_track_geometry(packet, scoped_packet, role, objects):
                     queue.insert(queue.index(asset)+1,{**asset,'asset_metadata':{**(asset.get('asset_metadata') or {}),'visual_kind':'track-geometry'}})
                 if role == 'LOCALIZATION':

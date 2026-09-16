@@ -102,6 +102,31 @@ function normalizeSourceRefs(sourceRefs = []) {
 
 function visualObjectDescriptors(atom = {}, components = []) {
   const byId = new Map((components || []).map((component) => [clean(component.id), component]));
+  // A family term such as "Character board" is sufficient for a generic
+  // component discovery.  It is not sufficient when the cited rule names a
+  // particular member of that family (for example a character's own board).
+  // Keep that distinction source-bound: only a possessive proper name or a
+  // labelled rule identifier which also occurs in an official citation may
+  // become a pixel-search constraint.  This is deliberately narrower than
+  // arbitrary title-case words, which are common in headings and cannot prove
+  // a component variant.
+  const semanticText = [atom.title, atom.actor, atom.choice, atom.placement,
+    ...(atom.procedureSteps || []), ...(atom.costs || []).map((entry) => entry?.description)]
+    .map(clean).filter(Boolean).join(' ');
+  const candidateTerms = unique([
+    ...[...semanticText.matchAll(/\b([A-Z][\p{Ll}]{1,30})[’']s\b/gu)].map((match) => match[1]),
+    ...[...semanticText.matchAll(/\b([A-Z]{2,}(?:[_-][A-Z0-9]+)+)\b/g)].map((match) => match[1]),
+  ]);
+  const citationEvidence = normalizeSourceRefs(atom.sourceRefs).map((ref) => ({
+    page: ref.page,
+    excerptHash: ref.excerptHash,
+    quote: ref.quote,
+  }));
+  const identityContextTerms = candidateTerms.filter((term) => citationEvidence.some((ref) =>
+    new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'iu').test(ref.quote || '')));
+  const identityContextEvidence = citationEvidence.filter((ref) => identityContextTerms.some((term) =>
+    new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'iu').test(ref.quote || '')))
+    .map(({ page, excerptHash }) => ({ page, excerptHash }));
   return unique((atom.componentRefs || []).map(clean)).map((id) => {
     const component = byId.get(id) || {};
     return {
@@ -110,6 +135,8 @@ function visualObjectDescriptors(atom = {}, components = []) {
       category: clean(component.category || component.type) || null,
       aliases: unique([...(component.aliases || []), ...(component.sourceTerms || [])].map(clean)),
       sourcePage: Number(component.sourcePage || component.sourceRefs?.[0]?.page) || null,
+      identityContextTerms,
+      identityContextEvidence,
     };
   });
 }
@@ -187,7 +214,7 @@ function inferVisualRequirement(atom = {}, componentInventory = []) {
 function productionVisualRequirementForAtom(atom = {}, components = []) {
   const inferred = inferVisualRequirement(atom, components);
   const prior = atom.visualRequirement || {};
-  return normalizeVisualRequirement({
+  const normalized = normalizeVisualRequirement({
     ...prior,
     requiredState: inferred.requiredState,
     requiredOrientation: inferred.requiredOrientation,
@@ -210,6 +237,14 @@ function productionVisualRequirementForAtom(atom = {}, components = []) {
     representativeExamplesRequired: inferred.representativeExamplesRequired,
     requiredObjectDescriptors: visualObjectDescriptors(atom, components),
   }, atom, components);
+  // Referent recovery may replace a weak extraction fragment with an existing
+  // source-grounded component. Descriptors must follow that final canonical
+  // referent set: keeping descriptors for the superseded ID gives visual
+  // search a plausible-but-wrong component family.
+  return {
+    ...normalized,
+    requiredObjectDescriptors: visualObjectDescriptors({ ...atom, componentRefs: normalized.requiredObjects }, components),
+  };
 }
 
 function normalizeVisualRequirement(requirement = {}, atom = {}, components = []) {
@@ -224,6 +259,11 @@ function normalizeVisualRequirement(requirement = {}, atom = {}, components = []
       category: clean(entry.category) || null,
       aliases: unique((entry.aliases || []).map(clean)),
       sourcePage: Number(entry.sourcePage) > 0 ? Number(entry.sourcePage) : null,
+      identityContextTerms: unique((entry.identityContextTerms || []).map(clean)),
+      identityContextEvidence: (entry.identityContextEvidence || []).map((ref) => ({
+        page: Number(ref?.page) > 0 ? Number(ref.page) : null,
+        excerptHash: clean(ref?.excerptHash) || null,
+      })).filter((ref) => ref.page !== null),
     })).filter((entry) => entry.id && unique(merged.requiredObjects?.map(clean)).includes(entry.id)),
     requiredQuantities: Array.isArray(merged.requiredQuantities) ? merged.requiredQuantities : [],
     requiredState: clean(merged.requiredState) || null,

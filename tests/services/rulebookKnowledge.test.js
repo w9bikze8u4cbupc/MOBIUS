@@ -26,6 +26,36 @@ describe('canonical rulebook intelligence', () => {
     expect(placement).toMatchObject({ transitionRequired: true, setupPlacementRequired: true,
       requiredState: 'The token is on space 1.', requiredRelationship: 'On space 1 of the board.' });
   });
+
+  test('production descriptors follow source-grounded referents that supersede extraction fragments', () => {
+    const requirement = productionVisualRequirementForAtom({
+      id: 'recovered', domain: 'action', title: 'Use a character ability', componentRefs: ['stale-miniature'],
+      visualRequirement: { requiredObjects: ['character-board'], actualGameAssetRequired: true },
+    }, [
+      { id: 'stale-miniature', name: 'Unreliable miniature fragment', category: 'miniature', sourcePage: 2 },
+      { id: 'character-board', name: 'Character board', category: 'board', sourcePage: 3 },
+    ]);
+    expect(requirement.requiredObjects).toEqual(['character-board']);
+    expect(requirement.requiredObjectDescriptors).toEqual([expect.objectContaining({
+      id: 'character-board', name: 'Character board', category: 'board', sourcePage: 3,
+    })]);
+  });
+  test('named component variants are constrained only by terms present in cited official evidence', () => {
+    const requirement = productionVisualRequirementForAtom({
+      id: 'named-ability', domain: 'action', title: 'Ed ability', actor: 'player using Ed’s ability',
+      procedureSteps: ['ED_A: spend Fuel.'], componentRefs: ['character-board'],
+      sourceRefs: [{ page: 17, excerptHash: 'official-ed', quote: 'ED_A is used on the planet where Ed is currently located.' }],
+    }, [{ id: 'character-board', name: 'Character board', category: 'board', sourcePage: 17 }]);
+    expect(requirement.requiredObjectDescriptors[0]).toMatchObject({
+      identityContextTerms: ['Ed', 'ED_A'],
+      identityContextEvidence: [{ page: 17, excerptHash: 'official-ed' }],
+    });
+    const generic = productionVisualRequirementForAtom({
+      id: 'generic', domain: 'action', title: 'Use a character ability', componentRefs: ['character-board'],
+      sourceRefs: [{ page: 17, excerptHash: 'official-generic', quote: 'Use a character ability during your turn.' }],
+    }, [{ id: 'character-board', name: 'Character board', category: 'board', sourcePage: 17 }]);
+    expect(generic.requiredObjectDescriptors[0].identityContextTerms).toEqual([]);
+  });
   test('the reviewed benchmark seed produces complete source-grounded atoms', () => {
     const seed = JSON.parse(fs.readFileSync(path.resolve('config/projects/7-wonders-duel/rulebook-knowledge.v1.json'), 'utf8'));
     const model = buildRulebookKnowledgeModel({ projectSeed: seed });

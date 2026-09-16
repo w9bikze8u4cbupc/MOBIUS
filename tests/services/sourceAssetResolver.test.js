@@ -36,6 +36,20 @@ test('measured complete native edge is not a cutoff; negative pixels and missing
   expect(rank({ ...candidate, width: 150, height: 100 }).hardViolations).toContain('source-detail-insufficient');
 });
 
+test('a generic family proof cannot satisfy a cited named-variant requirement', () => {
+  const { objectEvidenceFor } = require('../../src/services/sourceAssetResolver.cjs');
+  const verdict = proof('family-board', existingFile, 'character-board', {
+    contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT', bbox: [.1, .1, .9, .9],
+  });
+  const candidate = asset('family-board', { objectVisualEvidence: [verdict] });
+  expect(objectEvidenceFor(candidate, 'character-board', 'ed-scene', {
+    allowReusableIdentity: true, identityContextTerms: ['Ed', 'ED_A'],
+  })).toBeNull();
+  expect(objectEvidenceFor(candidate, 'character-board', 'generic-scene', {
+    allowReusableIdentity: true,
+  })).toMatchObject({ requiredObject: 'character-board' });
+});
+
 test('source detail uses the normal contained drawing, not the entire panel', () => {
   const { canonicalTeachingPresentation } = require('../../src/services/visualPlanMaterializer.cjs');
   const { teachingSceneLayout, containedDisplayBounds } = require('../../src/services/presentationDesignSystem.cjs');

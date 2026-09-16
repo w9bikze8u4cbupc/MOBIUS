@@ -10,7 +10,7 @@ const { instructionalSequenceSourceAssets } = require('./physicalGameState.cjs')
 const crypto = require('node:crypto');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const xml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
-const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v10';
+const VISUAL_PLAN_MATERIALIZER_CONTRACT = 'mobius-visual-plan-materializer-v11';
 const STATE_SEQUENCE_CONTRACT = 'mobius-source-measured-state-sequence-v2';
 const SEMANTIC_SEQUENCE_CONTRACT = 'mobius-source-grounded-semantic-sequence-v2';
 const INSTRUCTIONAL_DIAGRAM_CONTRACT = 'mobius-source-grounded-instructional-diagram-v2';
@@ -160,10 +160,16 @@ function statefulComponentDisplayBounds(asset = {}, { referentCount = 1, positio
 }
 
 function sourceMeasuredComponentCandidate({ scene, referent, assets = [], referentCount = 1, position = 0 } = {}) {
-  const { objectEvidenceFor, evaluateCandidate } = require('./sourceAssetResolver.cjs');
-  const requirement = { actualGameAssetRequired: true, requiredObjects: [referent], evidenceSceneId: scene.id };
+  const { objectEvidenceFor, evaluateCandidate, identityContextTermsFor } = require('./sourceAssetResolver.cjs');
+  // This is an identity-only source selection before a final composition is
+  // rendered. Carry the descriptor's named-variant constraint, but never
+  // inherit the scene transition/relationship fields: those remain mandatory
+  // for the later whole-scene review.
+  const requirement = { actualGameAssetRequired: true, requiredObjects: [referent], evidenceSceneId: scene.id,
+    requiredObjectDescriptors: scene.visualRequirement?.requiredObjectDescriptors || [] };
+  const identityContextTerms = identityContextTermsFor(requirement, referent);
   const candidates = assets.map((asset) => {
-    const component = objectEvidenceFor(asset, referent, scene.id, { allowReusableIdentity: true });
+    const component = objectEvidenceFor(asset, referent, scene.id, { allowReusableIdentity: true, identityContextTerms });
     if (!(component?.present && component.complete && component.isolated && component.stateCompatible
       && Number(component.confidence) >= .9) || !sourceFile(asset) || !fs.existsSync(sourceFile(asset))) return null;
     // Evaluate source detail against the exact bounded footprint used by
@@ -604,8 +610,9 @@ async function materializeTrackStateFrames({ projectId, scene, assets, outputDir
   const req=scene.visualRequirement || {};
   if(!req.trackStateRequired || req.requiredObjects?.length!==1)return null;
   const referent=req.requiredObjects[0];
-  const {objectEvidenceFor}=require('./sourceAssetResolver.cjs');
-  const candidates=assets.map(asset=>({asset,component:objectEvidenceFor(asset,referent,scene.id),
+  const {objectEvidenceFor,identityContextTermsFor}=require('./sourceAssetResolver.cjs');
+  const identityContextTerms=identityContextTermsFor(req,referent);
+  const candidates=assets.map(asset=>({asset,component:objectEvidenceFor(asset,referent,scene.id,{identityContextTerms}),
     track:(asset.objectVisualEvidence||[]).find(r=>r.visualRole==='TRACK'&&r.sceneId===scene.id&&r.requiredObject===referent&&r.assetId===asset.id)}))
     .filter(({asset,component,track})=>component?.present&&component.complete&&component.isolated&&component.confidence>=.9
       &&track?.confidence>=.9&&track.complete&&track.trackPoints?.length>1&&track.stateStages?.length>=2&&track.stateStages.length<=8
@@ -716,9 +723,10 @@ async function validateDeterministicIdentityStill({ state, scene, asset, selecte
   const sourceRefs = asset.sourceRefs || [];
   if (!sourceRefs.some((row) => Number(row.page) > 0) || !asset.sourcePdfSha256) reasons.push('source-provenance-incomplete');
   if (!asset.sourceAuthority || asset.sourceAuthority === 'UNKNOWN' || Number(asset.sourceAuthorityRank || 0) <= 0) reasons.push('source-authority-unverified');
-  const { evaluateCandidate, objectEvidenceFor } = require('./sourceAssetResolver.cjs');
+  const { evaluateCandidate, objectEvidenceFor, identityContextTermsFor } = require('./sourceAssetResolver.cjs');
   const objectEvidence = referents.length === 1
-    ? objectEvidenceFor(asset, referents[0], scene.id, { allowReusableIdentity: true })
+    ? objectEvidenceFor(asset, referents[0], scene.id, { allowReusableIdentity: true,
+      identityContextTerms: identityContextTermsFor(requirement, referents[0]) })
     : null;
   if (!(objectEvidence?.visualRole === 'COMPONENT' && objectEvidence.present === true
     && objectEvidence.complete === true && objectEvidence.isolated === true

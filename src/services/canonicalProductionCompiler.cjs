@@ -15,7 +15,7 @@ const { runProductionQualityGate } = require('./productionQualityGate.cjs');
 const { canonicalTeachingPresentation } = require('./visualPlanMaterializer.cjs');
 const { buildKnowledgeTeachingPlan, productionVisualRequirementForAtom } = require('./rulebookKnowledge.cjs');
 
-const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v11';
+const CANONICAL_PRODUCTION_COMPILER_CONTRACT = 'mobius-canonical-production-compiler-v12';
 
 const SCENE_STATE_REQUIREMENT_KEYS = Object.freeze([
   'requiredState', 'requiredOrientation', 'requiredQuantities', 'requiredRelationship',

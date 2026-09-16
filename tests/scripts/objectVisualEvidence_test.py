@@ -15,6 +15,25 @@ qualifier = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(qualifier)
 
 class ObjectEvidenceTests(unittest.TestCase):
+    def test_named_variant_context_is_preserved_and_cannot_reuse_generic_component_evidence(self):
+        scene = {'id': 'ed-ability', 'source_pages': [17], 'visualRequirement': {
+            'requiredObjects': ['character-board'],
+            'requiredObjectDescriptors': [{'id': 'character-board', 'identityContextTerms': ['Ed', 'ED_A'],
+                'identityContextEvidence': [{'page': 17, 'excerptHash': 'official-ed'}]}]}}
+        packet = matcher.packet_for(scene, {'character-board': {
+            'canonicalTerm': 'Character board', 'category': 'board',
+            'evidence': [{'page': 17, 'quote': 'Character boards'}]}})
+        context_hash = packet['requiredObjects'][0]['identityContextHash']
+        self.assertTrue(context_hash)
+        scoped = matcher.component_identity_packet(packet, 'COMPONENT')
+        self.assertEqual(scoped['identityEvidence'][0]['variantTerms'], ['ED_A', 'Ed'])
+        generic_report = {'scenes': [{'candidates': [{'objects': [{
+            'requiredObject': 'character-board', 'visualRole': 'COMPONENT', 'present': True,
+            'complete': True, 'isolated': True, 'stateCompatible': True, 'confidence': .99,
+        }]}]}]}
+        self.assertFalse(matcher.component_identity_proven('character-board', generic_report, context_hash))
+        self.assertTrue(matcher.component_identity_proven('character-board', generic_report))
+
     def test_new_recovery_epoch_skips_compatible_retained_component_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             cache = Path(directory)

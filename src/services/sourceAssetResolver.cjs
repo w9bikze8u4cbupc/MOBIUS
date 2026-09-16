@@ -11,7 +11,7 @@ const { verifiedInstructionalSequence, instructionalSequenceSourceAssets } = req
 const { DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT } = require('./objectAwareCrop.cjs');
 const { componentTrust } = require('./ruleVisualReferentRecovery.cjs');
 
-const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v8';
+const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v9';
 const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v5';
 const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v2';
 // This version is also a dependency of the orchestration checkpoint.  Keep it
@@ -297,7 +297,19 @@ function validEvidenceBoundCrop(row, candidate, childSha) {
     && row.bbox[0] > 0 && row.bbox[1] > 0 && row.bbox[2] < 1 && row.bbox[3] < 1;
 }
 
-function objectEvidenceFor(candidate, referent, sceneId = null, { allowReusableIdentity = false } = {}) {
+function identityContextTermsFor(requirement = {}, referent) {
+  const descriptor = (requirement.requiredObjectDescriptors || []).find((entry) => entry?.id === referent) || {};
+  return [...new Set((descriptor.identityContextTerms || []).map(clean).filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right, 'fr-CA'));
+}
+
+function identityContextMatches(row, requiredTerms = []) {
+  const normalize = (terms) => [...new Set((terms || []).map(clean).filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right, 'fr-CA'));
+  return JSON.stringify(normalize(row?.identityContextTerms)) === JSON.stringify(normalize(requiredTerms));
+}
+
+function objectEvidenceFor(candidate, referent, sceneId = null, { allowReusableIdentity = false, identityContextTerms = [] } = {}) {
   const rows = (candidate.objectVisualEvidence || []).filter((row) => (row.contract === OBJECT_VISUAL_EVIDENCE_CONTRACT
     || (row.contract === 'mobius-object-visual-evidence-v1' && !row.visualRole)
     || row.contract === DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT)
@@ -306,14 +318,15 @@ function objectEvidenceFor(candidate, referent, sceneId = null, { allowReusableI
   const sha = sha256File(candidate.filePath);
   const valid = rows.filter((row) => row.imageSha256 === sha && row.evidencePacketHash && row.model && row.reason
     && (row.method === 'provider-pixel-analysis' || validEvidenceBoundCrop(row, candidate, sha)));
-  const scoped = valid.find((row) => !sceneId || row.sceneId === sceneId);
+  const scoped = valid.find((row) => (!sceneId || row.sceneId === sceneId)
+    && identityContextMatches(row, identityContextTerms));
   if (scoped) return scoped;
   // An exact, provider-measured COMPONENT proof establishes only the visual
   // identity of the same physical object. It can be reused by a different
   // static scene, but never as proof of a relationship, state, transition or
   // placement that was not measured in that scene.
   if (!allowReusableIdentity || !sceneId) return null;
-  return valid.find((row) => (row.visualRole === 'COMPONENT'
+  return valid.find((row) => identityContextMatches(row, identityContextTerms) && (row.visualRole === 'COMPONENT'
       || (row.contract === 'mobius-object-visual-evidence-v1' && !row.visualRole))
     && row.present === true && row.complete === true && row.isolated === true
     && row.stateCompatible === true && Number(row.confidence) >= 0.9) || null;
@@ -362,6 +375,7 @@ function evaluateCandidate(candidate, requirement = {}, displayBounds = { width:
     // composition.  Without such a verdict, a stateful scene still requires
     // its own evidence and cannot inherit a component label.
     allowReusableIdentity: Boolean(sequence) || !sceneSpecificEvidence,
+    identityContextTerms: identityContextTermsFor(requirement, id),
   }));
   const complete = proofs.length ? proofs.every((proof) => proof?.complete === true) : candidate.cropCompleteness === 'complete';
   const pure = proofs.length ? proofs.every((proof) => proof?.isolated === true) : candidate.cropPurity === 'clean';
@@ -514,6 +528,7 @@ function candidateEquivalenceKey(entry, requirement = {}) {
   const proofKeys = referents.map((referent) => {
     const proof = objectEvidenceFor(entry.candidate, referent, requirement.evidenceSceneId, {
       allowReusableIdentity: !requiresSceneSpecificEvidence(requirement),
+      identityContextTerms: identityContextTermsFor(requirement, referent),
     });
     if (!proof) return null;
     return entry.candidate.provenance?.evidenceBoundCrop?.componentEvidenceHash
@@ -616,7 +631,8 @@ function resolveInstructionalSequenceSources({ atom, requirement = atom?.visualR
     const selected = sourceIds.map((id) => byId.get(id)).filter(Boolean);
     if (selected.length !== sourceIds.length) continue;
     const measured = requirement.requiredObjects.map((referent) => ({ referent, asset: selected.find((asset) => {
-      const proof = objectEvidenceFor(asset, referent, sceneId, { allowReusableIdentity: true });
+      const proof = objectEvidenceFor(asset, referent, sceneId, { allowReusableIdentity: true,
+        identityContextTerms: identityContextTermsFor(requirement, referent) });
       return proof?.present === true && proof.complete === true && proof.isolated === true
         && proof.stateCompatible === true && Number(proof.confidence) >= 0.9;
     }) }));
@@ -624,7 +640,8 @@ function resolveInstructionalSequenceSources({ atom, requirement = atom?.visualR
     const key = hashJson({ sceneId, requirement: { ...requirement, evidenceSceneId: undefined }, sourceIds,
       frames: (sequence.frames || []).map((frame) => ({ id: frame.id, image: frame.outputPath, phone: frame.phonePath })) });
     const confidence = Math.min(0.99, ...measured.map(({ asset, referent }) =>
-      Number(objectEvidenceFor(asset, referent, sceneId, { allowReusableIdentity: true })?.confidence || 0)));
+      Number(objectEvidenceFor(asset, referent, sceneId, { allowReusableIdentity: true,
+        identityContextTerms: identityContextTermsFor(requirement, referent) })?.confidence || 0)));
     choices.set(key, { sequence, selected, confidence });
   }
   const valid = [...choices.values()].sort((left, right) => right.confidence - left.confidence
@@ -1153,6 +1170,7 @@ module.exports = {
   OBJECT_VISUAL_EVIDENCE_CONTRACT,
   OFFICIAL_PUBLISHER_SOURCE_RECOVERY_CONTRACT,
   objectEvidenceFor,
+  identityContextTermsFor,
   SOURCE_ASSET_RESOLVER_CONTRACT,
   evaluateCandidate,
   loadAuthorizedCandidateManifests,
