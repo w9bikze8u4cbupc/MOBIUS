@@ -7,7 +7,7 @@ const { spawnSync } = require('node:child_process');
 const sharp = require('sharp');
 const { candidateDetailRatio, sourceAuthorityRank } = require('./sourceDetailLineage.cjs');
 const { teachingSceneLayout, containedDisplayBounds } = require('./presentationDesignSystem.cjs');
-const { verifiedInstructionalSequence } = require('./physicalGameState.cjs');
+const { verifiedInstructionalSequence, instructionalSequenceSourceAssets } = require('./physicalGameState.cjs');
 const { DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT } = require('./objectAwareCrop.cjs');
 const { componentTrust } = require('./ruleVisualReferentRecovery.cjs');
 
@@ -601,7 +601,10 @@ function resolveInstructionalSequenceSources({ atom, requirement = atom?.visualR
   for (const candidate of candidates) {
     const sequence = verifiedInstructionalSequence(candidate, requirement, sceneId);
     if (!sequence) continue;
-    const sourceIds = [...new Set((sequence.sourceAssets || []).map((source) => source.assetId).filter(Boolean))];
+    // One normalizer is shared with physical-state validation, so a verified
+    // historical track sequence cannot disappear at source selection replay.
+    const sequenceSources = instructionalSequenceSourceAssets(sequence);
+    const sourceIds = [...new Set(sequenceSources.map((source) => source.assetId).filter(Boolean))];
     if (!sourceIds.length) continue;
     const selected = sourceIds.map((id) => byId.get(id)).filter(Boolean);
     if (selected.length !== sourceIds.length) continue;

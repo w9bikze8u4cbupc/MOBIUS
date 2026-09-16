@@ -15,6 +15,21 @@ const SUPPORTED_SEQUENCE_MATERIALIZER_CONTRACTS=new Set([
 const REQUIRED_SEMANTIC_SEQUENCE_CONTRACT='mobius-source-grounded-semantic-sequence-v2';
 const REQUIRED_INSTRUCTIONAL_DIAGRAM_CONTRACT='mobius-source-grounded-instructional-diagram-v2';
 
+/**
+ * Canonicalize the source graph for an instructional sequence.  Early track
+ * materializations used a single `assetId`; current materializations persist
+ * `sourceAssets`.  Both forms name the same source relationship, and every
+ * consumer must see the same normalized graph during replay.
+ */
+function instructionalSequenceSourceAssets(sequence = {}) {
+ const declared=Array.isArray(sequence.sourceAssets)
+  ? sequence.sourceAssets.filter(source=>source?.assetId)
+  : [];
+ if(declared.length)return declared;
+ if(!sequence.assetId)return [];
+ return [{assetId:sequence.assetId,sourceImageSha256:sequence.frames?.[0]?.sourceImageSha256||null}];
+}
+
 /** A composition verdict belongs to exact source, ordered frames, phones and
  * requirements. A changed caption/pixel/state never inherits acceptance. */
 function verifiedInstructionalSequence(candidate, requirement, sceneId) {
@@ -24,8 +39,7 @@ function verifiedInstructionalSequence(candidate, requirement, sceneId) {
    // independently verified components.  In both cases, acceptance belongs
    // to the exact source pixels, ordered rendered frames and full requirement
    // packet -- never to a filename match or to a reusable component label.
-   const sourceAssets=sequence.sourceAssets?.length?sequence.sourceAssets:
-    (sequence.assetId?[{assetId:sequence.assetId,sourceImageSha256:sequence.frames?.[0]?.sourceImageSha256}]:[]);
+   const sourceAssets=instructionalSequenceSourceAssets(sequence);
    const sourceAsset=sourceAssets.find(asset=>asset.assetId===candidate.id);
    if(sequence.sceneId!==sceneId || !sourceAsset || sequence.frames?.length<2)continue;
    const row=sequence.review?.scenes?.find(s=>s.scene_id===sceneId||s.sceneId===sceneId||s.id===sceneId)?.candidates?.find(c=>c.status==='MEASURED');
@@ -388,6 +402,7 @@ function validatePhysicalGameState(state = {}) {
 
 module.exports = {
   verifiedInstructionalSequence,
+  instructionalSequenceSourceAssets,
   PHYSICAL_GAME_STATE_CONTRACT,
   derivePhysicalGameState,
   normalizePhysicalGameState,

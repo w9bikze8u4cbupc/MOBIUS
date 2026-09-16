@@ -6,6 +6,7 @@ const sharp = require('sharp');
 const { spawnSync } = require('node:child_process');
 const { buildTeachingScene } = require('../storyboard/tutorial_presentation.cjs');
 const { teachingSceneLayout, containedDisplayBounds, PRESENTATION_TOKENS } = require('./presentationDesignSystem.cjs');
+const { instructionalSequenceSourceAssets } = require('./physicalGameState.cjs');
 const crypto = require('node:crypto');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const xml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
@@ -653,6 +654,12 @@ async function materializeTrackStateFrames({ projectId, scene, assets, outputDir
       measuredMarkerCenter:{x,y},preparedOnly:true,validated:false});
   }
   return {contract:TRACK_SEQUENCE_CONTRACT,materializerContract:VISUAL_PLAN_MATERIALIZER_CONTRACT,sceneId:scene.id,ruleAtomId:scene.atomId,assetId:asset.id,
+    // Keep the canonical multi-source shape even for a single board.  This
+    // makes the source graph explicit across materialization, Cockpit storage,
+    // and replay; the resolver retains backward compatibility for earlier
+    // `assetId`-only track sequences.
+    sourceAssets: [{ assetId: asset.id, sourceImageSha256: track.imageSha256,
+      sourcePdfSha256: asset.sourcePdfSha256, componentEvidence: selectedCandidate.component }],
     frames,trackEvidence:track,sourceComponentEvidence:selectedCandidate.component,preparedOnly:true,validated:false};
 }
 
@@ -1056,7 +1063,7 @@ function attachSequenceReviewEvidence({ assets, records, reviewPaths=[] }) {
  const replacedSceneIds=new Set(reviewed.map(record=>record.sceneId).filter(Boolean));
  return assets.map(asset=>{
    const existing=(asset.instructionalSequences||[]).filter(sequence=>!replacedSceneIds.has(sequence?.sceneId));
-   const incoming=reviewed.filter(record=>(record.sourceAssets||[{assetId:record.assetId}])
+   const incoming=reviewed.filter(record=>instructionalSequenceSourceAssets(record)
      .some(source=>source.assetId===asset.id));
    const seen=new Set();
    const instructionalSequences=[...existing,...incoming].filter(sequence=>{

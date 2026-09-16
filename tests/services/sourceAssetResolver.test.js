@@ -140,6 +140,36 @@ test('a verified semantic composition may reuse exact component identity only af
   expect(evaluateCandidate(candidate, requirement, { width: 900, height: 700 }).hardViolations).toContain('object-pixel-evidence-missing:card');
 });
 
+test('a compatible assetId-only track sequence survives resolver, compact storage, and hydration replay', () => {
+  const crypto = require('node:crypto');
+  const storage = require('../../src/services/canonicalProductionStateStorage.cjs');
+  const hash = crypto.createHash('sha256').update(fs.readFileSync(existingFile)).digest('hex');
+  const requirement = { actualGameAssetRequired: true, requiredObjects: ['track'], trackStateRequired: true,
+    transitionRequired: true, beforeState: 'Start at 1', actionState: 'Move marker', afterState: 'Keep 2', evidenceSceneId: 'scene' };
+  const frames = [1, 2].map((position) => ({ id: `track-${position}`, stage: { position }, outputPath: existingFile,
+    phonePath: existingFile, sourceImageSha256: hash, sourcePixelsPerDisplayPixel: 1, actualDisplayBounds: { width: 900, height: 700 } }));
+  // Older materializations stored only assetId. The physical verifier accepts
+  // that representation; the resolver must select the exact same proof.
+  const sequence = { contract: 'mobius-source-measured-track-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v10',
+    sceneId: 'scene', assetId: 'track-asset', frames,
+    review: { scenes: [{ scene_id: 'scene', candidates: [{ status: 'MEASURED', evidencePacket: {
+      visualRole: 'COMPOSITION', responseContract: 'normalized-composition-sequence-v2', materializerContract: 'mobius-visual-plan-materializer-v10',
+      sequenceContract: 'mobius-source-measured-track-sequence-v2', requirement: { ...requirement, evidenceSceneId: undefined },
+      sequenceFrames: frames.map((frame) => ({ id: frame.id, stage: frame.stage, imageSha256: hash, phoneSha256: hash })) },
+    objects: [{ requiredObject: 'track', visualRole: 'COMPOSITION', method: 'provider-pixel-analysis', confidence: .99,
+      present: true, complete: true, isolated: true, stateCompatible: true, purposeSatisfied: true, phoneReadable: true }] }] }] } };
+  const component = proof('track-asset', existingFile, 'track', { contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT', bbox: [.1, .1, .9, .9] });
+  const source = asset('track-asset', { semanticObjects: ['track'], objectVisualEvidence: [component], instructionalSequences: [sequence] });
+  const resolved = resolveInstructionalSequenceSources({ atom: { id: 'atom' }, requirement, candidates: [source] });
+  expect(resolved).toMatchObject({ status: 'AUTO_ACCEPTED', instructionalSequence: sequence });
+  const packed = storage.createCompactCanonicalProductionState({ projectId: 'track-replay', assets: [source], sourceSelections: [resolved], visualPlans: [], scenes: [], reviewItems: [] }, {
+    projectId: 'track-replay', sourceSha256: 'a'.repeat(64),
+  });
+  const hydrated = storage.hydrateCanonicalProductionState(packed.compact, packed.artifact);
+  expect(resolveInstructionalSequenceSources({ atom: { id: 'atom' }, requirement, candidates: hydrated.assets }))
+    .toMatchObject({ status: 'AUTO_ACCEPTED', instructionalSequence: sequence });
+});
+
 test('a final instructional diagram selects every source asset through one exact scene proof', () => {
   const crypto = require('node:crypto');
   const hash = crypto.createHash('sha256').update(fs.readFileSync(existingFile)).digest('hex');
