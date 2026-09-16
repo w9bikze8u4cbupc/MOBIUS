@@ -70,7 +70,10 @@ function configuredProviders(env = process.env) {
   const providers = [];
   if (openai.apiKey && openai.model) providers.push({
     name: 'openai', model: openai.model, configured: true, baseURL: openai.baseURL,
-    adapter: async ({ messages, options }) => getAiClient({ env }).chat.completions.create({ model: openai.model, messages, ...(options || {}) }),
+    adapter: async ({ messages, options, timeoutMs }) => getAiClient({ env }).chat.completions.create(
+      { model: openai.model, messages, ...(options || {}) },
+      { timeout: timeoutMs },
+    ),
   });
 
   const anthropicModel = configuredModel(env, ['ANTHROPIC_MODEL', 'CLAUDE_MODEL']);
@@ -152,6 +155,26 @@ function validationCategory(error) {
   return 'schema_invalid';
 }
 
+async function withProviderDeadline(request, { provider, timeoutMs }) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(`${provider} generation timed out after ${timeoutMs}ms`);
+      error.code = 'AI_PROVIDER_TIMEOUT';
+      error.provider = provider;
+      reject(error);
+    }, timeoutMs);
+  });
+  try {
+    // Provider SDKs should receive their own deadline, but this race is the
+    // process-level guarantee that an Inbox worker cannot retain its lease
+    // forever when a transport disregards SDK timeout/abort options.
+    return await Promise.race([request, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export function createAiProviderRun({ env = process.env, providerOrder, allowedProviders, providers: overrides = {}, maxRetries = DEFAULT_RETRIES, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   const configured = listConfiguredProviders(env).map((provider) => ({ ...provider, ...(overrides[provider.name] || {}) }));
   const overrideOnly = Object.entries(overrides)
@@ -196,7 +219,10 @@ export function createAiProviderRun({ env = process.env, providerOrder, allowedP
       const attemptsForProvider = Math.max(0, retries) + 1;
       for (let attempt = 1; attempt <= attemptsForProvider; attempt += 1) {
         try {
-          const response = await provider.adapter({ messages, options, timeoutMs, model: provider.model });
+          const response = await withProviderDeadline(
+            provider.adapter({ messages, options, timeoutMs, model: provider.model }),
+            { provider: provider.name, timeoutMs },
+          );
           let value = response;
           if (validate) {
             try { value = await validate(response, provider); }

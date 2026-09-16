@@ -99,3 +99,17 @@ test('provider categories distinguish quota from transient rate limiting', () =>
   assert.equal(classifyProviderError(Object.assign(new Error('too many requests'), { status: 429 })), 'rate_limited_transient');
   assert.equal(classifyProviderError(Object.assign(new Error('bad model'), { status: 404 })), 'model_unavailable');
 });
+
+test('an SDK adapter that ignores its timeout becomes a bounded retryable provider result', async () => {
+  const run = createAiProviderRun({
+    env: {}, providerOrder: ['openai'], maxRetries: 0, timeoutMs: 5,
+    providers: { openai: { model: 'slow-model', adapter: async () => new Promise(() => {}) } },
+  });
+  const startedAt = Date.now();
+  await assert.rejects(run.complete({ messages: [{ role: 'user', content: 'bounded fixture' }] }), (error) => {
+    assert.equal(error.code, 'AI_PROVIDER_ALL_FAILED');
+    assert.equal(error.providerAttempts[0].category, 'network_transient');
+    return true;
+  });
+  assert.ok(Date.now() - startedAt < 1000);
+});
