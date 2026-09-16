@@ -16,12 +16,20 @@ test('composition review may use an explicitly bounded sub-stage ledger group', 
 });
 
 test('composition review policy can bound and target normal evidence measurement without accepting it', () => {
+  expect(compositionReviewPolicy({})).toMatchObject({ sceneIds: new Set(), maxProviderCalls: Infinity });
+  expect(compositionReviewPolicy({ MOBIUS_VISUAL_COMPOSITION_MAX_PROVIDER_CALLS: '' })).toMatchObject({ maxProviderCalls: Infinity });
   expect(compositionReviewPolicy({
     MOBIUS_VISUAL_COMPOSITION_SCENE_IDS: 'scene-a, scene-b',
     MOBIUS_VISUAL_COMPOSITION_MAX_PROVIDER_CALLS: '2',
   })).toMatchObject({ sceneIds: new Set(['scene-a', 'scene-b']), maxProviderCalls: 2 });
   expect(() => compositionReviewPolicy({ MOBIUS_VISUAL_COMPOSITION_MAX_PROVIDER_CALLS: '-1' }))
     .toThrow('VISUAL_COMPOSITION_PROVIDER_CALL_LIMIT_INVALID');
+  expect(() => compositionReviewPolicy({ MOBIUS_VISUAL_COMPOSITION_MAX_PROVIDER_CALLS: '1.5' }))
+    .toThrow('VISUAL_COMPOSITION_PROVIDER_CALL_LIMIT_INVALID');
+  expect(() => compositionReviewPolicy({ MOBIUS_VISUAL_COMPOSITION_MAX_PROVIDER_CALLS: 'Infinity' }))
+    .toThrow('VISUAL_COMPOSITION_PROVIDER_CALL_LIMIT_INVALID');
+  expect(compositionReviewPolicy({ MOBIUS_VISUAL_COMPOSITION_MAX_PROVIDER_CALLS: '0' })).toMatchObject({ maxProviderCalls: 0 });
+  expect(compositionReviewPolicy({ MOBIUS_VISUAL_COMPOSITION_MAX_PROVIDER_CALLS: '1' })).toMatchObject({ maxProviderCalls: 1 });
 });
 
 test('track preparation prefers stronger measured state evidence before native area', () => {

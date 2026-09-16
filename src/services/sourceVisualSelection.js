@@ -8,6 +8,7 @@ import {getAiConfig,getGenerationOptions} from '../config/aiConfig.js';
 import {createAiProviderRun} from './aiProviderExecutor.js';
 import {reserveGenerationBudget,recordGenerationFailure} from './aiGenerationBudget.js';
 import ruleVisualReferentRecovery from './ruleVisualReferentRecovery.cjs';
+import sequenceSourceAssets from './instructionalSequenceSourceAssets.cjs';
 
 const {
   RULE_VISUAL_REFERENT_RECOVERY_CONTRACT,
@@ -15,6 +16,7 @@ const {
   hashVisualReferentRecoveryPacket,
   validateRuleVisualReferentRecovery,
 } = ruleVisualReferentRecovery;
+const { instructionalSequenceSourceAssets } = sequenceSourceAssets;
 
 // A provider outage is not a request to adjudicate a visual interpretation.
 // Keep the complete review evidence, but expose only a sanitized machine cause.
@@ -704,14 +706,7 @@ export function replayInstructionalSequences({ assets = [], priorAssets = [] } =
     return rows.length === 1 ? rows[0] : null;
   };
   const additions = new Map();
-  const sourceAssetsFor = (sequence = {}, fallbackAssetId = null) => {
-    const declared = Array.isArray(sequence.sourceAssets)
-      ? sequence.sourceAssets.filter((source) => source?.assetId)
-      : [];
-    if (declared.length) return declared;
-    const assetId = sequence.assetId || fallbackAssetId;
-    return assetId ? [{ assetId }] : [];
-  };
+  const sourceAssetsFor = (sequence = {}, fallbackAssetId = null) => instructionalSequenceSourceAssets(sequence, fallbackAssetId);
   const keyFor = (sequence) => crypto.createHash('sha256').update(JSON.stringify(sequence)).digest('hex');
 
   const rebindEvidence = (priorAsset, currentAsset) => {

@@ -7,11 +7,12 @@ const { spawnSync } = require('node:child_process');
 const sharp = require('sharp');
 const { candidateDetailRatio, sourceAuthorityRank } = require('./sourceDetailLineage.cjs');
 const { teachingSceneLayout, containedDisplayBounds } = require('./presentationDesignSystem.cjs');
-const { verifiedInstructionalSequence, instructionalSequenceSourceAssets } = require('./physicalGameState.cjs');
+const { verifiedInstructionalSequence } = require('./physicalGameState.cjs');
+const { instructionalSequenceSourceAssets } = require('./instructionalSequenceSourceAssets.cjs');
 const { DERIVED_OBJECT_VISUAL_EVIDENCE_CONTRACT } = require('./objectAwareCrop.cjs');
 const { componentTrust } = require('./ruleVisualReferentRecovery.cjs');
 
-const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v10';
+const SOURCE_ASSET_RESOLVER_CONTRACT = 'mobius-canonical-source-asset-resolver-v11';
 const VISUAL_REFERENT_NORMALIZATION_CONTRACT = 'mobius-visual-referent-normalization-v5';
 const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v2';
 // This version is also a dependency of the orchestration checkpoint.  Keep it
@@ -538,6 +539,36 @@ function rankSourceAssetCandidates({ requirement = {}, candidates = [], displayB
 
 function candidateEquivalenceKey(entry, requirement = {}) {
   const referents = requirement.requiredObjects || [];
+  // During the first, identity-only phase, two independently measured source
+  // views of the *same* source-grounded component are presentation variants,
+  // not competing interpretations.  They still need distinct evidence when a
+  // later scene teaches a relationship, placement, face, quantity, or
+  // transition; that final composition never uses this shortcut.
+  //
+  // Require an exact current-pixel COMPONENT verdict and one source identity.
+  // This deliberately does not group unmeasured assets, LOCALIZATION-only
+  // pages, named variants with different context, or assets from different
+  // documents merely because their filenames/tokens look alike.
+  if (requirement.componentIdentityOnly === true && referents.length === 1) {
+    const referent = referents[0];
+    const proof = objectEvidenceFor(entry.candidate, referent, null, {
+      allowReusableIdentity: true,
+      identityContextTerms: identityContextTermsFor(requirement, referent),
+    });
+    const sourcePdfSha256 = entry.candidate.sourcePdfSha256
+      || entry.candidate.provenance?.sourcePdfSha256
+      || entry.candidate.sourceRefs?.find((ref) => ref?.sourcePdfSha256)?.sourcePdfSha256
+      || null;
+    if (sourcePdfSha256 && proof?.visualRole === 'COMPONENT'
+      && proof.present === true && proof.complete === true && proof.isolated === true
+      && proof.stateCompatible === true && Number(proof.confidence) >= 0.9) {
+      return `component-identity:${hashJson({
+        sourcePdfSha256,
+        referent,
+        identityContextTerms: identityContextTermsFor(requirement, referent),
+      })}`;
+    }
+  }
   const proofKeys = referents.map((referent) => {
     const proof = objectEvidenceFor(entry.candidate, referent, requirement.evidenceSceneId, {
       allowReusableIdentity: !requiresSceneSpecificEvidence(requirement),

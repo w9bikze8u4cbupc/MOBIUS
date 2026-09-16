@@ -6,7 +6,7 @@ const sharp = require('sharp');
 const { spawnSync } = require('node:child_process');
 const { buildTeachingScene } = require('../storyboard/tutorial_presentation.cjs');
 const { teachingSceneLayout, containedDisplayBounds, PRESENTATION_TOKENS } = require('./presentationDesignSystem.cjs');
-const { instructionalSequenceSourceAssets } = require('./physicalGameState.cjs');
+const { instructionalSequenceSourceAssets } = require('./instructionalSequenceSourceAssets.cjs');
 const crypto = require('node:crypto');
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const xml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
@@ -1119,8 +1119,12 @@ function compositionReviewPolicy(env = process.env) {
  const sceneIds=new Set(value.split(',').map(id=>id.trim()).filter(Boolean));
  const raw=String(env.MOBIUS_VISUAL_COMPOSITION_MAX_PROVIDER_CALLS||'').trim();
  const maxProviderCalls=raw===''?Infinity:Number(raw);
- if(!Number.isFinite(maxProviderCalls)&&maxProviderCalls!==Infinity)throw new Error('VISUAL_COMPOSITION_PROVIDER_CALL_LIMIT_INVALID');
- if(maxProviderCalls<0||!Number.isInteger(maxProviderCalls))throw new Error('VISUAL_COMPOSITION_PROVIDER_CALL_LIMIT_INVALID');
+ if(raw!==''&&!Number.isFinite(maxProviderCalls))throw new Error('VISUAL_COMPOSITION_PROVIDER_CALL_LIMIT_INVALID');
+ // An absent local limiter means "do not add a second limiter".  The
+ // canonical budget ledger is still required by compositionReviewEnvironment
+ // before any provider call, and is the authoritative ceiling.  Explicit
+ // limits remain non-negative integers, including zero.
+ if(maxProviderCalls!==Infinity&&(maxProviderCalls<0||!Number.isInteger(maxProviderCalls)))throw new Error('VISUAL_COMPOSITION_PROVIDER_CALL_LIMIT_INVALID');
  return {sceneIds,maxProviderCalls};
 }
 

@@ -5,7 +5,7 @@ const FACE_STATES = new Set(['FACE_UP', 'FACE_DOWN', 'NOT_APPLICABLE', 'UNKNOWN'
 const VISIBILITY_STATES = new Set(['VISIBLE', 'HIDDEN', 'REMOVED', 'UNKNOWN']);
 const AVAILABILITY_STATES = new Set(['AVAILABLE', 'UNAVAILABLE', 'CONSUMED', 'UNKNOWN']);
 const fs=require('node:fs'), crypto=require('node:crypto');
-const { isDeepStrictEqual } = require('node:util');
+const { instructionalSequenceSourceAssets } = require('./instructionalSequenceSourceAssets.cjs');
 const pixelHash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const SUPPORTED_SEQUENCE_MATERIALIZER_CONTRACTS=new Set([
  'mobius-visual-plan-materializer-v8',
@@ -15,21 +15,6 @@ const SUPPORTED_SEQUENCE_MATERIALIZER_CONTRACTS=new Set([
 ]);
 const REQUIRED_SEMANTIC_SEQUENCE_CONTRACT='mobius-source-grounded-semantic-sequence-v2';
 const REQUIRED_INSTRUCTIONAL_DIAGRAM_CONTRACT='mobius-source-grounded-instructional-diagram-v2';
-
-/**
- * Canonicalize the source graph for an instructional sequence.  Early track
- * materializations used a single `assetId`; current materializations persist
- * `sourceAssets`.  Both forms name the same source relationship, and every
- * consumer must see the same normalized graph during replay.
- */
-function instructionalSequenceSourceAssets(sequence = {}) {
- const declared=Array.isArray(sequence.sourceAssets)
-  ? sequence.sourceAssets.filter(source=>source?.assetId)
-  : [];
- if(declared.length)return declared;
- if(!sequence.assetId)return [];
- return [{assetId:sequence.assetId,sourceImageSha256:sequence.frames?.[0]?.sourceImageSha256||null}];
-}
 
 /** A composition verdict belongs to exact source, ordered frames, phones and
  * requirements. A changed caption/pixel/state never inherits acceptance. */
@@ -68,7 +53,13 @@ function verifiedInstructionalSequence(candidate, requirement, sceneId) {
       ||sequence.frames.some(frame=>!String(frame.stage?.instructionalText||'').trim()))continue;
    } else if(packet.semanticTeaching||packet.instructionalDiagram) continue;
    const compared=canonicalCompositionRequirement(requirement);
-   if(!isDeepStrictEqual(canonicalCompositionRequirement(packet.requirement),compared))continue;
+   // Composition evidence is persisted and rehydrated as JSON.  Node's
+   // deep-strict comparison also compares prototypes, so an otherwise
+   // identical requirement can fail after a cross-context structured clone
+   // even though it has the same persisted meaning.  Compare the canonical
+   // JSON value instead: this remains strict about every serializable
+   // requirement field while deliberately ignoring realm/prototype identity.
+   if(canonicalJson(canonicalCompositionRequirement(packet.requirement))!==canonicalJson(compared))continue;
    if(sourceAsset.sourceImageSha256!==pixelHash(candidate.filePath))continue;
    if(sequence.frames.length!==packet.sequenceFrames?.length)continue;
    if(sequence.frames.some((f,i)=>f.id!==packet.sequenceFrames[i].id
@@ -117,6 +108,20 @@ function canonicalCompositionRequirement(value = {}) {
     if (requirement.requiredRelationship && requirement.requiredRelationship === requirement.actionState) delete requirement.requiredRelationship;
   }
   return requirement;
+}
+
+function canonicalJson(value) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
+  if (typeof value === 'number') return Number.isFinite(value) ? JSON.stringify(value) : `!non-json-number:${String(value)}`;
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().filter((key) => value[key] !== undefined)
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+  }
+  // Undefined/functions/symbols do not survive the production transport.
+  // Retain an explicit non-JSON marker so they cannot accidentally compare
+  // equal to a missing persisted field.
+  return `!non-json:${typeof value}`;
 }
 
 function normalizePhysicalItem(item = {}) {

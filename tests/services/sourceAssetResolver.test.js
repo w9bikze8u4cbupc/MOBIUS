@@ -188,6 +188,17 @@ test('a compatible assetId-only track sequence survives catalog replay, resolver
   });
   const resolved = resolveInstructionalSequenceSources({ atom: { id: 'atom' }, requirement, candidates: [source] });
   expect(resolved).toMatchObject({ status: 'AUTO_ACCEPTED', instructionalSequence: sequence });
+  // The source selector crosses an ESM/Jest realm during catalog replay. A
+  // persisted composition contract is JSON, so realm-neutral structured
+  // clones must retain the exact accepted proof while a semantic change still
+  // invalidates it.
+  const cloned = structuredClone(source);
+  expect(resolveInstructionalSequenceSources({ atom: { id: 'atom' }, requirement, candidates: [cloned] }))
+    .toMatchObject({ status: 'AUTO_ACCEPTED' });
+  const changedAction = structuredClone(source);
+  changedAction.instructionalSequences[0].review.scenes[0].candidates[0].evidencePacket.requirement.actionState = 'Different action';
+  expect(resolveInstructionalSequenceSources({ atom: { id: 'atom' }, requirement, candidates: [changedAction] }))
+    .toBeNull();
   const packed = storage.createCompactCanonicalProductionState({ projectId: 'track-replay', assets: [source], sourceSelections: [resolved], visualPlans: [], scenes: [], reviewItems: [] }, {
     projectId: 'track-replay', sourceSha256: 'a'.repeat(64),
   });
@@ -398,6 +409,34 @@ test('equivalent variants from one measured proof do not create a false ranking 
     candidates: [asset('board-a'), asset('board-b')], displayBounds: { width: 900, height: 600 } });
   expect(distinct.status).toBe('REVIEW_REQUIRED');
   expect(distinct.candidateEquivalenceGroups).toHaveLength(2);
+});
+
+test('identity-only selection groups independently measured views of one source-grounded component, but not final-scene variants', () => {
+  const component = 'component-card';
+  const native = asset('native-card', {
+    sourceAuthority: 'NATIVE_EMBEDDED', sourcePdfSha256: 'source-sha', semanticObjects: [component],
+    objectVisualEvidence: [proof('native-card', existingFile, component, { contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT', bbox: [.05, .05, .95, .95] })],
+  });
+  const crop = asset('crop-card', {
+    sourceAuthority: 'HIGH_DPI_PAGE_CROP', sourcePdfSha256: 'source-sha', semanticObjects: [component],
+    objectVisualEvidence: [proof('crop-card', existingFile, component, { contract: 'mobius-object-visual-evidence-v2', visualRole: 'COMPONENT', bbox: [.06, .06, .94, .94] })],
+  });
+  const identity = resolveSourceAssets({ atom: { id: 'component' }, requirement: {
+    requiredObjects: [component], componentIdentityOnly: true, evidenceSceneId: 'component-identity:component:component-card',
+  }, candidates: [native, crop] });
+  expect(identity.status).toBe('AUTO_ACCEPTED');
+  expect(identity.candidateEquivalenceGroups).toHaveLength(1);
+
+  const finalScene = resolveSourceAssets({ atom: { id: 'final' }, requirement: {
+    requiredObjects: [component], transitionRequired: true, evidenceSceneId: 'knowledge-final',
+  }, candidates: [native, crop] });
+  expect(finalScene.status).not.toBe('AUTO_ACCEPTED');
+  expect(finalScene.candidateEquivalenceGroups).toHaveLength(0);
+
+  const otherSource = resolveSourceAssets({ atom: { id: 'other-source' }, requirement: {
+    requiredObjects: [component], componentIdentityOnly: true,
+  }, candidates: [native, { ...crop, sourcePdfSha256: 'other-source-sha' }] });
+  expect(otherSource.candidateEquivalenceGroups).toHaveLength(2);
 });
 
 test('rejects an otherwise detailed candidate when its explicit physical state disagrees', () => {
