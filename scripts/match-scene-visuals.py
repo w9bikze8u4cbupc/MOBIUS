@@ -697,7 +697,14 @@ def candidates_for(packet, assets):
             a['asset_id']))
         for candidate in external:
             if candidate['asset_id'] not in {row['asset_id'] for row in result}:
-                result = result[:5] + [candidate]
+                # An official setup/components image is a better first
+                # *discovery* hypothesis than a text-heavy rulebook page.
+                # It remains below an explicit named/localized candidate
+                # above, but cannot be stranded behind five pages that only
+                # repeat the inventory text.  Box/cover gallery entries keep
+                # their conservative last-slot behavior.
+                result = ([candidate] + result[:5]
+                    if gallery_discovery_rank(candidate) > 0 else result[:5] + [candidate])
                 break
     return result[:6]
 

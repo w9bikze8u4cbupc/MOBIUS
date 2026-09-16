@@ -740,7 +740,7 @@ class ObjectEvidenceTests(unittest.TestCase):
                 {'asset_id': 'setup', 'path': str(setup), 'asset_metadata': {
                     **base, 'provenance': {**base['provenance'], 'sourceUrl': 'https://publisher.example/game-setup.jpg'}}},
             ])
-            self.assertEqual([row['asset_id'] for row in result], ['local', 'setup'])
+            self.assertEqual([row['asset_id'] for row in result], ['setup', 'local'])
 
     def test_uncaptioned_gallery_is_not_used_for_normal_scene_or_product_jsonld(self):
         with tempfile.TemporaryDirectory() as directory:
