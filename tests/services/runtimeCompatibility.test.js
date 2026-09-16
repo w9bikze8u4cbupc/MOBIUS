@@ -25,6 +25,12 @@ describe('canonical runtime compatibility', () => {
     stale.contracts.projectContextPersistence = 'mobius-project-context-persistence-v3';
     expect(evaluateRuntimeCompatibility(stale, requirements).compatible).toBe(false);
   });
+
+  test('a legacy unbounded AI readiness runtime is rejected before it can hold an Inbox lease', () => {
+    const stale = buildApiRuntimeCapabilities({ env: { MOBIUS_BUILD_SHA: '4'.repeat(40) } });
+    stale.contracts.aiProviderReadiness = 'mobius-ai-provider-readiness-v1';
+    expect(evaluateRuntimeCompatibility(stale, requirements)).toMatchObject({ compatible: false });
+  });
   test('same SHA and compatible contracts pass', () => {
     const capabilities = buildApiRuntimeCapabilities({ cwd: process.cwd(), env: { MOBIUS_BUILD_SHA: '1'.repeat(40) } });
     expect(evaluateRuntimeCompatibility(capabilities, requirements)).toMatchObject({ compatible: true, sameBuild: true });

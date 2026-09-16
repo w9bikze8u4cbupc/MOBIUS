@@ -2,7 +2,10 @@ import crypto from 'node:crypto';
 import { getAiStatus } from '../config/aiConfig.js';
 import { listProviderModels } from './aiModelDiscovery.js';
 
-export const AI_PROVIDER_READINESS_CONTRACT = 'mobius-ai-provider-readiness-v1';
+// v2 guarantees that the metadata access check is time-bounded.  A runtime
+// reporting v1 can otherwise retain an Inbox lease indefinitely even though
+// its capability names still match the worker's.
+export const AI_PROVIDER_READINESS_CONTRACT = 'mobius-ai-provider-readiness-v2';
 export const SUPPORTED_AI_PROVIDERS = Object.freeze(['openai', 'anthropic', 'cohere']);
 
 const DEFAULT_PROVIDER_ORDER = SUPPORTED_AI_PROVIDERS;
