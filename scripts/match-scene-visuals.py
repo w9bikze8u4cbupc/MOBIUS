@@ -566,8 +566,15 @@ def candidates_for(packet, assets):
         source = source.lower()
         positive = ('setup', 'set-up', 'component', 'gameplay', 'table', 'overview', 'contents')
         negative = ('box', 'cover', 'logo', 'banner', 'portrait', 'figure', 'figurine')
-        return (sum(1 for token in positive if token in source)
+        editorial_score = (sum(1 for token in positive if token in source)
             - sum(1 for token in negative if token in source))
+        # An exact-title, checksum-pinned original has stronger retrieval
+        # provenance than an opaque gallery derivative. This changes only the
+        # bounded order of pixel inspection; it still conveys no component
+        # identity, crop verdict, or final-scene acceptance.
+        if provenance.get('retrievalKind') == 'explicit-official-product-original':
+            editorial_score += 2
+        return editorial_score
 
     rows = []
     # An exact-title publisher gallery may have no useful source-owned caption
@@ -630,7 +637,7 @@ def candidates_for(packet, assets):
             recovery_kind = str(provenance.get('retrievalKind') or '')
             gallery_fallback = (requirement.get('componentDiscovery') is True
                 and external_unscoped
-                and recovery_kind == 'publisher-product-page-gallery'
+                and recovery_kind in ('publisher-product-page-gallery', 'explicit-official-product-original')
                 and not re.search(r'background|logo|decorative', str(m.get('classification') or '')))
             if not gallery_fallback:
                 continue

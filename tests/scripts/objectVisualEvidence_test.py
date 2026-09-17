@@ -735,6 +735,33 @@ class ObjectEvidenceTests(unittest.TestCase):
             self.assertEqual([row['asset_id'] for row in result], ['local', 'gallery'])
             self.assertTrue(all('objects' not in row for row in result))
 
+    def test_checksum_pinned_official_original_outranks_an_opaque_gallery_only_for_component_discovery(self):
+        """A stronger original source changes search order, never identity semantics."""
+        with tempfile.TemporaryDirectory() as directory:
+            local, gallery, original = [Path(directory) / name for name in ['local', 'gallery', 'original']]
+            local.write_bytes(b'local-pixels')
+            gallery.write_bytes(b'publisher-gallery-pixels')
+            original.write_bytes(b'checksum-pinned-original-pixels')
+            packet = {
+                'requiredObjects': [{'id': 'board', 'term': {'name': 'Player board'}}],
+                'sourcePages': [4], 'requirement': {'componentDiscovery': True},
+            }
+            base = {'sourceAuthority': 'OFFICIAL_PUBLISHER_HIGH_RES', 'source_page': None,
+                'label': 'opaque external source',
+                'component_bindings': [{'componentId': 'board', 'reviewState': 'hypothesis'}],
+                'dimensions': {'width': 1600, 'height': 1000}}
+            result = matcher.candidates_for(packet, [
+                {'asset_id': 'local', 'path': str(local), 'asset_metadata': {
+                    'source_page': 4, 'heading': 'Components', 'dimensions': {'width': 900, 'height': 600}}},
+                {'asset_id': 'gallery', 'path': str(gallery), 'asset_metadata': {
+                    **base, 'provenance': {'retrievalKind': 'publisher-product-page-gallery'}}},
+                {'asset_id': 'original', 'path': str(original), 'asset_metadata': {
+                    **base, 'dimensions': {'width': 4032, 'height': 2268},
+                    'provenance': {'retrievalKind': 'explicit-official-product-original'}}},
+            ])
+            self.assertEqual([row['asset_id'] for row in result], ['original', 'local'])
+            self.assertTrue(all('objects' not in row for row in result))
+
     def test_uncaptioned_official_setup_gallery_outranks_box_art_only_for_discovery(self):
         """A URL's editorial role ranks retrieval; it never proves identity."""
         with tempfile.TemporaryDirectory() as directory:
