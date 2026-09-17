@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const ffprobeStatic = require('ffprobe-static');
 const { runMobiusE2E, parseArgs } = require('../../scripts/run_mobius_e2e.cjs');
 
 describe('runMobiusE2E', () => {
@@ -91,7 +92,7 @@ describe('runMobiusE2E', () => {
     expect(container.media.captions).toHaveLength(1);
     expect(container.media.captions[0].sha256).toMatch(/^[a-f0-9]{64}$/);
 
-    const probe = JSON.parse(execFileSync('ffprobe', [
+    const probe = JSON.parse(execFileSync(process.env.MOBIUS_FFPROBE_PATH || ffprobeStatic.path || 'ffprobe', [
       '-v', 'error', '-print_format', 'json', '-show_streams', videoPath,
     ], { encoding: 'utf8' }));
     const video = probe.streams.find((stream) => stream.codec_type === 'video');

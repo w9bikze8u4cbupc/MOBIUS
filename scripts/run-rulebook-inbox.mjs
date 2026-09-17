@@ -11,9 +11,10 @@ import { computePdfIdentity, discoverRulebooks, findProcessedBySha } from './rul
 import { runZeroState } from './run-rulebook-production.mjs';
 
 export const INBOX_STATUSES = Object.freeze([
-  'waiting', 'claimed', 'processing', 'qa', 'completed', 'failed-retryable', 'failed-terminal',
+  'waiting', 'claimed', 'processing', 'qa', 'review-required', 'completed', 'failed-retryable', 'failed-terminal',
 ]);
 export const ACTIVE_STATUSES = Object.freeze(['claimed', 'processing', 'qa']);
+export const REVIEW_STATUSES = Object.freeze(['review-required']);
 export const DEFAULT_RETRY_LIMIT = 3;
 export const DEFAULT_LEASE_MS = 15 * 60 * 1000;
 export const DEFAULT_POLL_MS = 30 * 1000;
@@ -106,11 +107,29 @@ async function listPdfs(directory, result = []) {
 
 export function classifyInboxError(error) {
   const message = String(error?.message || error || '').toLowerCase();
+  if (error?.explicitRecovery && String(error?.code || '').startsWith('VISUAL_')) {
+    return { class: 'recovery-required', retryable: true, explicitRecovery: true };
+  }
+  if (error?.classification === 'recovery_required' || String(error?.code || '').startsWith('PROJECT_STATE_')
+    || /production-state.*\(413\)|project_state_too_large|invalid string length/.test(message)) {
+    return { class: 'recovery-required', retryable: true, explicitRecovery: true };
+  }
+  const configurationRequired = error?.classification === 'configuration_required'
+    || ['AI_NOT_CONFIGURED', 'AI_PROVIDER_UNSUPPORTED'].includes(String(error?.code || ''))
+    || /ai_not_configured|missing.*(?:credential|api key|model)|no .*ai provider .*configured/i.test(message);
   const providerAvailability = error?.code === 'AI_PROVIDER_ALL_FAILED'
+    || error?.code === 'AI_MODEL_UNAVAILABLE'
     || error?.classification === 'provider_unavailable'
     || /all configured .*provider|provider_unavailable|quota_exhausted|credit_balance_exhausted|credit.*exhausted/i.test(message);
-  const retryable = providerAvailability || /econn|etimedout|enotfound|network|timeout|\b429\b|rate limit|\b5\d\d\b|temporar|elevenlabs|openai/i.test(message);
-  const terminal = /ai_not_configured|no usable text|ocr before production|invalid.*(pdf|script|storyboard)|missing.*(credential|api key)|unknown narration preset|not found/i.test(message);
+  const materializationBoundary = String(error?.code || '').startsWith('HEPHAESTUS_')
+    || error?.classification === 'retryable_engineering'
+    || /hephaestus_(materialization|manifest|synchronization|asset_transport)/i.test(message);
+  const runtimeBoundary = String(error?.code || '').startsWith('RUNTIME_')
+    || error?.classification === 'retryable_runtime'
+    || /runtime_contract_mismatch|runtime api.*unavailable/i.test(message);
+  const retryable = configurationRequired || providerAvailability || materializationBoundary || runtimeBoundary || /econn|etimedout|enotfound|network|timeout|\b429\b|rate limit|\b5\d\d\b|temporar|elevenlabs|openai/i.test(message);
+  const terminal = /no usable text|ocr before production|invalid.*(pdf|script|storyboard)|unknown narration preset|not found/i.test(message);
+  if (configurationRequired) return { class: 'configuration-required', retryable: true };
   if (terminal && !retryable) return { class: 'terminal', retryable: false };
   return { class: retryable ? 'retryable' : 'terminal', retryable };
 }
@@ -126,7 +145,11 @@ function isProcessAlive(pid) {
 }
 
 export async function acquireLease(paths, { ownerId = `${process.pid}-${randomToken()}`, leaseMs = DEFAULT_LEASE_MS } = {}) {
-  const lease = { ownerId, pid: process.pid, startedAt: now(), heartbeatAt: now(), leaseMs };
+  const lease = { ownerId, token: randomToken(), pid: process.pid, startedAt: now(), heartbeatAt: now(), leaseMs };
+  const owns = current => current?.ownerId === lease.ownerId && current?.token === lease.token
+    && current?.pid === lease.pid && current?.startedAt === lease.startedAt;
+  let stopped = false;
+  let pending = Promise.resolve();
   try {
     const handle = await fs.open(paths.lease, 'wx');
     await handle.writeFile(`${JSON.stringify(lease, null, 2)}\n`, 'utf8');
@@ -134,11 +157,18 @@ export async function acquireLease(paths, { ownerId = `${process.pid}-${randomTo
     return {
       ...lease,
       async heartbeat() {
-        lease.heartbeatAt = now();
-        await atomicWrite(paths.lease, lease);
+        if (stopped) return;
+        pending = pending.then(async () => {
+          if (stopped || !owns(safeRead(paths.lease))) return;
+          lease.heartbeatAt = now();
+          await atomicWrite(paths.lease, lease);
+        }).catch(() => {});
+        await pending;
       },
       async release() {
-        if (safeRead(paths.lease, null)?.ownerId !== ownerId) return;
+        stopped = true;
+        await pending;
+        if (!owns(safeRead(paths.lease))) return;
         await fs.unlink(paths.lease).catch(() => {});
       },
     };
@@ -151,12 +181,13 @@ export async function acquireLease(paths, { ownerId = `${process.pid}-${randomTo
       await fs.unlink(paths.lease).catch(() => {});
       return acquireLease(paths, { ownerId, leaseMs });
     }
-    const lastBeat = Date.parse(current?.heartbeatAt || current?.startedAt || 0);
     // A process can be interrupted after writing its lease but before the
     // heartbeat timeout.  Process evidence lets the next worker recover that
     // claim immediately while still protecting a live owner from concurrency.
     const ownerAlive = isProcessAlive(current?.pid);
-    if (ownerAlive && Number.isFinite(lastBeat) && Date.now() - lastBeat <= Number(current.leaseMs || leaseMs)) return null;
+    // Expired heartbeat is not permission to take a live worker's lease. PID
+    // reuse is conservatively left for explicit runtime/operator recovery.
+    if (ownerAlive) return null;
     await fs.unlink(paths.lease).catch(() => {});
     return acquireLease(paths, { ownerId, leaseMs });
   }
@@ -175,7 +206,7 @@ export async function discoverInbox(root, { dataRoot = path.join(path.dirname(pa
       || existsSync(path.join(dataRoot, record.documentId || '', 'production', 'production-report.json')));
     rows.push({ identity, state: known, processed, completedProjectId: complete?.documentId || null });
   }
-  const waiting = rows.filter((row) => !ACTIVE_STATUSES.includes(row.state?.status)
+  const waiting = rows.filter((row) => !row.state?.recoveryRequired && !ACTIVE_STATUSES.includes(row.state?.status) && !REVIEW_STATUSES.includes(row.state?.status)
     && row.state?.status !== 'completed' && row.state?.status !== 'failed-terminal' && !row.completedProjectId);
   const duplicates = rows.filter((row) => !ACTIVE_STATUSES.includes(row.state?.status)
     && row.state?.status !== 'failed-terminal' && (row.completedProjectId || row.state?.status === 'completed'));
@@ -205,6 +236,104 @@ async function archiveSource(paths, source, identity, directory) {
   await fs.mkdir(directory, { recursive: true });
   if (path.resolve(source).toLowerCase() !== path.resolve(target).toLowerCase()) await fs.rename(source, target);
   return target;
+}
+
+function isWithin(directory, candidate) {
+  const relative = path.relative(path.resolve(directory), path.resolve(candidate));
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+export async function requeueInboxItem(options = {}) {
+  const root = path.resolve(options.root || process.cwd());
+  const paths = await ensureInbox(path.resolve(options.inboxRoot || path.join(root, 'data', 'rulebook-inbox')));
+  // Retain pre-recovery evidence. acquireLease() may remove a dead lease
+  // before granting recovery, but an active item is recoverable only when it
+  // is demonstrably no longer owned by a live worker.
+  const priorLease = safeRead(paths.lease, null);
+  const recoveryLease = await acquireLease(paths);
+  if (!recoveryLease) throw new Error('Inbox recovery refused: another worker owns the lease.');
+  try {
+  const sha256 = String(options.sha256 || options.sha || '').trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error('Use requeue --sha <64-character source SHA-256>.');
+  const state = await loadState(paths);
+  const item = state.items[sha256];
+  const reopenReview = options.reopenReview === true || options['reopen-review'] === true;
+  const recoverInterrupted = options.recoverInterrupted === true || options['recover-interrupted'] === true;
+  const requeueableFailure = ['failed-terminal', 'failed-retryable'].includes(item?.status);
+  const explicitlyReopenedReview = item?.status === 'review-required' && reopenReview;
+  const activeItem = ACTIVE_STATUSES.includes(item?.status);
+  const interruptedOwner = activeItem && recoverInterrupted
+    && item?.ownerId && item?.leaseToken && Number.isInteger(Number(item?.pid))
+    && !isProcessAlive(item.pid)
+    && (!priorLease || (priorLease.ownerId === item.ownerId
+      && priorLease.token === item.leaseToken
+      && Number(priorLease.pid) === Number(item.pid)));
+  if (!item || (!requeueableFailure && !explicitlyReopenedReview && !interruptedOwner)) {
+    if (activeItem && recoverInterrupted && isProcessAlive(item?.pid)) {
+      throw new Error(`Inbox recovery refused: active source ${sha256} is still owned by live worker PID ${item.pid}.`);
+    }
+    throw new Error(`Inbox source ${sha256} is not in a failed state. Use --reopen-review to explicitly rerun a Cockpit review boundary after a generator change, or --recover-interrupted only after its recorded worker has stopped.`);
+  }
+
+  const filename = path.basename(item.source?.filename || 'rulebook.pdf');
+  const archivedName = `${sha256.slice(0, 16)}-${filename}`;
+  const candidates = [
+    sourceForRecord(item),
+    path.join(paths.failedTerminal, archivedName),
+    path.join(paths.failedRetryable, archivedName),
+  ].filter(Boolean).map((candidate) => path.resolve(candidate));
+  const sourcePath = candidates.find((candidate) => existsSync(candidate)
+    && [paths.waiting, paths.failedTerminal, paths.failedRetryable].some((directory) => isWithin(directory, candidate))
+    && hashFile(candidate) === sha256);
+  if (!sourcePath) throw new Error(`No verified source PDF is available for ${sha256}.`);
+
+  const waitingPath = path.join(paths.waiting, filename);
+  if (existsSync(waitingPath) && hashFile(waitingPath) !== sha256) {
+    throw new Error(`Waiting destination already contains different bytes: ${filename}`);
+  }
+  if (!existsSync(waitingPath)) await fs.rename(sourcePath, waitingPath);
+
+  const previousState = {
+    status: item.status,
+    failedAt: item.failedAt || null,
+    retryCount: Number(item.retryCount || 0),
+    diagnosticPath: item.diagnosticPath || null,
+    lastError: item.lastError || null,
+    reviewItems: Number(item.reviewItems || 0),
+    reviewQueuePath: item.reviewQueuePath || null,
+    stage: item.stage || null,
+    worker: { ownerId: item.ownerId || null, pid: item.pid || null, claimedAt: item.claimedAt || null },
+  };
+  const historyField = interruptedOwner ? 'interruptionHistory' : (explicitlyReopenedReview ? 'reviewReopenHistory' : 'failureHistory');
+  const requeued = await updateItem(paths, state, sha256, {
+    status: 'waiting',
+    stage: 'waiting',
+    source: { ...item.source, path: waitingPath },
+    sourcePath: waitingPath,
+    retryCount: 0,
+    recoveryRequired: false,
+    lastError: null,
+    diagnosticPath: null,
+    ownerId: null,
+    leaseToken: null,
+    pid: null,
+    claimedAt: null,
+    startedAt: null,
+    failedAt: null,
+    requeuedAt: now(),
+    [historyField]: [...(Array.isArray(item[historyField]) ? item[historyField] : []), previousState],
+  });
+  await appendEvent(paths, interruptedOwner ? 'interrupted-recovered' : (explicitlyReopenedReview ? 'review-reopened' : 'requeued'), {
+    sha256,
+    previousStatus: previousState.status,
+    sourcePath: waitingPath,
+    reviewItems: previousState.reviewItems,
+    previousOwner: interruptedOwner ? previousState.worker : null,
+  });
+  return { status: 'waiting', sha256, sourcePath: waitingPath, item: requeued };
+  } finally {
+    await recoveryLease.release();
+  }
 }
 
 function activeItem(state) {
@@ -378,6 +507,7 @@ export async function runInboxOnce(options = {}) {
     const item = await updateItem(paths, state, work.identity.sha256, {
       status: 'claimed', source: { ...work.identity, discoveredAt: work.existing?.source?.discoveredAt || now() }, sourcePath: work.sourcePath,
       claimedAt: work.existing?.claimedAt || now(), ownerId: lease.ownerId, pid: process.pid,
+      leaseToken: lease.token,
       retryCount: Number(work.existing?.retryCount || 0), lastError: null,
     });
     await appendEvent(paths, 'claimed', { sha256: work.identity.sha256, ownerId: lease.ownerId });
@@ -385,6 +515,15 @@ export async function runInboxOnce(options = {}) {
     const runner = options.runner || runZeroState;
     const result = await runner({ root, pdf: work.sourcePath, language: options.language || 'fr-CA', baseUrl: options.baseUrl, apiKey: options.apiKey, forceRender: Boolean(options.forceRender) });
     const projectId = result.projectId || result.zeroState?.projectId;
+    if (result.status === 'review_required') {
+      const reviewItem = await updateItem(paths, state, work.identity.sha256, {
+        status: 'review-required', stage: result.stage || 'cockpit-review', projectId,
+        reviewItems: Number(result.reviewItems || 0), reviewQueuePath: result.reviewQueuePath || null,
+        lastError: null,
+      });
+      await appendEvent(paths, 'review_required', { sha256: work.identity.sha256, projectId, stage: reviewItem.stage, reviewItems: reviewItem.reviewItems });
+      return { status: 'review_required', projectId, item: reviewItem, result };
+    }
     await updateItem(paths, state, work.identity.sha256, { status: 'qa', stage: 'release-package', projectId });
     const release = await packageRelease({ root, paths, identity: work.identity, result, item: { ...item, projectId } });
     const finalItem = await updateItem(paths, state, work.identity.sha256, {
@@ -400,7 +539,9 @@ export async function runInboxOnce(options = {}) {
     const previous = state.items[work.identity.sha256] || {};
     const retryCount = Number(previous.retryCount || 0) + 1;
     const classification = classifyInboxError(error);
-    const status = classification.retryable && retryCount < (Number(options.retryLimit) || DEFAULT_RETRY_LIMIT) ? 'failed-retryable' : 'failed-terminal';
+    const retryLimitReached = !classification.explicitRecovery && classification.class !== 'configuration-required'
+      && retryCount >= (Number(options.retryLimit) || DEFAULT_RETRY_LIMIT);
+    const status = classification.retryable && !retryLimitReached ? 'failed-retryable' : 'failed-terminal';
     const diagnostic = {
       status,
       classification: classification.class,
@@ -415,13 +556,26 @@ export async function runInboxOnce(options = {}) {
     const directory = status === 'failed-terminal' ? paths.failedTerminal : paths.failedRetryable;
     const diagnosticPath = path.join(directory, `${work.identity.sha256}.failure.json`);
     await fs.writeFile(diagnosticPath, `${JSON.stringify(diagnostic, null, 2)}\n`, 'utf8');
-    await updateItem(paths, state, work.identity.sha256, { status, source: work.identity, sourcePath: work.sourcePath, retryCount, lastError: diagnostic.error, diagnosticPath, failedAt: now() });
+    await updateItem(paths, state, work.identity.sha256, { status, recoveryRequired: Boolean(classification.explicitRecovery), source: work.identity, sourcePath: work.sourcePath, retryCount, lastError: diagnostic.error, diagnosticPath, failedAt: now() });
     if (status === 'failed-terminal') await archiveSource(paths, work.sourcePath, work.identity, paths.failedTerminal);
     await appendEvent(paths, 'failed', { sha256: work.identity.sha256, status, retryCount });
     return { status, error: diagnostic.error, retryCount, diagnosticPath };
   } finally {
     clearInterval(timer);
-    await lease.release();
+    try {
+      if (work?.identity?.sha256) {
+        const latest = await loadState(paths);
+        const item = latest.items[work.identity.sha256];
+        const currentLease = safeRead(paths.lease);
+        if (item?.ownerId === lease.ownerId && item?.leaseToken === lease.token
+          && currentLease?.token === lease.token && currentLease?.ownerId === lease.ownerId) {
+          await updateItem(paths, latest, work.identity.sha256, {
+            lastWorker: { ownerId: item.ownerId, pid: item.pid, claimedAt: item.claimedAt, releasedAt: now() },
+            ownerId: null, pid: null, claimedAt: null, leaseToken: null,
+          });
+        }
+      }
+    } finally { await lease.release(); }
   }
 }
 
@@ -474,7 +628,13 @@ function parseCli(argv) {
 async function main() {
   const { command, values } = parseCli(process.argv.slice(2));
   const options = { ...values, language: values.lang || values.language || 'fr-CA', leaseMs: values['lease-ms'], retryLimit: values['retry-limit'], pollMs: values['poll-ms'], forceRender: Boolean(values['force-render']), reprocess: Boolean(values.reprocess) };
-  const result = command === 'status' ? await inboxStatus(options) : command === 'watch' ? await runInboxWatch(options) : await runInboxOnce(options);
+  const result = command === 'status'
+    ? await inboxStatus(options)
+    : command === 'watch'
+      ? await runInboxWatch(options)
+      : command === 'requeue'
+        ? await requeueInboxItem({ ...options, sha256: values.sha || values['source-sha'], reopenReview: Boolean(values['reopen-review']), recoverInterrupted: Boolean(values['recover-interrupted']) })
+        : await runInboxOnce(options);
   console.log(JSON.stringify(result, null, 2));
   if (result.status === 'failed-terminal') process.exitCode = 2;
 }

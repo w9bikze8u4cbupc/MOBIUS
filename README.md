@@ -25,6 +25,10 @@ The Script step stays disabled until **Refresh AI status** completes its metadat
 
 ## Continuous Integration
 
+Persistence and recovery: [canonical project-state contract](docs/PROJECT_STATE_PERSISTENCE.md)
+documents compact transport, Cockpit hydration, owned Inbox leases and explicit
+requeue after a size failure. A persistence PASS does not establish visual quality.
+
 - [CI Audio Metrics Pipeline Summary](CI_AUDIO_METRICS_PIPELINE_SUMMARY.md)
 
 ## Phase E Hardening

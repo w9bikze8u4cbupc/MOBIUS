@@ -1,0 +1,17 @@
+{
+  "contract": "mobius-explicit-authorized-source-input-v1",
+  "projectId": "c1-cowboy-bebop-space-serenade-e10e5d1d2ce4",
+  "sourceSha256": "e10e5d1d2ce4f0acb4f1ec355577b3e3b7828b3a10fb4c6a277205bf9b698bc8",
+  "sources": [
+    {
+      "id": "japanime-common-deck-board-original",
+      "title": "Cowboy Bebop: Space Serenade",
+      "productUrl": "https://japanimegames.com/products/cowboy-bebop-space-serenade",
+      "metadataUrl": "https://japanimegames.com/products/cowboy-bebop-space-serenade.js",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0012/3741/8036/files/PXL_20240128_205309148.jpg?v=1721080076",
+      "expectedSha256": "ea524ae4494cd54fbc7dfa5d239b66088b3552be2ad39721f1c2bf6006bb8957",
+      "expectedDimensions": { "width": 4032, "height": 2268 },
+      "componentRefs": ["comp-9"]
+    }
+  ]
+}

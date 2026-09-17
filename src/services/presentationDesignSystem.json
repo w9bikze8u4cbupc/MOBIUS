@@ -1,0 +1,80 @@
+{
+  "version": "mobius-presentation-design-v1",
+  "colors": {
+    "brandGreen": "#b7ef59",
+    "brandCream": "#f7ecd2",
+    "brandInk": "#211a16",
+    "panelWarmDark": "#32231c",
+    "panelWarmLight": "#f3e5c7",
+    "panelBorder": "#c99b5b",
+    "panelHighlight": "#ffe5a8",
+    "panelShadow": "#160e0a",
+    "sectionAccent": "#b7ef59",
+    "muted": "#d6c8ad"
+  },
+  "surfaceTexture": "procedural-walnut-grain-v1",
+  "typography": {
+    "display": {
+      "family": "Lora",
+      "fontFile": "src/assets/fonts/Lora-Variable.ttf",
+      "weight": 600,
+      "sizePx1080": 72
+    },
+    "body": {
+      "family": "Nunito",
+      "fontFile": "src/assets/fonts/Nunito-Variable.ttf",
+      "weight": 500,
+      "minPx1080": 48,
+      "preferredPx1080": 54,
+      "lineHeight": 1.35
+    },
+    "label": {
+      "family": "Nunito",
+      "fontFile": "src/assets/fonts/Nunito-Variable.ttf",
+      "weight": 700,
+      "sizePx1080": 46,
+      "minPx1080": 42,
+      "paddingPx1080": 18
+    }
+  },
+  "panels": {
+    "WARM_DARK": {
+      "fill": "#32231c",
+      "fillAlpha": 0.94,
+      "text": "#f7ecd2",
+      "border": "#c99b5b",
+      "highlight": "#ffe5a8",
+      "shadow": "#160e0a",
+      "radiusPx": 28
+    },
+    "WARM_LIGHT": {
+      "fill": "#f3e5c7",
+      "fillAlpha": 0.94,
+      "text": "#211a16",
+      "border": "#c99b5b",
+      "highlight": "#fff4d4",
+      "shadow": "#160e0a",
+      "radiusPx": 28
+    }
+  },
+  "layout": {
+    "safeMargins": { "x": 0.075, "y": 0.075 },
+    "panelPaddingPx1080": 42,
+    "panelGapPx1080": 28,
+    "bodyFontMinPx1080": 48,
+    "bodyFontPreferredPx1080": 54,
+    "maxPanelWidthRatio": 0.44,
+    "minVisualWidthRatio": 0.54
+    ,"sectionBadgeMinPx1080": 42
+    ,"sectionBadgePreferredPx1080": 46
+  },
+  "semantic": {
+    "openingIdentity": "À propos du jeu",
+    "objective": "Le but du jeu",
+    "setup": "Mise en place"
+  },
+  "assets": {
+    "license": "SIL Open Font License 1.1",
+    "fontManifest": "src/assets/fonts/font-manifest.json"
+  }
+}

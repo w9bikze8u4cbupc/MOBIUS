@@ -1,10 +1,36 @@
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
+import path from 'node:path';
 
-dotenv.config();
+const ENV_FILE_PATH = path.resolve(process.env.MOBIUS_CONFIG_PATH || path.join(process.cwd(), '.env'));
+const DEFAULT_ACCESS_CHECK_TIMEOUT_MS = 20_000;
 
-const ENV_FILE_PATH = 'C:\\mobius-games-tutorial-generator\\.env';
+function accessCheckTimeoutMs(env = process.env) {
+  const parsed = Number(env.MOBIUS_AI_ACCESS_CHECK_TIMEOUT_MS);
+  return Number.isFinite(parsed) ? Math.max(1_000, Math.min(60_000, Math.floor(parsed))) : DEFAULT_ACCESS_CHECK_TIMEOUT_MS;
+}
+
+async function withAccessCheckDeadline(request, timeoutMs) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error('AI access check timed out');
+      error.code = 'AI_ACCESS_CHECK_TIMEOUT';
+      reject(error);
+    }, timeoutMs);
+  });
+  try {
+    // The SDK is asked to abort too, but a hard Promise deadline is required:
+    // not every transport settles its promise when an AbortSignal fires.
+    return await Promise.race([request, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+dotenv.config({ path: ENV_FILE_PATH });
+
 let client;
+let clientConfiguration;
 let accessCheckCache = null;
 
 function getValue(env, name) {
@@ -42,6 +68,10 @@ const GENERATION_OPERATION_DEFAULTS = Object.freeze({
     max_completion_tokens: 4096,
     temperature: 0.3,
   }),
+  rulebook_domain_synthesis: Object.freeze({
+    max_completion_tokens: 3200,
+    temperature: 0.1,
+  }),
 });
 
 // Model-owned generation capabilities keep provider-specific controls out of route callers.
@@ -60,6 +90,9 @@ const MODEL_GENERATION_PROFILES = Object.freeze({
       }),
       summary_translation: Object.freeze({
         max_completion_tokens: 6400,
+      }),
+      rulebook_domain_synthesis: Object.freeze({
+        max_completion_tokens: 4800,
       }),
     }),
   }),
@@ -127,8 +160,8 @@ function getUnavailableModelMessage(model) {
   return `AI script generation is unavailable: OPENAI_MODEL "${model}" is not accessible to this API key. Set an accessible model in ${ENV_FILE_PATH}, restart the server, then try again.`;
 }
 
-export function getAiClient({ requireModel = true } = {}) {
-  const config = getAiConfig();
+export function getAiClient({ requireModel = true, env = process.env } = {}) {
+  const config = getAiConfig(env);
   if (!config.apiKey || (requireModel && !config.model)) {
     const error = new Error(getSetupMessage(config));
     error.code = 'AI_NOT_CONFIGURED';
@@ -136,11 +169,13 @@ export function getAiClient({ requireModel = true } = {}) {
     throw error;
   }
 
-  if (!client) {
+  if (!client || (clientConfiguration && (clientConfiguration.apiKey !== config.apiKey || clientConfiguration.baseURL !== config.baseURL))) {
     client = new OpenAI({
       baseURL: config.baseURL,
       apiKey: config.apiKey,
+      maxRetries: 0, // Canonical executor owns bounded retries; do not multiply them in the SDK.
     });
+    clientConfiguration = { apiKey: config.apiKey, baseURL: config.baseURL };
   }
   return client;
 }
@@ -190,10 +225,27 @@ export async function getAiStatus({ checkAccess = false } = {}) {
   if (!accessCheckCache) {
     accessCheckCache = (async () => {
       try {
-        await getAiClient().models.retrieve(config.model);
+        // A readiness check must never hold an Inbox lease indefinitely when
+        // a provider accepts a TCP connection but does not answer. Pass an
+        // abort signal to the SDK request rather than racing an unresolved
+        // promise, so the underlying request is cancelled too.
+        await withAccessCheckDeadline(
+          getAiClient().models.retrieve(config.model, {
+            signal: AbortSignal.timeout(accessCheckTimeoutMs()),
+          }),
+          accessCheckTimeoutMs(),
+        );
         return { ready: true, message: `AI model "${config.model}" is ready.` };
       } catch (error) {
-        return { ready: false, message: getUnavailableModelMessage(config.model) };
+        const timedOut = error?.name === 'AbortError' || error?.code === 'ABORT_ERR' || error?.code === 'AI_ACCESS_CHECK_TIMEOUT'
+          || /timeout|timed out|abort/i.test(String(error?.message || ''));
+        return {
+          ready: false,
+          code: timedOut ? 'AI_ACCESS_CHECK_TIMEOUT' : 'AI_MODEL_UNAVAILABLE',
+          message: timedOut
+            ? `AI access check for OPENAI_MODEL "${config.model}" timed out; retry when the provider is reachable.`
+            : getUnavailableModelMessage(config.model),
+        };
       }
     })();
   }
@@ -204,6 +256,7 @@ export async function getAiStatus({ checkAccess = false } = {}) {
     provider: config.provider,
     model: config.model,
     ready: result.ready,
+    code: result.code || null,
     message: result.message,
   };
 }
@@ -221,10 +274,12 @@ export async function requireAiReady({ checkAccess = true } = {}) {
 
 export function setAiClientForTests(testClient) {
   client = testClient;
+  clientConfiguration = null;
   accessCheckCache = null;
 }
 
 export function resetAiConfigForTests() {
   client = null;
+  clientConfiguration = null;
   accessCheckCache = null;
 }

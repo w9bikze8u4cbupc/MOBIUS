@@ -3,6 +3,13 @@ import test from 'node:test';
 import { classifyProviderError, createAiProviderRun } from '../../src/services/aiProviderExecutor.js';
 
 const response = (content) => ({ model: 'fallback-model', choices: [{ message: { content } }] });
+test('explicit provider restriction never tries a configured fallback', async()=>{
+ let fallback=0;
+ const run=createAiProviderRun({env:{},allowedProviders:['openai'],maxRetries:0,providers:{
+ openai:{model:'unit',adapter:async()=>{throw Object.assign(new Error('unauthorized'),{status:401});}},
+ anthropic:{model:'other',adapter:async()=>{fallback++;return response('not authorized');}}}});
+ await assert.rejects(run.complete({messages:[{role:'user',content:'fixture'}]}));assert.equal(fallback,0);
+});
 
 test('quota exhaustion disables one provider for the run and falls through once', async () => {
   let exhaustedCalls = 0;
@@ -35,6 +42,19 @@ test('a single exhausted provider is still reported as provider-unavailable', as
     assert.equal(error.code, 'AI_PROVIDER_ALL_FAILED');
     assert.equal(error.classification, 'provider_unavailable');
     assert.deepEqual(error.providerAttempts.map((attempt) => attempt.category), ['quota_exhausted']);
+    return true;
+  });
+});
+
+test('a single empty provider response is normalized as recoverable provider failure', async () => {
+  const run = createAiProviderRun({
+    env: {}, providerOrder: ['openai'], maxRetries: 0,
+    providers: { openai: { model: 'empty-model', adapter: async () => response(null) } },
+  });
+  await assert.rejects(() => run.complete({ messages: [{ role: 'user', content: 'rules' }] }), (error) => {
+    assert.equal(error.code, 'AI_PROVIDER_ALL_FAILED');
+    assert.equal(error.classification, 'provider_unavailable');
+    assert.deepEqual(error.providerAttempts.map((attempt) => attempt.category), ['empty_response']);
     return true;
   });
 });
@@ -78,4 +98,18 @@ test('provider categories distinguish quota from transient rate limiting', () =>
   assert.equal(classifyProviderError(Object.assign(new Error('credit_balance_exhausted'), { status: 429 })), 'quota_exhausted');
   assert.equal(classifyProviderError(Object.assign(new Error('too many requests'), { status: 429 })), 'rate_limited_transient');
   assert.equal(classifyProviderError(Object.assign(new Error('bad model'), { status: 404 })), 'model_unavailable');
+});
+
+test('an SDK adapter that ignores its timeout becomes a bounded retryable provider result', async () => {
+  const run = createAiProviderRun({
+    env: {}, providerOrder: ['openai'], maxRetries: 0, timeoutMs: 5,
+    providers: { openai: { model: 'slow-model', adapter: async () => new Promise(() => {}) } },
+  });
+  const startedAt = Date.now();
+  await assert.rejects(run.complete({ messages: [{ role: 'user', content: 'bounded fixture' }] }), (error) => {
+    assert.equal(error.code, 'AI_PROVIDER_ALL_FAILED');
+    assert.equal(error.providerAttempts[0].category, 'network_transient');
+    return true;
+  });
+  assert.ok(Date.now() - startedAt < 1000);
 });

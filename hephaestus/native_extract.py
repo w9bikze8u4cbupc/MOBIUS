@@ -10,13 +10,85 @@ import json
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import fitz  # PyMuPDF
 from PIL import Image, ImageStat
 
-UPSCALE_FACTOR = 3
 THUMBNAIL_SIZE = (360, 360)
+
+
+def _round_values(values) -> List[float]:
+    return [round(float(value), 6) for value in values]
+
+
+def collect_native_image_lineage(pdf_path: str) -> Dict[str, Any]:
+    """Map every placed PDF raster back to its native object and transform.
+
+    A high-DPI page render is only a sampling of the PDF page.  It must not be
+    treated as newly created source detail when a region is backed by a small
+    embedded raster.  This report gives downstream visual QA enough evidence
+    to follow a page crop through its PDF placement to the true native pixels.
+    """
+    pdf = Path(pdf_path)
+    document = fitz.open(pdf)
+    try:
+        pages = []
+        by_xref: Dict[str, Any] = {}
+        for page_index in range(document.page_count):
+            page = document.load_page(page_index)
+            occurrences = []
+            for info in page.get_image_info(xrefs=True):
+                xref = int(info.get("xref") or 0)
+                # xref=0 entries are inline/mask renderings that cannot be
+                # attributed to a stable native object. Keep them as explicit
+                # unresolved raster evidence; never invent native dimensions.
+                occurrence = {
+                    "pageIndex": page_index,
+                    "pageNumber": page_index + 1,
+                    "xref": xref or None,
+                    "bboxPoints": _round_values(info.get("bbox") or []),
+                    "placementMatrix": _round_values(info.get("transform") or []),
+                    "nativeWidthPx": int(info.get("width") or 0) if xref else None,
+                    "nativeHeightPx": int(info.get("height") or 0) if xref else None,
+                    "colorspace": info.get("cs-name"),
+                    "bitsPerComponent": info.get("bpc"),
+                    "hasMask": bool(info.get("has-mask")),
+                    "stableNativeObject": bool(xref),
+                }
+                occurrences.append(occurrence)
+                if xref:
+                    key = str(xref)
+                    record = by_xref.setdefault(key, {
+                        "xref": xref,
+                        "nativeWidthPx": int(info.get("width") or 0),
+                        "nativeHeightPx": int(info.get("height") or 0),
+                        "colorspace": info.get("cs-name"),
+                        "bitsPerComponent": info.get("bpc"),
+                        "hasMask": bool(info.get("has-mask")),
+                        "occurrences": [],
+                    })
+                    record["occurrences"].append({
+                        "pageNumber": page_index + 1,
+                        "bboxPoints": occurrence["bboxPoints"],
+                        "placementMatrix": occurrence["placementMatrix"],
+                    })
+            pages.append({
+                "pageIndex": page_index,
+                "pageNumber": page_index + 1,
+                "pageBoundsPoints": _round_values(page.rect),
+                "rasterOccurrenceCount": len(occurrences),
+                "rasterOccurrences": occurrences,
+            })
+        return {
+            "contract": "mobius-pdf-native-image-lineage-v1",
+            "pdfPath": str(pdf),
+            "pageCount": document.page_count,
+            "pages": pages,
+            "nativeObjects": list(by_xref.values()),
+        }
+    finally:
+        document.close()
 
 
 def detect_image_type(width: int, height: int) -> str:
@@ -65,7 +137,7 @@ def visual_information_metrics(image: Image.Image) -> Dict[str, Any]:
 
 
 def pixmap_to_image(pixmap: fitz.Pixmap) -> Image.Image:
-    """Return an independent RGB/RGBA Pillow image suitable for Lanczos processing."""
+    """Return an independent RGB/RGBA Pillow image without resizing."""
     normalized = pixmap
     if normalized.alpha:
         normalized = fitz.Pixmap(normalized, 0)
@@ -95,8 +167,24 @@ def iter_unique_image_refs(document):
             yield page_index, image_index, xref
 
 
+def native_bytes(document, xref: int, pixmap: fitz.Pixmap):
+    """Return the embedded bytes when PyMuPDF can preserve the native format.
+
+    JPEG/DCT and PNG objects remain byte-faithful masters. Other image types are
+    normalized to PNG at their native pixel dimensions; no master is enlarged.
+    """
+    extracted = document.extract_image(xref) or {}
+    ext = str(extracted.get("ext") or "").lower()
+    image = extracted.get("image")
+    if image and ext in {"jpg", "jpeg", "png"}:
+        return bytes(image), ("jpg" if ext == "jpeg" else ext)
+    with io.BytesIO() as output:
+        pixmap_to_image(pixmap).save(output, format="PNG")
+        return output.getvalue(), "png"
+
+
 def extract_all_native_images(pdf_path: str, output_dir: str) -> Dict[str, Any]:
-    """Extract every native raster image, upscale it 3x, and create a thumbnail."""
+    """Extract every native raster image at its original pixel dimensions."""
     pdf = Path(pdf_path)
     destination = Path(output_dir)
     images_dir = destination / "images" / "all"
@@ -129,17 +217,15 @@ def extract_all_native_images(pdf_path: str, output_dir: str) -> Dict[str, Any]:
                     pixmap = fitz.Pixmap(document, xref)
                     original_width, original_height = pixmap.width, pixmap.height
                     image_type = detect_image_type(original_width, original_height)
-
-                    upscaled = pixmap_to_image(pixmap).resize(
-                        (original_width * UPSCALE_FACTOR, original_height * UPSCALE_FACTOR),
-                        Image.Resampling.LANCZOS,
-                    )
-                    file_name = f"component_{asset_id}.png"
+                    native_buffer, native_ext = native_bytes(document, xref, pixmap)
+                    file_name = f"component_{asset_id}.{native_ext}"
                     image_path = images_dir / file_name
                     thumbnail_path = thumbnails_dir / file_name
-                    upscaled.save(image_path, "PNG")
+                    image_path.write_bytes(native_buffer)
 
-                    thumbnail = upscaled.copy()
+                    with Image.open(io.BytesIO(native_buffer)) as opened:
+                        native_image = opened.convert("RGB").copy()
+                    thumbnail = native_image.copy()
                     thumbnail.thumbnail(THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
                     thumbnail.save(thumbnail_path, "PNG")
 
@@ -157,16 +243,18 @@ def extract_all_native_images(pdf_path: str, output_dir: str) -> Dict[str, Any]:
                         "confidence": 1.0,
                         "label": label,
                         "quantity": None,
-                        "upscale_factor": UPSCALE_FACTOR,
+                        "native_master": True,
+                        "upscale_factor": 1,
+                        "derivative": False,
                         "original_dimensions": {
                             "width": original_width,
                             "height": original_height,
                         },
                         "dimensions": {
-                            "width": upscaled.width,
-                            "height": upscaled.height,
+                            "width": original_width,
+                            "height": original_height,
                         },
-                        "visual_metrics": visual_information_metrics(upscaled),
+                        "visual_metrics": visual_information_metrics(native_image),
                     })
                     type_counts[image_type] += 1
                 except Exception as error:
@@ -186,14 +274,15 @@ def extract_all_native_images(pdf_path: str, output_dir: str) -> Dict[str, Any]:
             "tokens": type_counts["token"],
             "boards": type_counts["board"],
             "other": type_counts["other"],
-            "upscale_factor": UPSCALE_FACTOR,
+            "native_master": True,
+            "upscale_factor": 1,
             "extraction_errors": extraction_errors,
         }
         manifest_path = destination / "manifest.json"
         manifest_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
         result["manifest_path"] = str(manifest_path)
         print(
-            f"[HEPHAESTUS] Extracted {len(result['images'])} native images at {UPSCALE_FACTOR}x Lanczos",
+            f"[HEPHAESTUS] Extracted {len(result['images'])} native masters without resizing",
             file=sys.stderr,
         )
     except Exception as error:

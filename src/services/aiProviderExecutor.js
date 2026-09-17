@@ -70,7 +70,10 @@ function configuredProviders(env = process.env) {
   const providers = [];
   if (openai.apiKey && openai.model) providers.push({
     name: 'openai', model: openai.model, configured: true, baseURL: openai.baseURL,
-    adapter: async ({ messages, options }) => getAiClient().chat.completions.create({ model: openai.model, messages, ...(options || {}) }),
+    adapter: async ({ messages, options, timeoutMs }) => getAiClient({ env }).chat.completions.create(
+      { model: openai.model, messages, ...(options || {}) },
+      { timeout: timeoutMs },
+    ),
   });
 
   const anthropicModel = configuredModel(env, ['ANTHROPIC_MODEL', 'CLAUDE_MODEL']);
@@ -152,12 +155,33 @@ function validationCategory(error) {
   return 'schema_invalid';
 }
 
-export function createAiProviderRun({ env = process.env, providerOrder, providers: overrides = {}, maxRetries = DEFAULT_RETRIES, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+async function withProviderDeadline(request, { provider, timeoutMs }) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(`${provider} generation timed out after ${timeoutMs}ms`);
+      error.code = 'AI_PROVIDER_TIMEOUT';
+      error.provider = provider;
+      reject(error);
+    }, timeoutMs);
+  });
+  try {
+    // Provider SDKs should receive their own deadline, but this race is the
+    // process-level guarantee that an Inbox worker cannot retain its lease
+    // forever when a transport disregards SDK timeout/abort options.
+    return await Promise.race([request, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export function createAiProviderRun({ env = process.env, providerOrder, allowedProviders, providers: overrides = {}, maxRetries = DEFAULT_RETRIES, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   const configured = listConfiguredProviders(env).map((provider) => ({ ...provider, ...(overrides[provider.name] || {}) }));
   const overrideOnly = Object.entries(overrides)
     .filter(([name]) => !configured.some((provider) => provider.name === name))
     .map(([name, provider]) => ({ name, model: provider.model || 'test-model', configured: provider.configured !== false, ...provider }));
-  const available = [...configured, ...overrideOnly].filter((provider) => provider.configured !== false);
+  const available = [...configured, ...overrideOnly].filter((provider) => provider.configured !== false
+    && (!allowedProviders || allowedProviders.includes(provider.name)));
   const order = (Array.isArray(providerOrder) ? providerOrder : String(providerOrder || env?.MOBIUS_AI_PROVIDER_ORDER || '').split(','))
     .map((name) => String(name).trim().toLowerCase()).filter(Boolean);
   const ordered = [...(order.length ? order : DEFAULT_PROVIDER_ORDER), ...available.map((provider) => provider.name)]
@@ -195,7 +219,10 @@ export function createAiProviderRun({ env = process.env, providerOrder, provider
       const attemptsForProvider = Math.max(0, retries) + 1;
       for (let attempt = 1; attempt <= attemptsForProvider; attempt += 1) {
         try {
-          const response = await provider.adapter({ messages, options, timeoutMs, model: provider.model });
+          const response = await withProviderDeadline(
+            provider.adapter({ messages, options, timeoutMs, model: provider.model }),
+            { provider: provider.name, timeoutMs },
+          );
           let value = response;
           if (validate) {
             try { value = await validate(response, provider); }
@@ -209,6 +236,16 @@ export function createAiProviderRun({ env = process.env, providerOrder, provider
           };
           return { response, value, model: provider.model, provenance, attempts: [...attempts] };
         } catch (error) {
+          const providerCode = String(error?.code || error?.error?.code || error?.response?.data?.error?.code || '').toLowerCase();
+          const providerMessage = String(error?.message || error?.error?.message || error?.response?.data?.error?.message || '');
+          if (['unsupported_value', 'unsupported_parameter', 'unsupported-parameter'].includes(providerCode)
+              || /unsupported[-_ ]?(?:value|parameter)|does not support/i.test(providerMessage)) {
+            // Request-shape incompatibility is deterministic. Preserve the
+            // provider payload so the API can map it to its stable public
+            // compatibility error instead of retrying or misclassifying it as
+            // provider availability.
+            throw error;
+          }
           lastFailure = error;
           const category = classifyProviderError(error, provider.name);
           attempts.push({ provider: provider.name, model: provider.model, attempt, category, status: statusOf(error) || null });
@@ -241,6 +278,12 @@ export function createAiProviderRun({ env = process.env, providerOrder, provider
         'rate_limited_transient',
         'network_transient',
         'provider_5xx',
+        // A successful HTTP exchange with no usable completion is a provider
+        // execution boundary, never evidence that the source document is
+        // terminally invalid.  Preserve it as a structured retryable result
+        // so Inbox can require an explicit recovery rather than quarantining
+        // a valid rulebook.
+        'empty_response',
         'unknown_provider_failure',
       ].includes(finalCategory);
       if (!providerUnavailable) throw lastFailure.cause || lastFailure;

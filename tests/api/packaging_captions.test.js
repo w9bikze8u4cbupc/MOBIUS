@@ -78,6 +78,11 @@ describe('packageRenderJob captions', () => {
     expect(frEntry.locale).toBe('fr-FR');
     expect(frEntry.sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(manifest.localization.subtitleLocaleCodes['en-US']).toBe('en');
+    expect(manifest.tools).toEqual({
+      ffmpeg: null,
+      ffprobe: null,
+      probesSkipped: 'no-media-artifacts',
+    });
   });
 
   it('preserves a regional caption code provided by the render job', async () => {

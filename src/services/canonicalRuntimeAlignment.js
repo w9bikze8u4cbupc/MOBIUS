@@ -1,0 +1,95 @@
+import path from 'node:path';
+import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
+import { resolveGitIdentity } from './runtimeCompatibility.js';
+
+const moduleRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+// Node preserves PowerShell 7's module search path when it launches Windows
+// PowerShell 5.1. Let the child rebuild its own defaults (Utility/Get-FileHash,
+// NetTCPIP, etc.); preserve every actual runtime/provider setting unchanged.
+export function windowsPowerShellEnvironment(env = process.env) {
+  return Object.fromEntries(Object.entries(env).filter(([key]) => key.toLowerCase() !== 'psmodulepath'));
+}
+
+export function canonicalRuntimeSpawnOptions(env = process.env) {
+  return { env: windowsPowerShellEnvironment(env), stdio: 'ignore', encoding: 'utf8', windowsHide: true, timeout: 15 * 60 * 1000 };
+}
+
+function localBaseUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return ['127.0.0.1', 'localhost', '::1'].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+export function resolveCanonicalRuntimeConfigurationPath({ root = moduleRoot, env = process.env } = {}) {
+  const explicit = String(env.MOBIUS_CONFIG_PATH || '').trim();
+  if (explicit) return fs.existsSync(path.resolve(explicit)) ? path.resolve(explicit) : null;
+  const common = spawnSync('git', ['-C', root, 'rev-parse', '--path-format=absolute', '--git-common-dir'], {
+    encoding: 'utf8', windowsHide: true,
+  });
+  if (common.status === 0) {
+    const shared = path.join(path.dirname(common.stdout.trim()), '.env');
+    if (fs.existsSync(shared)) return path.resolve(shared);
+  }
+  const local = path.join(root, '.env');
+  return fs.existsSync(local) ? path.resolve(local) : null;
+}
+
+// The same configuration owner used by the API manager must reach local
+// worker subprocesses. This only selects an existing file, never edits it.
+export function canonicalRuntimeConfigurationEnvironment({ root = moduleRoot, env = process.env } = {}) {
+  const configurationPath = resolveCanonicalRuntimeConfigurationPath({ root, env });
+  if (!configurationPath) return { ...env };
+  const configured = dotenv.parse(fs.readFileSync(configurationPath));
+  const providerKeys = ['OPENAI_MODEL', 'OPENAI_API_KEY', 'AI_INTEGRATIONS_OPENAI_BASE_URL',
+    'AI_INTEGRATIONS_OPENAI_API_KEY', 'MOBIUS_VISUAL_MATCH_MODEL', 'MOBIUS_VISUAL_QA_MODEL'];
+  // Prevent dotenv defaults from a different worktree from shadowing the
+  // existing canonical configuration copied by the runtime manager.
+  return { ...env, MOBIUS_CONFIG_PATH: configurationPath,
+    ...Object.fromEntries(providerKeys.filter(key => Object.hasOwn(configured, key)).map(key => [key, configured[key]])) };
+}
+
+export async function alignCanonicalRuntime({ baseUrl, requirements } = {}) {
+  if (process.platform !== 'win32' || !localBaseUrl(baseUrl)) {
+    return { attempted: false, aligned: false, reason: 'automatic-alignment-only-applies-to-the-owned-local-Windows-runtime' };
+  }
+  const script = path.join(moduleRoot, 'scripts', 'mobius-isolated-agent.ps1');
+  const deploymentRoot = process.env.MOBIUS_RUNTIME_DEPLOYMENT_ROOT || 'C:\\mobius-games-tutorial-generator-runtime';
+  const targetRevision = requirements?.workerIdentity || resolveGitIdentity({ cwd: moduleRoot });
+  const configurationPath = resolveCanonicalRuntimeConfigurationPath({ root: moduleRoot });
+  if (!/^[a-f0-9]{40}$/i.test(targetRevision)) {
+    return { attempted: false, aligned: false, reason: 'worker-build-identity-is-not-a-deployable-git-revision' };
+  }
+  const argumentsList = [
+    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+    '-File', script,
+    '-Mode', 'Align',
+    '-RepoRoot', moduleRoot,
+    '-DeploymentRoot', deploymentRoot,
+    '-BaseUrl', baseUrl,
+    '-TargetRevision', targetRevision,
+  ];
+  if (configurationPath) argumentsList.push('-ConfigurationPath', configurationPath);
+  // The manager starts a long-lived API. Inherited pipe handles can keep
+  // spawnSync waiting after PowerShell has exited. Its canonical log/status
+  // files own diagnostics; never attach production descendants to these pipes.
+  const result = spawnSync('powershell.exe', argumentsList, canonicalRuntimeSpawnOptions());
+  if (result.status !== 0) {
+    return {
+      attempted: true,
+      aligned: false,
+      reason: 'canonical-runtime-manager-refused-or-failed-alignment',
+      diagnosticLog: path.join(moduleRoot, 'data', 'logs', 'mobius-isolated-agent.log'),
+      exitCode: result.status,
+      stdout: result.stdout?.trim() || '',
+      stderr: result.stderr?.trim() || '',
+    };
+  }
+  return { attempted: true, aligned: false, reason: 'canonical-runtime-manager-completed; capability-recheck-required' };
+}

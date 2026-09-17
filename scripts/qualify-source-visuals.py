@@ -21,6 +21,13 @@ from PIL import Image
 MODEL = os.getenv("MOBIUS_VISUAL_QA_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-5-mini"
 MAX_PER_PAGE = 18
 MAX_PER_TYPE = 6
+MAX_BOUND_HYPOTHESES_PER_PAGE = 6
+# Exact-edition publisher/BGG candidates have no rulebook page index. They
+# arrive only through the canonical, already-bounded authorized manifest; keep
+# them eligible for local screening so the object matcher can inspect pixels.
+# They remain hypotheses: neither authority nor an external caption accepts a
+# component before the later object-scoped evidence gate.
+MAX_EXTERNAL_AUTHORIZED_CANDIDATES = 12
 
 SCHEMA = {
     "type": "json_schema",
@@ -73,6 +80,11 @@ def priority(asset: dict) -> tuple[int, int, int]:
     return type_rank, int(asset.get("confidence") or 0) * 1000, width * height
 
 
+def binding_ids(asset: dict) -> set[str]:
+    return {str(row.get("componentId")) for row in (asset.get("component_bindings") or asset.get("componentBindings") or [])
+            if isinstance(row, dict) and row.get("componentId")}
+
+
 def asset_metadata(asset: dict) -> dict:
     return {
         "type": asset.get("type"),
@@ -81,11 +93,31 @@ def asset_metadata(asset: dict) -> dict:
         "source_page": asset.get("source_page"),
         "page_index": asset.get("page_index"),
         "layout_labels": asset.get("layout_labels") or [],
+        "layout_text": asset.get("layout_text") or '',
+        "heading": asset.get("heading") or '',
+        "retrieval_context": asset.get("retrieval_context"),
         "bbox": asset.get("bbox") or asset.get("bounding_box"),
         "normalized_bbox": asset.get("normalized_bbox"),
         "content_hash": asset.get("contentHash") or asset.get("content_hash"),
         "source_pdf_sha256": asset.get("sourcePdfSha256") or asset.get("source_pdf_sha256"),
+        "source_pdf_path": asset.get("sourcePdfPath") or asset.get("source_pdf_path"),
         "provenance": asset.get("provenance"),
+        # Authority and retrieval kind rank a bounded search only. They are
+        # never object identity, crop, or state evidence; those still require
+        # the later object-scoped pixel verdict.
+        "sourceAuthority": asset.get("sourceAuthority") or asset.get("source_authority"),
+        "retrievalKind": (asset.get("provenance") or {}).get("retrievalKind") if isinstance(asset.get("provenance"), dict) else None,
+        "dimensions": asset.get("dimensions"),
+        "original_dimensions": asset.get("original_dimensions"),
+        # These source-extracted fields are retrieval hypotheses only.  They
+        # travel with the screening candidate so the object matcher can choose
+        # what to inspect; its provider pixel verdict remains the only source
+        # of accepted identity/completeness/state evidence.
+        "component_bindings": asset.get("component_bindings") or asset.get("componentBindings") or [],
+        "semanticObjects": asset.get("semanticObjects") or [],
+        "referentAliases": asset.get("referentAliases") or [],
+        "label": asset.get("label"),
+        "category": asset.get("category"),
     }
 
 
@@ -96,17 +128,35 @@ def local_judgement(asset: dict) -> dict:
     kind = str(asset.get("visual_kind") or asset.get("type") or asset.get("classification") or "").lower()
     if metrics.get("nearBlank") is True or width < 96 or height < 96 or width * height < 20000:
         return {"primary_explanatory": False, "quality_score": 0, "category": "blank_or_unusable", "reason": "local-quality-rejected: blank or too small"}
-    if kind in {"focused-page-crop", "focused-page-region"}:
-        return {"primary_explanatory": True, "quality_score": 91, "category": "board_or_tableau", "reason": "local-quality: layout-derived focused source panel"}
-    if kind == "board" and float(metrics.get("edgeDensity") or 0) < 0.035 and float(metrics.get("contrast") or 0) < 0.28:
-        return {"primary_explanatory": False, "quality_score": 25, "category": "blank_or_unusable", "reason": "local-quality-rejected: low-information board shell"}
-    if kind in {"card", "tile"}:
-        return {"primary_explanatory": True, "quality_score": 82, "category": "component_or_card", "reason": "local-quality: readable extracted component"}
-    if kind in {"token", "marker", "dice"} and min(width, height) >= 160:
-        return {"primary_explanatory": True, "quality_score": 74, "category": "token_or_marker", "reason": "local-quality: readable extracted token or marker"}
-    if kind in {"board", "miniature", "currency"}:
-        return {"primary_explanatory": True, "quality_score": 72, "category": "board_or_tableau", "reason": "local-quality: extracted game component"}
-    return {"primary_explanatory": False, "quality_score": 35, "category": "uncertain", "reason": "local-quality-rejected: insufficient component classification"}
+    # Some PDFs expose textured paper/background XObjects as large native
+    # images.  They are not blank by a single brightness test, but their
+    # jointly negligible contrast and edge density prove that they cannot show
+    # a readable board-game referent.  Reject only this narrow low-information
+    # case; all real component identity remains unknown until pixel QA.
+    contrast = metrics.get("contrast")
+    edge_density = metrics.get("edgeDensity")
+    if (isinstance(contrast, (int, float)) and isinstance(edge_density, (int, float))
+            and contrast <= 0.02 and edge_density <= 0.01):
+        return {"primary_explanatory": False, "quality_score": 0, "category": "blank_or_unusable", "reason": "local-quality-rejected: low-information raster"}
+    return {"primary_explanatory": False, "quality_score": 0, "category": "uncertain", "evidenceStatus": "UNKNOWN", "reason": "geometry is a candidate-screening hint, not object pixel validation"}
+
+
+def eligible_hypothesis(asset: dict) -> bool:
+    # UNKNOWN is eligible for examination, not a positive or negative verdict.
+    # In particular, a layout crop must not need a fabricated is_component=True
+    # merely to reach the object-scoped matcher and its already valid cache.
+    if (asset.get('native') and asset.get('classification') == 'other'
+            and asset.get('retrieval_context') and asset.get('visual_metrics', {}).get('nearBlank') is False):
+        # Native geometry's catch-all is not an object-scoped negative pixel verdict.
+        # Admit for examination only; the original classification remains preserved.
+        return True
+    return asset.get("is_component") is not False
+
+
+def authorized_external_candidate(asset: dict) -> bool:
+    authority = str(asset.get("sourceAuthority") or asset.get("source_authority") or "").upper()
+    return (asset.get("source_page") is None and asset.get("page_index") is None
+            and ("OFFICIAL_PUBLISHER" in authority or "AUTHORIZED_EXACT_EDITION" in authority or "OFFICIAL_BGG" in authority))
 
 
 def image_data_url(image_path: Path) -> str:
@@ -157,14 +207,24 @@ def main() -> None:
     script = json.loads(script_path.read_text(encoding="utf-8"))
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     cited_pages = {int(page) for scene in script.get("scenes", []) for page in scene.get("source_pages", [])}
+    requested_component_ids = {str(referent) for scene in script.get("scenes", [])
+                               for referent in (scene.get("visualRequirement") or {}).get("requiredObjects", [])
+                               if isinstance(referent, str) and referent}
     by_page: dict[int, list[dict]] = {}
+    external_authorized: list[dict] = []
     for asset in manifest.get("images", []):
-        if not asset.get("is_component", False):
+        if not eligible_hypothesis(asset):
+            continue
+        if authorized_external_candidate(asset):
+            resolved = asset_path(asset, manifest_path)
+            width, height = dimensions(asset)
+            if resolved and width >= 96 and height >= 96 and width * height >= 20000:
+                external_authorized.append(asset)
             continue
         page = int(asset.get("page_index", -1))
         # HEPHAESTUS page_index is zero-based; storyboard source_pages are
         # canonical one-based rulebook pages.
-        if page not in cited_pages and page + 1 not in cited_pages:
+        if asset.get('visual_kind') != 'source-page-localization' and not asset.get('retrieval_context') and page not in cited_pages and page + 1 not in cited_pages:
             continue
         resolved = asset_path(asset, manifest_path)
         width, height = dimensions(asset)
@@ -179,10 +239,29 @@ def main() -> None:
             typed = [asset for asset in sorted(assets, key=priority, reverse=True)
                      if str(asset.get("visual_kind") or asset.get("classification") or asset.get("type") or "unknown") == asset_type]
             selected.extend(typed[:MAX_PER_TYPE])
-        for asset in sorted(selected, key=priority, reverse=True)[:MAX_PER_PAGE]:
+        # Coarse HEPHAESTUS bindings are not visual validation, but dropping
+        # every one before object-scoped QA creates a dead end: the actual
+        # pixels never reach the one service that can reject or corroborate
+        # the hypothesis.  Admit a small, page-local set alongside ordinary
+        # candidates.  The matcher still requires an explicit provider pixel
+        # verdict before any component reference can become usable.
+        bound = [asset for asset in sorted(assets, key=priority, reverse=True)
+                 if binding_ids(asset) & requested_component_ids]
+        selected.extend(bound[:MAX_BOUND_HYPOTHESES_PER_PAGE])
+        selected = list({asset.get("id"): asset for asset in selected if asset.get("id")}.values())
+        ordinary = [a for a in selected if a.get('visual_kind') != 'source-page-localization']
+        context = [a for a in selected if a.get('visual_kind') == 'source-page-localization']
+        for asset in sorted(ordinary, key=priority, reverse=True)[:MAX_PER_PAGE] + context:
             candidates.append({"asset_id": asset.get("id"), "page_index": page, "path": str(asset_path(asset, manifest_path)), "asset_metadata": asset_metadata(asset)})
 
-    client = None if os.getenv("MOBIUS_VISUAL_LOCAL_ONLY", "").lower() in {"1", "true", "yes"} else OpenAI()
+    # These are a separate bounded source class rather than a fake page -1.
+    # This preserves gallery diversity and lets the downstream semantic matcher
+    # rank only candidates whose caption/terms match the requested referent.
+    for asset in sorted(external_authorized, key=priority, reverse=True)[:MAX_EXTERNAL_AUTHORIZED_CANDIDATES]:
+        candidates.append({"asset_id": asset.get("id"), "page_index": None, "path": str(asset_path(asset, manifest_path)), "asset_metadata": asset_metadata(asset)})
+
+    # Object identity/quality are assessed together by the bounded matcher.
+    client = None
     results: list[dict] = []
     vision_failed = client is None
     if not vision_failed:
@@ -206,15 +285,18 @@ def main() -> None:
     results.sort(key=lambda row: ((row.get("page_index") is None), row.get("page_index") or 9999, row.get("asset_id") or ""))
     output = {
         "version": 1,
-        "model": MODEL,
+        "model": None,
+        "mode": "LOCAL_SCREENING_NOT_PIXEL_VALIDATION",
         "script": str(script_path),
         "manifest": str(manifest_path),
         "cited_pages": sorted(cited_pages),
         "assets": results,
         "summary": {
-            "reviewed": len(results),
+            "screened": len(results),
+            "reviewed": 0,
             "primary_explanatory": sum(1 for item in results if item.get("primary_explanatory")),
-            "rejected": sum(1 for item in results if not item.get("primary_explanatory")),
+            "rejected": sum(1 for item in results if item.get("category") == "blank_or_unusable"),
+            "review_required": sum(1 for item in results if item.get("category") != "blank_or_unusable"),
         },
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)

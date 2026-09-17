@@ -26,6 +26,7 @@ beforeEach(() => {
   process.env.OPENAI_MODEL = 'test-model';
   delete process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
   delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  delete process.env.MOBIUS_AI_ACCESS_CHECK_TIMEOUT_MS;
   mockRetrieve.mockReset();
   mockList.mockReset();
   mockCompletionCreate.mockReset();
@@ -72,7 +73,32 @@ test('an accessible configured model is ready after only a model metadata check'
 
   expect(status).toMatchObject({ configured: true, provider: 'openai', model: 'test-model', ready: true });
   expect(status.message).toMatch(/ready/i);
-  expect(mockRetrieve).toHaveBeenCalledWith('test-model');
+  expect(mockRetrieve).toHaveBeenCalledWith('test-model', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  expect(mockCompletionCreate).not.toHaveBeenCalled();
+});
+
+test('a timed-out metadata probe is a concise retryable access failure without a completion', async () => {
+  const aborted = new Error('request aborted');
+  aborted.name = 'AbortError';
+  mockRetrieve.mockRejectedValueOnce(aborted);
+
+  const status = await getAiStatus({ checkAccess: true });
+
+  expect(status).toMatchObject({ configured: true, ready: false, code: 'AI_ACCESS_CHECK_TIMEOUT' });
+  expect(status.message).toMatch(/timed out/i);
+  expect(mockRetrieve).toHaveBeenCalledTimes(1);
+  expect(mockCompletionCreate).not.toHaveBeenCalled();
+});
+
+test('an SDK request that ignores abort still returns a bounded readiness failure', async () => {
+  process.env.MOBIUS_AI_ACCESS_CHECK_TIMEOUT_MS = '1000';
+  mockRetrieve.mockImplementationOnce(() => new Promise(() => {}));
+
+  const startedAt = Date.now();
+  const status = await getAiStatus({ checkAccess: true });
+
+  expect(status).toMatchObject({ configured: true, ready: false, code: 'AI_ACCESS_CHECK_TIMEOUT' });
+  expect(Date.now() - startedAt).toBeLessThan(2000);
   expect(mockCompletionCreate).not.toHaveBeenCalled();
 });
 

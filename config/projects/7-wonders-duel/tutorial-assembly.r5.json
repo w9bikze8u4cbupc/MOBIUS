@@ -1,0 +1,36 @@
+{
+  "contract": "mobius-project-tutorial-assembly-v1",
+  "projectId": "7-wonders-duel",
+  "knowledgeSeed": "config/projects/7-wonders-duel/rulebook-knowledge.v1.json",
+  "knowledgeModelCache": "out/publishability-r4/7-wonders-duel/rulebook-knowledge-model.json",
+  "openingConfig": "out/publishability-r3/full-tutorial-final/7-wonders-duel/full-tutorial-config.json",
+  "boxArt": "src/assets/games/7-wonders-duel-box-art-bgg-front.webp",
+  "sonicMaster": "src/assets/branding/sonic/mobius-cafe-sonic-signature-v4.wav",
+  "brandBanner": "src/assets/branding/les-jeux-mobius-banner-canonical.png",
+  "outputRoot": "out/publishability-r5/7-wonders-duel",
+  "outputFileName": "7-wonders-duel-full-tutorial-r5.mp4",
+  "visualPlan": "config/projects/7-wonders-duel/visual-plan.r5.json",
+  "componentLibraryManifest": "out/publishability-r5/7-wonders-duel/component-library/manifest.json",
+  "visualStoryboardRoot": "out/publishability-r5/7-wonders-duel/visual-storyboard",
+  "visualManifest": "out/publishability-r5/7-wonders-duel/visual-storyboard/manifest.json",
+  "narrationSeedManifest": "out/publishability-r4/7-wonders-duel/narration-assets.json",
+  "locale": "fr-CA",
+  "majorSections": [
+    "Présentation / But du jeu",
+    "Les composants",
+    "Mise en place",
+    "Comment se déroule le jeu?",
+    "Les actions",
+    "Systèmes clés",
+    "Fin de partie",
+    "Décompte / Victoire",
+    "Conclusion"
+  ],
+  "presentation": {
+    "brandSceneId": "brand-signature",
+    "reuseOpeningSceneIds": ["opening-metadata-card"],
+    "metadataAudio": "out/publishability-r3/full-tutorial-final/7-wonders-duel/audio/metadata-card-amelie-metadata.mp3",
+    "metadataDeliveryProfile": "AMELIE_METADATA",
+    "reuseOutroSceneId": "brand-outro"
+  }
+}

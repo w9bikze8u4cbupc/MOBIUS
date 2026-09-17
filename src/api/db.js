@@ -1,5 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { randomUUID } from 'node:crypto';
+import transport from '../services/projectStateTransport.cjs';
 
 const DATA_DIR = process.env.DB_DATA_DIR || path.resolve(process.cwd(), 'data');
 const DATA_FILE = process.env.DB_DATA_FILE || path.join(DATA_DIR, 'projects.json');
@@ -18,12 +20,14 @@ function ensureStorage() {
   if (fs.existsSync(DATA_FILE)) {
     try {
       const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+      if (!Array.isArray(raw?.projects)) throw new Error('Invalid project store inventory.');
       if (Array.isArray(raw.projects)) {
-        projects = raw.projects;
+        projects = raw.projects.map(transport.unpackProjectRow);
         nextId = typeof raw.nextId === 'number' ? raw.nextId : Math.max(1, ...projects.map((p) => p.id + 1));
       }
     } catch (err) {
-      console.warn('Failed to load existing project data, starting fresh.', err);
+      // Corrupt durable state must never become an empty, writable database.
+      throw new Error('Failed to load durable project data; recovery required.', { cause: err });
     }
   }
 }
@@ -32,14 +36,19 @@ function persist() {
   if (!USE_FILE_STORAGE) {
     return;
   }
-  fs.writeFileSync(
-    DATA_FILE,
-    JSON.stringify({ projects, nextId }, null, 2),
-    'utf-8'
-  );
+  const serialized = JSON.stringify({ projects: projects.map(transport.packProjectRow), nextId });
+  const temporary = `${DATA_FILE}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(temporary, serialized, { encoding: 'utf8', flag: 'wx' });
+    fs.renameSync(temporary, DATA_FILE);
+  } finally {
+    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+  }
 }
 
 function run(sql, params = [], callback) {
+  const previousProjects = projects.map(row => ({ ...row }));
+  const previousNextId = nextId;
   try {
     if (/^\s*UPDATE\s+projects\s+SET\s+metadata\s*=\s*\?/i.test(sql)) {
       const [metadata, id] = params;
@@ -98,6 +107,8 @@ function run(sql, params = [], callback) {
     }
     return { lastID: record.id, changes: 1 };
   } catch (err) {
+    projects = previousProjects;
+    nextId = previousNextId;
     if (callback) {
       callback(err);
       return;

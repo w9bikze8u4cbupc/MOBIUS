@@ -1,0 +1,29 @@
+{
+  "contract": "mobius-project-tutorial-assembly-v1",
+  "projectId": "7-wonders-duel",
+  "knowledgeSeed": "config/projects/7-wonders-duel/rulebook-knowledge.v1.json",
+  "openingConfig": "out/publishability-r3/full-tutorial-final/7-wonders-duel/full-tutorial-config.json",
+  "boxArt": "src/assets/games/7-wonders-duel-box-art-bgg-front.webp",
+  "sonicMaster": "src/assets/branding/sonic/mobius-cafe-sonic-signature-v4.wav",
+  "brandBanner": "src/assets/branding/les-jeux-mobius-banner-canonical.png",
+  "outputRoot": "out/publishability-r4/7-wonders-duel",
+  "locale": "fr-CA",
+  "majorSections": [
+    "Présentation / But du jeu",
+    "Les composants",
+    "Mise en place",
+    "Comment se déroule le jeu?",
+    "Les actions",
+    "Systèmes clés",
+    "Fin de partie",
+    "Décompte / Victoire",
+    "Conclusion"
+  ],
+  "presentation": {
+    "brandSceneId": "brand-signature",
+    "reuseOpeningSceneIds": ["opening-metadata-card"],
+    "metadataAudio": "out/publishability-r3/full-tutorial-final/7-wonders-duel/audio/metadata-card-amelie-metadata.mp3",
+    "metadataDeliveryProfile": "AMELIE_METADATA",
+    "reuseOutroSceneId": "brand-outro"
+  }
+}

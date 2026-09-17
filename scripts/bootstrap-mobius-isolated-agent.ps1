@@ -3,7 +3,11 @@ param(
     [string]$RepoRoot = 'C:\mobius-games-tutorial-generator',
     [string]$DeploymentRoot = 'C:\mobius-games-tutorial-generator-runtime',
     [ValidateRange(30, 3600)]
-    [int]$IntervalSeconds = 90
+    [int]$IntervalSeconds = 90,
+    [string]$BaseUrl = 'http://127.0.0.1:5001',
+    [string]$TargetRevision = '',
+    [string]$ConfigurationPath = '',
+    [switch]$AdoptLegacyRuntime
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,22 +15,82 @@ $repo = [System.IO.Path]::GetFullPath($RepoRoot)
 $deployment = [System.IO.Path]::GetFullPath($DeploymentRoot)
 $taskName = 'MOBIUS Isolated Local Agent'
 $agentPath = Join-Path $deployment 'scripts\mobius-isolated-agent.ps1'
+$runtimeUri = [Uri]$BaseUrl
+$runtimePort = $runtimeUri.Port
+$ownershipPath = Join-Path $deployment 'data\logs\mobius-runtime-ownership.json'
 
 if (-not (Test-Path (Join-Path $repo '.git'))) { throw "MOBIUS repository not found: $repo" }
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'Git is required but was not found in PATH.' }
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw 'Node.js is required but was not found in PATH.' }
 
+function Resolve-CanonicalConfigurationPath {
+    if ($ConfigurationPath) {
+        $explicit = [System.IO.Path]::GetFullPath($ConfigurationPath)
+        if (-not (Test-Path -LiteralPath $explicit -PathType Leaf)) { throw "Configured MOBIUS environment file not found: $explicit" }
+        return $explicit
+    }
+    if ($env:MOBIUS_CONFIG_PATH) {
+        $fromEnvironment = [System.IO.Path]::GetFullPath($env:MOBIUS_CONFIG_PATH)
+        if (-not (Test-Path -LiteralPath $fromEnvironment -PathType Leaf)) { throw "MOBIUS_CONFIG_PATH does not identify a file: $fromEnvironment" }
+        return $fromEnvironment
+    }
+    $commonDirectory = (& git -C $repo rev-parse --path-format=absolute --git-common-dir).Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve the canonical Git configuration owner.' }
+    $sharedCandidate = Join-Path (Split-Path $commonDirectory -Parent) '.env'
+    if (Test-Path -LiteralPath $sharedCandidate -PathType Leaf) { return [System.IO.Path]::GetFullPath($sharedCandidate) }
+    $worktreeCandidate = Join-Path $repo '.env'
+    if (Test-Path -LiteralPath $worktreeCandidate -PathType Leaf) { return [System.IO.Path]::GetFullPath($worktreeCandidate) }
+    throw 'No canonical MOBIUS environment file is available for the isolated runtime.'
+}
+
 # The primary checkout is never pulled, reset, built, or restarted by this bootstrap.
 & git -C $repo fetch origin main
 if ($LASTEXITCODE -ne 0) { throw 'Unable to fetch origin/main for isolated deployment.' }
+$target = if ($TargetRevision) { (& git -C $repo rev-parse $TargetRevision).Trim() } else { (& git -C $repo rev-parse origin/main).Trim() }
+if ($LASTEXITCODE -ne 0 -or $target -notmatch '^[a-f0-9]{40}$') { throw "Unable to resolve runtime target revision: $TargetRevision" }
 
-# Stop every MOBIUS API and agent before cleaning the isolated worktree.
-# Native Sharp DLLs remain locked until their owning Node process exits.
+# Stop the canonical agent before changing its isolated worktree. The API is
+# stopped only when ownership is proven, or during an explicit one-time legacy
+# adoption whose Scheduled Task points at this exact deployment.
+$existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
 Stop-ScheduledTask -TaskName 'MOBIUS Local Agent' -ErrorAction SilentlyContinue
 Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -match '(^|\s)src[\\/]api[\\/]index\.js(\s|$)' } |
-    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+$listeners = @(Get-NetTCPConnection -State Listen -LocalPort $runtimePort -ErrorAction SilentlyContinue)
+if ($listeners.Count -gt 0) {
+    $pids = @($listeners | Select-Object -ExpandProperty OwningProcess -Unique)
+    if ($pids.Count -ne 1) { throw "Ambiguous process ownership on runtime port $runtimePort." }
+    $apiProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $($pids[0])" -ErrorAction Stop
+    $isNodeApi = $apiProcess.Name -eq 'node.exe' -and $apiProcess.CommandLine -match '(^|\s)src[\\/]api[\\/]index\.js(\s|$)'
+    $owned = $false
+    try {
+        $capabilities = Invoke-RestMethod -Uri "$($BaseUrl.TrimEnd('/'))/api/runtime/capabilities" -TimeoutSec 4
+        if (Test-Path $ownershipPath) {
+            $ownership = Get-Content -Raw -LiteralPath $ownershipPath | ConvertFrom-Json
+            $owned = $capabilities.contract -eq 'mobius-runtime-capabilities-v1' -and
+                $capabilities.ownership.manager -eq 'mobius-isolated-agent-v2' -and
+                $capabilities.ownership.tokenFingerprint -eq $ownership.tokenFingerprint -and
+                [int]$ownership.pid -eq [int]$apiProcess.ProcessId
+        }
+    } catch { $owned = $false }
+    $legacyTaskOwnsDeployment = $existingTask -and
+        ($existingTask.Actions | Where-Object { $_.Execute -match 'powershell' -and $_.Arguments -like "*$deployment*mobius-isolated-agent.ps1*" })
+    if (-not $isNodeApi -or (-not $owned -and -not ($AdoptLegacyRuntime -and $legacyTaskOwnsDeployment))) {
+        throw "Runtime port $runtimePort ownership is ambiguous; refusing to stop PID $($apiProcess.ProcessId)."
+    }
+    Stop-Process -Id $apiProcess.ProcessId -Force -ErrorAction Stop
+} elseif (Test-Path $ownershipPath) {
+    # A previous managed startup may have failed before binding the configured
+    # port. Its exact PID is recoverable from the ownership record; never scan
+    # or terminate unrelated Node processes.
+    try {
+        $orphanOwnership = Get-Content -Raw -LiteralPath $ownershipPath | ConvertFrom-Json
+        $orphan = Get-CimInstance Win32_Process -Filter "ProcessId = $([int]$orphanOwnership.pid)" -ErrorAction SilentlyContinue
+        if ($orphan -and $orphan.Name -eq 'node.exe' -and $orphan.CommandLine -match '(^|\s)src[\\/]api[\\/]index\.js(\s|$)') {
+            Stop-Process -Id $orphan.ProcessId -Force -ErrorAction Stop
+        }
+        Remove-Item -LiteralPath $ownershipPath -Force -ErrorAction SilentlyContinue
+    } catch { throw "Unable to safely reconcile the recorded MOBIUS runtime owner: $($_.Exception.Message)" }
+}
 Start-Sleep -Seconds 3
 
 $primaryData = Join-Path $repo 'data'
@@ -61,7 +125,7 @@ if (-not (Test-Path (Join-Path $deployment '.git'))) {
         $contents = Get-ChildItem -Force -Path $deployment -ErrorAction SilentlyContinue
         if ($contents) { throw "Deployment directory exists but is not a MOBIUS worktree: $deployment" }
     }
-    & git -C $repo worktree add --detach $deployment origin/main
+    & git -C $repo worktree add --detach $deployment $target
     if ($LASTEXITCODE -ne 0) { throw 'Unable to create the isolated MOBIUS worktree.' }
     $createdDeployment = $true
 } else {
@@ -69,9 +133,9 @@ if (-not (Test-Path (Join-Path $deployment '.git'))) {
     # full canonical data tree before reset so no primary or Git copy can replace it.
     Preserve-RuntimeData
     try {
-        & git -C $deployment reset --hard origin/main
+        & git -C $deployment reset --hard $target
         if ($LASTEXITCODE -ne 0) { throw 'Unable to refresh the isolated MOBIUS worktree.' }
-        & git -C $deployment clean -fdx -e data/ -e src/api/uploads/
+        & git -C $deployment clean -fdx -e data/ -e src/api/uploads/ -e node_modules/ -e client/node_modules/
         if ($LASTEXITCODE -ne 0) { throw 'Unable to clean stale build artifacts from the isolated worktree.' }
     } finally {
         Restore-RuntimeData
@@ -84,24 +148,22 @@ if ($createdDeployment -and (Test-Path $primaryData)) {
     Copy-DirectoryContents $primaryData $deploymentData
 }
 
-$primaryEnv = Join-Path $repo '.env'
+$primaryEnv = Resolve-CanonicalConfigurationPath
 $runtimeEnv = Join-Path $deployment '.env'
-if (Test-Path $primaryEnv) {
-    Copy-Item -Force -Path $primaryEnv -Destination $runtimeEnv
-}
+Copy-Item -Force -LiteralPath $primaryEnv -Destination $runtimeEnv
 
 if (-not (Test-Path $agentPath)) { throw "Isolated agent script not found: $agentPath" }
 
 Unregister-ScheduledTask -TaskName 'MOBIUS Local Agent' -Confirm:$false -ErrorAction SilentlyContinue
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$agentPath`" -Mode Watch -RepoRoot `"$repo`" -DeploymentRoot `"$deployment`" -IntervalSeconds $IntervalSeconds"
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$agentPath`" -Mode Watch -RepoRoot `"$repo`" -DeploymentRoot `"$deployment`" -ConfigurationPath `"$primaryEnv`" -BaseUrl `"$BaseUrl`" -IntervalSeconds $IntervalSeconds"
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Safely deploys MOBIUS from an isolated Git worktree without touching the primary checkout.' -Force | Out-Null
 
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $agentPath -Mode Sync -RepoRoot $repo -DeploymentRoot $deployment -IntervalSeconds $IntervalSeconds -ForceBuild
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $agentPath -Mode Align -RepoRoot $repo -DeploymentRoot $deployment -ConfigurationPath $primaryEnv -BaseUrl $BaseUrl -TargetRevision $target -IntervalSeconds $IntervalSeconds -ForceBuild
 if ($LASTEXITCODE -ne 0) { throw 'The initial isolated MOBIUS deployment failed.' }
 Start-ScheduledTask -TaskName $taskName
 Write-Host "MOBIUS isolated agent is active. Primary checkout preserved: $repo"

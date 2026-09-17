@@ -1,7 +1,154 @@
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
+
+export const SOURCE_PAGE_VISUALS_CONTRACT = 'mobius-source-page-visuals-v2';
+export const SOURCE_PAGE_HIGH_DETAIL_CONTRACT = 'mobius-source-page-high-detail-v1';
+
+function highDetailPagePath({ outputDir, page, dpi }) {
+  return path.join(outputDir, `page-${String(page).padStart(2, '0')}-${dpi}dpi.png`);
+}
+
+function validHighDetailManifest({ manifest, sourcePdfPath, sourceSha256, pages, dpi }) {
+  if (!manifest || manifest.contract !== SOURCE_PAGE_HIGH_DETAIL_CONTRACT
+    || manifest.sourcePdfPath !== path.resolve(sourcePdfPath)
+    || manifest.sourceSha256 !== sourceSha256 || manifest.dpi !== dpi) return false;
+  const expected = new Set(pages);
+  return Array.isArray(manifest.pages) && manifest.pages.length === expected.size
+    && manifest.pages.every((row) => expected.has(row.page) && row.filePath && fs.existsSync(row.filePath)
+      && sha256(fs.readFileSync(row.filePath)) === row.sha256 && row.width > 0 && row.height > 0);
+}
+
+function renderHighDetailPages({ sourcePdfPath, sourceSha256, outputDir, pages, dpi, python }) {
+  // Production invokes this service from the canonical repository root; tests
+  // or a managed runtime may supply that root explicitly. Avoid import.meta so
+  // the same service remains consumable by the existing CommonJS Jest bridge.
+  const script = path.resolve(process.env.MOBIUS_GENERATOR_ROOT || process.cwd(), 'scripts/render-rulebook-pages-hdpi.py');
+  const result = spawnSync(python || process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3'), [
+    script, '--pdf', path.resolve(sourcePdfPath), '--out', path.resolve(outputDir), '--pages', pages.join(','), '--dpi', String(dpi),
+  ], { encoding: 'utf8', windowsHide: true, timeout: 120000 });
+  if (result.status !== 0) throw new Error('SOURCE_PAGE_HIGH_DETAIL_RENDER_FAILED');
+  // The renderer accepts the PDF path, but this service owns the identity
+  // boundary. Verify it before accepting any derived pixels.
+  if (sha256(fs.readFileSync(sourcePdfPath)) !== sourceSha256) throw new Error('SOURCE_PAGE_HIGH_DETAIL_SOURCE_SHA_MISMATCH');
+}
+
+/**
+ * Materialize a bounded, source-faithful high-detail page cache. These are
+ * localization hypotheses only: a page raster never claims that an object is
+ * complete, isolated, or suitable for display. The later object-scoped pixel
+ * verifier and deterministic crop lineage retain that authority.
+ */
+export async function materializeHighDetailSourcePages({ sourcePdfPath, sourceSha256, outputDir, pages = [], dpi = 300, python, renderPages = renderHighDetailPages } = {}) {
+  if (!sourcePdfPath || !sourceSha256 || !/^[a-f0-9]{64}$/i.test(sourceSha256)) throw new Error('SOURCE_PAGE_HIGH_DETAIL_IDENTITY_INVALID');
+  if (!Number.isInteger(dpi) || dpi < 144 || dpi > 600) throw new Error('SOURCE_PAGE_HIGH_DETAIL_DPI_INVALID');
+  const source = path.resolve(sourcePdfPath);
+  if (!fs.existsSync(source) || sha256(fs.readFileSync(source)) !== sourceSha256) throw new Error('SOURCE_PAGE_HIGH_DETAIL_SOURCE_SHA_MISMATCH');
+  const requested = [...new Set(pages.map(Number).filter((page) => Number.isInteger(page) && page > 0))].sort((a, b) => a - b);
+  if (!requested.length) return { contract: SOURCE_PAGE_HIGH_DETAIL_CONTRACT, sourcePdfPath: source, sourceSha256, dpi, pages: [], reused: true };
+  const targetDir = path.resolve(outputDir || path.join(path.dirname(source), 'high-detail-pages'));
+  const manifestPath = path.join(targetDir, 'source-page-high-detail.json');
+  if (fs.existsSync(manifestPath)) {
+    const prior = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    if (validHighDetailManifest({ manifest: prior, sourcePdfPath: source, sourceSha256, pages: requested, dpi })) return { ...prior, reused: true };
+  }
+  fs.mkdirSync(targetDir, { recursive: true });
+  // Rendering is deterministic. Replaying all requested pages lets the
+  // renderer reject a stale or corrupted existing file instead of silently
+  // accepting pixels whose provenance no longer matches the source PDF.
+  await renderPages({ sourcePdfPath: source, sourceSha256, outputDir: targetDir, pages: requested, dpi, python });
+  const rows = [];
+  for (const page of requested) {
+    const filePath = highDetailPagePath({ outputDir: targetDir, page, dpi });
+    if (!fs.existsSync(filePath)) throw new Error('SOURCE_PAGE_HIGH_DETAIL_OUTPUT_MISSING');
+    const metadata = await sharp(filePath).metadata();
+    if (!metadata.width || !metadata.height) throw new Error('SOURCE_PAGE_HIGH_DETAIL_PIXELS_INVALID');
+    rows.push({ page, filePath, sha256: sha256(fs.readFileSync(filePath)), width: metadata.width, height: metadata.height });
+  }
+  const manifest = { contract: SOURCE_PAGE_HIGH_DETAIL_CONTRACT, sourcePdfPath: source, sourceSha256, dpi, pages: rows, reused: false };
+  fs.writeFileSync(`${manifestPath}.tmp`, JSON.stringify(manifest, null, 2));
+  fs.renameSync(`${manifestPath}.tmp`, manifestPath);
+  return manifest;
+}
+
+/** Full source context is for localization, never an automatically clean component. */
+export async function sourceLocalizationPages({ pageDir, pages, sourceSha256, highDetailManifest = null }) {
+  const assets = [];
+  const highDetailByPage = new Map((highDetailManifest?.pages || []).map((row) => [row.page, row]));
+  for (let index = 0; index < pages.length; index += 1) {
+    const page = pages[index];
+    const file = path.join(pageDir, `page-${index + 1}.png`);
+    if (!fs.existsSync(file)) continue;
+    const m = await sharp(file).metadata();
+    const text = page.normalizedText || page.text || page.content || (page.blocks || []).map((b) => b.text || '').join('\n');
+    assets.push({ id: `source-localization-page-${index + 1}`, file_path: file, source_page: index + 1, page_index: index,
+      visual_kind: 'source-page-localization', type: 'source-page-localization', sourcePdfSha256: sourceSha256,
+      dimensions: { width: m.width, height: m.height }, original_dimensions: { width: m.width, height: m.height },
+      layout_text: text, heading: page.heading || String(text).slice(0, 180), is_component: null,
+      cropCompleteness: 'unknown', cropPurity: 'unknown',
+      provenance: { sourcePage: index + 1, sourcePdfSha256: sourceSha256, extraction: 'existing-page-context-only' } });
+    const highDetail = highDetailByPage.get(index + 1);
+    if (highDetail && fs.existsSync(highDetail.filePath)) {
+      assets.push({ id: `source-localization-page-${index + 1}-hdpi`, file_path: highDetail.filePath, source_page: index + 1, page_index: index,
+        visual_kind: 'source-page-localization', type: 'source-page-localization', sourcePdfSha256: sourceSha256,
+        sourceAuthority: 'HIGH_DPI_PAGE_CROP', dimensions: { width: highDetail.width, height: highDetail.height },
+        original_dimensions: { width: highDetail.width, height: highDetail.height }, renderDpi: highDetailManifest.dpi,
+        layout_text: text, heading: page.heading || String(text).slice(0, 180), is_component: null,
+        cropCompleteness: 'unknown', cropPurity: 'unknown',
+        provenance: { sourcePage: index + 1, sourcePdfSha256: sourceSha256, extraction: 'pymupdf-source-page-raster',
+          highDetailContract: SOURCE_PAGE_HIGH_DETAIL_CONTRACT, dpi: highDetailManifest.dpi, pageSha256: highDetail.sha256 } });
+    }
+  }
+  return assets;
+}
+
+/** Read-only API hydration. Never extracts, guesses a storage root, or searches the web. */
+export async function hydrateSourcePageVisuals({ baseUrl, projectId, sourceSha256, pageCount, pageDir, fetchImpl = fetch, apiKey } = {}) {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectId || '') || !/^[a-f0-9]{64}$/.test(sourceSha256 || '') || !(pageCount > 0)) throw new Error('SOURCE_PAGE_IDENTITY_INVALID');
+  const manifestPath = path.join(pageDir, 'source-page-visuals.json');
+  if (fs.existsSync(manifestPath)) {
+    const prior = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    if (prior.contract === SOURCE_PAGE_VISUALS_CONTRACT && prior.projectId === projectId && prior.sourceSha256 === sourceSha256
+      && prior.pages.length === pageCount && prior.pages.every((p, i) => p.page === i + 1 && fs.existsSync(path.join(pageDir, `page-${p.page}.png`))
+        && sha256(fs.readFileSync(path.join(pageDir, `page-${p.page}.png`))) === p.sha256)) return { ...prior, reused: true };
+  }
+  const prefix = `/api/projects/${encodeURIComponent(projectId)}`;
+  const get = async (route) => {
+    const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}${route}`, { headers: apiKey ? { 'x-api-key': apiKey } : {} });
+    if (!response.ok) throw new Error(`SOURCE_PAGE_API_HTTP_${response.status}`);
+    return response;
+  };
+  const identity = await (await get(`${prefix}/source-pdf`)).json();
+  if (identity.sourcePdf?.sha256 !== sourceSha256 || identity.sourcePdf?.pageCount !== pageCount) throw new Error('SOURCE_PAGE_IDENTITY_MISMATCH');
+  const inventory = await (await get(`${prefix}/images`)).json();
+  const rows = new Map();
+  for (const asset of inventory.images || []) {
+    if (asset.source !== 'rulebook') continue;
+    const tag = (asset.tags || []).find((value) => /^page-[1-9][0-9]*$/.test(value));
+    const page = tag ? Number(tag.slice(5)) : Number(asset.page);
+    if (page >= 1 && page <= pageCount) rows.set(page, asset);
+  }
+  if (rows.size !== pageCount) throw Object.assign(new Error('SOURCE_PAGE_VISUALS_MISSING'), { code: 'SOURCE_PAGE_VISUALS_MISSING' });
+  fs.mkdirSync(pageDir, { recursive: true });
+  const pages = [];
+  for (let page = 1; page <= pageCount; page += 1) {
+    const asset = rows.get(page);
+    const route = `${prefix}/images/${encodeURIComponent(asset.id)}/file`;
+    const bytes = Buffer.from(await (await get(route)).arrayBuffer());
+    const metadata = await sharp(bytes).metadata();
+    if (!metadata.width || !metadata.height) throw new Error('SOURCE_PAGE_PIXELS_INVALID');
+    const target = path.join(pageDir, `page-${page}.png`);
+    fs.writeFileSync(`${target}.tmp`, bytes);
+    fs.renameSync(`${target}.tmp`, target);
+    pages.push({ page, assetId: asset.id, sha256: sha256(bytes), width: metadata.width, height: metadata.height, sourceRoute: route });
+  }
+  const report = { contract: SOURCE_PAGE_VISUALS_CONTRACT, projectId, sourceSha256, pages, reused: false, extractionCalls: 0 };
+  fs.writeFileSync(`${manifestPath}.tmp`, JSON.stringify(report, null, 2));
+  fs.renameSync(`${manifestPath}.tmp`, manifestPath);
+  return report;
+}
 
 function normalizeLabel(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -116,8 +263,11 @@ export async function generateFocusedPageCrops({ pageDir, pages = [], outputDir,
         type: 'focused-crop',
         classification: 'focused-page-crop',
         visual_kind: 'focused-page-crop',
-        is_component: true,
-        confidence: 0.92,
+        cropCompleteness: 'unknown',
+        cropPurity: 'unknown',
+        evidenceStatus: 'LAYOUT_HYPOTHESIS',
+        is_component: null,
+        confidence: null,
         label: `Focused rulebook panel — page ${pageNumber}, ${side}`,
         layout_labels: labels,
         layout_text: layoutText,
@@ -132,7 +282,7 @@ export async function generateFocusedPageCrops({ pageDir, pages = [], outputDir,
           extraction: 'layout-derived-column-crop',
         },
         dimensions: { width, height: imageHeight },
-        visual_metrics: { nearBlank: false },
+        visual_metrics: { nearBlank: null },
       });
 
       if (regionTop !== null && imageHeight - regionTop >= 96) {
@@ -154,8 +304,11 @@ export async function generateFocusedPageCrops({ pageDir, pages = [], outputDir,
           type: 'focused-crop',
           classification: 'focused-page-region',
           visual_kind: 'focused-page-region',
-          is_component: true,
-          confidence: 0.95,
+          cropCompleteness: 'unknown',
+          cropPurity: 'unknown',
+          evidenceStatus: 'LAYOUT_HYPOTHESIS',
+          is_component: null,
+          confidence: null,
           label: `Focused visual region — page ${pageNumber}, ${side}`,
           layout_labels: labels,
           layout_text: layoutText,
@@ -170,7 +323,7 @@ export async function generateFocusedPageCrops({ pageDir, pages = [], outputDir,
             extraction: 'layout-derived-visual-region',
           },
           dimensions: { width, height: regionHeight },
-          visual_metrics: { nearBlank: false },
+          visual_metrics: { nearBlank: null },
         });
       }
     }

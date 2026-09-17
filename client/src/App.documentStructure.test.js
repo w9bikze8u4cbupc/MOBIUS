@@ -65,6 +65,16 @@ function configureWorkflow({ ingestError = null } = {}) {
   });
   axios.get.mockResolvedValue({ data: { found: false } });
   axios.post.mockImplementation((url) => {
+    if (url.endsWith('/source-pdf')) {
+      const projectId = decodeURIComponent(/\/api\/projects\/([^/]+)\/source-pdf$/.exec(String(url))[1]);
+      return Promise.resolve({ data: { sourcePdf: {
+        sourceId: 'source-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        documentId: projectId,
+        documentFingerprint: 'document-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        filename: 'Abyss.pdf', sha256: 'c'.repeat(64), bytes: 42, pageCount: 1,
+        provenance: 'direct_project_upload', status: 'pending_contextual_render',
+      } } });
+    }
     if (url.endsWith('/api/extract-game-name')) return Promise.resolve({ data: { gameName: 'Abyss' } });
     if (url.endsWith('/api/extract-game-components')) return Promise.resolve({ data: { components: [{ id: 'cards', name: 'Cards', category: 'card', quantity: 7 }] } });
     if (url.endsWith('/api/ingest')) {

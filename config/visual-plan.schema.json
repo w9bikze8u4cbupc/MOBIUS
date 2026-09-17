@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mobius-visual-plan-v1",
+  "type": "object",
+  "required": ["ruleAtomId", "instructionalPurpose", "compositionType", "actualGameAssetRequired", "actualGameAssetIds", "visualAreaTarget", "alignment", "reviewState"],
+  "properties": {
+    "ruleAtomId": { "type": "string", "minLength": 1 },
+    "instructionalPurpose": { "type": "string", "minLength": 1 },
+    "compositionType": {
+      "enum": ["REAL_COMPONENT_HERO", "REAL_COMPONENT_GRID", "REAL_COMPONENT_SEQUENCE", "REAL_COMPONENT_FLOW", "REAL_CARD_COST_FOCUS", "REAL_BOARD_TRACK_FOCUS", "REAL_MILITARY_DEMONSTRATION", "REAL_SETUP_LAYOUT", "REAL_SYMBOL_COMPARISON", "REAL_SCORING_LEDGER", "REAL_PROGRESSIVE_SCOREPAD", "REAL_AGE_GUILD_IDENTITY", "REAL_CARD_FAMILY_TABLEAU", "REAL_GUILD_DECK_PREPARATION", "REAL_SETUP_PLACEMENT", "REAL_WONDER_DRAFT", "REAL_DISCARD_PILE_FLOW", "REAL_COMPONENT_OVERVIEW", "REAL_AGE_REFERENCE_GRID", "REAL_ACCESSIBLE_CARD_DEMONSTRATION", "REAL_END_OF_AGE_TRANSITION", "REAL_CHAIN_COMPARISON", "REAL_GUILD_TEACHING", "REAL_MILITARY_ZONE_OVERLAY", "SOURCE_FAITHFUL_DIAGRAM", "SECTION_CARD"]
+    },
+    "actualGameAssetRequired": { "type": "boolean" },
+    "actualGameAssetIds": { "type": "array", "items": { "type": "string" } },
+    "visualAreaTarget": { "type": "number", "minimum": 0.6, "maximum": 0.82 },
+    "alignment": {
+      "type": "object",
+      "required": ["horizontal", "vertical", "fit"],
+      "properties": {
+        "horizontal": { "const": "CENTER" },
+        "vertical": { "const": "CENTER" },
+        "fit": { "const": "CONTAIN" }
+      },
+      "additionalProperties": false
+    },
+    "reviewState": { "enum": ["accepted", "review-required", "rejected"] }
+  },
+  "additionalProperties": true
+}
