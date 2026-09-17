@@ -139,3 +139,28 @@ test('normal preparation routes a durable source mandate to Python reservation a
   ledger = JSON.parse(await fs.readFile(budget.path, 'utf8'));
   assert.equal(ledger.calls.length, 1);
 });
+
+test('continuation records a bounded composition scene mandate for a later normal materialization pass', async (t) => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'mobius-composition-mandate-'));
+  t.after(() => fs.rm(temp, { recursive: true, force: true }));
+  const projectDir = path.join(temp, PROJECT_ID);
+  const budget = await ensureCanonicalVisualProviderBudget({ projectId: PROJECT_ID, projectDir, sourceSha256: SOURCE_SHA });
+  const requestPath = path.join(temp, 'composition-mandate.json');
+  await fs.writeFile(requestPath, JSON.stringify({
+    id: 'fixture-composition-mandate', model: 'fixture-model', authorization: 'fixture only',
+    reason: 'prove durable composition routing', additionalCallsByGroup: { composition: 1 },
+    compositionReviewMandate: {
+      contract: 'mobius-composition-review-mandate-v1', sceneIds: ['prepared-scene'], maxCalls: 1,
+    },
+  }));
+  const authorized = spawnSync('python', ['scripts/match-scene-visuals.py', '--authorize-continuation', budget.path, requestPath], {
+    cwd: root, env: { ...process.env, OPENAI_MODEL: 'fixture-model' }, encoding: 'utf8', windowsHide: true,
+  });
+  assert.equal(authorized.status, 0, authorized.stderr);
+  const ledger = JSON.parse(await fs.readFile(budget.path, 'utf8'));
+  assert.equal(ledger.activeCompositionReviewMandateId, 'fixture-composition-mandate');
+  assert.equal(ledger.compositionReviewMandates.length, 1);
+  assert.deepEqual(ledger.compositionReviewMandates[0].sceneIds, ['prepared-scene']);
+  assert.equal(ledger.compositionReviewMandates[0].maxCalls, 1);
+  assert.equal(ledger.compositionReviewMandates[0].contract, 'mobius-composition-review-mandate-v1');
+});

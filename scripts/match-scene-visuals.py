@@ -22,6 +22,7 @@ COMPOSITION_RESPONSE_CONTRACT = 'normalized-composition-sequence-v2'
 COMPONENT_IDENTITY_PACKET_CONTRACT = 'mobius-component-identity-pixels-v3'
 RESPONSE_BUDGET_CONTRACT = 'mobius-visual-response-budget-v1'
 SOURCE_ANALYSIS_MANDATE_CONTRACT = 'mobius-source-visual-analysis-mandate-v1'
+COMPOSITION_REVIEW_MANDATE_CONTRACT = 'mobius-composition-review-mandate-v1'
 MODEL = os.getenv("MOBIUS_VISUAL_MATCH_MODEL") or os.getenv("OPENAI_MODEL")
 _probe_spec = importlib.util.spec_from_file_location('mobius_visual_probe', Path(__file__).with_name('qualify-source-visuals.py'))
 _probe_module = importlib.util.module_from_spec(_probe_spec)
@@ -838,6 +839,35 @@ def _active_source_analysis_mandate(data, mandate_id):
     return record
 
 
+def _validated_composition_review_mandate(request, composition_allocation):
+    """Normalize the durable scene scope for one bounded composition review.
+
+    Composition capacity is not a fungible escape hatch after source recovery:
+    the operator's bounded mandate names the prepared scene(s) which may spend
+    it.  The materializer receives this scope from the ledger, then still
+    validates the real rendered frames before reserving a provider call.
+    """
+    mandate = request.get('compositionReviewMandate')
+    if mandate is None:
+        return None
+    if (not isinstance(mandate, dict)
+            or mandate.get('contract') != COMPOSITION_REVIEW_MANDATE_CONTRACT):
+        raise ValueError('A canonical composition-review mandate contract is required')
+    scene_ids = mandate.get('sceneIds')
+    maximum = mandate.get('maxCalls')
+    if (not isinstance(scene_ids, list) or not scene_ids
+            or type(maximum) is not int or not 0 < maximum <= composition_allocation):
+        raise ValueError('Invalid composition-review mandate')
+    normalized = sorted(set(scene_ids))
+    if (len(normalized) != len(scene_ids)
+            or any(not isinstance(scene_id, str)
+                   or not re.fullmatch(r'[A-Za-z0-9_-]{1,180}', scene_id)
+                   for scene_id in normalized)):
+        raise ValueError('Invalid composition-review mandate scene')
+    return {'contract': COMPOSITION_REVIEW_MANDATE_CONTRACT,
+        'sceneIds': normalized, 'maxCalls': maximum}
+
+
 def source_reservation(packet, role):
     """Describe the exact source substep for durable reservation validation."""
     ids = [row.get('id') for row in packet.get('requiredObjects') or [] if row.get('id')]
@@ -993,6 +1023,8 @@ def authorize_continuation(filename, request_path):
             for group in set(spent) | set(prior_group_caps) | set(allocations)
         }
         source_mandate = _validated_source_analysis_mandate(request, int(allocations.get('source', 0)))
+        composition_mandate = _validated_composition_review_mandate(
+            request, int(allocations.get('composition', 0)))
         record = {'id': ident, 'recordedAt': datetime.now(timezone.utc).isoformat(),
             'requestHash': request_hash, 'requestPath': str(request_file), 'model': MODEL,
             'authorization': request['authorization'], 'reason': request['reason'],
@@ -1009,6 +1041,11 @@ def authorize_continuation(filename, request_path):
                 'requestHash': request_hash, 'sourceAllocation': int(allocations.get('source', 0))}
             data.setdefault('sourceAnalysisMandates', []).append(source_record)
             data['activeSourceAnalysisMandateId'] = ident
+        if composition_mandate:
+            composition_record = {'id': ident, **composition_mandate, 'recordedAt': record['recordedAt'],
+                'requestHash': request_hash, 'compositionAllocation': int(allocations.get('composition', 0))}
+            data.setdefault('compositionReviewMandates', []).append(composition_record)
+            data['activeCompositionReviewMandateId'] = ident
         tmp = ledger.with_suffix('.tmp')
         tmp.write_text(json.dumps(data, indent=2), encoding='utf-8')
         tmp.replace(ledger)

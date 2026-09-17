@@ -58,7 +58,7 @@ const { COMPONENT_INVENTORY_CONTRACT_VERSION, extractComponentInventory } = awai
 const { generateStoryboard } = require('../src/storyboard/generator.js');
 const { completeRulebookDocumentCoverage, buildKnowledgeTeachingPlan, buildTutorialCoverageMatrix, buildRuleReviewItems, RULE_REVIEW_QUEUE_VERSION, RULEATOM_CONTRACT_VERSION, RULEBOOK_INTELLIGENCE_PIPELINE_VERSION, runMultiPassRulebookIntelligence } = require('../src/services/rulebookKnowledge.cjs');
 const { compileCanonicalProductionState } = require('../src/services/canonicalProductionCompiler.cjs');
-const { recoverAuthorizedBggCandidates, recoverOfficialPublisherCandidates, rectifyAuthorizedCandidate, buildAuthorizedRecoveryTargets, OFFICIAL_PUBLISHER_SOURCE_RECOVERY_CONTRACT } = require('../src/services/sourceAssetResolver.cjs');
+const { recoverAuthorizedBggCandidates, recoverOfficialPublisherCandidates, recoverExplicitAuthorizedSourceCandidates, rectifyAuthorizedCandidate, buildAuthorizedRecoveryTargets, OFFICIAL_PUBLISHER_SOURCE_RECOVERY_CONTRACT } = require('../src/services/sourceAssetResolver.cjs');
 const { buildPhoneScaleQaSheet } = require('../src/services/phoneScaleQa.cjs');
 const { materializeVisualPlanFrames, reviewPreparedSequences } = require('../src/services/visualPlanMaterializer.cjs');
 const { loadRecovery } = require('../src/services/visualEvidenceRecovery.cjs');
@@ -287,7 +287,10 @@ export function canonicalVisualProviderEnvironment({ root, budget, group, env = 
   const ledger = budget.ledger || jsonIf(budget.path, {});
   const activeSourceMandate = group === 'source' && ledger?.activeSourceAnalysisMandateId
     ? (ledger.sourceAnalysisMandates || []).find((row) => row?.id === ledger.activeSourceAnalysisMandateId) : null;
+  const activeCompositionMandate = group === 'composition' && ledger?.activeCompositionReviewMandateId
+    ? (ledger.compositionReviewMandates || []).find((row) => row?.id === ledger.activeCompositionReviewMandateId) : null;
   const mandateReferents = activeSourceMandate?.referents?.map((row) => row.id).filter(Boolean) || [];
+  const compositionSceneIds = activeCompositionMandate?.sceneIds?.filter(Boolean) || [];
   return {
     ...canonicalRuntimeConfigurationEnvironment({ root, env }),
     MOBIUS_VISUAL_BUDGET_LEDGER: budget.path,
@@ -301,6 +304,13 @@ export function canonicalVisualProviderEnvironment({ root, budget, group, env = 
     ...(activeSourceMandate ? {
       MOBIUS_VISUAL_SOURCE_ALLOWED_REFERENTS: mandateReferents.join(','),
       MOBIUS_VISUAL_SOURCE_PRIORITY_REFERENTS: mandateReferents.join(','),
+    } : {}),
+    // Composition QA has the same durable routing guarantee as source
+    // discovery. Do not allow one prepared scene's bounded authority to be
+    // consumed by another scene merely because they share the ledger.
+    ...(activeCompositionMandate ? {
+      MOBIUS_VISUAL_COMPOSITION_SCENE_IDS: compositionSceneIds.join(','),
+      MOBIUS_VISUAL_COMPOSITION_MAX_PROVIDER_CALLS: String(activeCompositionMandate.maxCalls),
     } : {}),
   };
 }
@@ -777,6 +787,32 @@ async function recoverAutomaticAuthorizedCandidates({ root, projectDir, sourceSh
     await saveJson(statePath, state);
     return state;
   }
+}
+
+/**
+ * A verified product source supplied through project configuration follows the
+ * same recovery manifest path as automatic publisher discovery. This is for
+ * rights-holder stores/CDNs that are not printed in the PDF, not a shortcut
+ * around source identity or pixel validation.
+ */
+async function recoverConfiguredAuthorizedCandidates({ root, projectId, projectDir, sourceSha256, identity, visualScript }) {
+  const configPath = path.join(root, 'config', 'projects', projectId, 'authorized-official-sources.json');
+  const config = jsonIf(configPath, null);
+  if (!config) return { status: 'NOT_CONFIGURED', originalManifest: null, configPath };
+  if (config.contract !== 'mobius-explicit-authorized-source-input-v1' || config.projectId !== projectId
+    || config.sourceSha256 !== sourceSha256 || !Array.isArray(config.sources)) {
+    throw new Error('CONFIGURED_AUTHORIZED_SOURCE_INPUT_INVALID');
+  }
+  const requiredComponentIds = [...new Set((visualScript.scenes || []).flatMap((scene) => scene.visualRequirement?.requiredObjects || []))];
+  const outputDir = path.join(projectDir, 'source', 'explicit-authorized-source-recovery');
+  const recovered = await recoverExplicitAuthorizedSourceCandidates({
+    title: identity.displayName,
+    sourceSha256,
+    requiredComponentIds,
+    sources: config.sources,
+    outputDir,
+  });
+  return { ...recovered, configPath };
 }
 
 /**
@@ -1389,8 +1425,13 @@ async function runZeroState(options = {}) {
     root, projectDir, sourceSha256: identity.sha256, identity: canonicalGameIdentity, visualScript, assets: [],
     documentMap: rulebookKnowledgeModel.documentMap,
   });
-  const earlyCandidateManifestPaths = earlyAutomaticRecovery.originalManifest && exists(earlyAutomaticRecovery.originalManifest)
-    ? [earlyAutomaticRecovery.originalManifest] : [];
+  const configuredAuthorizedRecovery = await recoverConfiguredAuthorizedCandidates({
+    root, projectId, projectDir, sourceSha256: identity.sha256, identity: canonicalGameIdentity, visualScript,
+  });
+  const earlyCandidateManifestPaths = [...new Set([
+    earlyAutomaticRecovery.originalManifest,
+    configuredAuthorizedRecovery.originalManifest,
+  ].filter((candidatePath) => candidatePath && exists(candidatePath)))];
   const earlyCandidateManifests = earlyCandidateManifestPaths.map((candidatePath) => jsonIf(candidatePath, {}));
   const priorVisualAnalysis = jsonIf(baseSemanticPath, {});
   const baseVisualReviewHash = hashValue(sourceVisualReviewInput({

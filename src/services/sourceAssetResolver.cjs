@@ -19,6 +19,7 @@ const OBJECT_VISUAL_EVIDENCE_CONTRACT = 'mobius-object-visual-evidence-v2';
 // exported so a recovery implementation change cannot be silently hidden by a
 // still-valid outer checkpoint.
 const OFFICIAL_PUBLISHER_SOURCE_RECOVERY_CONTRACT = 'mobius-official-publisher-source-recovery-v3';
+const EXPLICIT_AUTHORIZED_SOURCE_RECOVERY_CONTRACT = 'mobius-explicit-authorized-source-recovery-v1';
 const AUTO_ACCEPT_CONFIDENCE = 0.82;
 const AUTO_ACCEPT_MARGIN = 0.08;
 const fileShaCache = new Map();
@@ -1020,21 +1021,134 @@ async function fetchExternalText(fetchImpl, url, accept = 'text/html,application
   } catch { return null; } finally { clearTimeout(timer); }
 }
 
-async function downloadOfficialImage(fetchImpl, url, target) {
+async function downloadOfficialImage(fetchImpl, url, target, { expectedSha256 = null, expectedDimensions = null, diagnostic = false } = {}) {
+  const failed = (status) => diagnostic ? { status } : null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30000);
   try {
-    const response = await fetchImpl(url, { headers: { accept: 'image/avif,image/webp,image/*;q=0.8', 'user-agent': 'MOBIUS-source-resolver/1.0' }, signal: controller.signal });
-    if (!response?.ok) return null;
+    // A checksum-pinned source identifies exact original bytes. Advertising
+    // modern derived formats first lets CDN negotiation silently substitute an
+    // AVIF/WebP variant, which is a valid image but not the declared source.
+    const accept = expectedSha256 ? 'image/jpeg,image/png,image/*;q=0.8' : 'image/avif,image/webp,image/*;q=0.8';
+    const response = await fetchImpl(url, { headers: { accept, 'user-agent': 'MOBIUS-source-resolver/1.0' }, signal: controller.signal });
+    if (!response?.ok) return failed('http-unavailable');
     const length = Number(response.headers?.get?.('content-length') || 0);
-    if (length > 20 * 1024 * 1024) return null;
+    if (length > 20 * 1024 * 1024) return failed('content-length-exceeds-limit');
     const bytes = Buffer.from(await response.arrayBuffer());
-    if (!bytes.length || bytes.length > 20 * 1024 * 1024) return null;
+    if (!bytes.length || bytes.length > 20 * 1024 * 1024) return failed('body-size-invalid');
     const metadata = await sharp(bytes, { limitInputPixels: 64e6 }).metadata();
-    if (!metadata.width || !metadata.height || metadata.width < 240 || metadata.height < 180) return null;
+    if (!metadata.width || !metadata.height || metadata.width < 240 || metadata.height < 180) return failed('image-dimensions-insufficient');
+    const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
+    if (expectedSha256 && sha256 !== String(expectedSha256).toLowerCase()) return failed('image-sha256-mismatch');
+    if (expectedDimensions && (metadata.width !== Number(expectedDimensions.width) || metadata.height !== Number(expectedDimensions.height))) return failed('image-dimensions-mismatch');
     await fs.promises.writeFile(target, bytes);
-    return { width: metadata.width, height: metadata.height, sha256: crypto.createHash('sha256').update(bytes).digest('hex') };
-  } catch { return null; } finally { clearTimeout(timer); }
+    return { status: 'recovered', width: metadata.width, height: metadata.height, sha256 };
+  } catch { return failed('download-or-image-decode-failed'); } finally { clearTimeout(timer); }
+}
+
+function publicHttpsUrl(value) {
+  try { return new URL(value).protocol === 'https:' ? new URL(value).href : null; } catch { return null; }
+}
+
+function exactConfiguredSource(source, title, requiredComponentIds) {
+  if (!source || typeof source !== 'object') return null;
+  const id = String(source.id || '').trim();
+  const productUrl = publicHttpsUrl(source.productUrl);
+  const metadataUrl = source.metadataUrl ? publicHttpsUrl(source.metadataUrl) : null;
+  const imageUrl = publicHttpsUrl(source.imageUrl);
+  const expectedSha256 = String(source.expectedSha256 || '').toLowerCase();
+  const expectedDimensions = source.expectedDimensions;
+  const componentRefs = [...new Set((source.componentRefs || []).map(String))].sort();
+  const required = new Set(requiredComponentIds.map(String));
+  if (!/^[A-Za-z0-9_-]{3,100}$/.test(id) || !productUrl || (source.metadataUrl && !metadataUrl) || !imageUrl
+    || !/^[a-f0-9]{64}$/.test(expectedSha256)
+    || !Number.isInteger(Number(expectedDimensions?.width)) || !Number.isInteger(Number(expectedDimensions?.height))
+    || Number(expectedDimensions.width) < 240 || Number(expectedDimensions.height) < 180
+    || !componentRefs.length || componentRefs.some((componentId) => !required.has(componentId))
+    || externalTitleKey(source.title || '') !== externalTitleKey(title)) return null;
+  return { id, productUrl, metadataUrl, imageUrl, expectedSha256, expectedDimensions: {
+    width: Number(expectedDimensions.width), height: Number(expectedDimensions.height),
+  }, componentRefs };
+}
+
+/**
+ * Materialize a Director- or operator-declared official product source using
+ * the same project-owned manifest consumed by normal source visual analysis.
+ * The declaration is deliberately strict: a title-matched product page,
+ * optional product metadata endpoint, image SHA and native dimensions must
+ * all agree before pixels enter the catalogue.  A declared component is only
+ * a retrieval hypothesis; it never creates a binding or acceptance.
+ */
+async function recoverExplicitAuthorizedSourceCandidates({ title, sourceSha256, requiredComponentIds = [], sources = [], outputDir, fetchImpl = fetch } = {}) {
+  if (!title || !outputDir || !/^[a-f0-9]{64}$/i.test(String(sourceSha256 || '')) || !Array.isArray(sources)) {
+    throw new Error('Explicit authorized source recovery requires title, source SHA, sources and output directory.');
+  }
+  const normalized = sources.map((source) => exactConfiguredSource(source, title, requiredComponentIds)).filter(Boolean)
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const input = { contract: EXPLICIT_AUTHORIZED_SOURCE_RECOVERY_CONTRACT, title, sourceSha256,
+    requiredComponentIds: [...new Set(requiredComponentIds)].sort(), sources: normalized };
+  const inputHash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
+  const absoluteOutput = path.resolve(outputDir);
+  const manifestPath = path.join(absoluteOutput, 'explicit-authorized-source-candidate-manifest.json');
+  await fs.promises.mkdir(absoluteOutput, { recursive: true });
+  try {
+    const previous = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    if (previous.inputHash === inputHash && previous.status === 'RECOVERED' && (previous.candidates || []).length
+      && (previous.candidates || []).every((candidate) => candidate.filePath && fs.existsSync(candidate.filePath))) {
+      return { ...previous, originalManifest: manifestPath, reused: true };
+    }
+    if (previous?.inputHash) {
+      const archivePath = path.join(absoluteOutput, 'history', `explicit-authorized-source-candidate-manifest.${previous.inputHash}.json`);
+      await fs.promises.mkdir(path.dirname(archivePath), { recursive: true });
+      if (!fs.existsSync(archivePath)) await fs.promises.writeFile(archivePath, JSON.stringify(previous, null, 2));
+    }
+  } catch { /* Fresh or changed explicit source declaration. */ }
+  const candidates = [];
+  const attempts = [];
+  for (const source of normalized) {
+    const product = await fetchExternalText(fetchImpl, source.productUrl);
+    const metadata = source.metadataUrl ? await fetchExternalText(fetchImpl, source.metadataUrl, 'application/json,text/plain;q=0.9') : null;
+    // The image CDN need not share a hostname with the official storefront,
+    // but the exact product title must be observable on every declared
+    // product/metadata authority record before its expected bytes are used.
+    const titleKey = externalTitleKey(title);
+    if (!product) { attempts.push({ id: source.id, status: 'product-unavailable' }); continue; }
+    if (!externalTitleKey(product.text).includes(titleKey)) { attempts.push({ id: source.id, status: 'product-title-mismatch' }); continue; }
+    if (source.metadataUrl && !metadata) { attempts.push({ id: source.id, status: 'metadata-unavailable' }); continue; }
+    if (source.metadataUrl && !externalTitleKey(metadata.text).includes(titleKey)) { attempts.push({ id: source.id, status: 'metadata-title-mismatch' }); continue; }
+    const extension = path.extname(new URL(source.imageUrl).pathname).replace(/[^a-z0-9.]/gi, '').slice(0, 8) || '.img';
+    const id = `explicit-authorized-${crypto.createHash('sha256').update(source.imageUrl).digest('hex').slice(0, 20)}`;
+    const localPath = path.join(absoluteOutput, 'images', `${id}${extension}`);
+    await fs.promises.mkdir(path.dirname(localPath), { recursive: true });
+    const detail = fs.existsSync(localPath)
+      ? await sharp(localPath, { limitInputPixels: 64e6 }).metadata().then((meta) => ({
+        status: 'recovered', width: meta.width, height: meta.height,
+        sha256: crypto.createHash('sha256').update(fs.readFileSync(localPath)).digest('hex'),
+      })).catch(() => null)
+      : await downloadOfficialImage(fetchImpl, source.imageUrl, localPath, {
+        expectedSha256: source.expectedSha256, expectedDimensions: source.expectedDimensions, diagnostic: true,
+      });
+    if (!detail || detail.status !== 'recovered') { attempts.push({ id: source.id, status: detail?.status || 'image-unavailable-or-integrity-mismatch' }); continue; }
+    if (detail.sha256 !== source.expectedSha256 || detail.width !== source.expectedDimensions.width || detail.height !== source.expectedDimensions.height) {
+      attempts.push({ id: source.id, status: 'stored-image-integrity-mismatch' }); continue;
+    }
+    candidates.push({
+      id, status: 'RECOVERED', localPath, filePath: localPath, sourceUrl: source.imageUrl,
+      canonicalLink: source.productUrl, metadataUrl: source.metadataUrl, width: detail.width, height: detail.height,
+      trueDetailDimensions: { width: detail.width, height: detail.height }, sha256: detail.sha256,
+      sourceAuthority: 'OFFICIAL_PUBLISHER_HIGH_RES', retrievalComponentRefs: source.componentRefs,
+      sourceRefs: [{ sourceUrl: source.productUrl, source: 'explicit-exact-official-product-source' }],
+      provenance: { contract: EXPLICIT_AUTHORIZED_SOURCE_RECOVERY_CONTRACT, productTitle: title,
+        productUrl: source.productUrl, metadataUrl: source.metadataUrl, imageUrl: source.imageUrl,
+        expectedSha256: source.expectedSha256, expectedDimensions: source.expectedDimensions,
+        retrievalKind: 'explicit-official-product-original' },
+    });
+    attempts.push({ id: source.id, status: 'recovered', sha256: detail.sha256, dimensions: { width: detail.width, height: detail.height } });
+  }
+  const result = { ...input, inputHash, authority: 'explicit-exact-official-product-source',
+    status: candidates.length ? 'RECOVERED' : 'DECLARED_OFFICIAL_SOURCE_UNAVAILABLE_OR_UNVERIFIED', candidates, attempts };
+  await fs.promises.writeFile(manifestPath, JSON.stringify(result, null, 2));
+  return { ...result, originalManifest: manifestPath, reused: false };
 }
 
 /**
@@ -1213,6 +1327,7 @@ module.exports = {
   AUTO_ACCEPT_MARGIN,
   OBJECT_VISUAL_EVIDENCE_CONTRACT,
   OFFICIAL_PUBLISHER_SOURCE_RECOVERY_CONTRACT,
+  EXPLICIT_AUTHORIZED_SOURCE_RECOVERY_CONTRACT,
   objectEvidenceFor,
   identityContextTermsFor,
   SOURCE_ASSET_RESOLVER_CONTRACT,
@@ -1227,6 +1342,7 @@ module.exports = {
   rankSourceAssetCandidates,
   recoverAuthorizedBggCandidates,
   recoverOfficialPublisherCandidates,
+  recoverExplicitAuthorizedSourceCandidates,
   productEvidenceFromHtml,
   publisherOriginsFromDocumentMap,
   rectifyAuthorizedCandidate,

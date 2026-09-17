@@ -95,6 +95,25 @@ test('canonical source subprocess configuration takes its bounded referent manda
   assert.equal(source.MOBIUS_VISUAL_SOURCE_PRIORITY_REFERENTS, 'capture-token');
 });
 
+test('canonical composition subprocess configuration takes its bounded scene scope from the durable ledger', async (t) => {
+  const { root, projectDir } = await fixture();
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const budget = await ensureCanonicalVisualProviderBudget({ projectId: PROJECT_ID, projectDir, sourceSha256: SOURCE_SHA });
+  const ledger = JSON.parse(await fs.readFile(budget.path, 'utf8'));
+  ledger.compositionReviewMandates = [{
+    id: 'fixture-composition-slice', contract: 'mobius-composition-review-mandate-v1',
+    sceneIds: ['prepared-scene'], maxCalls: 1,
+  }];
+  ledger.activeCompositionReviewMandateId = 'fixture-composition-slice';
+  await fs.writeFile(budget.path, JSON.stringify(ledger));
+  const composition = canonicalVisualProviderEnvironment({
+    root, budget: { ...budget, ledger }, group: 'composition',
+    env: { MOBIUS_VISUAL_COMPOSITION_SCENE_IDS: 'stale-terminal-value' },
+  });
+  assert.equal(composition.MOBIUS_VISUAL_COMPOSITION_SCENE_IDS, 'prepared-scene');
+  assert.equal(composition.MOBIUS_VISUAL_COMPOSITION_MAX_PROVIDER_CALLS, '1');
+});
+
 test('a production-marked visual subprocess fails closed before a provider call without its ledger', () => {
   const result = spawnSync(process.execPath, ['scripts/prepare-source-visuals.mjs'], {
     cwd: process.cwd(),

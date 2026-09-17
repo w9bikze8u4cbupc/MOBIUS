@@ -79,7 +79,7 @@ test('initial visual review incorporates recovered publisher candidates in its s
     ...common,
     authorizedCandidateManifests: [{ contract: 'publisher-v2', candidates: [{ id: 'official-image' }] }],
   });
-  assert.equal(withPublisher.pipeline, 'focused-source-visuals-v26-derived-candidate-replay');
+  assert.equal(withPublisher.pipeline, 'focused-source-visuals-v29-replayed-crop-priority');
   assert.equal(withPublisher.authorizedCandidateManifests.length, 1);
   assert.notDeepEqual(withPublisher, localOnly);
 });

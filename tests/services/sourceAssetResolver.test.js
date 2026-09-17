@@ -9,6 +9,7 @@ const {
   buildAuthorizedRecoveryTargets,
   authorizedCandidatesForVisualAnalysis,
   recoverOfficialPublisherCandidates,
+  recoverExplicitAuthorizedSourceCandidates,
   productEvidenceFromHtml,
   publisherOriginsFromDocumentMap,
 } = require('../../src/services/sourceAssetResolver.cjs');
@@ -312,6 +313,44 @@ test('recovers publisher candidates only from an exact title on a rulebook-discl
       sourceSha256: 'a'.repeat(64), requiredComponentIds: ['comp-a', 'comp-b'], outputDir: directory, fetchImpl });
     expect(replay.reused).toBe(true);
     expect(calls.filter((url) => url.includes('cdn.publisher.test'))).toHaveLength(2);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('recovers a checksum-pinned explicit official product source without creating a component binding', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-explicit-authorized-source-'));
+  const imageBytes = fs.readFileSync(publisherFixture);
+  const metadata = await require('sharp')(imageBytes).metadata();
+  const sha256 = require('node:crypto').createHash('sha256').update(imageBytes).digest('hex');
+  const calls = [];
+  const response = ({ url, text, bytes, type = 'text/html' }) => ({ ok: true, url,
+    headers: { get: (name) => name === 'content-type' ? type : (name === 'content-length' && bytes ? String(bytes.length) : null) },
+    text: async () => text, arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    if (url === 'https://publisher.example/game') return response({ url, text: '<title>Cowboy Bebop: Space Serenade</title>' });
+    if (url === 'https://publisher.example/game.js') return response({ url, text: '{"title":"Cowboy Bebop: Space Serenade"}', type: 'application/json' });
+    if (url === 'https://cdn.example/board.png') return response({ url, bytes: imageBytes, type: 'image/png' });
+    return { ok: false, headers: { get: () => null } };
+  };
+  const sources = [{ id: 'official-board-original', title: 'Cowboy Bebop: Space Serenade',
+    productUrl: 'https://publisher.example/game', metadataUrl: 'https://publisher.example/game.js', imageUrl: 'https://cdn.example/board.png',
+    expectedSha256: sha256, expectedDimensions: { width: metadata.width, height: metadata.height }, componentRefs: ['comp-board'] }];
+  try {
+    const first = await recoverExplicitAuthorizedSourceCandidates({ title: 'Cowboy Bebop - Space Serenade', sourceSha256: 'a'.repeat(64),
+      requiredComponentIds: ['comp-board'], sources, outputDir: directory, fetchImpl });
+    expect(first.status).toBe('RECOVERED');
+    expect(first.candidates).toHaveLength(1);
+    expect(first.candidates[0]).toMatchObject({ sourceAuthority: 'OFFICIAL_PUBLISHER_HIGH_RES', retrievalComponentRefs: ['comp-board'], sha256,
+      provenance: expect.objectContaining({ retrievalKind: 'explicit-official-product-original' }) });
+    const analysis = authorizedCandidatesForVisualAnalysis([first.originalManifest]);
+    expect(analysis.assets[0].componentRefs).toEqual([]);
+    expect(analysis.assets[0].component_bindings).toEqual([expect.objectContaining({ componentId: 'comp-board', reviewState: 'hypothesis' })]);
+    const replay = await recoverExplicitAuthorizedSourceCandidates({ title: 'Cowboy Bebop - Space Serenade', sourceSha256: 'a'.repeat(64),
+      requiredComponentIds: ['comp-board'], sources, outputDir: directory, fetchImpl });
+    expect(replay.reused).toBe(true);
+    expect(calls.filter((url) => url === 'https://cdn.example/board.png')).toHaveLength(1);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
